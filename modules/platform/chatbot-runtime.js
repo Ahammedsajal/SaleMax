@@ -348,6 +348,8 @@ async function generateAiAnswer({ ctx, profile, uid, customerMessage, chatId = n
   const context = businessContext.retrieveContext({ facts, knowledgeEntries, message: customerMessage, state: session, profileRevision: profile.revision, config: profile.config });
   const nextState = { ...session, language: context.language, selectedCourseCode: (context.explicitCourses ? context.selectedCourseCode : null) || session.selectedCourseCode };
   const courseOverview = profile.engine === 'hybrid' && profile.config?.aiFallback !== false && businessContext.isCourseOverviewRequest(customerMessage, context);
+  if (ctx.category.key === 'training_center' && businessContext.isScheduleQuestion(customerMessage) && !businessContext.hasPublishedSchedule(facts, context.selectedCourseCode || session.selectedCourseCode)) return { handedOff: true, code: 'SCHEDULE_REQUIRES_COORDINATOR', state: nextState };
+  if (ctx.category.key === 'training_center' && businessContext.courseDetailNeedsCoordinator(customerMessage, facts, context.selectedCourseCode || session.selectedCourseCode)) return { handedOff: true, code: 'COURSE_DETAIL_REQUIRES_COORDINATOR', state: nextState };
   if (!settings) return { handedOff: true, code: 'AI_PROVIDER_NOT_CONFIGURED' };
   const historySafe = Array.isArray(session.recentConversation) ? session.recentConversation.slice(-4).map(item => ({ role: item.role, text: businessContext.redactCustomerText(item.text) })) : [];
   const key = businessContext.fingerprint({ tenant: ctx.tenant.id, profile: profile.id, revision: context.revision, model: settings.model, provider: settings.provider, question: businessContext.normalized(customerMessage), language: context.language, history: historySafe, selected: session.selectedCourseCode });
@@ -407,6 +409,18 @@ async function generateAiAnswer({ ctx, profile, uid, customerMessage, chatId = n
 
 async function aiTurn({ ctx, profile, uid, message, user, sessionId, origin, chatId, leadInfo }) {
   if (profile.engine === 'hybrid' && profile.config?.aiFallback === false && !profile.config?.flowId && profile.config?.guidedMode !== 'domain_default') return { handedOff: true, code: 'GUIDED_FLOW_REQUIRED' };
+  if (!textOf(message) && ctx.category.key === 'training_center') {
+    const prior = await loadDomainGuidedSession({ ctx, profile, chatId, channelKind: channelFor(origin), channelRef: sessionId });
+    const language = prior?.language || 'en';
+    const dispatched = await trainingCenterGuidedTurn({ ctx, profile, uid, message, sessionId, origin, chatId, leadInfo, intent: language === 'ar' ? 'موظف' : 'agent' });
+    return dispatched ? { flowDispatched: true, route: 'handoff' } : { handedOff: true, code: 'UNSUPPORTED_MESSAGE_TYPE' };
+  }
+  const safetyRoute = businessContext.controlRoute(textOf(message), profile.config || {}, {});
+  if (safetyRoute === 'handoff' && ctx.category.key === 'training_center') {
+    const language = businessContext.languageFor(textOf(message));
+    const dispatched = await trainingCenterGuidedTurn({ ctx, profile, uid, message, sessionId, origin, chatId, leadInfo, intent: language === 'ar' ? 'موظف' : 'agent' });
+    return dispatched ? { flowDispatched: true, route: 'handoff' } : { handedOff: true, code: 'HUMAN_REVIEW_REQUIRED' };
+  }
   if (profile.config.guidedMode === 'domain_default' || (profile.engine === 'ai' && ctx.category.key === 'training_center')) {
     const channelKind = channelFor(origin);
     const session = await loadDomainGuidedSession({ ctx, profile, chatId, channelKind, channelRef: sessionId });
@@ -414,7 +428,7 @@ async function aiTurn({ ctx, profile, uid, message, user, sessionId, origin, cha
     const route = businessContext.controlRoute(incoming, profile.config, session || {});
     const applicationAccepted = session?.step === 'course_detail' && /^(?:yes(?:[,.! ]+(?:please(?:\s+(?:send it|send me|share it))?|send it|send me|share it))?|sure|please do|send it|send me|share it|i'm interested|im interested|اي|نعم|نعم من فضلك|أرسلها|ارسلها|أرسل النموذج|ارسل النموذج)$/iu.test(incoming.trim());
     if ((route !== 'answer' && route !== 'greeting') || leadInfo?.nameOnly || applicationAccepted || (profile.engine === 'hybrid' && profile.config.aiFallback === false)) {
-      const dispatched = await trainingCenterGuidedTurn({ ctx, profile, uid, message, sessionId, origin, chatId, leadInfo, intent: route === 'human' ? (businessContext.languageFor(incoming, session || {}) === 'ar' ? 'موظف' : 'agent') : null });
+      const dispatched = await trainingCenterGuidedTurn({ ctx, profile, uid, message, sessionId, origin, chatId, leadInfo, intent: ['human', 'handoff'].includes(route) ? (businessContext.languageFor(incoming, session || {}) === 'ar' ? 'موظف' : 'agent') : null });
       return dispatched ? { flowDispatched: true, route } : { handedOff: true, code: 'GUIDED_FLOW_UNAVAILABLE' };
     }
   } else if (profile.engine === 'hybrid' && profile.config.flowId) {
@@ -466,7 +480,7 @@ async function previewConfiguredBot({ ctx, profile, uid, message, state = null }
     const db = await dbPool.getConnection();
     let facts;
     try { facts = await pack.loadFacts({ db, tenantId: ctx.tenant.id, platformOrigin: process.env.SALEMAX_PLATFORM_ORIGIN, config: profile.config }); } finally { db.release(); }
-    const result = pack.guidedReply({ message: route === 'human' ? (businessContext.languageFor(message, prior) === 'ar' ? 'موظف' : 'agent') : message, state: prior, facts, config: profile.config.guidedContent });
+    const result = pack.guidedReply({ message: ['human', 'handoff'].includes(route) ? (businessContext.languageFor(message, prior) === 'ar' ? 'موظف' : 'agent') : message, state: prior, facts, config: profile.config.guidedContent });
     businessContext.polishGuidedReply({ result, profile, message, state: prior, defaults: pack.guidedContentDefaults });
     return { canAnswer: true, confidence: 1, reply: result.reply, wouldHandoff: !!result.handoff, reason: result.handoff ? 'customer-requested-human' : null, route, state: result.state, metrics: { inputTokens: 0, outputTokens: 0 } };
   }

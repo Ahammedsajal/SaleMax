@@ -23,11 +23,41 @@ function controlRoute(message, config, state = {}) {
   // Controls must be whole messages. Natural questions mentioning a course,
   // registration or a staff member must remain conversational.
   if (/^(agent|human|staff|person|talk to (a )?(human|person)|موظف|بشر|موظفة|اريد موظف|ابي موظف)$/.test(text) || /\b(?:speak|talk|connect|transfer|chat)\b.*\b(?:person|human|agent|staff|advisor|team)\b|(?:التحدث|التواصل|تحويل|اكلم).*(?:موظف|فريق|شخص)/.test(text)) return 'human';
+  if (/\b(?:image|photo|picture|screenshot|document|file|voice note|audio|video|location pin)\b|\b(?:shared|sent|dropped) my location\b|\b(?:attached|sent|shared|uploaded)\b.{0,45}\b(?:media|attachment|file)\b|ارفق|مرفق|صورة|ملف|مقطع صوت|رسالة صوتية|فيديو|موقعي/u.test(text)) return 'handoff';
+  // These requests require a person in this training-center rollout. Resolve
+  // them before provider use so an AI answer cannot turn a support case into
+  // an admissions claim or promise.
+  if (/\b(?:job|jobs|career|careers|employment|vacancy|vacancies|hiring|recruitment|recruiter|cv|resume|work permit)\b|وظيفة|وظائف|توظيف|فرصة عمل|فرص عمل|سيرة ذاتية/u.test(text)) return 'handoff';
+  if (/\b(?:existing student|current student|already enrolled|already registered|my registration|my account|student account|payment|paid|receipt|invoice|refund|complaint|not received|haven't received|have not received|certificate|accreditation|accredited|attestation)\b|طالب حالي|طالبة حالية|انا طالب|انا طالبة|مسجل مسبقا|مسجلة مسبقا|حسابي|مشكلتي|شكوى|شكوي|استرداد|استرجاع|مشكلة دفع|مشكلة في الدفع|شهادة|اعتماد|لم يصلني|ما وصلني|لم استلم|ما استلمت/u.test(text)) return 'handoff';
   if (/^(hi|hello|hey|good morning|good evening|salam|مرحبا|اهلا|السلام عليكم|صباح الخير|مساء الخير)$/.test(text)) return 'greeting';
   if (/^(courses|course list|show courses|available courses|what courses do you have|الدورات|دورات|عرض الدورات|قائمة الدورات)$/.test(text)) return 'answer';
   if (/^(menu|back|القائمة|رجوع|0|english|en|arabic|ar|العربية|عربي|next|previous|التالي|السابق|form|enquiry form|registration form|نموذج|نموذج التسجيل)$/.test(text)) return 'guided';
   if (/^\d{1,2}$/.test(text) && state.step) return 'guided';
   return 'answer';
+}
+
+function isScheduleQuestion(message) {
+  const text = normalized(message);
+  return /\b(?:schedule|timetable|batch|batches|start date|start time|when does .{0,45} start|when is the next intake|class timing|next class)\b|مواعيد|جدول|دفعة|موعد البدء|متى تبدأ|متى يبدا|متى يبدأ/u.test(text);
+}
+
+function hasPublishedSchedule(facts, selectedCourseCode = null) {
+  const courses = (Array.isArray(facts) ? facts : []).filter(item => item?.code && !item.kind);
+  const relevant = selectedCourseCode ? courses.filter(item => item.code === selectedCourseCode) : courses;
+  return relevant.some(item => Array.isArray(item.batches) && item.batches.length > 0);
+}
+
+function courseDetailNeedsCoordinator(message, facts, selectedCourseCode = null) {
+  if (!selectedCourseCode) return false;
+  const text = normalized(message);
+  const course = (Array.isArray(facts) ? facts : []).find(item => item?.code === selectedCourseCode && !item.kind);
+  if (!course) return true;
+  const description = normalized([course.descriptionEn, course.descriptionAr].filter(Boolean).join(' '));
+  const durationQuestion = /\b(?:duration|how long|length of the course|weeks|months|hours)\b|مدة|كم تستغرق|كم مدة/u.test(text);
+  const deliveryQuestion = /\b(?:delivery mode|how is .{0,40} delivered|online|in person|face to face|classroom|remote|hybrid delivery)\b|طريقة الدراسة|كيف تقدم|حضوري|عن بعد|اونلاين/u.test(text);
+  const durationPublished = course.durationValue != null && course.durationUnit || /\b(?:\d+|one|two|three|four|five|six|seven|eight|nine|ten)\s*(?:hours?|days?|weeks?|months?)\b|(?:\d+|واحد|واحدة|اثنان|اثنين|ثلاثة|ثلاث|اربعة|خمسة|خمس|ستة|ست|سبعة|سبع|ثمانية|ثمان|تسعة|تسع|عشرة|عشر)\s*(?:ساعة|ساعات|يوم|ايام|اسبوع|اسابيع|شهر|اشهر)/u.test(description);
+  const deliveryPublished = Boolean(course.deliveryMode) || /\b(?:online|in person|face to face|classroom|remote|hybrid)\b|عن بعد|حضوري|اونلاين/u.test(description);
+  return (durationQuestion && !durationPublished) || (deliveryQuestion && !deliveryPublished);
 }
 
 function score(query, text) {
@@ -224,4 +254,4 @@ function polishGuidedReply({ result, profile, message, state, defaults }) {
   return result;
 }
 
-module.exports = { normalized, fingerprint, languageFor, controlRoute, retrieveContext, validateAnswer, clarification, unavailableReply, simpleFactualReply, isCourseOverviewRequest, previewState, redactCustomerText, polishGuidedReply };
+module.exports = { normalized, fingerprint, languageFor, controlRoute, isScheduleQuestion, hasPublishedSchedule, courseDetailNeedsCoordinator, retrieveContext, validateAnswer, clarification, unavailableReply, simpleFactualReply, isCourseOverviewRequest, previewState, redactCustomerText, polishGuidedReply };
