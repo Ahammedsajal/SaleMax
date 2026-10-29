@@ -310,7 +310,7 @@ async function canSendNow({ ctx, profile, uid, origin, sessionId, chatId, messag
   if(!require('./chatbot-runtime-access').sameBoundary(ctx,access.context))return false;
   const current = await profileFor(access.context, uid, origin, sessionId);
   return current?.id === profile.id && Number(current.revision) === Number(profile.revision)
-    && recipientAllowed(current.config, message?.senderMobile)
+    && recipientAllowed(current.config, message?.senderMobile, current.id)
     && (!checkPause||!await shouldPause(uid, chatId, channelFor(origin), sessionId));
 }
 
@@ -502,7 +502,7 @@ async function finishRecruitmentChat({ctx,profile,uid,message,sessionId,origin,c
   const module=require('./recruitment-chat-completion'),channelKind=channelFor(origin);
   const current=await profileFor(ctx,uid,origin,sessionId);
   const latest=await module.load(dbPool,{tenantId:ctx.tenant.id,channelKind,channelRef:sessionId,conversationId:chatId});
-  if(current?.id!==profile.id||Number(current.revision)!==Number(profile.revision)||!recipientAllowed(current.config,message.senderMobile)||!latest||!module.mayFinish(latest.control))return {paused:true};
+  if(current?.id!==profile.id||Number(current.revision)!==Number(profile.revision)||!recipientAllowed(current.config,message.senderMobile,current.id)||!latest||!module.mayFinish(latest.control))return {paused:true};
   let reply,reason='recruitment-awaiting-cv';
   if(action==='cv'){
     if(latest.application.cvFileName)return {paused:true};
@@ -539,7 +539,7 @@ async function runConfiguredBot({ uid, message, user, sessionId, origin, chatId 
   const profile = await profileFor(ctx, uid, origin, sessionId);
   if (!profile) return { handled: false };
   // A restricted chat is handled silently so it cannot fall through to legacy bots.
-  if (!recipientAllowed(profile.config, message?.senderMobile)) return { handled: true, paused: true, code: 'RECIPIENT_NOT_ENABLED' };
+  if (!recipientAllowed(profile.config, message?.senderMobile, profile.id)) return { handled: true, paused: true, code: 'RECIPIENT_NOT_ENABLED' };
   let leadInfo = null;
   if (ctx.tenant.categoryKey === 'training_center') {
     try {
@@ -571,7 +571,7 @@ async function runConfiguredBot({ uid, message, user, sessionId, origin, chatId 
     if (routed) sendToUid(uid, { chatId }, 'request_update_chat_list');
   }
   const channelKind = channelFor(origin);
-  const testReset = require('./chatbot-test-reset').isTestReset(profile.config, message?.senderMobile, textOf(message));
+  const testReset = require('./chatbot-test-reset').isTestReset(profile.config, message?.senderMobile, textOf(message), profile.id);
   const completionModule=require('./recruitment-chat-completion');
   const completion=!testReset&&ctx.category.key==='7network_sales'
     ? await completionModule.load(dbPool,{tenantId:ctx.tenant.id,channelKind,channelRef:sessionId,conversationId:chatId}):null;
