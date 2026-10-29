@@ -78,6 +78,40 @@
   }
   let nativeAddButtonRef = null;
   let nativeProfileListRequest = null;
+  function addNativeProfileStyles() {
+    if (document.getElementById('sx-native-chatbot-profile-styles')) return;
+    const style = document.createElement('style');
+    style.id = 'sx-native-chatbot-profile-styles';
+    style.textContent = `
+      #sx-native-chatbot-profiles .sx-native-profile-card{margin-top:20px;border:1px solid #e4e7ec;border-radius:12px;background:#fff;overflow:hidden}
+      #sx-native-chatbot-profiles .sx-native-profile-heading{padding:16px 18px;border-bottom:1px solid #eaecf0;font-size:16px;font-weight:600;color:#182230}
+      #sx-native-chatbot-profiles .sx-native-profile-row{display:flex;align-items:center;justify-content:space-between;gap:18px;padding:16px 18px}
+      #sx-native-chatbot-profiles .sx-native-profile-row+.sx-native-profile-row{border-top:1px solid #eaecf0}
+      #sx-native-chatbot-profiles .sx-native-profile-info{flex:1 1 220px;min-width:0}
+      #sx-native-chatbot-profiles .sx-native-profile-name{font-weight:600;color:#182230;overflow-wrap:anywhere}
+      #sx-native-chatbot-profiles .sx-native-profile-channel{margin-top:5px;color:#667085;font-size:13px;overflow-wrap:anywhere}
+      #sx-native-chatbot-profiles .sx-native-profile-actions{display:flex;align-items:center;justify-content:flex-end;gap:8px;flex:1 1 360px;flex-wrap:wrap}
+      #sx-native-chatbot-profiles .sx-native-profile-status{padding:5px 10px;border-radius:999px;background:#f2f4f7;color:#475467;font-size:12px;white-space:nowrap}
+      #sx-native-chatbot-profiles .sx-native-profile-status[data-status=live]{background:#ecfdf3;color:#027a48}
+      #sx-native-chatbot-profiles .sx-native-profile-action{min-height:36px;border:1px solid #d0d5dd;border-radius:8px;padding:7px 11px;background:#fff;color:#344054;font:600 13px Roboto,Arial,sans-serif;cursor:pointer}
+      #sx-native-chatbot-profiles .sx-native-profile-action:hover:not(:disabled){background:#f9fafb}
+      #sx-native-chatbot-profiles .sx-native-profile-action:focus-visible{outline:3px solid #84caff;outline-offset:2px}
+      #sx-native-chatbot-profiles .sx-native-profile-action:disabled{cursor:not-allowed;opacity:.58}
+      #sx-native-chatbot-profiles .sx-native-profile-action[data-action=delete]{border-color:#fda29b;color:#b42318}
+      #sx-native-chatbot-profiles .sx-native-profile-feedback{margin:10px 18px;color:#b42318;font-size:13px}
+      #sx-native-chatbot-profiles .sx-native-profile-feedback[hidden]{display:none}
+      html[data-sx-chatbot-theme=dark] #sx-native-chatbot-profiles .sx-native-profile-card{background:#191b22;border-color:#343741}
+      html[data-sx-chatbot-theme=dark] #sx-native-chatbot-profiles .sx-native-profile-heading,html[data-sx-chatbot-theme=dark] #sx-native-chatbot-profiles .sx-native-profile-name{color:#e4e7ec}
+      html[data-sx-chatbot-theme=dark] #sx-native-chatbot-profiles .sx-native-profile-channel{color:#a4acb9}
+      html[data-sx-chatbot-theme=dark] #sx-native-chatbot-profiles .sx-native-profile-row+.sx-native-profile-row{border-color:#343741}
+      html[data-sx-chatbot-theme=dark] #sx-native-chatbot-profiles .sx-native-profile-status{background:#343741;color:#d0d5dd}
+      html[data-sx-chatbot-theme=dark] #sx-native-chatbot-profiles .sx-native-profile-status[data-status=live]{background:#123126;color:#75d9a4}
+      html[data-sx-chatbot-theme=dark] #sx-native-chatbot-profiles .sx-native-profile-action{background:#20232c;border-color:#444955;color:#e4e7ec}
+      html[data-sx-chatbot-theme=dark] #sx-native-chatbot-profiles .sx-native-profile-action[data-action=delete]{border-color:#7a271a;color:#ff9b8e}
+      @media(max-width:760px){#sx-native-chatbot-profiles .sx-native-profile-row{align-items:flex-start;flex-direction:column;gap:12px}#sx-native-chatbot-profiles .sx-native-profile-actions{justify-content:flex-start;flex-basis:auto;width:100%}}
+    `;
+    document.head.append(style);
+  }
   function mountNativeProfileList() {
     if (!isAssignmentPage()) return;
     const heading = [...document.querySelectorAll('h1,h2,h3,h4,h5,h6')].find(node => node.textContent.trim() === 'WA Chatbot');
@@ -91,6 +125,7 @@
       section.setAttribute('aria-label', tr('Chatbot profiles','ملفات روبوتات المحادثة'));
       header.insertAdjacentElement('afterend', section);
     }
+    addNativeProfileStyles();
     if (section.dataset.loaded === '1' || nativeProfileListRequest) return;
     nativeProfileListRequest = Promise.all([api(''), api('/channels')]).then(([result, connected]) => {
       const bots = result?.items || [];
@@ -99,14 +134,59 @@
       nativeProfileListRequest = null;
       if (!bots.length) { section.remove(); return; }
       const numberFor = bot => (bot.channels || []).map(channel => channel.kind === 'whatsapp_meta' ? tr('Meta WhatsApp','واتساب ميتا') : channelNames.get(`${channel.kind}|${channel.reference}`) || tr('Number label unavailable','اسم الرقم غير متاح')).join(', ') || tr('Not assigned','غير معيّن');
-      section.innerHTML = `<div style="margin-top:20px;border:1px solid #e4e7ec;border-radius:12px;background:#fff;overflow:hidden"><div style="padding:16px 18px;border-bottom:1px solid #eaecf0;font-size:16px;font-weight:600;color:#182230">${esc(tr('Chatbots','روبوتات المحادثة'))}</div><div style="display:grid">${bots.map((bot,index) => `<article style="display:flex;align-items:center;justify-content:space-between;gap:18px;padding:16px 18px;${index?'border-top:1px solid #eaecf0;':''}"><div style="min-width:0"><div style="font-weight:600;color:#182230">${esc(bot.name)}</div><div style="margin-top:5px;color:#667085;font-size:13px">${esc(numberFor(bot))}</div></div><div style="display:flex;align-items:center;gap:10px;flex-shrink:0"><span style="padding:5px 10px;border-radius:999px;background:${bot.status==='live'?'#ecfdf3':'#f2f4f7'};color:${bot.status==='live'?'#027a48':'#475467'};font-size:12px">${esc(engineLabel(bot.engine))} · ${esc(statusLabel(bot.status))}</span><button type="button" data-sx-manage-profile="${esc(bot.id)}" style="border:1px solid #d0d5dd;border-radius:8px;padding:8px 12px;background:#fff;color:#344054;font-weight:600;cursor:pointer">${esc(tr('Assign','تعيين'))}</button></div></article>`).join('')}</div></div>`;
+      section.innerHTML = `<div class="sx-native-profile-card"><div class="sx-native-profile-heading">${esc(tr('Chatbots','روبوتات المحادثة'))}</div><div>${bots.map(bot => {
+        const toggleAction = bot.status === 'live' ? 'pause' : bot.status === 'paused' ? 'resume' : '';
+        const toggleLabel = toggleAction === 'pause' ? tr('Pause','إيقاف') : tr('Resume','استئناف');
+        const deleteUnavailable = bot.status === 'live';
+        return `<article class="sx-native-profile-row"><div class="sx-native-profile-info"><div class="sx-native-profile-name">${esc(bot.name)}</div><div class="sx-native-profile-channel">${esc(numberFor(bot))}</div></div><div class="sx-native-profile-actions"><span class="sx-native-profile-status" data-status="${esc(bot.status)}">${esc(engineLabel(bot.engine))} · ${esc(statusLabel(bot.status))}</span><button type="button" class="sx-native-profile-action" data-sx-manage-profile="${esc(bot.id)}" aria-label="${esc(tr(`Assign number for ${bot.name}`,`تعيين رقم لـ ${bot.name}`))}">${esc(tr('Assign','تعيين'))}</button>${toggleAction ? `<button type="button" class="sx-native-profile-action" data-sx-profile-action="${toggleAction}" data-profile-id="${esc(bot.id)}" aria-label="${esc(tr(`${toggleLabel} ${bot.name}`,`${toggleLabel} ${bot.name}`))}">${esc(toggleLabel)}</button>` : ''}<button type="button" class="sx-native-profile-action" data-action="delete" data-sx-profile-action="delete" data-profile-id="${esc(bot.id)}" aria-label="${esc(tr(`Delete ${bot.name}`,`حذف ${bot.name}`))}" ${deleteUnavailable ? `disabled title="${esc(tr('Pause this bot before deleting','أوقف الروبوت قبل حذفه'))}"` : ''}>${esc(tr('Delete','حذف'))}</button></div></article>`;
+      }).join('')}</div><div class="sx-native-profile-feedback" data-profile-feedback role="status" aria-live="polite" hidden></div></div>`;
       const emptyHeading = [...document.querySelectorAll('h6')].find(node => node.textContent.trim() === 'No Chatbots Yet');
       if (emptyHeading?.parentElement) emptyHeading.parentElement.style.display = 'none';
       section.dataset.loaded = '1';
-      section.querySelectorAll('[data-sx-manage-profile]').forEach(button => button.addEventListener('click', () => {
-        const bot = bots.find(item => item.id === button.dataset.sxManageProfile);
-        if (bot) { state.nativeSelectedBotId = bot.id; openNativeAssignmentDialog(); }
-      }));
+      section.onclick = async event => {
+        const target = event.target instanceof Element ? event.target : null;
+        const button = target?.closest('[data-sx-manage-profile],[data-sx-profile-action]');
+        if (!button || button.disabled) return;
+        const bot = bots.find(item => item.id === (button.dataset.profileId || button.dataset.sxManageProfile));
+        if (!bot) return;
+        const feedback = section.querySelector('[data-profile-feedback]');
+        if (button.hasAttribute('data-sx-manage-profile')) {
+          state.nativeSelectedBotId = bot.id; openNativeAssignmentDialog(); return;
+        }
+        const action = button.dataset.sxProfileAction;
+        if (action === 'delete') {
+          if (bot.status === 'live') return;
+          const confirmation = tr(
+            `Permanently delete the “${bot.name}” bot profile? Its profile-specific configuration, conversation state, and channel assignments will be removed. This cannot be undone.`,
+            `حذف ملف الروبوت “${bot.name}” نهائيًا؟ ستتم إزالة إعداداته وحالة محادثاته وتعيينات قنواته. لا يمكن التراجع عن ذلك.`
+          );
+          if (!window.confirm(confirmation)) return;
+        }
+        const nextStatus = action === 'pause' ? 'paused' : action === 'resume' ? 'live' : null;
+        if (action !== 'delete' && !nextStatus) return;
+        button.disabled = true;
+        feedback.hidden = true; feedback.textContent = '';
+        try {
+          if (action === 'delete') await api(`/${bot.id}`, 'DELETE', {});
+          else await api(`/${bot.id}/status`, 'PUT', { status: nextStatus, expectedRevision: Number(bot.revision) });
+          section.dataset.loaded = '';
+          section.innerHTML = '';
+          nativeProfileListRequest = null;
+          mountNativeProfileList();
+        } catch (error) {
+          if (['STALE_REVISION','BOT_NOT_FOUND'].includes(error.message)) {
+            section.dataset.loaded = '';
+            section.innerHTML = '';
+            nativeProfileListRequest = null;
+            mountNativeProfileList();
+            return;
+          }
+          feedback.textContent = errorLabel(error.message);
+          feedback.setAttribute('role', 'alert');
+          feedback.hidden = false;
+          button.disabled = false;
+        }
+      };
       nativeProfileListRequest = null;
     }).catch(error => {
       nativeProfileListRequest = null;

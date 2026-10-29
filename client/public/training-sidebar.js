@@ -7,7 +7,7 @@
   if (!window.__sxChatbotAdminLoader) {
     window.__sxChatbotAdminLoader = true;
     const chatbotScript = document.createElement('script');
-    chatbotScript.src = '/chatbot-admin.js?v=20261026-inbox-bot-pause-info1';
+    chatbotScript.src = '/chatbot-admin.js?v=20261029-chatbot-profile-actions1';
     chatbotScript.defer = true;
     document.head.append(chatbotScript);
   }
