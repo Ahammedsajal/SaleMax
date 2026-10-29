@@ -1,5 +1,6 @@
 services:
   app:
+    image: ${SALEMAX_PUBLIC_PRICING_IMAGE:?set built public pricing image}
     volumes:
       - ${SALEMAX_PUBLIC_PRICING_RELEASE:?set active public pricing release}/runtime/public-pricing-preserved/index.html:/app/client/public/index.html:ro
       - ${SALEMAX_PUBLIC_PRICING_RELEASE:?set active public pricing release}/runtime/public-pricing-preserved/training-sidebar.js:/app/client/public/training-sidebar.js:ro
