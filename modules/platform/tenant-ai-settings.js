@@ -1,19 +1,19 @@
 'use strict';
 const crypto = require('node:crypto');
 const secrets = require('./chatbot-secrets');
-const providers = require('./chatbot-provider');
+const SUPPORTED_PROVIDERS = Object.freeze(['openai', 'deepseek', 'gemini']);
 const fail = code => { throw Object.assign(new Error(code), { code }); };
 
 async function read(db, tenantId) {
   const [[row]] = await db.query(`SELECT provider,model,daily_token_limit AS dailyTokenLimit,revision,updated_at AS updatedAt
     FROM sx_chatbot_provider_configs WHERE tenant_id=?`, [tenantId]);
   return row ? { configured: true, ...row, revision: Number(row.revision), dailyTokenLimit: Number(row.dailyTokenLimit), maskedKey: '••••••••' }
-    : { configured: false, revision: 0, supportedProviders: Object.keys(providers.PROVIDERS) };
+    : { configured: false, revision: 0, supportedProviders: [...SUPPORTED_PROVIDERS] };
 }
 
 async function save(db, ctx, input) {
   const { provider, model, apiKey, expectedRevision } = input || {};
-  if (!providers.PROVIDERS[provider] || typeof model !== 'string' || !/^[A-Za-z0-9._:-]{1,80}$/.test(model) || !Number.isSafeInteger(expectedRevision) || expectedRevision < 0) fail('INVALID_PROVIDER_CONFIG');
+  if (!SUPPORTED_PROVIDERS.includes(provider) || typeof model !== 'string' || !/^[A-Za-z0-9._:-]{1,80}$/.test(model) || !Number.isSafeInteger(expectedRevision) || expectedRevision < 0) fail('INVALID_PROVIDER_CONFIG');
   if (apiKey !== undefined && (typeof apiKey !== 'string' || apiKey.length < 16 || apiKey.length > 2048)) fail('INVALID_PROVIDER_KEY');
   const dailyTokenLimit = input.dailyTokenLimit ?? 50000;
   if (!Number.isSafeInteger(dailyTokenLimit) || dailyTokenLimit < 1000 || dailyTokenLimit > 1000000) fail('INVALID_DAILY_TOKEN_LIMIT');

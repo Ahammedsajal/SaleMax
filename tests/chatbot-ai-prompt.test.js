@@ -44,3 +44,11 @@ test('course overview prompt stays concise and avoids unnecessary closing questi
   assert.match(prompt.system, /never in the customer-facing reply/i);
   assert.doesNotMatch(prompt.system, /complete course_index|comparisons should fit/i);
 });
+
+test('AI authors the initial greeting and explicit course-list reply without appending a scripted menu', () => {
+  const greeting = buildAiPrompt({ pack: { title: 'Training center', systemGuidance: 'Use published course facts only.' }, profile: { config: {} }, customerMessage: 'Hello', facts: [], history: [] });
+  assert.match(greeting.system, /greet briefly and invite one useful question; do not append a menu/i);
+  const list = buildAiPrompt({ pack: { title: 'Training center', systemGuidance: 'Use published course facts only.' }, profile: { config: {} }, customerMessage: 'show courses', facts: [{ kind: 'course_index', names: ['Synthetic course'], complete: true }], history: [] });
+  assert.match(list.system, /explicitly asked for the course list/i);
+  assert.match(list.system, /no numbering, prices or schedules/i);
+});

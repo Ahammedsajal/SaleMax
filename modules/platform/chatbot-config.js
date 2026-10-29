@@ -34,7 +34,7 @@ function isGuidedChoice(value) {
 
 function hybridTurnPlan({ hasSession, isChoice, aiFallback, domainDefault = false, shouldStartGuided = false }) {
   if (domainDefault) return { runGuided: aiFallback === false || isChoice || shouldStartGuided, allowAiFallback: aiFallback !== false };
-  return { runGuided: !hasSession || isChoice || aiFallback === false, allowAiFallback: aiFallback !== false };
+  return { runGuided: aiFallback === false || isChoice, allowAiFallback: aiFallback !== false };
 }
 
 function normalizeGuidedContent(value, pack) {

@@ -23,10 +23,10 @@ function controlRoute(message, config, state = {}) {
   // Controls must be whole messages. Natural questions mentioning a course,
   // registration or a staff member must remain conversational.
   if (/^(agent|human|staff|person|talk to (a )?(human|person)|موظف|بشر|موظفة|اريد موظف|ابي موظف)$/.test(text) || /\b(?:speak|talk|connect|transfer|chat)\b.*\b(?:person|human|agent|staff|advisor|team)\b|(?:التحدث|التواصل|تحويل|اكلم).*(?:موظف|فريق|شخص)/.test(text)) return 'human';
-  if (/^(hi|hello|hey|good morning|good evening|salam|مرحبا|اهلا|السلام عليكم|صباح الخير|مساء الخير|menu|back|القائمة|رجوع|0|english|en|arabic|ar|العربية|عربي)$/.test(text)) return 'guided';
-  if (/^(courses|course list|show courses|available courses|what courses do you have|الدورات|دورات|عرض الدورات|قائمة الدورات|next|previous|التالي|السابق|form|enquiry form|registration form|نموذج|نموذج التسجيل)$/.test(text)) return 'guided';
+  if (/^(hi|hello|hey|good morning|good evening|salam|مرحبا|اهلا|السلام عليكم|صباح الخير|مساء الخير)$/.test(text)) return 'greeting';
+  if (/^(courses|course list|show courses|available courses|what courses do you have|الدورات|دورات|عرض الدورات|قائمة الدورات)$/.test(text)) return 'answer';
+  if (/^(menu|back|القائمة|رجوع|0|english|en|arabic|ar|العربية|عربي|next|previous|التالي|السابق|form|enquiry form|registration form|نموذج|نموذج التسجيل)$/.test(text)) return 'guided';
   if (/^\d{1,2}$/.test(text) && state.step) return 'guided';
-  if (keywordReply(message, config?.guidedContent?.keywordReplies)) return 'keyword';
   return 'answer';
 }
 
@@ -35,7 +35,7 @@ function score(query, text) {
   return tokens(query).reduce((sum, word) => sum + (words.has(word) ? 3 : value.includes(word) ? 1 : 0), 0);
 }
 
-function retrieveContext({ facts, knowledgeEntries = [], message, state = {}, profileRevision = 0 }) {
+function retrieveContext({ facts, knowledgeEntries = [], message, state = {}, profileRevision = 0, config = {} }) {
   const language = languageFor(message, state);
   const courses = facts.filter(item => item.code && !item.kind);
   const nameWords = new Map(courses.map(item => [item.code, new Set(tokens([item.nameEn, item.nameAr].join(' ')).filter(word => word.length >= 4))]));
@@ -77,6 +77,8 @@ function retrieveContext({ facts, knowledgeEntries = [], message, state = {}, pr
     const item = knowledgeEntries[matchedFaq.index];
     add('faq:' + matchedFaq.index, { item, profileRevision }, { kind: 'approved_faq', question: local(item, 'question', language), answer: matchedFaq.answer });
   }
+  const configuredReply = keywordReply(message, config.guidedContent?.keywordReplies, language);
+  if (configuredReply) add('keyword:matched', { configuredReply, profileRevision }, { kind: 'approved_reply_rule', reply: String(configuredReply).slice(0, 700) });
   // Names are a discovery index, never evidence for unpublished prices/policies.
   if (!direct.length) add('catalogue:index', courses.map(item => ({code:item.code,nameEn:item.nameEn,nameAr:item.nameAr})), { kind: 'course_index', names: courses.slice(0, 60).map(item => local(item, 'name', language)), totalCourses: courses.length, complete: courses.length < 500 && courses.length <= 60 });
   return { evidence, sources, selectedCourseCode: selected.length === 1 ? selected[0].code : null, language, revision: fingerprint({ facts, knowledgeEntries, profileRevision }), explicitCourses: direct.length };

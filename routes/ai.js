@@ -1,16 +1,9 @@
 const router = require("express").Router();
-const { query } = require("../database/dbpromise.js");
-const randomstring = require("randomstring");
 const validateUser = require("../middlewares/user.js");
-const {
-  getRecentMessages,
-  suggestReplyWithOpenAI,
-  suggestReplyWithGemini,
-  suggestReplyWithDeepseek,
-  translateWithOpenAI,
-  translateWithGemini,
-  translateWithDeepseek,
-} = require("../functions/function.js");
+const dbPool = require('../database/config').promise();
+const { getRecentMessages } = require("../functions/function.js");
+const businessSessions = require('../modules/platform/business-feature-session');
+const tenantAiText = require('../modules/platform/tenant-ai-text');
 
 // Custom check function
 const check = (field, message) => {
@@ -30,6 +23,24 @@ const validationResult = (req) => {
     array: () => req.validationErrors || [],
   };
 };
+
+async function tenantIdFor(req) {
+  const actor = req.decode?.userData;
+  if (!actor) throw Object.assign(new Error('AUTH_REQUIRED'), { code: 'AUTH_REQUIRED', status: 401 });
+  const session = await businessSessions.resolve(dbPool, {
+    actor,
+    agent: actor.role === 'agent',
+    owner: req.owner,
+  });
+  if (!session.context?.tenant?.id) throw Object.assign(new Error('AI_TENANT_CONTEXT_REQUIRED'), { code: 'AI_TENANT_CONTEXT_REQUIRED', status: 403 });
+  return session.context.tenant.id;
+}
+
+function sendAiError(res, error) {
+  const code = error.code || 'AI_PROVIDER_REQUEST_FAILED';
+  const status = Number.isInteger(error.status) ? error.status : 502;
+  return res.status(status).json({ success: false, code, msg: code });
+}
 
 // Validation middleware
 const validate = (validations) => {
@@ -56,8 +67,6 @@ router.post(
   validate([
     check("text", "Text is required").notEmpty(),
     check("targetLanguage", "Target language is required").notEmpty(),
-    check("provider", "AI provider is required").notEmpty(),
-    check("apiKey", "API key is required").notEmpty(),
   ]),
   validateUser,
   async (req, res) => {
@@ -66,50 +75,14 @@ router.post(
       return res.status(400).json({ success: false, errors: errors.array() });
     }
 
-    const { text, targetLanguage, provider, apiKey } = req.body;
-
     try {
-      let translatedText = "";
-
-      switch (provider) {
-        case "openai":
-          translatedText = await translateWithOpenAI(
-            text,
-            targetLanguage,
-            apiKey
-          );
-          break;
-        case "gemini":
-          translatedText = await translateWithGemini(
-            text,
-            targetLanguage,
-            apiKey
-          );
-          break;
-        case "deepseek":
-          translatedText = await translateWithDeepseek(
-            text,
-            targetLanguage,
-            apiKey
-          );
-          break;
-        default:
-          return res.json({
-            success: false,
-            msg: "Unsupported AI provider",
-          });
-      }
-
+      const translated = await tenantAiText.generate({ pool: dbPool, tenantId: await tenantIdFor(req), mode: 'translation', text: req.body.text, targetLanguage: req.body.targetLanguage });
       return res.json({
         success: true,
-        translatedText,
+        translatedText: translated.text,
       });
     } catch (error) {
-      console.error("Translation error:", error);
-      return res.json({
-        success: false,
-        msg: error.message || "Translation failed",
-      });
+      return sendAiError(res, error);
     }
   }
 );
@@ -118,8 +91,6 @@ router.post(
   "/suggest_reply",
   validate([
     check("chatId", "Chat ID is required").notEmpty(),
-    check("provider", "AI provider is required").notEmpty(),
-    check("apiKey", "API key is required").notEmpty(),
   ]),
   validateUser,
   async (req, res) => {
@@ -128,54 +99,21 @@ router.post(
       return res.status(400).json({ success: false, errors: errors.array() });
     }
 
-    const { chatId, lastMessage, provider, apiKey } = req.body;
+    const { chatId, lastMessage } = req.body;
     const { uid } = req.decode;
 
     try {
       // Get recent conversation messages for context
       const recentMessages = await getRecentMessages(chatId, uid, 5);
-
-      let suggestion = "";
-
-      switch (provider) {
-        case "openai":
-          suggestion = await suggestReplyWithOpenAI(
-            recentMessages,
-            lastMessage,
-            apiKey
-          );
-          break;
-        case "gemini":
-          suggestion = await suggestReplyWithGemini(
-            recentMessages,
-            lastMessage,
-            apiKey
-          );
-          break;
-        case "deepseek":
-          suggestion = await suggestReplyWithDeepseek(
-            recentMessages,
-            lastMessage,
-            apiKey
-          );
-          break;
-        default:
-          return res.json({
-            success: false,
-            msg: "Unsupported AI provider",
-          });
-      }
-
+      const latestInbound = [...recentMessages].reverse().find(item => item.route === 'INCOMING' || item.role === 'user');
+      const latestText = typeof lastMessage === 'string' && lastMessage.trim() ? lastMessage : latestInbound?.text;
+      const suggested = await tenantAiText.generate({ pool: dbPool, tenantId: await tenantIdFor(req), mode: 'suggestion', text: latestText, history: recentMessages });
       return res.json({
         success: true,
-        suggestion,
+        suggestion: suggested.text,
       });
     } catch (error) {
-      console.error("Suggestion error:", error);
-      return res.json({
-        success: false,
-        msg: error.message || "Failed to generate suggestion",
-      });
+      return sendAiError(res, error);
     }
   }
 );

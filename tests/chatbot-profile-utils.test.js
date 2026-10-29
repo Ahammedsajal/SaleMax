@@ -124,11 +124,11 @@ test('legacy chatbot authentication resolves tenant category and rejects unpubli
   } finally { platformPlans.loadEntitlements = previousLoadEntitlements; }
 });
 
-test('hybrid routing keeps new chats and menu choices guided, then permits AI only when enabled', () => {
+test('hybrid routing sends free-text from new or returning chats to AI and keeps explicit menu choices guided', () => {
   assert.equal(isGuidedChoice(' 2 '), true);
   assert.equal(isGuidedChoice('القائمة'), true);
   assert.equal(isGuidedChoice('I need course details'), false);
-  assert.deepEqual(hybridTurnPlan({ hasSession: false, isChoice: false, aiFallback: true }), { runGuided: true, allowAiFallback: true });
+  assert.deepEqual(hybridTurnPlan({ hasSession: false, isChoice: false, aiFallback: true }), { runGuided: false, allowAiFallback: true });
   assert.deepEqual(hybridTurnPlan({ hasSession: true, isChoice: true, aiFallback: true }), { runGuided: true, allowAiFallback: true });
   assert.deepEqual(hybridTurnPlan({ hasSession: true, isChoice: false, aiFallback: true }), { runGuided: false, allowAiFallback: true });
   assert.deepEqual(hybridTurnPlan({ hasSession: true, isChoice: false, aiFallback: false }), { runGuided: true, allowAiFallback: false });
