@@ -3519,3 +3519,8 @@ a.footer-contact-item:hover .footer-contact-icon { transform: translateY(-2px); 
   .hero-actions .button { width: min(100%, 360px); min-height: 52px; font-size: 12px; }
   .hero-footnote { margin-top: 17px; gap: 9px; font-size: 8px; }
 }
+@media (max-width: 700px) {
+  /* Use the layout viewport width rather than 100vw so the full-bleed canvas
+     does not create a horizontal page scrollbar when browser gutters exist. */
+  .funnel-section::before { inset-inline: -5.6vw; }
+}
