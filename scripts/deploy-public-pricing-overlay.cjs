@@ -23,7 +23,7 @@ const files = [
 ];
 const html = fs.readFileSync(path.join(source, files[0]), "utf8");
 for (const asset of ["website.css", "plan-presentation.js", "website.js"])
-  if (!html.includes(`/website/${asset}?v=20261029-pricing-redesign7`))
+  if (!html.includes(`/website/${asset}?v=20261031-hero-motion1`))
     throw Error("PUBLIC_PRICING_CACHE_VERSION_MISMATCH");
 
 for (const file of files) {

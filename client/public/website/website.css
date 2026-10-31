@@ -2644,7 +2644,12 @@ nav {
   .capability-strip span { font-size: 11px; }
 }
 @media (prefers-reduced-motion: reduce) {
-  #capability-track { animation: none; transform: none; will-change: auto; }
+  /* These hero motions were explicitly requested to stay active. Keep the
+     ticker slow; headline updates are immediate without transitions. */
+  .capability-strip > #capability-track {
+    animation: capability-marquee 48s linear infinite !important;
+    will-change: transform;
+  }
 }
 
 @media (max-width: 620px) {

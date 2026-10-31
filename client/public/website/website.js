@@ -68,7 +68,7 @@
   }
   function startHeadlineRotation() {
     window.clearInterval(headlineTimer);
-    if (reducedHeadlineMotion.matches || document.hidden) return;
+    if (document.hidden) return;
     headlineTimer = window.setInterval(() => {
       headlineIndex = (headlineIndex + 1) % headlineStates.length;
       renderHeadline(headlineIndex, true);
