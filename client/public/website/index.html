@@ -28,12 +28,12 @@
     />
     <link rel="icon" href="/favicon.ico?v=20261022-clear1" />
     <link rel="apple-touch-icon" href="/branding/7network/apple-touch-icon.png?v=20261022-clear1" />
-    <link rel="stylesheet" href="/website/website.css?v=20261029-pricing-redesign7" />
+    <link rel="stylesheet" href="/website/website.css?v=20261031-meta-pixel-consent1" />
     <script
       defer
       src="/website/plan-presentation.js?v=20261029-pricing-redesign7"
     ></script>
-    <script defer src="/website/website.js?v=20261029-pricing-redesign7"></script>
+    <script defer src="/website/website.js?v=20261031-meta-pixel-consent1"></script>
   </head>
   <body>
     <a class="skip" href="#main"><span data-ar="انتقل إلى المحتوى">Skip to content</span></a>
@@ -1104,5 +1104,15 @@
       aria-label="Discuss your business with 7Network"
       ><span data-ar="لنتحدث">Let’s talk</span></a
     >
+    <aside class="analytics-consent" id="analytics-consent" aria-labelledby="analytics-consent-title" hidden>
+      <h2 id="analytics-consent-title" data-ar="اختياري: قياس استخدام الموقع">Optional website analytics</h2>
+      <p data-ar="إذا وافقت، سنحمّل Meta Pixel لإرسال مشاهدة الصفحة وحدث Lead بعد إرسال طلب عرض تجريبي بنجاح. قد تتلقى Meta عنوان الصفحة ومعلومات المتصفح ومعرّفات تقنية. لن نرسل إجابات النموذج أو بيانات الاتصال أو نستخدم المطابقة المتقدمة. يمكنك الرفض أو تغيير اختيارك لاحقاً.">If you agree, we will load Meta Pixel to send a page view and a Lead event after a demo request is successfully submitted. Meta may receive the page URL, browser information and technical identifiers. We will not send form answers or contact details, and we will not use Advanced Matching. You can reject or change your choice later.</p>
+      <p class="analytics-consent-policy"><a href="/website/meta-privacy.html" data-ar="اقرأ إشعار Meta Pixel">Read the Meta Pixel notice</a></p>
+      <div class="analytics-consent-actions">
+        <button class="analytics-consent-reject" id="analytics-reject" type="button" data-ar="رفض الاختياري">Reject optional</button>
+        <button class="analytics-consent-accept" id="analytics-accept" type="button" data-ar="موافقة">Allow</button>
+      </div>
+    </aside>
+    <button class="analytics-settings" id="analytics-settings" type="button" data-ar="إعدادات الخصوصية">Privacy settings</button>
   </body>
 </html>

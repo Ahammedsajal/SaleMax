@@ -1,6 +1,79 @@
 (() => {
   "use strict";
   const root = document.documentElement;
+  const META_PIXEL_ID = "2358924724926862";
+  const CONSENT_KEY = "7network_meta_analytics_consent_v1";
+  const consentPanel = document.getElementById("analytics-consent");
+  const consentAccept = document.getElementById("analytics-accept");
+  const consentReject = document.getElementById("analytics-reject");
+  const consentSettings = document.getElementById("analytics-settings");
+  let analyticsConsent = null;
+  let metaPixelLoaded = false;
+  try {
+    const savedConsent = localStorage.getItem(CONSENT_KEY);
+    if (savedConsent === "granted" || savedConsent === "denied")
+      analyticsConsent = savedConsent;
+  } catch (_) {
+    // Keep the banner available when browser storage is disabled.
+  }
+  function showConsentPanel(focusAccept = true) {
+    consentPanel.hidden = false;
+    if (focusAccept) consentAccept.focus({ preventScroll: true });
+  }
+  function persistConsent(value) {
+    analyticsConsent = value;
+    try {
+      localStorage.setItem(CONSENT_KEY, value);
+    } catch (_) {
+      // Consent applies to this page session even if persistence is unavailable.
+    }
+  }
+  function loadMetaPixel() {
+    if (analyticsConsent !== "granted" || metaPixelLoaded) return;
+    metaPixelLoaded = true;
+    !(function (f, b, e, v, n, t, s) {
+      if (f.fbq) return;
+      n = f.fbq = function () {
+        n.callMethod ? n.callMethod.apply(n, arguments) : n.queue.push(arguments);
+      };
+      if (!f._fbq) f._fbq = n;
+      n.push = n;
+      n.loaded = true;
+      n.version = "2.0";
+      n.queue = [];
+      t = b.createElement(e);
+      t.async = true;
+      t.src = v;
+      s = b.getElementsByTagName(e)[0];
+      s.parentNode.insertBefore(t, s);
+    })(window, document, "script", "https://connect.facebook.net/en_US/fbevents.js");
+    window.fbq("consent", "grant");
+    window.fbq("init", META_PIXEL_ID);
+    window.fbq("track", "PageView");
+  }
+  function sendMetaLead() {
+    if (analyticsConsent === "granted" && metaPixelLoaded && window.fbq)
+      window.fbq("track", "Lead");
+  }
+  if (analyticsConsent === "granted") loadMetaPixel();
+  if (analyticsConsent === null)
+    window.addEventListener("load", () => showConsentPanel(false), { once: true });
+  consentAccept.addEventListener("click", () => {
+    persistConsent("granted");
+    consentPanel.hidden = true;
+    consentSettings.focus({ preventScroll: true });
+    if (metaPixelLoaded && window.fbq) {
+      window.fbq("consent", "grant");
+      window.fbq("track", "PageView");
+    } else loadMetaPixel();
+  });
+  consentReject.addEventListener("click", () => {
+    persistConsent("denied");
+    if (metaPixelLoaded && window.fbq) window.fbq("consent", "revoke");
+    consentPanel.hidden = true;
+    consentSettings.focus({ preventScroll: true });
+  });
+  consentSettings.addEventListener("click", showConsentPanel);
   let language =
     new URLSearchParams(location.search).get("lang") === "ar" ? "ar" : "en";
   const headlineMiddle = document.getElementById("hero-headline-middle");
@@ -90,6 +163,10 @@
     translations.forEach(([node, en, ar]) => {
       node.textContent = language === "ar" ? ar : en;
     });
+    const metaPrivacyLink = document.querySelector(".analytics-consent-policy a");
+    if (metaPrivacyLink)
+      metaPrivacyLink.href =
+        "/website/meta-privacy.html" + (language === "ar" ? "?lang=ar" : "");
     renderHeadline(headlineIndex);
     document
       .querySelector("[data-close-enquiry]")
@@ -492,6 +569,7 @@
         throw new Error("unavailable");
       }
       form.reset();
+      sendMetaLead();
       submissionToken = crypto.randomUUID();
       submittedPayload = null;
       message(

@@ -3525,3 +3525,47 @@ a.footer-contact-item:hover .footer-contact-icon { transform: translateY(-2px); 
      does not create a horizontal page scrollbar when browser gutters exist. */
   .funnel-section::before { inset-inline: -5.6vw; }
 }
+
+.analytics-consent {
+  position: fixed;
+  z-index: 1200;
+  inset-inline: max(16px, calc((100vw - 760px) / 2));
+  bottom: max(16px, env(safe-area-inset-bottom));
+  max-width: 760px;
+  margin-inline: auto;
+  padding: 20px 22px;
+  border: 1px solid rgba(10, 37, 70, .16);
+  border-radius: 18px;
+  background: #fff;
+  color: #182b42;
+  box-shadow: 0 18px 60px rgba(7, 20, 39, .24);
+}
+.analytics-consent[hidden] { display: none; }
+.analytics-consent h2 { margin: 0 0 8px; font-size: 17px; }
+.analytics-consent p { margin: 0; color: #43566d; font-size: 13px; line-height: 1.65; }
+.analytics-consent .analytics-consent-policy { margin-top: 7px; }
+.analytics-consent-policy a { color: #175f99; text-decoration: underline; }
+.analytics-consent-actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 15px; }
+.analytics-consent-actions button,
+.analytics-settings {
+  min-height: 42px;
+  padding: 9px 15px;
+  border: 1px solid #c8d2df;
+  border-radius: 10px;
+  background: #fff;
+  color: #172b44;
+  font: inherit;
+  font-weight: 650;
+  cursor: pointer;
+}
+.analytics-consent-actions .analytics-consent-accept { border-color: #087f5b; background: #087f5b; color: #fff; }
+.analytics-settings { position: fixed; z-index: 1190; inset-inline-start: 12px; bottom: 12px; min-height: 34px; padding: 6px 10px; font-size: 11px; box-shadow: 0 3px 14px rgba(7,20,39,.12); }
+.analytics-consent button:focus-visible,
+.analytics-settings:focus-visible,
+.analytics-consent a:focus-visible { outline: 3px solid #17a775; outline-offset: 3px; }
+@media (max-width: 560px) {
+  .analytics-consent { inset-inline: 10px; bottom: max(10px, env(safe-area-inset-bottom)); padding: 16px; border-radius: 15px; }
+  .analytics-consent h2 { font-size: 15px; }
+  .analytics-consent p { font-size: 12px; }
+  .analytics-consent-actions button { flex: 1; padding-inline: 8px; font-size: 12px; }
+}
