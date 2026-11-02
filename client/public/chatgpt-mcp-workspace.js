@@ -49,12 +49,6 @@
   let overlay = null;
   function setTheme() {
     if (!overlay) return;
-    const target = document.querySelector('.MuiDrawer-paper') || document.querySelector('#root main') || document.body;
-    const computed = getComputedStyle(target);
-    let bg = computed.backgroundColor;
-    if (!bg || bg === 'rgba(0, 0, 0, 0)') bg = '#f5f7fb';
-    overlay.style.setProperty('--sx-chatgpt-bg', bg);
-    overlay.style.setProperty('--sx-chatgpt-fg', computed.color || '#18253a');
     const drawer = document.querySelector('.MuiDrawer-root.MuiDrawer-docked');
     const width = drawer ? Math.max(0, Math.round(drawer.getBoundingClientRect().width)) : 0;
     overlay.style.setProperty('--sx-chatgpt-sidebar-width', `${width}px`);
@@ -153,7 +147,7 @@
     if (location.pathname !== '/user' || new URLSearchParams(location.search).get('page') !== 'chatgpt') {
       overlay?.remove(); overlay = null; return;
     }
-    ensureOverlay(); loadStatus();
+    ensureOverlay(); setTheme(); loadStatus();
     window.requestAnimationFrame(() => overlay?.focus());
   }
   async function ensureNavPermission() {
