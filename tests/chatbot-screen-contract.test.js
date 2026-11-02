@@ -210,4 +210,5 @@ test('bot editor assigns handoffs to an active tenant manager and routes them th
   assert.match(chatbotRouter,/validateHandoffAssignee\(db,ctx,input\.config\.handoffAssigneeIdentityId\)/);
   assert.match(runtime,/config\?\.assignHandoffsToInbox === true/);
   assert.match(runtime,/sharedInboxRouting === true/);
+  assert.match(read('deploy/compose.procatalyst-handoff.override.yml'),/chatbot-runtime\.js:\/app\/modules\/platform\/chatbot-runtime\.js:ro/);
 });
