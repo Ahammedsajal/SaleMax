@@ -14,6 +14,7 @@ services:
       - ${SALEMAX_CHATGPT_MCP_RELEASE:?Set SALEMAX_CHATGPT_MCP_RELEASE}/runtime/client/public/chatgpt-oauth.html:/app/client/public/chatgpt-oauth.html:ro
       - ${SALEMAX_CHATGPT_MCP_RELEASE:?Set SALEMAX_CHATGPT_MCP_RELEASE}/runtime/client/public/chatgpt-oauth.js:/app/client/public/chatgpt-oauth.js:ro
       - ${SALEMAX_CHATGPT_MCP_RELEASE:?Set SALEMAX_CHATGPT_MCP_RELEASE}/runtime/database/migrations/20261102_chatgpt_mcp_oauth.sql:/app/database/migrations/20261102_chatgpt_mcp_oauth.sql:ro
+      - ${SALEMAX_CHATGPT_MCP_RELEASE:?Set SALEMAX_CHATGPT_MCP_RELEASE}/runtime/database/migrations/20261102_training_course_certificate_details.sql:/app/database/migrations/20261102_training_course_certificate_details.sql:ro
       - ${SALEMAX_CHATGPT_MCP_RELEASE:?Set SALEMAX_CHATGPT_MCP_RELEASE}/runtime/database/migrations/20261208_team_role_sidebar_navigation.sql:/app/database/migrations/20261208_team_role_sidebar_navigation.sql:ro
       - ${SALEMAX_CHATGPT_MCP_RELEASE:?Set SALEMAX_CHATGPT_MCP_RELEASE}/runtime/database/migrations/20270104_chatbot_no_reply_pause.sql:/app/database/migrations/20270104_chatbot_no_reply_pause.sql:ro
       - ${SALEMAX_CHATGPT_MCP_RELEASE:?Set SALEMAX_CHATGPT_MCP_RELEASE}/runtime/database/migrations/20270105_tenant_white_label_storefront.sql:/app/database/migrations/20270105_tenant_white_label_storefront.sql:ro
