@@ -1,7 +1,7 @@
 'use strict';
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { controlRoute, isScheduleQuestion, hasPublishedSchedule, courseDetailNeedsCoordinator, trainingCenterCoordinatorReason, publishedDurationRange, retrieveContext, validateAnswer, languageFor, fingerprint, previewState, simpleFactualReply, unavailableReply, isCourseOverviewRequest, shouldSkipApprovedFaq, isGenericAdInterest, shouldClarifyGenericCourseInterest } = require('../modules/platform/chatbot-business-context');
+const { controlRoute, isScheduleQuestion, hasPublishedSchedule, courseDetailNeedsCoordinator, trainingCenterCoordinatorReason, publishedDurationRange, retrieveContext, validateAnswer, languageFor, fingerprint, previewState, simpleFactualReply, unavailableReply, isCourseOverviewRequest, shouldSkipApprovedFaq, isGenericAdInterest, shouldClarifyGenericCourseInterest, isBareCourseSelection } = require('../modules/platform/chatbot-business-context');
 const facts = [
  { courseId:'english',code:'ENG',nameEn:'Business English',nameAr:'الإنجليزية للأعمال',descriptionEn:'English communication for work and presentations',descriptionAr:'التواصل باللغة الإنجليزية في العمل والعروض',durationValue:8,durationUnit:'weeks',offer:{priceAmount:'350.00',registrationFeeAmount:'25.00',currency:'QAR'},batches:[{startsOn:'2026-11-15',seatsAvailable:7}] },
  { courseId:'excel',code:'EXCEL',nameEn:'Excel Essentials',nameAr:'أساسيات إكسل',descriptionEn:'Practical spreadsheets and office skills',descriptionAr:'مهارات الجداول والحاسوب المكتبية',offer:{priceAmount:'250.00',currency:'QAR'},batches:[] },
@@ -9,6 +9,11 @@ const facts = [
  { kind:'published_enquiry_form',url:'https://example.test/p/test/forms/enquiry' }
 ];
 const config = { guidedContent: { keywordReplies:[{enabled:true,match:'exact',keywords:['opening time','اوقات الدوام'],reply:{en:'Published opening time.',ar:'وقت الدوام المنشور.'}}] } };
+test('short single-course selections use the facts path while questions stay in the Hybrid route',()=>{
+ assert.equal(isBareCourseSelection('Marine Deck hand',{explicitCourses:1,selectedCourseCode:'MARINE'}),true);
+ assert.equal(isBareCourseSelection('which certificate will I get?',{explicitCourses:1,selectedCourseCode:'MARINE'}),false);
+ assert.equal(isBareCourseSelection('Excel or Python',{explicitCourses:2,selectedCourseCode:null}),false);
+});
 test('certificate claims require the selected course certificate field and answer without AI',()=>{
  const course={courseId:'excel',code:'EXCEL',nameEn:'Excel Essentials',nameAr:'أساسيات إكسل',descriptionEn:'Spreadsheet training',certificateDetailsEn:'Certificate of completion issued by Pro Catalyst Training Center.',certificateDetailsAr:'',batches:[]};
  const question='Which certificate will I get?';

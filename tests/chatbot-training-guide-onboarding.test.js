@@ -27,6 +27,19 @@ test('Hybrid greeting polishing preserves a natural welcome prompt without a num
   assert.doesNotMatch(result.reply, /\[1\]|\[2\]|\[3\]|\[0\]/);
 });
 
+test('capitalized legacy number prompts are replaced in greetings and course lists', () => {
+  const config = { messages: {
+    menuPrompt: 'Reply with a number, or simply tell me what you have in mind.',
+    courseListPrompt: 'Reply with a number to choose a course.',
+  } };
+  const greeting = trainingCenterGuidedReply({ message: 'Hi', state: null, facts, config, defaults });
+  assert.doesNotMatch(greeting.reply, /reply with a number/i);
+  assert.match(greeting.reply, /Which course are you interested in/i);
+  const list = trainingCenterGuidedReply({ message: 'courses', state: { greeted: true }, facts, config, defaults });
+  assert.doesNotMatch(list.reply, /reply with a number/i);
+  assert.match(list.reply, /Tell me the course name/i);
+});
+
 test('guided FAQs answer after two meaningful question words match', () => {
   const config = { knowledgeEntries: [{ questionEn: 'What are your opening hours?', answerEn: 'We open from 9 AM.', questionAr: 'ما هي ساعات العمل؟', answerAr: 'نفتح الساعة التاسعة.' }] };
   const matched = trainingCenterGuidedReply({ message: 'opening hours please', state: { greeted: true }, facts, config, defaults });

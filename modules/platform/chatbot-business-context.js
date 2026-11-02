@@ -7,6 +7,12 @@ const { findApprovedFaq } = require('./chatbot-faq');
 const normalized = value => normalizeDigits(value).toLowerCase().normalize('NFKC').replace(/[أإآ]/g, 'ا').replace(/ى/g, 'ي').replace(/[^\p{L}\p{N}]+/gu, ' ').trim();
 const STOP_WORDS = new Set('the for your our are can you what how want would like tell about course courses training please help certificate certification professional class classes session sessions شهادة الشهادة شهادات احترافي اريد دورة الدورات التدريب ماهي ممكن لو سمحت'.split(' '));
 const tokens = value => normalized(value).split(' ').filter(word => word.length > 2 && !STOP_WORDS.has(word));
+function isBareCourseSelection(message, context) {
+  if (Number(context?.explicitCourses) !== 1 || !context?.selectedCourseCode) return false;
+  const words = normalized(message).split(/\s+/u).filter(Boolean);
+  if (words.length < 1 || words.length > 6) return false;
+  return !/\b(?:what|which|who|where|when|why|how|can|could|would|should|is|are|do|does|did|tell|explain|details?|information|info|price|fee|cost|duration|long|schedule|batch|certificate|certification|accreditation|online|offline|compare|recommend|need|want|please|about)\b|[?؟]/iu.test(String(message || ''));
+}
 const fingerprint = value => crypto.createHash('sha256').update(JSON.stringify(value)).digest('hex');
 const COURSE_TOPIC_AR = new Map([
   ['ms word', 'Word: إنشاء المستندات وتنسيقها وإعداد التقارير الاحترافية'],
@@ -354,7 +360,7 @@ function polishGuidedReply({ result, profile, message, state, defaults }) {
     const language = languageFor(message, state || {});
     const greeting = profile.config?.guidedContent?.messages?.greeting?.[language] || defaults.messages.greeting[language];
     const configured = profile.config?.guidedContent?.messages?.menuPrompt?.[language] || defaults.messages.menuPrompt?.[language];
-    const legacyNumericPrompt = /\b(?:reply|type|send)\b.{0,35}\b(?:number|option|[0-3])\b|\b[0-3]\s*(?:for|to)\b|أرسل\s*رقم|ارسل\s*رقم|الخيار\s*رقم/u.test(configured || '');
+    const legacyNumericPrompt = /\b(?:reply|type|send)\b.{0,35}\b(?:number|option|[0-3])\b|\b[0-3]\s*(?:for|to)\b|أرسل\s*رقم|ارسل\s*رقم|الخيار\s*رقم/iu.test(configured || '');
     const followUp = legacyNumericPrompt || !configured
       ? (language === 'ar' ? 'ما الدورة التي تهمك، وما الذي ترغب في معرفته عنها؟' : 'Which course are you interested in, and what would you like to know about it?')
       : configured;
@@ -363,4 +369,4 @@ function polishGuidedReply({ result, profile, message, state, defaults }) {
   return result;
 }
 
-module.exports = { normalized, fingerprint, languageFor, controlRoute, isScheduleQuestion, hasPublishedSchedule, courseDetailNeedsCoordinator, trainingCenterCoordinatorReason, publishedDurationRange, retrieveContext, validateAnswer, clarification, unavailableReply, simpleFactualReply, isCourseOverviewRequest, shouldSkipApprovedFaq, isGenericAdInterest, shouldClarifyGenericCourseInterest, previewState, redactCustomerText, polishGuidedReply };
+module.exports = { normalized, fingerprint, languageFor, controlRoute, isScheduleQuestion, hasPublishedSchedule, courseDetailNeedsCoordinator, trainingCenterCoordinatorReason, publishedDurationRange, retrieveContext, validateAnswer, clarification, unavailableReply, simpleFactualReply, isCourseOverviewRequest, shouldSkipApprovedFaq, isGenericAdInterest, shouldClarifyGenericCourseInterest, isBareCourseSelection, previewState, redactCustomerText, polishGuidedReply };

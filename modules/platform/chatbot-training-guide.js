@@ -44,7 +44,7 @@ function menuText(facts = [], settings = {}, language = 'en', { includeGreeting 
   const lines = [];
   if (includeGreeting) lines.push(copy(settings, 'greeting', language, language === 'ar' ? 'أهلاً بك!' : 'Welcome!'));
   const configured = copy(settings, 'menuPrompt', language);
-  const legacyNumericPrompt = /\b(?:reply|type|send)\b.{0,35}\b(?:number|option|[0-3])\b|\b[0-3]\s*(?:for|to)\b|أرسل\s*رقم|ارسل\s*رقم|الخيار\s*رقم/u.test(configured);
+  const legacyNumericPrompt = /\b(?:reply|type|send)\b.{0,35}\b(?:number|option|[0-3])\b|\b[0-3]\s*(?:for|to)\b|أرسل\s*رقم|ارسل\s*رقم|الخيار\s*رقم/iu.test(configured);
   const followUp = legacyNumericPrompt
     ? (language === 'ar' ? 'ما الدورة التي تهمك، وما الذي ترغب في معرفته عنها؟' : 'Which course are you interested in, and what would you like to know about it?')
     : configured;
@@ -113,7 +113,7 @@ function formatCourseList(courses, settings = {}, language = 'en') {
     lines.push(line);
   });
   const configuredPrompt = copy(settings, 'courseListPrompt', language);
-  const legacyNumericPrompt = /\b(?:reply|type|send)\b.{0,35}\b(?:number|option|[0-9])\b|\b0\s*(?:for|to)\b|أرسل\s*رقم|ارسل\s*رقم|رقم\s*الدورة/u.test(configuredPrompt);
+  const legacyNumericPrompt = /\b(?:reply|type|send)\b.{0,35}\b(?:number|option|[0-9])\b|\b0\s*(?:for|to)\b|أرسل\s*رقم|ارسل\s*رقم|رقم\s*الدورة/iu.test(configuredPrompt);
   lines.push(legacyNumericPrompt ? (language === 'ar' ? 'أرسل اسم الدورة التي تهمك، وأخبرني بما تريد معرفته.' : 'Tell me the course name and what you’d like to know about it.') : configuredPrompt);
   return lines.join('\n');
 }
@@ -229,7 +229,7 @@ function trainingCenterGuidedReplyTurn({ message, state, facts, config, defaults
     const course = courses.find(item => item.code === code);
     if (course) return { reply: formatCourseDetails(course, formUrl, settings, language, !!registrationFormUrl), state: nextState('course_detail', { courseCodes: state.courseCodes.slice(0, courseLimit(settings)), selectedCourseCode: course.code }) };
     const configuredInvalid = copy(settings, 'invalidSelection', language);
-    const invalidNumericPrompt = /\b(?:choose|select|pick)\b.{0,35}\b(?:number|option|[0-9])\b|أرسل\s*رقم|ارسل\s*رقم|رقم\s*الدورة/u.test(configuredInvalid);
+    const invalidNumericPrompt = /\b(?:choose|select|pick)\b.{0,35}\b(?:number|option|[0-9])\b|أرسل\s*رقم|ارسل\s*رقم|رقم\s*الدورة/iu.test(configuredInvalid);
     const invalidReply = invalidNumericPrompt ? (language === 'ar' ? 'أخبرني باسم الدورة التي تهمك.' : 'Tell me the course name you’re interested in.') : configuredInvalid;
     return { reply: `${invalidReply} ${formatCourseList(courses, settings, language)}`, state: nextState('course_list', { courseCodes: courses.slice(0, courseLimit(settings)).map(course => course.code) }) };
   }
@@ -238,7 +238,7 @@ function trainingCenterGuidedReplyTurn({ message, state, facts, config, defaults
   const greeting = /^(?:hi|hello|hey|good morning|good afternoon|good evening|مرحبا|أهلا|السلام عليكم|صباح الخير|مساء الخير)$/i.test(text);
   if (!step || greeting) return { reply: menuText(facts, settings, language, { includeGreeting: !state?.greeted }), state: nextState('menu') };
   const configuredFallback = copy(settings, 'fallbackMessage', language);
-  const fallbackHasNumericMenu = /\b(?:choose|select|pick|reply|type|send)\b.{0,35}\b(?:number|option|[0-3])\b|\b[0-3]\s*(?:for|to)\b|أرسل\s*رقم|ارسل\s*رقم|أحد الخيارات|احد الخيارات/u.test(configuredFallback);
+  const fallbackHasNumericMenu = /\b(?:choose|select|pick|reply|type|send)\b.{0,35}\b(?:number|option|[0-3])\b|\b[0-3]\s*(?:for|to)\b|أرسل\s*رقم|ارسل\s*رقم|أحد الخيارات|احد الخيارات/iu.test(configuredFallback);
   const fallback = fallbackHasNumericMenu
     ? (language === 'ar' ? 'لم أفهم سؤالك تماماً. أخبرني باسم الدورة أو بما تريد معرفته عنها.' : 'I’m not sure I understood. Tell me the course name or what you’d like to know about it.')
     : configuredFallback;

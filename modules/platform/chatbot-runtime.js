@@ -243,9 +243,13 @@ async function trainingCenterGuidedTurn({ ctx, profile, uid, message, sessionId,
       const referralContext = businessContext.retrieveContext({ facts, message: intent || textOf(message), state: priorState || {}, referral });
       const referralCourse = referralContext.courseContextSource === 'meta_referral'
         ? facts.find(item => item.code === referralContext.selectedCourseCode) : null;
-      const guideMessage = !intent && referralCourse
-        ? `${textOf(message)} ${referralContext.language === 'ar' ? (referralCourse.nameAr || referralCourse.nameEn) : (referralCourse.nameEn || referralCourse.nameAr)}`
-        : intent || textOf(message);
+      const selectedCourse = businessContext.isBareCourseSelection(textOf(message), referralContext)
+        ? facts.find(item => item.code === referralContext.selectedCourseCode) : null;
+      const guideMessage = !intent && selectedCourse
+        ? (selectedCourse.nameEn || selectedCourse.nameAr || textOf(message))
+        : !intent && referralCourse
+          ? `${textOf(message)} ${referralContext.language === 'ar' ? (referralCourse.nameAr || referralCourse.nameEn) : (referralCourse.nameEn || referralCourse.nameAr)}`
+          : intent || textOf(message);
       reply = pack.guidedReply({ message: guideMessage, state: priorState, facts, config: { ...(profile.config?.guidedContent || {}), knowledgeEntries } });
     }
     // A lead-capture name prompt must never erase a substantive safety route
@@ -412,7 +416,14 @@ async function generateAiAnswer({ ctx, profile, uid, customerMessage, chatId = n
   const prompt = `${system}\n\n${input}`;
   const estimate = tokenEstimate(prompt);
   const reservation = await reserveTokens(ctx, settings, estimate);
-  if (!reservation) return factualOverviewFallback(context) || { handedOff: true, code: 'DAILY_TOKEN_LIMIT' };
+  if (!reservation) return factualOverviewFallback(context) || {
+    canAnswer: true, confidence: 0,
+    reply: context.language === 'ar'
+      ? 'لا أستطيع تأكيد هذه المعلومة الآن من المعلومات المتاحة. سأطلب من فريقنا متابعتك.'
+      : 'I can’t confirm this from the available business information right now. I’ll ask our team to follow up.',
+    state: nextState, route: 'handoff', reason: 'DAILY_TOKEN_LIMIT', handoffAfterReply: true,
+    metrics: { inputTokens: 0, outputTokens: 0, cacheHit: false, sources: context.sources },
+  };
   const providerStarted = Date.now();
   let response;
   let succeeded = false;
@@ -468,8 +479,20 @@ async function aiTurn({ ctx, profile, uid, message, user, sessionId, origin, cha
     const session = await loadDomainGuidedSession({ ctx, profile, chatId, channelKind, channelRef: sessionId });
     const incoming = textOf(message);
     const route = businessContext.controlRoute(incoming, profile.config, session || {}, leadInfo?.facts || []);
+    let bareCourseSelection = false;
+    if (route === 'answer' && !leadInfo?.nameOnly && ctx.category.key === 'training_center') {
+      const pack = getDomainPack(ctx.category.key, ctx.category.version);
+      let selectionFacts = leadInfo?.facts;
+      if (!selectionFacts && pack.requiresDatabase) {
+        const db = await dbPool.getConnection();
+        try { selectionFacts = await pack.loadFacts({ db, tenantId: ctx.tenant.id, platformOrigin: process.env.SALEMAX_PLATFORM_ORIGIN, config: profile.config }); }
+        finally { db.release(); }
+      }
+      const selectionContext = businessContext.retrieveContext({ facts: selectionFacts || [], message: incoming, state: session || {}, referral: message?.msgContext?.referral || null });
+      bareCourseSelection = businessContext.isBareCourseSelection(incoming, selectionContext);
+    }
     const applicationAccepted = session?.step === 'course_detail' && /^(?:yes(?:[,.! ]+(?:please(?:\s+(?:send it|send me|share it))?|send it|send me|share it))?|sure|please do|send it|send me|share it|i'm interested|im interested|اي|نعم|نعم من فضلك|أرسلها|ارسلها|أرسل النموذج|ارسل النموذج)$/iu.test(incoming.trim());
-    if (route !== 'answer' || leadInfo?.nameOnly || applicationAccepted || (profile.engine === 'hybrid' && profile.config.aiFallback === false)) {
+    if (route !== 'answer' || leadInfo?.nameOnly || applicationAccepted || bareCourseSelection || (profile.engine === 'hybrid' && profile.config.aiFallback === false)) {
       const dispatched = await trainingCenterGuidedTurn({ ctx, profile, uid, message, sessionId, origin, chatId, leadInfo, intent: route === 'human' ? (businessContext.languageFor(incoming, session || {}) === 'ar' ? 'موظف' : 'agent') : null });
       return dispatched ? { flowDispatched: true, route } : { handedOff: true, code: 'GUIDED_FLOW_UNAVAILABLE' };
     }
@@ -509,6 +532,7 @@ async function aiTurn({ ctx, profile, uid, message, user, sessionId, origin, cha
   if (!onboarding) await require('./chatbot-lead-capture').markAsked(dbPool, leadInfo, uid);
   const media = require('./chatbot-course-media').coursePdfs(leadInfo?.facts || [], answer.state?.selectedCourseCode, textOf(message), answer.state?.sentCoursePdfIds || []);
   if (media.length) await sendTurnCourseMedia({ ctx, profile, uid, chatId, sessionId, message, origin, media, state: answer.state }).catch(error => console.warn('[chatbot] course attachment unavailable', error.code || 'COURSE_MEDIA_ERROR'));
+  if (answer.handoffAfterReply) await handoffConversation(ctx, chatId, channelFor(origin), sessionId, answer.reason || 'ai-budget-exhausted', profile, uid);
   return { sent: true, route: answer.route, reason: answer.reason, metrics: answer.metrics };
 }
 
