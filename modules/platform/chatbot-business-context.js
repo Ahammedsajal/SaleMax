@@ -228,7 +228,7 @@ function simpleFactualReply(message, context, config = {}) {
     const template = config.guidedContent?.messages?.[key]?.[ar ? 'ar' : 'en'] || fallback;
     return { reply: template.replaceAll('{course}', course.name).replaceAll('{duration}', course.duration || ''), sourceIds: [course.sourceId] };
   }
-  if (/^(?:what is |what s |how much is |how much does |tell me |please |كم |ما |اريد معرفة )?(?:the )?(?:fee|fees|price|cost|رسوم|سعر|تكلفة)/.test(text) || /^(?:how much(?: is| does)?\b|كم السعر|كم الرسوم)/.test(text)) {
+  if (asksFee) {
     if (!course.offer?.priceAmount) return null;
     const fee = `${course.offer.priceAmount} ${course.offer.currency}`;
     const label = config.guidedContent?.messages?.registrationFeeLabel?.[ar ? 'ar' : 'en'] || (ar ? 'رسوم التسجيل' : 'Registration fee');
