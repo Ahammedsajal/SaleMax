@@ -10,3 +10,4 @@
 *.mp3 binary
 *.mp4 binary
 *.docx binary
+database/migrations/20261208_team_role_sidebar_navigation.sql -text
