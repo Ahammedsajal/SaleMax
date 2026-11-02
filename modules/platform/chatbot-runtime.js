@@ -382,6 +382,8 @@ async function generateAiAnswer({ ctx, profile, uid, customerMessage, chatId = n
       kind: item.kind, code: item.code, name: item.name,
       description: String(item.description || '').slice(0, 520),
       outcomes: String(item.outcomes || '').slice(0, 180),
+      difficultyLevel: item.difficultyLevel || null,
+      prerequisites: String(item.prerequisites || '').slice(0, 160),
       duration: item.duration || null, delivery: item.delivery || null, offer: item.offer || null,
       sourceId: item.sourceId,
     }))

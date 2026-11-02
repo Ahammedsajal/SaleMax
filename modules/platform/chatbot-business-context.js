@@ -108,6 +108,8 @@ function retrieveContext({ facts, knowledgeEntries = [], message, state = {}, pr
     kind: 'course', code: course.code, name: local(course, 'name', language),
     description: String(local(course, 'description', language)).slice(0, 900),
     outcomes: String(local(course, 'outcomes', language)).slice(0, 250),
+    difficultyLevel: course.difficultyLevel || null,
+    prerequisites: String(local(course, 'prerequisites', language)).slice(0, 220),
     duration: publishedDurationRange(course.descriptionEn, course.descriptionAr, language) || (course.durationValue ? `${course.durationValue} ${durationUnit(course.durationUnit, course.durationValue, language)}` : null),
     delivery: course.deliveryMode, offer: course.offer, batches: course.batches?.slice(0, 2),
   }));
@@ -238,6 +240,13 @@ function simpleFactualReply(message, context, config = {}) {
   }
   if (isCourseOverviewRequest(message, context)) {
     const description = String(course.description || '').replace(/\s+/g, ' ').trim();
+    const overviewMatch = String(course.description || '').split(/[\r\n]+/).map(line => line.trim()).filter(Boolean)
+      .map(line => line.match(/^✅?\s*\*{0,2}([^:*]{2,45})\*{0,2}\s*:\s*(.+)$/u)).filter(Boolean);
+    const overviewDetails = overviewMatch.slice(0, 6).map(([, label, detail]) => `${label.trim()}: ${detail.replace(/\*+/g, '').trim()}`);
+    const levelMatch = String(course.description || '').match(/\b(beginner\s+to\s+intermediate|beginner|intermediate|advanced)\b/i);
+    const levelEn = levelMatch?.[1] || ({ all_levels: 'all levels', beginner: 'beginner', intermediate: 'intermediate', advanced: 'advanced' }[course.difficultyLevel] || '');
+    const levelAr = levelMatch ? ({ 'beginner to intermediate': 'المبتدئين إلى المستوى المتوسط', beginner: 'المبتدئين', intermediate: 'المستوى المتوسط', advanced: 'المستوى المتقدم' }[levelMatch[1].toLowerCase()] || '')
+      : ({ all_levels: 'جميع المستويات', beginner: 'المبتدئين', intermediate: 'المستوى المتوسط', advanced: 'المستوى المتقدم' }[course.difficultyLevel] || '');
     const boundary = description.search(/[.!؟](?=\s|$)/u);
     const summary = boundary >= 45 && boundary <= 320
       ? description.slice(0, boundary + 1)
@@ -245,6 +254,20 @@ function simpleFactualReply(message, context, config = {}) {
         ? description.slice(0, 317).replace(/\s+\S*$/, '') + '…'
         : description;
     if (!summary) return null;
+    if (overviewDetails.length && /topic|cover|learn|skill|محتو|موضوع|مهار|تغط|تتعلم/i.test(message)) {
+      const topics = overviewDetails.join('; ');
+      const level = /beginner|level|مبتد|مستوى|خبرة/i.test(message) && levelEn
+        ? (ar ? ` يذكر وصف الدورة أنها مناسبة لمتعلمين من ${levelAr || levelEn}.` : ` The description says the level is ${levelEn}.`)
+        : '';
+      const duration = course.duration ? (ar ? ` المدة ${course.duration}.` : ` Duration: ${course.duration}.`) : '';
+      const fee = course.offer?.priceAmount != null && course.offer?.currency
+        ? (ar ? ` الرسوم ${course.offer.priceAmount} ${course.offer.currency}.` : ` Fee: ${course.offer.priceAmount} ${course.offer.currency}.`)
+        : '';
+      const reply = ar
+        ? `تشمل موضوعات الدورة: ${topics}.${level}${duration}${fee}`
+        : `Course topics include: ${topics}.${level}${duration}${fee}`;
+      return { reply, sourceIds: [course.sourceId] };
+    }
     const fee = course.offer?.priceAmount != null && course.offer?.currency
       ? (ar ? `الرسوم الحالية ${course.offer.priceAmount} ${course.offer.currency}.` : `The current fee is ${course.offer.priceAmount} ${course.offer.currency}.`)
       : '';

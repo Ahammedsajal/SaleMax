@@ -242,7 +242,7 @@ function normalizeOffer(raw) {
 async function trainingCenterFacts({ db, tenantId, platformOrigin, config = {} }) {
   const today = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Qatar', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date());
   const [courses] = await db.query(`SELECT c.id,c.code,c.name_en AS nameEn,c.name_ar AS nameAr,c.description_en AS descriptionEn,c.description_ar AS descriptionAr,
-      c.outcomes_en AS outcomesEn,c.outcomes_ar AS outcomesAr,c.revision AS revision,c.updated_at AS updatedAt,c.duration_value AS durationValue,c.duration_unit AS durationUnit,c.delivery_mode AS deliveryMode,
+      c.outcomes_en AS outcomesEn,c.outcomes_ar AS outcomesAr,c.difficulty_level AS difficultyLevel,c.prerequisites_en AS prerequisitesEn,c.prerequisites_ar AS prerequisitesAr,c.revision AS revision,c.updated_at AS updatedAt,c.duration_value AS durationValue,c.duration_unit AS durationUnit,c.delivery_mode AS deliveryMode,
       (SELECT JSON_OBJECT('currency',o.currency,'priceMinor',o.price_minor,'registrationFeeMinor',o.registration_fee_minor)
         FROM sx_training_offers o WHERE o.tenant_id=c.tenant_id AND o.course_id=c.id AND o.status='active' AND (o.valid_from IS NULL OR o.valid_from<=?) AND (o.valid_until IS NULL OR o.valid_until>=?) ORDER BY o.version DESC LIMIT 1) AS offer
     FROM sx_training_courses c WHERE c.tenant_id=? AND c.status='active' ORDER BY c.updated_at DESC LIMIT 500`, [today,today,tenantId]);

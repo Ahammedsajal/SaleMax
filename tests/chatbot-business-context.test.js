@@ -147,10 +147,15 @@ test('natural course-overview follow-ups use the previously selected course and 
 
 test('Arabic practical-topic questions are treated as course overviews before broad course FAQs',()=>{
  const message='ما الموضوعات العملية التي تغطيها دورة MS Office، وهل تناسب المبتدئين؟';
- const source=[{courseId:'office',code:'OFFICE',nameEn:'MS Office Training',nameAr:'تدريب MS Office',descriptionEn:'Practical Word, Excel and PowerPoint.',descriptionAr:'تدريب عملي على Word وExcel وPowerPoint.',durationValue:10,durationUnit:'weeks',offer:{priceAmount:'850.00',currency:'QAR'}}];
+ const source=[{courseId:'office',code:'OFFICE',nameEn:'MS Office Training',nameAr:'تدريب MS Office',descriptionEn:'💻 *Upgrade your office skills*\n✅ *MS Word:* Documents, formatting & professional reports\n✅ *MS Excel:* Formulas, Pivot Tables & data analysis\n🎯 *Beginner to Intermediate*\n⏱️ 8 - 10 Weeks Practical Training',descriptionAr:'',difficultyLevel:'all_levels',durationValue:10,durationUnit:'weeks',offer:{priceAmount:'850.00',currency:'QAR'}}];
  const context=retrieveContext({facts:source,message});
  assert.equal(context.evidence.filter(item=>item.kind==='course').length,1);
  assert.equal(isCourseOverviewRequest(message,context),true);
+ const reply=simpleFactualReply(message,context).reply;
+ assert.match(reply,/Word: Documents, formatting & professional reports/);
+ assert.match(reply,/مناسبة لمتعلمين من المبتدئين إلى المستوى المتوسط/);
+ assert.match(reply,/8–10 أسابيع/);
+ assert.match(reply,/850.00 QAR/);
 });
 
 test('general policy questions omit unrelated courses and retain approved refund FAQs',()=>{const c=retrieveContext({facts,message:'What is your refund fees policy?',knowledgeEntries:[{questionEn:'What is your refund fees policy?',answerEn:'Contact the centre before cancelling.'}]});assert.equal(c.evidence.filter(x=>x.kind==='course').length,0);assert.equal(c.evidence.filter(x=>x.kind==='approved_faq').length,1);});
