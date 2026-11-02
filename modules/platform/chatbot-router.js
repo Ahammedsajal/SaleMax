@@ -288,7 +288,7 @@ function createChatbotRouter({ pool, origin, userGuard, canonicalGuard }) {
       if (!flow) fail('GUIDED_FLOW_UNAVAILABLE');
     }
     if (config.introFlowId) {
-      if (profile.categoryKey !== '7network_sales' || config.guidedMode !== 'domain_default') fail('INVALID_FLOW_ID');
+      if (config.guidedMode !== 'domain_default') fail('INVALID_FLOW_ID');
       const uid = await legacyUidFor(db, req, ctx);
       const introFlow = await require('../platform/chatbot-runtime').loadGuidedFlow(uid, config.introFlowId);
       if (!introFlow) fail('GUIDED_FLOW_UNAVAILABLE');

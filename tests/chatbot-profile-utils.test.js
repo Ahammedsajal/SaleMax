@@ -80,13 +80,14 @@ test('training-center bot validation produces a bounded reusable category profil
   assert.deepEqual(botRequirements('ai'), { requiresGuidedFlow: false, requiresAi: true });
 });
 
-test('7Network Sales built-in guide can run a validated Automation Flow once before continuing guided chat',()=>{
+test('built-in category guides can run a validated Automation Flow once before continuing guided chat',()=>{
   const bot=botInput({name:'7Network recruitment',engine:'guided',config:{guidedMode:'domain_default',introFlowId:'recruitment_intro'}},'7network_sales');
   assert.equal(bot.config.guidedMode,'domain_default');
   assert.equal(bot.config.flowId,null);
   assert.equal(bot.config.introFlowId,'recruitment_intro');
   assert.throws(()=>botInput({name:'Bad',engine:'guided',config:{guidedMode:'domain_default',introFlowId:'../bad'}},'7network_sales'),{code:'INVALID_FLOW_ID'});
-  assert.equal(botInput({name:'Guide',engine:'guided',config:{guidedMode:'domain_default',introFlowId:'flow-1'}},'training_center').config.introFlowId,undefined);
+  assert.equal(botInput({name:'Guide',engine:'guided',config:{guidedMode:'domain_default',introFlowId:'flow-1'}},'training_center').config.introFlowId,'flow-1');
+  assert.equal(botInput({name:'Hybrid',engine:'hybrid',config:{guidedMode:'domain_default',introFlowId:'flow-2',aiFallback:true}},'training_center').config.introFlowId,'flow-2');
 });
 
 test('guided bot validation retains bilingual approved FAQs', () => {
@@ -124,11 +125,11 @@ test('legacy chatbot authentication resolves tenant category and rejects unpubli
   } finally { platformPlans.loadEntitlements = previousLoadEntitlements; }
 });
 
-test('hybrid routing sends free-text from new or returning chats to AI and keeps explicit menu choices guided', () => {
+test('hybrid routing starts new chats guided, then sends free-text to AI and keeps menu choices guided', () => {
   assert.equal(isGuidedChoice(' 2 '), true);
   assert.equal(isGuidedChoice('القائمة'), true);
   assert.equal(isGuidedChoice('I need course details'), false);
-  assert.deepEqual(hybridTurnPlan({ hasSession: false, isChoice: false, aiFallback: true }), { runGuided: false, allowAiFallback: true });
+  assert.deepEqual(hybridTurnPlan({ hasSession: false, isChoice: false, aiFallback: true }), { runGuided: true, allowAiFallback: true });
   assert.deepEqual(hybridTurnPlan({ hasSession: true, isChoice: true, aiFallback: true }), { runGuided: true, allowAiFallback: true });
   assert.deepEqual(hybridTurnPlan({ hasSession: true, isChoice: false, aiFallback: true }), { runGuided: false, allowAiFallback: true });
   assert.deepEqual(hybridTurnPlan({ hasSession: true, isChoice: false, aiFallback: false }), { runGuided: true, allowAiFallback: false });

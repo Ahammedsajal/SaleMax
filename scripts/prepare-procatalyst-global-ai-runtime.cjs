@@ -27,7 +27,7 @@ function prepare({ liveIndex, liveSidebar, sourceIndex, sourceSidebar, outputDir
 
   // Keep the exact live shell/sidebar fixes. Only change cache keys for the
   // new API/profile hooks and the chatbot editor loaded by the sidebar.
-  index = replaceAssetVersion(index, 'training-sidebar.js', '20261029-procatalyst-ai1');
+  index = replaceAssetVersion(index, 'training-sidebar.js', '20261102-procatalyst-opening1');
   const oldLoader = /chatbotScript\.src\s*=\s*(['"])\/chatbot-admin\.js\?v=[^'"]+\1/g;
   const targetLoader = String(sourceSidebar).match(/chatbotScript\.src\s*=\s*(['"])(\/chatbot-admin\.js\?v=[^'"]+)\1/);
   if (!targetLoader || [...sidebar.matchAll(oldLoader)].length !== 1) throw new Error('CHATBOT_ADMIN_LOADER_MISMATCH');

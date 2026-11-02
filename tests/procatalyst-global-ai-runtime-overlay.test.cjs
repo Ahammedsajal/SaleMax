@@ -18,7 +18,7 @@ test('runtime overlay keeps live shell/sidebar and changes only feature cache ke
     const index = fs.readFileSync(path.join(temp, 'index.html'), 'utf8');
     const sidebar = fs.readFileSync(path.join(temp, 'training-sidebar.js'), 'utf8');
     assert.match(index, /workspace-api\.js\?v=source-api/);
-    assert.match(index, /training-sidebar\.js\?v=20261029-procatalyst-ai1/);
+    assert.match(index, /training-sidebar\.js\?v=20261102-procatalyst-opening1/);
     assert.match(index, /tenant-crm-appearance\.js\?v=source-profile/);
     assert.match(index, /other\.js\?v=keep/);
     assert.match(sidebar, /live-only-fix/);

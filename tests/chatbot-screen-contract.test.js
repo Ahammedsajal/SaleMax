@@ -137,8 +137,8 @@ test('active bot profiles stay editable while provider credentials and sensitive
   assert.match(admin, /assign its number from the Chatbot page/);
   assert.match(chatbotRouter, /if \(row\.status === 'live'\) await assertLiveProfileReady/);
   assert.match(chatbotRouter, /appliedImmediately: row\.status === 'live'/);
-  assert.match(chatbotRouter, /status='live' AND \(engine='ai' OR \(engine='hybrid'/);
-  assert.match(chatbotRouter, /if \(liveAiBot\) fail\('LIVE_BOT_MUST_BE_PAUSED'\)/);
+  assert.match(chatbotRouter, /if \(status === 'live'\) \{[\s\S]*?await assertLiveProfileReady/);
+  assert.match(chatbotRouter, /if \(requirements\.requiresAi\) \{[\s\S]*?AI_PROVIDER_NOT_CONFIGURED/);
   assert.match(chatbotRouter, /async function assertLiveProfileReady/);
 });
 
@@ -173,7 +173,7 @@ test('Inbox bot control requires explicit number selection when channel scope is
   assert.match(admin, /manuallySelectedChatChannels\.set\(id, selectedScope\)/);
   assert.match(admin, /manuallySelectedChatChannels\.get\(id\)/);
   assert.match(admin, /manuallySelectedChatChannels\.delete\(id\)/);
-  assert.match(admin, /header\.insertBefore\(control, actions\)/);
+  assert.match(admin, /actions\.insertBefore\(control, infoButton\)/);
   assert.match(admin, /matchMedia\('\(max-width: 767px\)'\)/);
   assert.match(admin, /data-sx-chatbot-mobile-toggle/);
   assert.match(admin, /let lastActiveConversation = null/);
@@ -190,11 +190,12 @@ test('HTML and sidebar loader each expose a cache-busted chatbot script URL', { 
   assert.ok(botKey);
 });
 
-test('7Network Sales built-in guide can run a saved opening Flow once then continue guided chat',()=>{
+test('built-in guide supports a saved opening Flow and leaves other first messages to guided chat',()=>{
   assert.match(admin,/name="introFlowId"/);
-  assert.match(admin,/Runs once when a new WhatsApp conversation starts/);
+  assert.match(admin,/Runs once for a new conversation when the customer starts with a greeting/);
   assert.match(admin,/introFlowId:usesDomainGuide\?String\(data\.get\('introFlowId'\)/);
   assert.match(chatbotRouter,/if \(config\.introFlowId\)/);
   assert.match(chatbotRouter,/GUIDED_FLOW_UNAVAILABLE/);
   assert.match(runtime,/claimOpeningFlow/);
+  assert.match(runtime,/isOpeningGreeting\(textOf\(message\)\)/);
 });

@@ -11,6 +11,7 @@ const { isGuidedChoice, hybridTurnPlan, supportsAiPreview } = require('./chatbot
 const { channelFor } = require('./chatbot-channels');
 const { buildAiPrompt } = require('./chatbot-ai-prompt');
 const businessContext = require('./chatbot-business-context');
+const { isOpeningGreeting } = require('./chatbot-opening-flow');
 const replyCache = new Map();
 const CACHE_MAX = 250;
 const { recipientAllowed } = require('./chatbot-audience');
@@ -116,7 +117,7 @@ async function loadGuidedFlow(uid, flowId) {
   return rows.length === 1 ? parseGuidedFlow(rows[0]) : null;
 }
 
-async function claimOpeningFlow({ctx,profile,chatId,channelKind,channelRef}) {
+async function claimOpeningFlow({ctx,profile,chatId,channelKind,channelRef,greeted=false}) {
   const db=await dbPool.getConnection();
   try {
     await db.beginTransaction();
@@ -128,7 +129,7 @@ async function claimOpeningFlow({ctx,profile,chatId,channelKind,channelRef}) {
     [ctx.tenant.id,profile.id,channelKind,channelRef,guidedConversationHash(chatId),chatId]);
     let state={};if(!row.expired)try{state=typeof row.state==='string'?JSON.parse(row.state):row.state||{};}catch{}
     const claimed=!state.openingFlowSent;
-    if(claimed){state.openingFlowSent=true;state.greeted=false;await db.query(`UPDATE sx_chatbot_guided_sessions SET state=?,expires_at=DATE_ADD(UTC_TIMESTAMP(3),INTERVAL 24 HOUR) WHERE id=?`,[JSON.stringify(state),row.id]);}
+    if(claimed){state.openingFlowSent=true;state.greeted=Boolean(greeted);if(greeted)state.step='menu';await db.query(`UPDATE sx_chatbot_guided_sessions SET state=?,expires_at=DATE_ADD(UTC_TIMESTAMP(3),INTERVAL 24 HOUR) WHERE id=?`,[JSON.stringify(state),row.id]);}
     await db.commit();return claimed;
   } catch(error){await db.rollback().catch(()=>{});throw error;} finally{db.release();}
 }
@@ -136,10 +137,11 @@ async function claimOpeningFlow({ctx,profile,chatId,channelKind,channelRef}) {
 async function guidedTurn({ ctx, profile, uid, message, user, sessionId, origin, chatId, leadInfo }) {
   if (profile.config?.guidedMode === 'domain_default') {
     const introId=profile.config?.introFlowId,channelKind=channelFor(origin);
+    const openingGreeting=isOpeningGreeting(textOf(message));
     if(introId&&channelKind){
       await pruneExpiredGuidedSessions();
     }
-    if(introId&&channelKind&&await claimOpeningFlow({ctx,profile,chatId,channelKind,channelRef:sessionId})){
+    if(introId&&channelKind&&await claimOpeningFlow({ctx,profile,chatId,channelKind,channelRef:sessionId,greeted:openingGreeting})&&openingGreeting){
       const intro=await loadGuidedFlow(uid,introId);if(!intro)return false;
       if(!await canSendNow({ctx,profile,uid,origin,sessionId,chatId,message}))return await shouldPause(uid,chatId,channelKind,sessionId)?{paused:true}:false;
       const {processFlow}=require('../../automation/automation'),flowSessionId=executionFlowId(profile);
