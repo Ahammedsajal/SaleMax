@@ -262,6 +262,18 @@ function simpleFactualReply(message, context, config = {}) {
     const template = ar ? 'تفاصيل الشهادة المنشورة لدورة {course}: {details}. هل ترغب في معرفة شيء آخر عنها؟' : 'The published certificate details for {course} are: {details}. Would you like to know anything else about it?';
     return { reply: template.replaceAll('{course}', course.name).replaceAll('{details}', course.certificateDetails), sourceIds: [course.sourceId] };
   }
+  const asksDelivery = /\b(?:online|offline|in person|face to face|classroom|remote|hybrid|delivery|availability|available online)\b|عن بعد|اونلاين|حضوري|مدمج|طريقة الدراسة|طريقة التقديم/u.test(message);
+  if (asksDelivery && course.delivery) {
+    const mode = String(course.delivery).toLowerCase();
+    const deliveryLabels = ar
+      ? { online: 'عن بُعد', in_person: 'حضوري', hybrid: 'مدمج يجمع بين الدراسة عن بُعد والحضور' }
+      : { online: 'online', in_person: 'in person', hybrid: 'hybrid, combining online and in-person learning' };
+    const label = deliveryLabels[mode] || mode.replace(/_/g, ' ');
+    const reply = ar
+      ? `تُدرج المعلومات المنشورة دورة ${course.name} بنمط ${label}. لا تتوفر لدي تفاصيل الجلسات، ويمكن لفريق القبول تأكيدها لك.`
+      : `${course.name} is listed as ${label}. I don’t have a published breakdown of the sessions; admissions can confirm the details.`;
+    return { reply, sourceIds: [course.sourceId] };
+  }
   const asksFee = /\b(?:fee|fees|price|cost|how much)\b|رسوم|سعر|تكلفة/i.test(message);
   const registrationForm = context.evidence.find(item => item.kind === 'published_enquiry_form' && item.purpose === 'registration');
   const courseInterest = /\b(?:interested|would like to join|want to join|want to study|like to enrol|like to enroll)\b|مهتم|ارغب في التسجيل/i.test(message);

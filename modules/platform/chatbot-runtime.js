@@ -657,7 +657,10 @@ async function aiTurn({ ctx, profile, uid, message, user, sessionId, origin, cha
     const applicationAccepted = session?.step === 'course_detail' && /^(?:yes(?:[,.! ]+(?:please(?:\s+(?:send it|send me|share it))?|send it|send me|share it))?|sure|please do|send it|send me|share it|i'm interested|im interested|اي|نعم|نعم من فضلك|أرسلها|ارسلها|أرسل النموذج|ارسل النموذج)$/iu.test(incoming.trim());
     if (route !== 'answer' || leadInfo?.nameOnly || applicationAccepted || bareCourseSelection || (profile.engine === 'hybrid' && profile.config.aiFallback === false)) {
       onStage?.('training-center-guided-reply');
-      const dispatched = await trainingCenterGuidedTurn({ ctx, profile, uid, message, sessionId, origin, chatId, leadInfo, intent: route === 'human' ? (businessContext.languageFor(incoming, session || {}) === 'ar' ? 'موظف' : 'agent') : null, onStage });
+      const handoffIntent = route === 'human' || route === 'handoff'
+        ? (businessContext.languageFor(incoming, session || {}) === 'ar' ? 'موظف' : 'agent')
+        : null;
+      const dispatched = await trainingCenterGuidedTurn({ ctx, profile, uid, message, sessionId, origin, chatId, leadInfo, intent: handoffIntent, onStage });
       return dispatched ? { flowDispatched: true, route } : { handedOff: true, code: 'GUIDED_FLOW_UNAVAILABLE' };
     }
   } else if (profile.engine === 'hybrid' && profile.config.flowId) {

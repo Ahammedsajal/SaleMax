@@ -1,0 +1,5 @@
+services:
+  app:
+    volumes:
+      - ${SALEMAX_PROCATALYST_GROUNDED_DELIVERY_RELEASE:?SALEMAX_PROCATALYST_GROUNDED_DELIVERY_RELEASE is required}/runtime/chatbot-business-context.js:/app/modules/platform/chatbot-business-context.js:ro
+      - ${SALEMAX_PROCATALYST_GROUNDED_DELIVERY_RELEASE:?SALEMAX_PROCATALYST_GROUNDED_DELIVERY_RELEASE is required}/runtime/chatbot-runtime.js:/app/modules/platform/chatbot-runtime.js:ro
