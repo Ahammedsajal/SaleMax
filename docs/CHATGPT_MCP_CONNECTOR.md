@@ -56,12 +56,15 @@ That creates a closed loop from customer requirement to permitted sales activity
 
 ### Phase 2 — Explainable sales workbench
 
-- Add richer, localized source citations and one-tap navigation once the current in-app record links are verified across owner and agent sessions.
+- Show the active 7Network business and role, when data was retrieved, localized source citations and one-tap links to the existing records. Verify these across owner and agent sessions.
 - Offer a daily at-risk follow-up view and narrowly scoped filters such as owner, stage, due date, and priority where the current role allows them.
+- Add financial summaries only through the authoritative existing finance workflows, with their current permission checks and clear as-of time. Do not infer financial status from chat text or create payment actions in this phase.
 - Add an audit page showing which account invoked which tool, when, and whether it succeeded, without logging customer message bodies or secrets.
+- Consider optional interactive result cards only after the tool workflows are stable; keep the same permission checks and structured result available without the UI.
 
 ### Phase 3 — Approved actions
 
+- Add narrowly scoped notes and assignment proposals before any external communication. Require distinct permissions, visible previews, current-authority checks, idempotency keys and revision checks for writes.
 - Add draft/save actions before any external communication. Require a distinct permission, visible preview, idempotency key, and explicit user confirmation for each send.
 - Consider CRM updates, form handoff, proposal preparation, or fulfilment only as category-specific workflows with existing services and permission checks.
 - Keep high-impact actions out of background automation until action-level approval, retry, cancellation and rollback semantics are proven.
@@ -69,13 +72,13 @@ That creates a closed loop from customer requirement to permitted sales activity
 ### Phase 4 — Measure and commercialize
 
 - Track connection activation, weekly active accounts, follow-up tasks created/completed, overdue lead reduction, stage movement and attributable recovery. Use tenant-safe aggregation and clear retention limits.
-- Validate demand before pricing. A sensible test is to bundle read access, then offer approved action workflows as a higher business tier or usage add-on, with per-seat controls and transparent AI/provider cost limits.
+- Validate demand before pricing. Bundle basic questions through the existing Manage Plans catalogue, then test team workflows and monitored exceptions as a higher tier or usage add-on, with per-seat controls and transparent AI/provider cost limits. Do not create a second plan catalogue.
 - If the connector is adopted by resellers, provide a tenant onboarding checklist and workspace-admin setup guide; never share one tenant's OAuth grant across customers.
 
 ### Phase 5 — Proactive events and consented demand capture
 
-- After the request/response pilot proves reliable, consider [MCP Events](https://developers.openai.com/plugins/build/mcp-events) for opt-in follow-up reminders in supported ChatGPT Work environments. This requires durable subscriptions, authenticated HTTPS callbacks, replay protection, delivery retries and a clear unsubscribe/revoke path; it is not part of the deployed pilot.
-- A longer-term acquisition loop could let a person describe a business need in ChatGPT, then explicitly choose whether to share it with eligible 7Network businesses. Route that requirement into the existing proposal and fulfilment workflow, show who will receive it, and record consent. Keep identity and contact details private unless the person approves sharing; never broadcast one tenant's pipeline to another.
+- OpenAI now documents [MCP Events](https://developers.openai.com/plugins/build/mcp-events) for Work chats on ChatGPT web and the desktop app with Cloud selected. After the request/response pilot proves reliable, offer opt-in alerts for unanswered enquiries or overdue follow-ups. This requires durable subscriptions, current-authority checks, verified HTTPS callbacks, signed deliveries, idempotent retries, expiry and unsubscribe/revoke handling. It is not part of the deployed pilot.
+- The longer-term acquisition loop could let someone describe a need in ChatGPT—for example, a training centre sourcing equipment, uniforms or signage—then clarify specifications and choose which details and eligible businesses to share them with. Collect consent before disclosing identity/contact details, compare proposals, and track accepted work through the existing 7Network Pipeline, proposal and fulfilment workflows. Start with one category that can finish the full journey; never broadcast one tenant's pipeline to another.
 
 ## Current pilot status
 
@@ -95,4 +98,4 @@ As of 2 November 2026, OpenAI documents full custom MCP support on ChatGPT web f
 
 **Private workspace pilot:** an authorized workspace admin adds `https://7network.live/mcp`, selects OAuth, completes the connection, scans the tools, tests them, and publishes to a limited pilot group. Each 7Network user then signs in with their own account and grants scopes. Do not publish to all members until the role/tenant acceptance gates above pass.
 
-**Public plugin-directory distribution is a separate launch path.** It requires a verified publishing identity, a package ZIP, MCP domain verification, automated tool checks and OpenAI review. It can broaden discovery beyond one workspace, but it is not required for the private pilot. Complete the [OpenAI plugin submission process](https://developers.openai.com/plugins/deploy/submission) only after direct ChatGPT OAuth and tool-call acceptance passes.
+**Public plugin-directory distribution is a separate launch path.** It requires a verified publishing identity, a package ZIP, MCP domain verification, automated tool checks and OpenAI review. The package can add tested workflow guidance and optional UI alongside the MCP connection; it must not replace server-side permissions. A directory listing can broaden discovery beyond one workspace, but it is not required for the private pilot. Complete the [OpenAI plugin submission process](https://developers.openai.com/plugins/deploy/submission) only after direct ChatGPT OAuth and tool-call acceptance passes.
