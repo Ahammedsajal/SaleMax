@@ -133,6 +133,34 @@ test('generic ad interest clarifies despite ambiguous retrieval candidates, but 
  assert.equal(shouldClarifyGenericCourseInterest('What is the fee for Business English?',named,{}),false);
 });
 
+test('Meta ad referral resolves a generic first message to one published course without guessing',()=>{
+ const message='Hello! can I get more info on this?';
+ const referral={source_type:'ad',source_id:'campaign-1',headline:'Business English course',source_url:'https://example.test/business-english'};
+ const context=retrieveContext({facts,message,referral});
+ assert.equal(context.selectedCourseCode,'ENG');
+ assert.equal(context.courseContextSource,'meta_referral');
+ assert.equal(context.explicitCourses,1);
+ assert.equal(context.evidence.filter(item=>item.kind==='course').length,1);
+ assert.equal(isCourseOverviewRequest(message,context),true);
+ const reply=simpleFactualReply(message,context);
+ assert.match(reply.reply,/Business English/);
+ assert.match(reply.reply,/350\.00 QAR/);
+});
+
+test('Meta referral matching requires verified ad attribution and a unique published course',()=>{
+ const message='Hello! can I get more info on this?';
+ assert.equal(retrieveContext({facts,message,referral:{source_type:'post',source_id:'campaign-1',headline:'Business English course'}}).courseContextSource,null);
+ assert.equal(retrieveContext({facts,message,referral:{source_type:'ad',headline:'Business English course'}}).courseContextSource,null);
+ const duplicated=[...facts,{courseId:'english-2',code:'ENG2',nameEn:'Business English',nameAr:'الإنجليزية للأعمال',descriptionEn:'Another listing'}];
+ assert.equal(retrieveContext({facts:duplicated,message,referral:{source_type:'ad',source_id:'campaign-2',headline:'Business English course'}}).courseContextSource,null);
+});
+
+test('an explicitly named first-message course takes precedence over a conflicting Meta referral',()=>{
+ const context=retrieveContext({facts,message:'Tell me about Excel Essentials',referral:{source_type:'ad',source_id:'campaign-1',headline:'Business English course'}});
+ assert.equal(context.selectedCourseCode,'EXCEL');
+ assert.equal(context.courseContextSource,'message');
+});
+
 test('natural course-overview follow-ups use the previously selected course and localize the response',()=>{
  const message='tell me more about this course';
  const context=retrieveContext({facts,message,state:{selectedCourseCode:'ENG',language:'en'}});

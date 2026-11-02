@@ -94,16 +94,36 @@ function score(query, text) {
   return tokens(query).reduce((sum, word) => sum + (words.has(word) ? 3 : value.includes(word) ? 1 : 0), 0);
 }
 
-function retrieveContext({ facts, knowledgeEntries = [], message, state = {}, profileRevision = 0 }) {
+function courseFromVerifiedReferral(facts, message, referral) {
+  if (!isGenericAdInterest(message) || referral?.source_type !== 'ad'
+    || !(referral.source_id || referral.ctwa_clid)) return null;
+  const fields = [referral.headline, referral.body, referral.source_url]
+    .filter(value => typeof value === 'string' && value.trim())
+    .map(value => normalized(decodeURIComponentSafe(value)));
+  if (!fields.length) return null;
+  const courses = (Array.isArray(facts) ? facts : []).filter(item => item?.code && !item.kind);
+  const matches = courses.filter(course => {
+    const names = [course.code, course.nameEn, course.nameAr].filter(Boolean).map(normalized);
+    return names.some(name => name.length >= 3 && fields.some(field => field.includes(name)));
+  });
+  return matches.length === 1 ? matches[0] : null;
+}
+
+function decodeURIComponentSafe(value) {
+  try { return decodeURIComponent(value.replace(/\+/g, ' ')); } catch { return value; }
+}
+
+function retrieveContext({ facts, knowledgeEntries = [], message, state = {}, profileRevision = 0, referral = null }) {
   const language = languageFor(message, state);
   const courses = facts.filter(item => item.code && !item.kind);
   const nameWords = new Map(courses.map(item => [item.code, new Set(tokens([item.nameEn, item.nameAr].join(' ')).filter(word => word.length >= 4))]));
   const direct = courses.filter(item => [item.code, item.nameEn, item.nameAr].some(name => name && normalized(message).includes(normalized(name)))
     || [...nameWords.get(item.code)].some(word => tokens(message).includes(word) && courses.filter(other => nameWords.get(other.code).has(word)).length === 1));
+  const referralCourse = direct.length ? null : courseFromVerifiedReferral(facts, message, referral);
   const ranked = courses.map(item => ({ item, score: score(message, [item.code, item.nameEn, item.nameAr, item.descriptionEn, item.descriptionAr, item.outcomesEn, item.outcomesAr].join(' ')) }))
     .sort((a, b) => b.score - a.score);
   const generalBusinessQuestion = /where|location|address|refund|policy|discount|اين|عنوان|موقع|استرداد|استرجاع|سياسة|خصم/i.test(message);
-  let selected = direct.length ? direct.slice(0, 3) : generalBusinessQuestion ? [] : ranked.filter(row => row.score >= 3).slice(0, 3).map(row => row.item);
+  let selected = direct.length ? direct.slice(0, 3) : referralCourse ? [referralCourse] : generalBusinessQuestion ? [] : ranked.filter(row => row.score >= 3).slice(0, 3).map(row => row.item);
   const followUp = /\b(?:that|this|it|its|the course|how much|how long|when does|when is)\b|هذه|تلك|مدتها|رسومها|موعدها|كم الرسوم|كم مدتها|متى تبدأ/i.test(message);
   if (!direct.length && followUp && state.selectedCourseCode) selected = courses.filter(item => item.code === state.selectedCourseCode);
   if (!selected.length && state.selectedCourseCode) selected = courses.filter(item => item.code === state.selectedCourseCode);
@@ -140,7 +160,7 @@ function retrieveContext({ facts, knowledgeEntries = [], message, state = {}, pr
   }
   // Names are a discovery index, never evidence for unpublished prices/policies.
   if (!direct.length) add('catalogue:index', courses.map(item => ({code:item.code,nameEn:item.nameEn,nameAr:item.nameAr})), { kind: 'course_index', names: courses.slice(0, 60).map(item => local(item, 'name', language)), totalCourses: courses.length, complete: courses.length < 500 && courses.length <= 60 });
-  return { evidence, sources, selectedCourseCode: selected.length === 1 ? selected[0].code : null, language, revision: fingerprint({ facts, knowledgeEntries, profileRevision }), explicitCourses: direct.length };
+  return { evidence, sources, selectedCourseCode: selected.length === 1 ? selected[0].code : null, language, revision: fingerprint({ facts, knowledgeEntries, profileRevision }), explicitCourses: direct.length || (referralCourse ? 1 : 0), courseContextSource: direct.length ? 'message' : referralCourse ? 'meta_referral' : null };
 }
 
 function validateAnswer(response, context) {

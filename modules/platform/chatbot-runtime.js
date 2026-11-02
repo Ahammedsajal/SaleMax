@@ -238,7 +238,16 @@ async function trainingCenterGuidedTurn({ ctx, profile, uid, message, sessionId,
     }else if(cvError){
       const invalid=cvError==='CV_TYPE_NOT_ALLOWED'||cvError==='INVALID_CV_FILE';
       reply={reply:priorState?.language==='ar'?(invalid?'يرجى إرسال السيرة الذاتية كملف PDF أو DOCX حتى 8 ميغابايت.':'تعذر حفظ الملف الآن. يرجى المحاولة مرة أخرى بعد قليل.'):(invalid?'Please send your CV as a PDF or DOCX file up to 8 MB.':'I couldn’t save that file just now. Please try sending it again shortly.'),state:priorState,buttons:[]};
-    }else reply = pack.guidedReply({ message: intent || textOf(message), state: priorState, facts, config: { ...(profile.config?.guidedContent || {}), knowledgeEntries } });
+    }else {
+      const referral = message?.msgContext?.referral || null;
+      const referralContext = businessContext.retrieveContext({ facts, message: intent || textOf(message), state: priorState || {}, referral });
+      const referralCourse = referralContext.courseContextSource === 'meta_referral'
+        ? facts.find(item => item.code === referralContext.selectedCourseCode) : null;
+      const guideMessage = !intent && referralCourse
+        ? `${textOf(message)} ${referralContext.language === 'ar' ? (referralCourse.nameAr || referralCourse.nameEn) : (referralCourse.nameEn || referralCourse.nameAr)}`
+        : intent || textOf(message);
+      reply = pack.guidedReply({ message: guideMessage, state: priorState, facts, config: { ...(profile.config?.guidedContent || {}), knowledgeEntries } });
+    }
     if (leadInfo?.nameOnly) reply = { reply: profile.config?.guidedContent?.messages?.nameCollectedMessage?.[leadInfo.language] || pack.guidedContentDefaults.messages.nameCollectedMessage[leadInfo.language], state: priorState || {} };
     if (!reply || typeof reply.reply !== 'string' || !reply.reply.trim()) {
       await db.rollback();
@@ -333,7 +342,7 @@ function guidedFlowNodeGuard({ctx,profile,uid,origin,sessionId,chatId,message}){
   };
 }
 
-async function generateAiAnswer({ ctx, profile, uid, customerMessage, chatId = null, channelKind = null, channelRef = null, state = null, factsOverride = null }) {
+async function generateAiAnswer({ ctx, profile, uid, customerMessage, chatId = null, channelKind = null, channelRef = null, state = null, factsOverride = null, referral = null }) {
   const settings = await tenantAiSettings.forRuntime(dbPool, ctx.tenant.id);
   if (uid && chatId && await shouldPause(uid, chatId, channelKind, channelRef)) return { paused: true };
   if (!customerMessage) return { handedOff: true, code: 'UNSUPPORTED_MESSAGE_TYPE' };
@@ -347,7 +356,7 @@ async function generateAiAnswer({ ctx, profile, uid, customerMessage, chatId = n
   const facts = factsOverride || await loadFacts();
   const session = state || (chatId ? await loadDomainGuidedSession({ ctx, profile, chatId, channelKind, channelRef }) : null) || {};
   const knowledgeEntries = mergeKnowledgeEntries(profile.config?.knowledgeEntries || [], await loadApprovedFaqs(ctx.tenant.id));
-  const context = businessContext.retrieveContext({ facts, knowledgeEntries, message: customerMessage, state: session, profileRevision: profile.revision });
+  const context = businessContext.retrieveContext({ facts, knowledgeEntries, message: customerMessage, state: session, profileRevision: profile.revision, referral });
   const nextState = { ...session, language: context.language, selectedCourseCode: (context.explicitCourses ? context.selectedCourseCode : null) || session.selectedCourseCode };
   if (typeof businessContext.shouldClarifyGenericCourseInterest === 'function' && businessContext.shouldClarifyGenericCourseInterest(customerMessage, context, session)) {
     const reply = context.language === 'ar'
@@ -423,7 +432,7 @@ async function generateAiAnswer({ ctx, profile, uid, customerMessage, chatId = n
   }
   // Re-read live facts after the model call; never deliver a price or date
   // generated from data that changed while the provider was working.
-  const fresh = businessContext.retrieveContext({ facts: await loadFacts(), knowledgeEntries: mergeKnowledgeEntries(profile.config?.knowledgeEntries || [], await loadApprovedFaqs(ctx.tenant.id)), message: customerMessage, state: session, profileRevision: profile.revision });
+  const fresh = businessContext.retrieveContext({ facts: await loadFacts(), knowledgeEntries: mergeKnowledgeEntries(profile.config?.knowledgeEntries || [], await loadApprovedFaqs(ctx.tenant.id)), message: customerMessage, state: session, profileRevision: profile.revision, referral });
   if (fresh.revision !== context.revision) return factualOverviewFallback(fresh) || { canAnswer: true, confidence: 0, reply: businessContext.clarification(profile.config, context.language), state: nextState, route: 'clarification', reason: 'BUSINESS_DATA_CHANGED', metrics };
   const usedCourses = context.evidence.filter(item => item.kind === 'course' && response.sourceIds.includes(item.sourceId));
   if (usedCourses.length === 1 && businessContext.normalized(response.reply).includes(businessContext.normalized(usedCourses[0].name))) nextState.selectedCourseCode = usedCourses[0].code;
@@ -463,7 +472,7 @@ async function aiTurn({ ctx, profile, uid, message, user, sessionId, origin, cha
       if (dispatched || !plan.allowAiFallback) return dispatched ? { flowDispatched: true } : { handedOff: true, code: 'GUIDED_FLOW_UNAVAILABLE' };
     }
   }
-  const answer = await generateAiAnswer({ ctx, profile, uid, customerMessage: textOf(message), chatId, channelKind: channelFor(origin), channelRef: sessionId, factsOverride: leadInfo?.facts });
+  const answer = await generateAiAnswer({ ctx, profile, uid, customerMessage: textOf(message), chatId, channelKind: channelFor(origin), channelRef: sessionId, factsOverride: leadInfo?.facts, referral: message?.msgContext?.referral || null });
   if (answer.handedOff || answer.paused) return answer;
   const pack = getDomainPack(ctx.category.key, ctx.category.version);
   const onboarding = ctx.tenant.categoryKey === 'training_center' && !answer.state?.greeted;

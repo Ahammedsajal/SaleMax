@@ -21,6 +21,19 @@ function formatMessage(type, content) {
   return { type, [type]: content };
 }
 
+function chatbotAdReferral(referral) {
+  if (referral?.source_type !== "ad" || !(referral.source_id || referral.ctwa_clid)) return null;
+  return {
+    source_type: "ad",
+    source_id: String(referral.source_id || "").slice(0, 191),
+    source_url: String(referral.source_url || "").slice(0, 2000),
+    headline: String(referral.headline || "").slice(0, 500),
+    body: String(referral.body || "").slice(0, 1000),
+    media_type: String(referral.media_type || "").slice(0, 64),
+    ctwa_clid: String(referral.ctwa_clid || "").slice(0, 255),
+  };
+}
+
 // Media Handling
 async function downloadAndSaveMedia(token, mediaId, uid) {
   try {
@@ -434,6 +447,12 @@ async function processMetaMsg({ body, uid }) {
       }
 
       if (msgContext) {
+        // Keep the bounded ad referral on the inbound message so the chatbot
+        // can resolve a generic "more info on this" opening against the
+        // advertised course. The lead pipeline stores the full attribution;
+        // the bot only needs these public, bounded fields for matching.
+        const adReferral = chatbotAdReferral(message.referral);
+        if (adReferral) msgContext.referral = adReferral;
         // ✅ Extract contact info - works for both regular and ad messages
         const contactInfo = value?.contacts?.[0] || {};
         const senderName = contactInfo?.profile?.name || "NA";
@@ -720,4 +739,4 @@ async function processMetaMessage({ body, uid }) {
   }
 }
 
-module.exports = { processMetaMessage };
+module.exports = { processMetaMessage, chatbotAdReferral };

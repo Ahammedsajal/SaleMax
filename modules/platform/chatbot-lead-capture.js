@@ -46,7 +46,7 @@ async function captureLead(pool, { ctx, profile, uid, chatId, origin, message, f
     const inboundKey = context.fingerprint([profile.channelKind, profile.channelRef, chatId, message.metaChatId]).slice(0, 24);
     const previousKeys = Array.isArray(prior.inboundKeys) ? prior.inboundKeys : [];
     const alreadyCaptured = previousKeys.includes(inboundKey);
-    const retrieval = context.retrieveContext({ facts, message: text });
+    const retrieval = context.retrieveContext({ facts, message: text, referral: message?.msgContext?.referral || null });
     let courses = retrieval.explicitCourses ? retrieval.evidence.filter(item => item.kind === 'course') : [];
     let guidedState = {};
     if (profile.channelKind && profile.channelRef) {
