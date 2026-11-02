@@ -1,6 +1,6 @@
 # Pro Catalyst Hybrid bot knowledge and pilot plan
 
-Status: live conversation and catalogue audit refreshed 2 November 2026; three bilingual FAQs are saved; first-message course-intent handling is implemented in source and awaiting production release. Opening Flow Builder flow and profile assignment remain pending. Production database read-only audit: 2 November 2026. No raw chat text, customer phone, email, student record, or credential is stored in this document.
+Status: live conversation and catalogue audit refreshed 2 November 2026; three bilingual FAQs are saved; first-message course-intent routing is deployed in production through app-only overlays. Named-course openers use the matching current course facts; generic ad-prefill “this?” openers ask one clarification unless the same conversation has a selected course. The bot remains Draft and unassigned. Production database read-only audit: 2 November 2026. No raw chat text, customer phone, email, student record, or credential is stored in this document.
 
 ## Conversation source and ownership
 
