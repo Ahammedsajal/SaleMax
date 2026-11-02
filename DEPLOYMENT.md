@@ -1,3 +1,10 @@
+## 2026-11-02 — Pro Catalyst read-only pilot activity check
+
+- Read-only production query after the profile's saved-live timestamp (`2026-11-02T11:34:57.771Z`) confirms the Hybrid profile remains `live` on one connected channel. It found zero conversation rows across the tenant-verified owner/manager legacy UID links, zero chatbot turns (sent, handed off or failed), and zero `chatbot.turn-measured` events since activation. No customer message, staff reply, bot reply, handoff, or chatbot turn-usage has yet been available to analyze after activation.
+- The earlier pre-activation transcript audit remains the applicable training baseline; the current profile's first-message and ad-referral behavior is already recorded above. This query did not retrieve or persist message content, customer identifiers, or credentials and did not change production state.
+- Production remains on `/opt/salemax/releases/hero-motion-06487407-20261031`; app container was running with zero restarts and public `/healthz` returned HTTP 200 at the recheck. No release, migration, configuration change, or rollback action occurred.
+- Remaining live gates: an authorized test phone must send an inbound first message (preferably from the actual Meta ad for referral verification), then staff handoff must be exercised so the reply, assignment, provider usage and route metrics can be reviewed.
+
 ## 2026-11-02 — Pro Catalyst restricted Hybrid pilot — active
 
 - Source/settings UI is from commit `2662d567` and the app-only handoff overlay commit `4ceb5107`. No application release or image change was needed for this settings-only activation; active base remains `/opt/salemax/releases/hero-motion-06487407-20261031`, image `salemax-app:hero-motion-06487407-20261031`. No migration was applied.
