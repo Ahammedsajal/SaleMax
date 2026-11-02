@@ -349,7 +349,7 @@ async function generateAiAnswer({ ctx, profile, uid, customerMessage, chatId = n
   const knowledgeEntries = mergeKnowledgeEntries(profile.config?.knowledgeEntries || [], await loadApprovedFaqs(ctx.tenant.id));
   const context = businessContext.retrieveContext({ facts, knowledgeEntries, message: customerMessage, state: session, profileRevision: profile.revision });
   const nextState = { ...session, language: context.language, selectedCourseCode: (context.explicitCourses ? context.selectedCourseCode : null) || session.selectedCourseCode };
-  if (typeof businessContext.isGenericAdInterest === 'function' && businessContext.isGenericAdInterest(customerMessage) && !context.evidence.some(item => item.kind === 'course') && !session.selectedCourseCode) {
+  if (typeof businessContext.shouldClarifyGenericCourseInterest === 'function' && businessContext.shouldClarifyGenericCourseInterest(customerMessage, context, session)) {
     const reply = context.language === 'ar'
       ? 'بكل سرور — عن أي دورة تسأل؟ إذا وصلت من إعلان، أرسل اسم الدورة الظاهر فيه وسأشاركك التفاصيل المناسبة.'
       : 'Of course — which course are you asking about? If you came from an ad, share the course name shown there and I’ll send the right details.';

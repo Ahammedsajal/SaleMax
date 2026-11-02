@@ -1,7 +1,7 @@
 'use strict';
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { controlRoute, isScheduleQuestion, hasPublishedSchedule, courseDetailNeedsCoordinator, trainingCenterCoordinatorReason, publishedDurationRange, retrieveContext, validateAnswer, languageFor, fingerprint, previewState, simpleFactualReply, unavailableReply, isCourseOverviewRequest, isGenericAdInterest } = require('../modules/platform/chatbot-business-context');
+const { controlRoute, isScheduleQuestion, hasPublishedSchedule, courseDetailNeedsCoordinator, trainingCenterCoordinatorReason, publishedDurationRange, retrieveContext, validateAnswer, languageFor, fingerprint, previewState, simpleFactualReply, unavailableReply, isCourseOverviewRequest, isGenericAdInterest, shouldClarifyGenericCourseInterest } = require('../modules/platform/chatbot-business-context');
 const facts = [
  { courseId:'english',code:'ENG',nameEn:'Business English',nameAr:'الإنجليزية للأعمال',descriptionEn:'English communication for work and presentations',descriptionAr:'التواصل باللغة الإنجليزية في العمل والعروض',durationValue:8,durationUnit:'weeks',offer:{priceAmount:'350.00',registrationFeeAmount:'25.00',currency:'QAR'},batches:[{startsOn:'2026-11-15',seatsAvailable:7}] },
  { courseId:'excel',code:'EXCEL',nameEn:'Excel Essentials',nameAr:'أساسيات إكسل',descriptionEn:'Practical spreadsheets and office skills',descriptionAr:'مهارات الجداول والحاسوب المكتبية',offer:{priceAmount:'250.00',currency:'QAR'},batches:[] },
@@ -117,6 +117,19 @@ test('Meta-style first messages that name a course trigger an answer about that 
  assert.equal(isGenericAdInterest('I’m interested in this'),true);
  assert.equal(isGenericAdInterest('What is the fee for Kids Python Programming?'),false);
  assert.equal(isGenericAdInterest('مرحباً، أريد معلومات أكثر عن هذا'),true);
+});
+
+test('generic ad interest clarifies despite ambiguous retrieval candidates, but retains an explicitly selected course',()=>{
+ const message='Hello! can I get more info on this?';
+ const context=retrieveContext({facts,message});
+ context.evidence.push({kind:'course',code:'CANDIDATE-A'},{kind:'course',code:'CANDIDATE-B'});
+ assert.equal(context.selectedCourseCode||null,null);
+ assert.equal(shouldClarifyGenericCourseInterest(message,context,{}),true);
+ assert.equal(shouldClarifyGenericCourseInterest(message,context,{selectedCourseCode:'ENG'}),false);
+ const named=retrieveContext({facts,message:'Hello, tell me more about Business English'});
+ assert.equal(shouldClarifyGenericCourseInterest(message,named,{}),false);
+ assert.equal(shouldClarifyGenericCourseInterest('Tell me more about Business English',named,{}),false);
+ assert.equal(shouldClarifyGenericCourseInterest('What is the fee for Business English?',named,{}),false);
 });
 
 test('natural course-overview follow-ups use the previously selected course and localize the response',()=>{

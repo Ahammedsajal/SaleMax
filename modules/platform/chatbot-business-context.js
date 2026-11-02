@@ -194,6 +194,10 @@ function isGenericAdInterest(message) {
   return /\b(?:more info(?:rmation)?|details?)\s+(?:on|about)\s+(?:this|it)\b|\b(?:interested in)\s+(?:this|it)\b|معلومات\s*أكثر\s*عن\s*هذا|معلومات\s*اكثر\s*عن\s*هذا|تفاصيل\s*أكثر\s*عن\s*هذا|تفاصيل\s*اكثر\s*عن\s*هذا/iu.test(String(message || ''));
 }
 
+function shouldClarifyGenericCourseInterest(message, context, state = {}) {
+  return isGenericAdInterest(message) && !(context?.selectedCourseCode || state?.selectedCourseCode);
+}
+
 function simpleFactualReply(message, context, config = {}) {
   const text = normalized(message), ar = context.language === 'ar';
   const courses = context.evidence.filter(item => item.kind === 'course');
@@ -277,4 +281,4 @@ function polishGuidedReply({ result, profile, message, state, defaults }) {
   return result;
 }
 
-module.exports = { normalized, fingerprint, languageFor, controlRoute, isScheduleQuestion, hasPublishedSchedule, courseDetailNeedsCoordinator, trainingCenterCoordinatorReason, publishedDurationRange, retrieveContext, validateAnswer, clarification, unavailableReply, simpleFactualReply, isCourseOverviewRequest, isGenericAdInterest, previewState, redactCustomerText, polishGuidedReply };
+module.exports = { normalized, fingerprint, languageFor, controlRoute, isScheduleQuestion, hasPublishedSchedule, courseDetailNeedsCoordinator, trainingCenterCoordinatorReason, publishedDurationRange, retrieveContext, validateAnswer, clarification, unavailableReply, simpleFactualReply, isCourseOverviewRequest, isGenericAdInterest, shouldClarifyGenericCourseInterest, previewState, redactCustomerText, polishGuidedReply };
