@@ -340,7 +340,7 @@ async function trainingCenterGuidedTurn({ ctx, profile, uid, message, sessionId,
   onStage?.('training-channel-and-pack');
   const channelKind = channelFor(origin);
   const pack = getDomainPack(ctx.category.key, ctx.category.version);
-  if (!channelKind || !pack.guidedReply) return false;
+    if (!channelKind || !pack.guidedReply) { onStage?.('training-guided-route-unavailable'); return false; }
   onStage?.('training-session-prune');
   await pruneExpiredGuidedSessions();
   let cvSubmission = null, cvError = null;
@@ -406,6 +406,7 @@ async function trainingCenterGuidedTurn({ ctx, profile, uid, message, sessionId,
     if (leadInfo?.nameOnly && !reply?.handoff) reply = { reply: profile.config?.guidedContent?.messages?.nameCollectedMessage?.[leadInfo.language] || pack.guidedContentDefaults.messages.nameCollectedMessage[leadInfo.language], state: priorState || {} };
     if (!reply || typeof reply.reply !== 'string' || !reply.reply.trim()) {
       await db.rollback();
+      onStage?.('training-guide-empty-reply');
       return false;
     }
     onStage?.('training-guide-polish');
@@ -440,13 +441,13 @@ async function trainingCenterGuidedTurn({ ctx, profile, uid, message, sessionId,
   } finally { db.release(); }
 
   onStage?.('training-authority-check');
-  if (!await canSendNow({ ctx, profile, uid, origin, sessionId, chatId, message })) return false;
+  if (!await canSendNow({ ctx, profile, uid, origin, sessionId, chatId, message })) { onStage?.('training-authority-blocked'); return false; }
   const { sendWaMessage } = require('../../automation/functions');
   const interactiveButtons=channelKind==='whatsapp_meta'&&Array.isArray(reply.buttons)?reply.buttons.filter(item=>item&&typeof item.id==='string'&&typeof item.title==='string'&&item.id.length<=256&&item.title.length<=20).slice(0,3):[];
   const messageContext=interactiveButtons.length?{type:'interactive',interactive:{type:'button',body:{text:reply.reply.slice(0,1024)},action:{buttons:interactiveButtons.map(item=>({type:'reply',reply:{id:item.id,title:item.title}}))}}}:{type:'text',text:{preview_url:false,body:reply.reply}};
   onStage?.('training-whatsapp-send');
   const sentId = await sendWaMessage({ origin, sessionId, message, uid, chatId, content: messageContext });
-  if (!sentId) return false;
+  if (!sentId) { onStage?.('training-whatsapp-send-empty'); return false; }
   if (reply.handoff) await handoffConversation(ctx, chatId, channelKind, sessionId, reply.handoffReason||'customer-requested-human', profile, uid);
   const timestamp = Math.trunc(Date.now() / 1000);
   const messageData = { type: messageContext.type, metaChatId: sentId, msgContext: messageContext, reaction: '', timestamp, senderName: message.senderName, senderMobile: message.senderMobile, star: 0, route: 'OUTGOING', context: null, origin, sentBy: 'bot' };
@@ -848,7 +849,8 @@ async function runConfiguredBot({ uid, message, user, sessionId, origin, chatId 
     else {
       const claim = await handoffConversation(ctx, chatId, channelKind, sessionId, result?.code || 'human-review', profile, uid);
       if (claim && !result?.sent && !result?.flowDispatched) await sendCustomerHandoffNotice({ ctx, profile, uid, message, origin, sessionId, chatId });
-      await finishTurn(turn, 'handed_off', result?.code || 'human-review');
+      const softFailure = result?.code === 'GUIDED_FLOW_UNAVAILABLE';
+      await finishTurn(turn, 'handed_off', result?.code || 'human-review', softFailure ? { stage: activeStage, code: result.code } : null);
     }
     return { handled: true, ...result };
   } catch (error) {
