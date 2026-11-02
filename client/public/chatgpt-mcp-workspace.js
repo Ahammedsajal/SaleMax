@@ -9,7 +9,12 @@
   const roleNames = { owner:['Owner','المالك'], manager:['Manager','المدير'], team_leader:['Team leader','قائد الفريق'], agent:['Agent','الوكيل'], accountant:['Accountant','المحاسب'] };
   const scopeNames = { 'pipeline.read':'scopePipeline', 'conversations.read':'scopeConversation', 'tasks.read':'scopeTaskRead', 'tasks.manage':'scopeTaskManage', offline_access:'scopeOffline' };
   const tr = key => translations[language()][key] || translations.en[key] || key;
-  function language() { try { return /^(ar(?:[-_]|$)|arabic)/i.test(localStorage.getItem('language') || document.documentElement.lang || '') ? 'ar' : 'en'; } catch (_) { return 'en'; } }
+  function language() {
+    try {
+      const value = String(window.SaleMaxLocale?.language?.() || localStorage.getItem('language') || document.documentElement.lang || '').trim();
+      return /^(ar(?:[-_]|$)|arabic)/i.test(value) || /arabic/i.test(value) ? 'ar' : 'en';
+    } catch (_) { return 'en'; }
+  }
   function addApiPath() { if (window.SaleMaxWorkspace?.paths) window.SaleMaxWorkspace.paths.chatgpt = '/api/workspace/chatgpt'; }
   let statusPromise = null;
   async function getStatus() {
@@ -52,7 +57,15 @@
     const drawer = document.querySelector('.MuiDrawer-root.MuiDrawer-docked');
     const width = drawer ? Math.max(0, Math.round(drawer.getBoundingClientRect().width)) : 0;
     overlay.style.setProperty('--sx-chatgpt-sidebar-width', `${width}px`);
-    overlay.dir = language() === 'ar' ? 'rtl' : 'ltr';
+    overlay.dir = language() === 'ar' || document.documentElement.dir === 'rtl' ? 'rtl' : 'ltr';
+  }
+  function renderLanguage() {
+    if (!overlay) return;
+    overlay.querySelectorAll('[data-text]').forEach(node => { node.textContent = tr(node.dataset.text); });
+    overlay.querySelector('[data-action="back"]').textContent = tr('back');
+    overlay.querySelector('[data-action="copy"]').textContent = tr('copy');
+    overlay.querySelector('[data-action="retry"]').textContent = tr('retry');
+    overlay.dir = language() === 'ar' || document.documentElement.dir === 'rtl' ? 'rtl' : 'ltr';
   }
   function ensureOverlay() {
     if (overlay) return overlay;
@@ -71,10 +84,7 @@
         </div><footer>7Network · ChatGPT MCP</footer>
       </div>`;
     document.body.append(overlay);
-    overlay.querySelectorAll('[data-text]').forEach(node => { node.textContent = tr(node.dataset.text); });
-    overlay.querySelector('[data-action="back"]').textContent = tr('back');
-    overlay.querySelector('[data-action="copy"]').textContent = tr('copy');
-    overlay.querySelector('[data-action="retry"]').textContent = tr('retry');
+    renderLanguage();
     overlay.querySelector('[data-action="back"]').addEventListener('click', () => location.assign('/user'));
     overlay.querySelector('[data-action="retry"]').addEventListener('click', loadStatus);
     overlay.querySelector('[data-action="copy"]').addEventListener('click', copyEndpoint);
@@ -147,7 +157,7 @@
     if (location.pathname !== '/user' || new URLSearchParams(location.search).get('page') !== 'chatgpt') {
       overlay?.remove(); overlay = null; return;
     }
-    ensureOverlay(); setTheme(); loadStatus();
+    ensureOverlay(); setTheme(); renderLanguage(); loadStatus();
     window.requestAnimationFrame(() => overlay?.focus());
   }
   async function ensureNavPermission() {
@@ -162,6 +172,8 @@
     openRoute();
     ensureNavPermission();
     window.addEventListener('popstate', openRoute);
+  window.addEventListener('salemax:languagechange', () => { renderLanguage(); loadStatus(); });
+  new MutationObserver(() => { if (overlay) { renderLanguage(); loadStatus(); } }).observe(document.documentElement, { attributes: true, attributeFilter: ['lang', 'dir'] });
     const observer = new MutationObserver(() => {
       addApiPath();
       if (location.pathname === '/user') document.querySelectorAll('[data-sx-sidebar-list]').forEach(addNavRow);

@@ -6,11 +6,11 @@ function isBusinessShellPath(pathname) {
 
 function injectChatGPTWorkspace(html) {
   const assets = [
-    '<link rel="stylesheet" href="/chatgpt-mcp-workspace.css?v=20261102-mcp4">',
+    '<link rel="stylesheet" href="/chatgpt-mcp-workspace.css?v=20261102-mcp5">',
     '<script defer src="/chatgpt-mcp-login-return.js?v=20261102-mcp2"></script>',
-    '<script defer src="/chatgpt-mcp-workspace.js?v=20261102-mcp4"></script>',
+    '<script defer src="/chatgpt-mcp-workspace.js?v=20261102-mcp5"></script>',
   ].join('');
-  if (html.includes('/chatgpt-mcp-workspace.js?v=20261102-mcp4')) return html;
+  if (html.includes('/chatgpt-mcp-workspace.js?v=20261102-mcp5')) return html;
   return /<\/head>/i.test(html) ? html.replace(/<\/head>/i, `${assets}</head>`) : `${assets}${html}`;
 }
 
