@@ -70,6 +70,41 @@ test('monthly AI spend reminders queue owner and manager once and explain the no
   assert.match(sends[0].text,/تستمر الردود دون حد لإيقافها/);
  }finally{qr.staff=staff;}
 });
+test('handoff alerts target every active Inbox reader/replier with a phone and deduplicate shared phones',async()=>{
+ const staff=qr.staff,eligible=require('../modules/platform/team-conversation-assignment').eligibleStaff;
+ const inserted=[],claimId='33333333-3333-4333-8333-333333333333';
+ const recipients=[
+  {kind:'identity',id:'owner-id',role:'owner',phone:'97450000001'},
+  {kind:'identity',id:'agent-id',role:'agent',phone:'97450000002'},
+  {kind:'identity',id:'manager-id',role:'manager',phone:'97450000002'},
+  {kind:'identity',id:'viewer-id',role:'viewer',phone:'97450000003'},
+ ];
+ qr.staff=async(_db,_tenant,options={})=>options.roles?recipients:recipients;
+ require('../modules/platform/team-conversation-assignment').eligibleStaff=async()=>[
+  {identityId:'owner-id'},{identityId:'agent-id'},{identityId:'manager-id'},
+ ];
+ const db={query:async(sql,args)=>{
+  if(sql.includes('FROM sx_chatbot_handoff_claims'))return [[{id:claimId,claim_code:'ABC123',status:'open'}]];
+  if(sql.includes('INSERT INTO sx_business_notification_deliveries'))inserted.push(args);
+  return [[]];
+ }};
+ try{
+  await notifications.prepare(db,{id:'event-id',tenant_id:tenant,kind:'chatbot_handoff',source_type:'chatbot_handoff',source_id:claimId,payload_json:{claimCode:'ABC123'}},{id:tenant,name:'Center'});
+  assert.equal(inserted.length,2);
+  assert.deepEqual(inserted.map(row=>row[3]).sort(),['agent-id','owner-id']);
+  assert.equal(inserted.some(row=>row[3]==='manager-id'),false,'the shared agent/manager phone receives only one staff alert');
+ }finally{qr.staff=staff;require('../modules/platform/team-conversation-assignment').eligibleStaff=eligible;}
+});
+test('handoff dispatch rechecks open status and sends the claim code without customer details',async()=>{
+ const staff=qr.staff,eligible=require('../modules/platform/team-conversation-assignment').eligibleStaff,sends=[];
+ qr.staff=async(_db,_tenant,options={})=>options.roles?[{id:'manager-id',phone:'97450000002',role:'manager'}]:[];
+ require('../modules/platform/team-conversation-assignment').eligibleStaff=async()=>[{identityId:'manager-id'}];
+ const db={query:async sql=>sql.includes('FROM sx_chatbot_handoff_claims')?[[{claim_code:'ABC123',status:'open'}]]:[[]]};
+ try{
+  const result=await notifications.dispatch(db,{id:1,event_id:'event-id',tenant_id:tenant,kind:'chatbot_handoff',source_type:'chatbot_handoff',source_id:id,recipient_kind:'identity',recipient_id:'manager-id',destination_hash:qr.hash('97450000002'),payload_json:{claimCode:'ABC123'}},{authorize:async()=>true,send:async(_db,payload)=>{sends.push(payload);return {status:'accepted',providerMessageId:'synthetic-handoff-alert'};}});
+  assert.equal(result.status,'accepted');assert.equal(sends.length,1);assert.match(sends[0].text,/Reply YES to claim it/);assert.match(sends[0].text,/YES ABC123/);assert.doesNotMatch(sends[0].text,/97450000002|Sample customer/i);
+ }finally{qr.staff=staff;require('../modules/platform/team-conversation-assignment').eligibleStaff=eligible;}
+});
 test('paid/cancelled resources suppress queued notices',async()=>{
  const load=finance.load;finance.load=async()=>null;try{const result=await notifications.dispatch({}, {tenant_id:tenant,kind:'payment_due',source_type:'training_invoice',source_id:id},{authorize:async()=>true,send:()=>assert.fail('must not send')});assert.equal(result.status,'suppressed');}finally{finance.load=load;}
 });

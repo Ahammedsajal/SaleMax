@@ -77,6 +77,46 @@ async function finishTurn(turn, status, resultClass) {
   await query(`UPDATE sx_chatbot_turns SET status=?,result_class=?,lease_until=UTC_TIMESTAMP(3) WHERE id=? AND status='processing'`, [status, resultClass, turn.id]);
 }
 
+async function sendBotText({ origin, sessionId, message, uid, chatId, body }) {
+  const content = { type: 'text', text: { preview_url: false, body: String(body || '').slice(0, 1200) } };
+  const id = await require('../../automation/functions').sendWaMessage({ origin, sessionId, message, uid, chatId, content, bypassBotPause: true });
+  if (!id) return false;
+  const data = { type: 'text', metaChatId: id, msgContext: content, reaction: '', timestamp: Math.trunc(Date.now() / 1000),
+    senderName: message?.senderName || '7Network', senderMobile: message?.senderMobile || '', star: 0, route: 'OUTGOING', context: null, origin, sentBy: 'bot' };
+  try {
+    await require('./chatbot-conversation-store').persistConversationMessage({ uid, chatId, data: { ...data, msgContext: JSON.stringify(content), context: null } });
+    await query('UPDATE beta_chats SET last_message=? WHERE uid=? AND chat_id=?', [JSON.stringify(data), uid, chatId]);
+  } catch (error) {
+    // The provider accepted the message; retain the ack throttle to avoid a
+    // duplicate send if local history persistence is temporarily unavailable.
+    console.warn('[chatbot] handoff message accepted but local history update failed', error.code || 'HANDOFF_HISTORY_UPDATE_FAILED');
+  }
+  return true;
+}
+
+function handoffText(message, language = null, accepted = false) {
+  const lang = language || businessContext.languageFor(textOf(message), {});
+  if (lang === 'ar') return accepted
+    ? 'شكرًا لانتظارك. أحد أعضاء فريقنا استلم استفسارك وسيرد عليك هنا قريبًا.'
+    : 'أحلت استفسارك إلى فريقنا. سيرد عليك أحد أعضاء الفريق في هذه المحادثة عند توفره.';
+  return accepted
+    ? 'Thanks for waiting. A team member has accepted your request and will reply here shortly.'
+    : 'I’ve passed your message to our team. A staff member will reply in this chat as soon as they’re available.';
+}
+
+async function sendCustomerHandoffNotice({ ctx, profile, uid, message, origin, sessionId, chatId, accepted = false }) {
+  if (!await canSendNow({ ctx, profile, uid, origin, sessionId, chatId, message, checkPause: false })) return false;
+  const channelKind = channelFor(origin);
+  const inboundId = String(message?.metaChatId || crypto.createHash('sha256').update(JSON.stringify([chatId, message?.timestamp || '', textOf(message)])).digest('hex')).slice(0, 191);
+  const claims = require('./chatbot-handoff-claims');
+  const pending = await claims.findOpen(dbPool, { tenantId: ctx.tenant.id, uid, channelKind, channelRef: sessionId, chatId });
+  if (!pending) return false;
+  if (!await claims.reserveCustomerAcknowledgement(dbPool, { tenantId: ctx.tenant.id, claimId: pending.id, inboundId })) return false;
+  const sent = await sendBotText({ origin, sessionId, message, uid, chatId, body: handoffText(message, null, accepted) }).catch(() => false);
+  if (!sent) await claims.releaseCustomerAcknowledgement(dbPool, { tenantId: ctx.tenant.id, claimId: pending.id, inboundId }).catch(() => {});
+  return sent;
+}
+
 async function handoffConversation(ctx, chatId, channelKind, channelRef, reason, profile = null, uid = null) {
   const db = await dbPool.getConnection();
   try {
@@ -88,13 +128,75 @@ async function handoffConversation(ctx, chatId, channelKind, channelRef, reason,
     await db.query(`INSERT INTO sx_audit_events(id,tenant_id,actor_identity_id,actor_kind,action,resource_type,resource_id,changes,correlation_id)
       VALUES (?,?,NULL,'system','chatbot.conversation-auto-handoff','chatbot-conversation',?,?,?)`,
     [crypto.randomUUID(), ctx.tenant.id, chatId, JSON.stringify({ mode: 'paused', reason: String(reason || 'human-review').slice(0, 240) }), crypto.randomUUID()]);
-    if (profile && uid) await require('./chatbot-handoff-task').assignHandoffTask(db, { ctx, profile, uid, chatId, channelKind, channelRef, reason });
+    let claim = null;
+    if (profile && uid) {
+      const handoffs = require('./chatbot-handoff-claims');
+      claim = await handoffs.open(db, { ctx, profile, uid, chatId, channelKind, channelRef, reason });
+      if (claim.created) {
+        const taskId = await require('./chatbot-handoff-task').assignHandoffTask(db, { ctx, profile, uid, chatId, channelKind, channelRef, reason });
+        if (taskId) await db.query('UPDATE sx_chatbot_handoff_claims SET handoff_task_id=? WHERE tenant_id=? AND id=?', [taskId, ctx.tenant.id, claim.id]);
+        await handoffs.queue(db, ctx.tenant.id, claim);
+      }
+    }
     if (profile?.config?.assignHandoffsToInbox === true && profile.config.handoffAssigneeIdentityId && uid) {
       await require('./team-conversation-assignment').assignConversation(db, { ctx, uid, chatId, identityId: profile.config.handoffAssigneeIdentityId, reason: 'bot-human-handover' });
     }
     await db.commit();
+    return claim;
   } catch (error) { await db.rollback(); throw error; }
   finally { db.release(); }
+}
+
+async function processHandoffPriorityForProfile({ ctx, profile, uid, message, user, sessionId, origin, chatId }) {
+  const channelKind = channelFor(origin);
+  const claims = require('./chatbot-handoff-claims');
+  const text = textOf(message);
+  if (claims.parseYes(text)) {
+    const claimed = await claims.handleStaffClaim(dbPool, { ctx, uid, message, text, channelKind, channelRef: sessionId, chatId });
+    if (claimed.handled) {
+      let staffReply = 'There are no open staff handoffs to claim.';
+      if (claimed.outcome === 'ambiguous') staffReply = 'More than one handoff is waiting. Reply YES followed by the six-character code in the alert.';
+      else if (claimed.outcome === 'not_found') staffReply = 'That handoff code is no longer open. Check the latest staff alert.';
+      else if (claimed.outcome === 'claimed') staffReply = 'You have been assigned this conversation. Please reply to the customer in the Inbox.';
+      else if (claimed.outcome === 'already_claimed') staffReply = 'Another team member has already claimed that conversation.';
+      else if (claimed.outcome === 'chat_missing') staffReply = 'That conversation is no longer available in the Inbox.';
+      else if (claimed.outcome === 'error') staffReply = 'I could not assign that conversation. Please open it from the Inbox.';
+      await sendBotText({ origin, sessionId, message, uid, chatId, body: staffReply }).catch(() => false);
+      if (claimed.outcome === 'claimed' && claimed.customerChat?.senderMobile) {
+        const customerMessage = { ...message, senderMobile: claimed.customerChat.senderMobile, senderName: claimed.customerChat.senderName || '', metaChatId: `handoff-accepted:${claimed.conversationId}`, timestamp: Date.now() };
+        await sendBotText({ origin: claimed.customerChat.origin || origin, sessionId, message: customerMessage, uid, chatId: claimed.conversationId, body: handoffText(customerMessage, null, true) }).catch(() => false);
+      }
+      return { handled: true, handoffClaim: claimed.outcome };
+    }
+  }
+
+  const pause = await require('./chatbot-conversation-control').readPause(uid, chatId, channelKind, sessionId);
+  if (!pause) return { handled: false };
+  if (pause.updatedByKind !== 'system' || pause.failClosed || pause.ambiguous) return { handled: true, paused: true };
+  let pending = await claims.findOpen(dbPool, { tenantId: ctx.tenant.id, uid, channelKind, channelRef: sessionId, chatId });
+  if (!pending) {
+    const claim = await handoffConversation(ctx, chatId, channelKind, sessionId, pause.reason || 'human-review', profile, uid).catch(() => null);
+    pending = claim && await claims.findOpen(dbPool, { tenantId: ctx.tenant.id, uid, channelKind, channelRef: sessionId, chatId });
+  }
+  if (pending) await sendCustomerHandoffNotice({ ctx, profile, uid, message, origin, sessionId, chatId });
+  return { handled: true, paused: true, handedOff: Boolean(pending) };
+}
+
+async function handleHandoffPriorityMessage({ uid, message, user, sessionId, origin, chatId }) {
+  if (!uid || !chatId || message?.route !== 'INCOMING' || require('./qr-inbox-groups').isGroup({ ...message, chatId })) return { handled: false };
+  const access = await currentOwnerAccess(uid);
+  const ctx = access.context;
+  if (!ctx) return { handled: false };
+  const profile = await profileFor(ctx, uid, origin, sessionId);
+  if (!profile) return { handled: false };
+  const claims = require('./chatbot-handoff-claims');
+  if (claims.parseYes(textOf(message))) {
+    const result = await processHandoffPriorityForProfile({ ctx, profile, uid, message, user, sessionId, origin, chatId });
+    if (result.handled) return result;
+  }
+  const pause = await require('./chatbot-conversation-control').readPause(uid, chatId, channelFor(origin), sessionId);
+  if (!pause) return { handled: false };
+  return processHandoffPriorityForProfile({ ctx, profile, uid, message, user, sessionId, origin, chatId });
 }
 
 async function profileFor(ctx, uid, origin, sessionId) {
@@ -602,6 +704,8 @@ async function runConfiguredBot({ uid, message, user, sessionId, origin, chatId 
   }
   const profile = await profileFor(ctx, uid, origin, sessionId);
   if (!profile) return { handled: false };
+  const priority = await handleHandoffPriorityMessage({ uid, message, user, sessionId, origin, chatId });
+  if (priority.handled) return priority;
   // A restricted chat is handled silently so it cannot fall through to legacy bots.
   if (!recipientAllowed(profile.config, message?.senderMobile, profile.id)) return { handled: true, paused: true, code: 'RECIPIENT_NOT_ENABLED' };
   let leadInfo = null;
@@ -613,7 +717,8 @@ async function runConfiguredBot({ uid, message, user, sessionId, origin, chatId 
       finally { db.release(); }
       leadInfo = await require('./chatbot-lead-capture').captureLead(dbPool, { ctx, profile, uid, chatId, origin, message, facts });
     } catch (error) {
-      await handoffConversation(ctx, chatId, channelFor(origin), sessionId, 'lead-capture-unavailable', profile, uid).catch(() => {});
+      const claim = await handoffConversation(ctx, chatId, channelFor(origin), sessionId, 'lead-capture-unavailable', profile, uid).catch(() => null);
+      if (claim) await sendCustomerHandoffNotice({ ctx, profile, uid, message, origin, sessionId, chatId });
       return { handled: true, handedOff: true, code: 'LEAD_CAPTURE_UNAVAILABLE' };
     }
   } else if (ctx.category.chatbotLeadCapture === 'generic' && profile.config?.captureLeads === true) {
@@ -621,7 +726,8 @@ async function runConfiguredBot({ uid, message, user, sessionId, origin, chatId 
       try {
         leadInfo = await require('./chatbot-lead-capture').captureGenericLead(dbPool, { ctx, profile, uid, chatId, origin, message });
       } catch (error) {
-        await handoffConversation(ctx, chatId, channelFor(origin), sessionId, 'lead-capture-unavailable', profile, uid).catch(() => {});
+        const claim = await handoffConversation(ctx, chatId, channelFor(origin), sessionId, 'lead-capture-unavailable', profile, uid).catch(() => null);
+        if (claim) await sendCustomerHandoffNotice({ ctx, profile, uid, message, origin, sessionId, chatId });
         return { handled: true, handedOff: true, code: 'LEAD_CAPTURE_UNAVAILABLE' };
       }
     }
@@ -641,13 +747,17 @@ async function runConfiguredBot({ uid, message, user, sessionId, origin, chatId 
     ? await completionModule.load(dbPool,{tenantId:ctx.tenant.id,channelKind,channelRef:sessionId,conversationId:chatId}):null;
   const completionAction=completionModule.actionFor(completion,message,textOf(message));
   if(completionAction==='silent'){
-    if(!completion.control||completion.control.mode!=='paused')await handoffConversation(ctx,chatId,channelKind,sessionId,completion.application.cvFileName?'recruitment-complete':'recruitment-awaiting-cv',profile,uid);
+    if(!completion.control||completion.control.mode!=='paused'){
+      const claim=await handoffConversation(ctx,chatId,channelKind,sessionId,completion.application.cvFileName?'recruitment-complete':'recruitment-awaiting-cv',profile,uid);
+      if(claim)await sendCustomerHandoffNotice({ctx,profile,uid,message,origin,sessionId,chatId});
+    }
     return {handled:true,paused:true,code:'RECRUITMENT_QUESTIONS_FINISHED'};
   }
   if (!testReset && !completionAction && await shouldPause(uid, chatId, channelKind, sessionId)) return { handled: true, paused: true };
   const turn = await claimTurn(ctx, profile, message, chatId);
   if (!turn) {
-    await handoffConversation(ctx, chatId, channelKind, sessionId, 'inbound-message-id-unavailable', profile, uid);
+    const claim = await handoffConversation(ctx, chatId, channelKind, sessionId, 'inbound-message-id-unavailable', profile, uid);
+    if (claim) await sendCustomerHandoffNotice({ ctx, profile, uid, message, origin, sessionId, chatId });
     return { handled: true, handedOff: true, code: 'INBOUND_MESSAGE_ID_UNAVAILABLE' };
   }
   if (turn.duplicate) return { handled: true, duplicate: true };
@@ -666,7 +776,8 @@ async function runConfiguredBot({ uid, message, user, sessionId, origin, chatId 
     if (result?.sent || result?.flowDispatched) await finishTurn(turn, 'sent', result?.flowDispatched ? 'guided-flow-dispatched' : 'reply-sent');
     else if (result?.paused) await finishTurn(turn, 'handed_off', 'human-paused');
     else {
-      await handoffConversation(ctx, chatId, channelKind, sessionId, result?.code || 'human-review', profile, uid);
+      const claim = await handoffConversation(ctx, chatId, channelKind, sessionId, result?.code || 'human-review', profile, uid);
+      if (claim && !result?.sent && !result?.flowDispatched) await sendCustomerHandoffNotice({ ctx, profile, uid, message, origin, sessionId, chatId });
       await finishTurn(turn, 'handed_off', result?.code || 'human-review');
     }
     return { handled: true, ...result };
@@ -676,10 +787,11 @@ async function runConfiguredBot({ uid, message, user, sessionId, origin, chatId 
       return { handled: true, code: error.code };
     }
     const failure = ['AI_PROVIDER_NOT_CONFIGURED','AI_PROVIDER_TIMEOUT','AI_PROVIDER_REQUEST_FAILED','AI_PROVIDER_INVALID_OUTPUT'].includes(error.code) ? error.code : 'runtime-error';
-    await handoffConversation(ctx, chatId, channelKind, sessionId, failure, profile, uid).catch(() => {});
+    const claim = await handoffConversation(ctx, chatId, channelKind, sessionId, failure, profile, uid).catch(() => null);
+    if (claim) await sendCustomerHandoffNotice({ ctx, profile, uid, message, origin, sessionId, chatId }).catch(() => false);
     await finishTurn(turn, 'handed_off', failure).catch(() => {});
     return { handled: true, handedOff: true, code: error.code || 'BOT_RUNTIME_ERROR' };
   }
 }
 
-module.exports = { canSendNow, runConfiguredBot, previewConfiguredBot, resolveTenant, loadGuidedFlow, parseGuidedFlow, executionFlowId };
+module.exports = { canSendNow, handleHandoffPriorityMessage, runConfiguredBot, previewConfiguredBot, resolveTenant, loadGuidedFlow, parseGuidedFlow, executionFlowId };

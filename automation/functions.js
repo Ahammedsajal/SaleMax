@@ -659,9 +659,10 @@ async function sendWaMessage({
   chatId,
   variablesObj,
   content = null,
+  bypassBotPause = false,
 }) {
   try {
-    if (chatId && await shouldPause(uid, chatId, channelFor(origin), sessionId)) return null;
+    if (chatId && !bypassBotPause && await shouldPause(uid, chatId, channelFor(origin), sessionId)) return null;
     let sendMsgId = null;
     const messageContent = content || node?.data?.content;
     const messageType = messageContent?.type;
