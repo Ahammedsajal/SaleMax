@@ -68,6 +68,21 @@ Suggested opening copy:
 - EN: “Welcome to Pro Catalyst Training Center. I can help with courses, current fees, registration, or our location. What would you like to know?”
 - AR: “مرحباً بك في مركز برو كاتاليست للتدريب. يمكنني مساعدتك بمعلومات الدورات والرسوم الحالية والتسجيل وموقع المركز. ما الذي تود معرفته؟”
 
+Copy-ready bilingual scripts and FAQ replies for the existing editor:
+
+| Priority | Trigger/alias | English reply | Arabic reply | Action |
+|---:|---|---|---|---|
+| 5 | `hi`, `hello`, `salam`; مرحباً، السلام عليكم | Use the opening copy above. | Use the opening copy above. | Start the existing guided menu/Flow Builder opening once; do not request a name before the customer asks to register. |
+| 20 | `courses`, `course list`, `show courses`; الدورات، قائمة الدورات | “Here are our current courses. Which one would you like to know about?” | “إليك قائمة دوراتنا الحالية. ما الدورة التي تود معرفة المزيد عنها؟” | Render the live course list; one optional course question. |
+| 30 | `fee`, `price`, `cost`, `how much`; رسوم، سعر، كم التكلفة | “I can check the current fee for you. Which course are you interested in?” | “يمكنني التحقق من الرسوم الحالية. ما الدورة التي تهمك؟” | Resolve a named course from the live offer before quoting a number. |
+| 30 | `duration`, `how long`; مدة، كم تستغرق | “I can check the current course duration. Which course do you mean?” | “يمكنني التحقق من مدة الدورة الحالية. أي دورة تقصد؟” | Use live structured duration, except a published description range takes precedence; missing data goes to staff. |
+| 30 | `next batch`, `start date`, `when`; الدفعة القادمة، موعد البداية، متى | “I don’t have a confirmed start date for the next batch. I’ll ask our team to confirm it for you.” | “لا يتوفر لدي موعد مؤكد لبدء الدفعة القادمة. سأطلب من فريقنا تأكيد الموعد لك.” | Pause automation and create the existing Inbox handoff. |
+| 20 | `register`, `enrol`, `application form`; تسجيل، التحاق، نموذج التسجيل | “You can register using our Student Registration Form: https://7network.live/p/pro-catalyst-05f1f2b34f/forms/student-registration” | “يمكنك التسجيل عبر استمارة تسجيل الطالب: https://7network.live/p/pro-catalyst-05f1f2b34f/forms/student-registration” | Send only in response to a registration request; do not claim a submission is complete. |
+| 40 | `more details`, `more information`; تفاصيل أكثر، معلومات أكثر | “Of course. Which course would you like more details about?” | “بكل سرور. عن أي دورة تود معرفة مزيد من التفاصيل؟” | Ask one clarifying question, then retrieve only that course. |
+| 0 | `person`, `agent`, `staff`, `talk to a human`; أريد موظفاً، أريد التحدث مع شخص | “I’ll ask our team to help you here.” | “سأطلب من فريقنا مساعدتك هنا.” | Pause the bot and hand off to Inbox immediately. |
+
+The location/hours and MS Office duration FAQs already saved in production should be retained. Do not add static discount, refund, accreditation, payment, employment or student-account claims until the owner approves their policy text; route those intents to staff meanwhile.
+
 The live profile's opening wording and custom Flow Builder `introFlowId` are not yet changed. Enquiry capture should use the existing published registration form only after the customer requests registration; staff handoff should create/use the existing Inbox task/assignment path.
 
 ## Cost and acceptance gates
