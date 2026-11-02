@@ -248,7 +248,9 @@ async function trainingCenterGuidedTurn({ ctx, profile, uid, message, sessionId,
         : intent || textOf(message);
       reply = pack.guidedReply({ message: guideMessage, state: priorState, facts, config: { ...(profile.config?.guidedContent || {}), knowledgeEntries } });
     }
-    if (leadInfo?.nameOnly) reply = { reply: profile.config?.guidedContent?.messages?.nameCollectedMessage?.[leadInfo.language] || pack.guidedContentDefaults.messages.nameCollectedMessage[leadInfo.language], state: priorState || {} };
+    // A lead-capture name prompt must never erase a substantive safety route
+    // (for example, a certificate question that needs staff confirmation).
+    if (leadInfo?.nameOnly && !reply?.handoff) reply = { reply: profile.config?.guidedContent?.messages?.nameCollectedMessage?.[leadInfo.language] || pack.guidedContentDefaults.messages.nameCollectedMessage[leadInfo.language], state: priorState || {} };
     if (!reply || typeof reply.reply !== 'string' || !reply.reply.trim()) {
       await db.rollback();
       return false;
