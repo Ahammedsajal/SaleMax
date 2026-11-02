@@ -12,3 +12,4 @@ services:
       - /opt/salemax/releases/procatalyst-natural-chat-20261102/runtime/migration-history/20261208_team_role_sidebar_navigation.sql:/app/database/migrations/20261208_team_role_sidebar_navigation.sql:ro
       - /opt/salemax/releases/procatalyst-natural-chat-20261102/runtime/migration-history/20270104_chatbot_no_reply_pause.sql:/app/database/migrations/20270104_chatbot_no_reply_pause.sql:ro
       - /opt/salemax/releases/procatalyst-natural-chat-20261102/runtime/migration-history/20270105_tenant_white_label_storefront.sql:/app/database/migrations/20270105_tenant_white_label_storefront.sql:ro
+      - /opt/salemax/releases/procatalyst-natural-chat-20261102/runtime/migration-history/20261102_chatgpt_mcp_oauth.sql:/app/database/migrations/20261102_chatgpt_mcp_oauth.sql:ro
