@@ -366,7 +366,8 @@ async function generateAiAnswer({ ctx, profile, uid, customerMessage, chatId = n
   };
   if (profile.engine === 'hybrid') {
     const faq = require('./chatbot-faq').findApprovedFaq(customerMessage, knowledgeEntries, context.language, { hasCourse: context.evidence.some(item => item.kind === 'course') });
-    if (faq && !courseOverview) return { canAnswer: true, confidence: 1, reply: faq.answer, state: nextState, route: 'approved_faq', metrics: { inputTokens: 0, outputTokens: 0, cacheHit: false, sources: context.sources } };
+    const skipFaq = typeof businessContext.shouldSkipApprovedFaq === 'function' && businessContext.shouldSkipApprovedFaq(customerMessage, context);
+    if (faq && !skipFaq) return { canAnswer: true, confidence: 1, reply: faq.answer, state: nextState, route: 'approved_faq', metrics: { inputTokens: 0, outputTokens: 0, cacheHit: false, sources: context.sources } };
     const simple = businessContext.simpleFactualReply(customerMessage, context, profile.config);
     if (simple && !courseOverview) return { canAnswer: true, confidence: 1, reply: simple.reply, state: simple.nextStep ? { ...nextState, step: simple.nextStep } : nextState, route: 'facts', metrics: { inputTokens: 0, outputTokens: 0, cacheHit: false, sources: context.sources } };
     if (courseOverview && !settings) return factualOverviewFallback(context) || { handedOff: true, code: 'AI_PROVIDER_NOT_CONFIGURED' };

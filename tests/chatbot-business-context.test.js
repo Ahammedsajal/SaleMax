@@ -1,7 +1,7 @@
 'use strict';
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { controlRoute, isScheduleQuestion, hasPublishedSchedule, courseDetailNeedsCoordinator, trainingCenterCoordinatorReason, publishedDurationRange, retrieveContext, validateAnswer, languageFor, fingerprint, previewState, simpleFactualReply, unavailableReply, isCourseOverviewRequest, isGenericAdInterest, shouldClarifyGenericCourseInterest } = require('../modules/platform/chatbot-business-context');
+const { controlRoute, isScheduleQuestion, hasPublishedSchedule, courseDetailNeedsCoordinator, trainingCenterCoordinatorReason, publishedDurationRange, retrieveContext, validateAnswer, languageFor, fingerprint, previewState, simpleFactualReply, unavailableReply, isCourseOverviewRequest, shouldSkipApprovedFaq, isGenericAdInterest, shouldClarifyGenericCourseInterest } = require('../modules/platform/chatbot-business-context');
 const facts = [
  { courseId:'english',code:'ENG',nameEn:'Business English',nameAr:'الإنجليزية للأعمال',descriptionEn:'English communication for work and presentations',descriptionAr:'التواصل باللغة الإنجليزية في العمل والعروض',durationValue:8,durationUnit:'weeks',offer:{priceAmount:'350.00',registrationFeeAmount:'25.00',currency:'QAR'},batches:[{startsOn:'2026-11-15',seatsAvailable:7}] },
  { courseId:'excel',code:'EXCEL',nameEn:'Excel Essentials',nameAr:'أساسيات إكسل',descriptionEn:'Practical spreadsheets and office skills',descriptionAr:'مهارات الجداول والحاسوب المكتبية',offer:{priceAmount:'250.00',currency:'QAR'},batches:[] },
@@ -165,6 +165,14 @@ test('first-message practical-skills questions bypass a broad course duration FA
  const context=retrieveContext({facts:source,message,knowledgeEntries:[{questionEn:'How long is MS Office Training?',answerEn:'The MS Office Training course takes 8–10 weeks.'}]});
  assert.equal(isCourseOverviewRequest(message,context),true);
  assert.match(simpleFactualReply(message,context).reply,/MS Word: Documents and reports/);
+});
+
+test('multi-course comparisons bypass broad single-course FAQs',()=>{
+ const message='How does Business English differ from Excel Essentials, and which is better for me?';
+ const context=retrieveContext({facts, message});
+ assert.equal(context.evidence.filter(item=>item.kind==='course').length,2);
+ assert.equal(shouldSkipApprovedFaq(message,context),true);
+ assert.equal(shouldSkipApprovedFaq('Where is your centre?',retrieveContext({facts,message:'Where is your centre?'})),false);
 });
 
 test('general policy questions omit unrelated courses and retain approved refund FAQs',()=>{const c=retrieveContext({facts,message:'What is your refund fees policy?',knowledgeEntries:[{questionEn:'What is your refund fees policy?',answerEn:'Contact the centre before cancelling.'}]});assert.equal(c.evidence.filter(x=>x.kind==='course').length,0);assert.equal(c.evidence.filter(x=>x.kind==='approved_faq').length,1);});
