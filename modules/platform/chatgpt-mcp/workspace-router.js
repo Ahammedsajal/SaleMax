@@ -7,7 +7,12 @@ const oauth = require('./oauth');
 function fail(code, status = 400) { throw Object.assign(new Error(code), { code, status }); }
 const json = (res, data, status = 200) => res.status(status).json({ success: true, data });
 
-function createWorkspaceRouter({ db, sessionGuard, origin }) {
+function createWorkspaceRouter({ db, pool, sessionGuard, origin }) {
+  // The existing workspace upgrade mounts feature routers with `pool`; accept
+  // that shared-service convention while keeping `db` explicit for tests and
+  // standalone protocol wiring.
+  db = db || pool;
+  if (!db || typeof db.query !== 'function') throw new TypeError('CHATGPT_WORKSPACE_DATABASE_REQUIRED');
   const router = express.Router();
   router.use(express.json({ limit: '16kb', strict: true }));
   router.use(sessionGuard);

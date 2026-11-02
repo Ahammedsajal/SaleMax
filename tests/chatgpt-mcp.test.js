@@ -20,6 +20,7 @@ const express = require('express');
 const identity = require('../modules/platform/chatgpt-mcp/identity');
 const oauth = require('../modules/platform/chatgpt-mcp/oauth');
 const tools = require('../modules/platform/chatgpt-mcp/tools');
+const workspaceRouter = require('../modules/platform/chatgpt-mcp/workspace-router');
 const shell = require('../modules/web/chatgpt-mcp-shell');
 
 async function withServer(router, callback) {
@@ -213,6 +214,40 @@ test('MCP endpoint advertises OAuth metadata and rejects unauthenticated tool ca
     assert.equal(response.status, 401);
     assert.match(response.headers.get('www-authenticate'), /\.well-known\/oauth-protected-resource\/mcp/);
   });
+});
+
+test('ChatGPT connection settings use the shared pool option supplied by the business workspace mount', async () => {
+  const originalActor = identity.actorFromFeatureSession;
+  const originalScopes = identity.allowedScopes;
+  let queried = false;
+  const pool = {
+    query: async sql => {
+      assert.match(sql, /FROM mcp_oauth_connections c JOIN mcp_oauth_clients cl/);
+      queried = true;
+      return [[], []];
+    },
+  };
+  identity.actorFromFeatureSession = async () => ({ uidHash: 'synthetic-account', tenantId: 'synthetic-tenant' });
+  identity.allowedScopes = async () => new Set(['pipeline.read']);
+  try {
+    const router = workspaceRouter.createWorkspaceRouter({
+      pool,
+      sessionGuard: (req, _res, next) => { req.featureSession = { actor: { id: 1 } }; next(); },
+      origin: 'https://7network.live',
+    });
+    await withServer(router, async base => {
+      const response = await fetch(`${base}/connections`);
+      assert.equal(response.status, 200);
+      const result = await response.json();
+      assert.equal(result.data.eligible, true);
+      assert.deepEqual(result.data.connections, []);
+      assert.equal(result.data.endpoint, 'https://7network.live/mcp');
+      assert.equal(queried, true);
+    });
+  } finally {
+    identity.actorFromFeatureSession = originalActor;
+    identity.allowedScopes = originalScopes;
+  }
 });
 
 test('MCP tool catalog follows only the granted scopes', async () => {
