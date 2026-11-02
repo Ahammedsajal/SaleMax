@@ -57,6 +57,19 @@ test('daily report dispatch suppresses verified non-owner recipients',async()=>{
  const db={query:async()=>[[{destination:'+97450000002'}]]};
  try{const result=await notifications.dispatch(db,{tenant_id:tenant,kind:'daily_summary',recipient_kind:'report_recipient',recipient_id:id,destination_hash:qr.hash('97450000002'),payload_json:{snapshot:{business:'Center'}}},{authorize:async()=>true,send:()=>assert.fail('daily summary must not reach a non-owner')});assert.deepEqual(result,{status:'suppressed',errorCode:'DAILY_REPORT_OWNER_ONLY'});}finally{qr.staff=staff;}
 });
+test('monthly AI spend reminders queue owner and manager once and explain the no-cap policy',async()=>{
+ const staff=qr.staff,deliveries=[];qr.staff=async()=>[{id:'owner-id',role:'owner',phone:'97450000001'},{id:'manager-id',role:'manager',phone:'97450000002'},{id:'agent-id',role:'agent',phone:'97450000003'}];
+ const db={query:async(sql,args)=>{if(sql.includes('INSERT INTO sx_business_notification_deliveries'))deliveries.push(args);return [[]];}};
+ try{
+  await notifications.prepare(db,{id:'event-id',tenant_id:tenant,kind:'ai_usage_monthly',source_type:'tenant',source_id:tenant,payload_json:{month:'2026-11',estimatedUsd:10.25,thresholdUsd:10}},{id:tenant,name:'Northstar',timezone:'Asia/Qatar'});
+  assert.deepEqual(deliveries.map(row=>row[3]),['owner-id','manager-id']);
+  const sends=[];const manager=await notifications.dispatch(db,{id:1,event_id:'event-id',tenant_id:tenant,kind:'ai_usage_monthly',source_type:'tenant',source_id:tenant,recipient_kind:'identity',recipient_id:'manager-id',destination_hash:qr.hash('97450000002'),payload_json:{month:'2026-11',estimatedUsd:10.25,thresholdUsd:10}}, {authorize:async()=>true,send:async(_db,input)=>{sends.push(input);return {status:'accepted',providerMessageId:'spend-reminder'};}});
+  assert.equal(manager.status,'accepted');
+  assert.match(sends[0].text,/\$10\.25/);
+  assert.match(sends[0].text,/reminder only; AI replies continue without a spending cap/i);
+  assert.match(sends[0].text,/تستمر الردود دون حد لإيقافها/);
+ }finally{qr.staff=staff;}
+});
 test('paid/cancelled resources suppress queued notices',async()=>{
  const load=finance.load;finance.load=async()=>null;try{const result=await notifications.dispatch({}, {tenant_id:tenant,kind:'payment_due',source_type:'training_invoice',source_id:id},{authorize:async()=>true,send:()=>assert.fail('must not send')});assert.equal(result.status,'suppressed');}finally{finance.load=load;}
 });

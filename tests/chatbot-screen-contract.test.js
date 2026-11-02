@@ -113,7 +113,7 @@ test('Hybrid bot test recipients are entered as validated removable phone chips'
   assert.match(admin, /\$\{audienceNotice\}\$\{testSettings\}\$\{flowField\}/);
 });
 
-test('AI provider, model, usage limit, and confidence use curated dropdown choices', () => {
+test('AI provider and model use curated choices with a monthly reminder and no reply cap', () => {
   assert.match(admin, /<select name="provider"/);
   assert.match(admin, /value="openai"/);
   assert.match(admin, /name="model"[^>]*>\$\{modelChoices\(/);
@@ -121,7 +121,8 @@ test('AI provider, model, usage limit, and confidence use curated dropdown choic
   assert.match(admin, /id: 'gpt-6-luna'.*Recommended/);
   assert.match(admin, /id: 'gemini-3\.1-flash-lite'.*Recommended/);
   assert.match(admin, /id: 'deepseek-flash'.*Recommended/);
-  assert.match(admin, /name="dailyTokenLimit"[^>]*>\$\{presetChoices\(/);
+  assert.match(admin, /No daily token cap/);
+  assert.match(admin, /monthly AI spend.*\$10/);
   assert.match(admin, /<select name="confidenceThreshold"/);
   assert.match(admin, /Saved model:/);
   assert.match(admin, /Prices are estimates in USD per 1 million text tokens/);
@@ -131,7 +132,7 @@ test('active bot profiles stay editable while provider credentials and sensitive
   assert.match(admin, /data-edit="\$\{esc\(bot\.id\)\}"/);
   assert.doesNotMatch(admin, /data-edit="\$\{esc\(bot\.id\)\}"\s+\$\{bot\.status==='live'\?'disabled/);
   assert.match(admin, /Saved changes take effect on the next incoming message/);
-  assert.match(admin, /Provider credentials and usage limits are locked while this bot is active/);
+  assert.match(admin, /Provider credentials and model settings are locked while this bot is active/);
   assert.match(admin, /Pause this bot before changing its AI privacy confirmation/);
   assert.match(admin, /aiDataProcessingConfirmed:liveEdit\?config\.aiDataProcessingConfirmed===true/);
   assert.match(admin, /assign its number from the Chatbot page/);

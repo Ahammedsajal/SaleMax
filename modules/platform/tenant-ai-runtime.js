@@ -18,29 +18,27 @@ async function run({ pool, tenantId, input, maxOutputTokens = 350, execute }, de
   const settings = await settingsService.forRuntime(pool, tenantId);
   if (!settings) return { configured: false };
 
-  const reservation = await settingsService.reserveTokens(
-    pool,
-    tenantId,
-    Number(settings.daily_token_limit),
-    estimateReservation(input, maxOutputTokens),
-  );
-  if (!reservation) fail('DAILY_TOKEN_LIMIT', 429);
-
-  let used = null;
+  let reservation = null;
+  try { reservation = await settingsService.reserveTokens(pool, tenantId, Number(settings.daily_token_limit), estimateReservation(input, maxOutputTokens)); }
+  catch (error) { console.warn('[tenant-ai] usage reservation unavailable', error.code || 'USAGE_RESERVATION_FAILED'); }
+  let used = null, usageDetails = {};
   try {
     const result = await execute({ provider: settings.provider, model: settings.model, apiKey: settings.apiKey });
     const usage = result?.usage;
     if (Number.isSafeInteger(usage?.inputTokens) && Number.isSafeInteger(usage?.outputTokens)) {
       used = Math.max(0, usage.inputTokens + usage.outputTokens);
+      usageDetails = { inputTokens: usage.inputTokens, outputTokens: usage.outputTokens };
     } else if (Number.isSafeInteger(result?.inputTokens) && Number.isSafeInteger(result?.outputTokens)) {
       used = Math.max(0, result.inputTokens + result.outputTokens);
+      usageDetails = { inputTokens: result.inputTokens, outputTokens: result.outputTokens };
     }
     return { configured: true, result };
   } catch (error) {
-    if (Number.isSafeInteger(error?.tokensUsed) && error.tokensUsed >= 0) used = error.tokensUsed;
+    if (Number.isSafeInteger(error?.tokensUsed) && error.tokensUsed >= 0) { used = error.tokensUsed; usageDetails = { inputTokens: 0, outputTokens: error.tokensUsed }; }
     throw error;
   } finally {
-    await settingsService.settleTokens(pool, tenantId, reservation, used);
+    try { await settingsService.settleTokens(pool, tenantId, reservation, used, { provider: settings.provider, model: settings.model, ...usageDetails }); }
+    catch (error) { console.warn('[tenant-ai] usage settlement unavailable', error.code || 'USAGE_SETTLEMENT_FAILED'); }
   }
 }
 

@@ -48,15 +48,17 @@ test('center provider and model serve translation and settle shared token usage'
   assert.equal(calls.settled.used, 45);
 });
 
-test('shared daily limit blocks provider calls', async () => {
+test('the legacy daily limit no longer blocks provider calls', async () => {
   let called = false;
   const settingsService = {
     async forRuntime() { return { provider: 'openai', model: 'gpt-center', apiKey: 'secret-in-memory', daily_token_limit: 1000 }; },
     async reserveTokens() { return null; },
+    async settleTokens() {},
   };
-  await assert.rejects(aiText.generate({ pool: {}, tenantId: 'tenant-1', mode: 'suggestion', text: 'Hello' }, {
+  const result = await aiText.generate({ pool: {}, tenantId: 'tenant-1', mode: 'suggestion', text: 'Hello' }, {
     settingsService,
-    providerService: { async generate() { called = true; } },
-  }), error => error.code === 'DAILY_TOKEN_LIMIT');
-  assert.equal(called, false);
+    providerService: { async generate() { called = true; return { canAnswer: true, reply: 'Hello there', inputTokens: 1, outputTokens: 1 }; } },
+  });
+  assert.equal(result.text, 'Hello there');
+  assert.equal(called, true);
 });

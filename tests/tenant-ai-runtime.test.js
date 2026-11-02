@@ -11,7 +11,7 @@ function fakeSettings(settings = { provider: 'openai', model: 'gpt-6-luna', apiK
     service: {
       async forRuntime(_pool, tenantId) { calls.push(['settings', tenantId]); return settings; },
       async reserveTokens(_pool, tenantId, limit, amount) { calls.push(['reserve', tenantId, limit, amount]); return { tenantId, amount }; },
-      async settleTokens(_pool, tenantId, reservation, used) { calls.push(['settle', tenantId, reservation.amount, used]); },
+      async settleTokens(_pool, tenantId, reservation, used) { calls.push(['settle', tenantId, reservation?.amount ?? null, used]); },
     },
   };
 }
@@ -33,12 +33,13 @@ test('unconfigured tenant does not execute an AI operation', async () => {
   assert.equal(fake.calls.some(call => call[0] === 'reserve'), false);
 });
 
-test('shared daily budget blocks the provider call and releases no reservation', async () => {
+test('an exhausted legacy daily limit does not block the provider call', async () => {
   const fake = fakeSettings();
-  fake.service.reserveTokens = async () => null;
+  fake.service.reserveTokens = async (_pool, tenantId, _limit, amount) => ({ tenantId, amount });
   let called = false;
-  await assert.rejects(run({ pool: {}, tenantId: 'tenant-a', input: 'prompt', execute: async () => { called = true; } }, { settingsService: fake.service }), { code: 'DAILY_TOKEN_LIMIT' });
-  assert.equal(called, false);
+  const result = await run({ pool: {}, tenantId: 'tenant-a', input: 'prompt', execute: async () => { called = true; return { reply: 'ok', usage: { inputTokens: 1, outputTokens: 1 } }; } }, { settingsService: fake.service });
+  assert.equal(result.configured, true);
+  assert.equal(called, true);
 });
 
 test('failed provider operation settles the full reservation without exposing error details', async () => {

@@ -4,7 +4,7 @@ const moment=require('moment-timezone');
 const qr=require('./business-whatsapp');
 const finance=require('./business-finance-context');
 const reports=require('./business-daily-report');
-const KINDS=new Set(['invoice_issued','payment_due','payment_received','daily_summary']);
+const KINDS=new Set(['invoice_issued','payment_due','payment_received','daily_summary','ai_usage_monthly']);
 function dailyReportAllowed(categoryKey,caps){
  const finance=caps.includes('finance.invoices')||caps.includes('sales.finance');
  const defaultOwnerReport=categoryKey==='7network_sales'||categoryKey==='salemax_sales';
@@ -47,9 +47,10 @@ async function scanTenant(db,tenant,{now=new Date()}={}){
 }
 async function prepare(db,event,tenant){
  const meta=finance.parse(event.payload_json);let data;
- if(event.kind==='daily_summary')data=await reports.build(db,tenant,{day:meta.day});else data=await finance.load(db,event);
+ if(event.kind==='daily_summary')data=await reports.build(db,tenant,{day:meta.day});else if(event.kind==='ai_usage_monthly')data={month:meta.month,estimatedUsd:Number(meta.estimatedUsd),thresholdUsd:Number(meta.thresholdUsd||10)};else data=await finance.load(db,event);
  if(!data){await db.query("UPDATE sx_business_notification_events SET status='failed',last_error_code='FINANCE_RESOURCE_CLOSED_OR_UNAVAILABLE' WHERE id=? AND tenant_id=?",[event.id,event.tenant_id]);return;}
- const members=data.customerOnly?[]:await qr.staff(db,event.tenant_id,{ownerOnly:event.kind==='daily_summary'});
+ let members=data.customerOnly?[]:await qr.staff(db,event.tenant_id,{ownerOnly:event.kind==='daily_summary'});
+ if(event.kind==='ai_usage_monthly')members=members.filter(member=>['owner','manager'].includes(member.role));
  if(['payment_due','payment_received'].includes(event.kind)&&event.source_type!=='sales_receipt'){
   let optedOut=false;if(event.kind==='payment_due'&&data.invoiceId){const [[p]]=await db.query('SELECT status FROM sx_training_reminder_preferences WHERE tenant_id=? AND invoice_id=?',[event.tenant_id,data.invoiceId]);optedOut=p?.status==='opted_out';}
   if(!optedOut)members.push({kind:'customer',id:data.invoiceId||event.source_id,phone:qr.phone(data.phone,{countryCode:tenant.timezone==='Asia/Qatar'?'974':undefined})});
@@ -64,15 +65,15 @@ async function claim(db){
   // An interrupted send may already have reached WhatsApp. It requires review,
   // rather than an automatic resend after a lease expires.
   await db.query("UPDATE sx_business_notification_deliveries SET status='unknown',lease_token=NULL,lease_expires_at=NULL,error_code='WORKER_SEND_OUTCOME_UNKNOWN' WHERE status='sending' AND lease_expires_at<=UTC_TIMESTAMP(3)");
-  const [[item]]=await db.query(`SELECT d.*,e.kind,e.source_type,e.source_id,e.payload_json,t.name,t.timezone FROM sx_business_notification_deliveries d JOIN sx_business_notification_events e ON e.tenant_id=d.tenant_id AND e.id=d.event_id JOIN sx_tenants t ON t.id=d.tenant_id AND t.status='active' JOIN sx_business_notification_settings s ON s.tenant_id=t.id AND s.enabled=1 WHERE d.status IN ('queued','blocked') AND d.available_at<=UTC_TIMESTAMP(3) AND (d.part='text' OR EXISTS(SELECT 1 FROM sx_business_notification_deliveries x WHERE x.event_id=d.event_id AND x.destination_hash=d.destination_hash AND x.part='text' AND x.status='accepted')) ORDER BY d.id LIMIT 1 FOR UPDATE SKIP LOCKED`);
+  const [[item]]=await db.query(`SELECT d.*,e.kind,e.source_type,e.source_id,e.payload_json,t.name,t.timezone FROM sx_business_notification_deliveries d JOIN sx_business_notification_events e ON e.tenant_id=d.tenant_id AND e.id=d.event_id JOIN sx_tenants t ON t.id=d.tenant_id AND t.status='active' LEFT JOIN sx_business_notification_settings s ON s.tenant_id=t.id WHERE d.status IN ('queued','blocked') AND (e.kind='ai_usage_monthly' OR s.enabled=1) AND d.available_at<=UTC_TIMESTAMP(3) AND (d.part='text' OR EXISTS(SELECT 1 FROM sx_business_notification_deliveries x WHERE x.event_id=d.event_id AND x.destination_hash=d.destination_hash AND x.part='text' AND x.status='accepted')) ORDER BY d.id LIMIT 1 FOR UPDATE SKIP LOCKED`);
   if(!item){await db.commit();return null;}const token=crypto.randomUUID();await db.query("UPDATE sx_business_notification_deliveries SET status='sending',attempts=attempts+1,lease_token=?,lease_expires_at=DATE_ADD(UTC_TIMESTAMP(3),INTERVAL 120 SECOND) WHERE id=?",[token,item.id]);await db.commit();return {...item,token,attempts:Number(item.attempts)+1};
  }catch(e){await db.rollback();throw e;}
 }
-async function allowed(db,item){const e=await require('./plans').loadEntitlements(db,item.tenant_id);if(!e||!['active','trial','grace'].includes(e.status))return false;const caps=e.capabilities||[],finance=caps.includes('finance.invoices')||caps.includes('sales.finance');return item.kind==='daily_summary'?dailyReportAllowed(e.categoryKey,caps):finance;}
+async function allowed(db,item){const e=await require('./plans').loadEntitlements(db,item.tenant_id);if(!e||!['active','trial','grace'].includes(e.status))return false;const caps=e.capabilities||[],finance=caps.includes('finance.invoices')||caps.includes('sales.finance');if(item.kind==='ai_usage_monthly')return caps.includes('automation.chatbot');return item.kind==='daily_summary'?dailyReportAllowed(e.categoryKey,caps):finance;}
 async function dispatch(db,item,{send=qr.send,authorize=allowed}={}){
  if(!await authorize(db,item))return {status:'suppressed',errorCode:'BUSINESS_NOTIFICATION_FEATURE_UNAVAILABLE'};
  const meta=finance.parse(item.payload_json);let current=null;
- if(item.kind!=='daily_summary'){current=await finance.load(db,{...item,tenant_id:item.tenant_id});if(!current)return {status:'suppressed',errorCode:'FINANCE_RESOURCE_CLOSED_OR_UNAVAILABLE'};}
+ if(item.kind!=='daily_summary'&&item.kind!=='ai_usage_monthly'){current=await finance.load(db,{...item,tenant_id:item.tenant_id});if(!current)return {status:'suppressed',errorCode:'FINANCE_RESOURCE_CLOSED_OR_UNAVAILABLE'};}
  let to;if(item.recipient_kind==='identity'){const members=await qr.staff(db,item.tenant_id,{ownerOnly:item.kind==='daily_summary'});to=members.find(r=>r.id===item.recipient_id)?.phone;}else if(item.recipient_kind==='report_recipient'){
   const [[r]]=await db.query("SELECT destination FROM sx_training_report_recipients WHERE tenant_id=? AND id=? AND channel='whatsapp' AND status='verified'",[item.tenant_id,item.recipient_id]);to=qr.phone(r?.destination);
   if(item.kind==='daily_summary'){const owners=await qr.staff(db,item.tenant_id,{ownerOnly:true});if(!owners.some(owner=>owner.phone&&qr.hash(owner.phone)===qr.hash(to||'')))return {status:'suppressed',errorCode:'DAILY_REPORT_OWNER_ONLY'};}
@@ -85,8 +86,10 @@ async function dispatch(db,item,{send=qr.send,authorize=allowed}={}){
   try{await db.query("UPDATE sx_business_notification_deliveries SET destination_hash=? WHERE tenant_id=? AND event_id=? AND recipient_kind=? AND recipient_id=? AND destination_hash=? AND status IN ('sending','queued','blocked')",[qr.hash(to),item.tenant_id,item.event_id,item.recipient_kind,item.recipient_id,item.destination_hash]);}catch(e){if(e.code==='ER_DUP_ENTRY')return {status:'suppressed',errorCode:'DUPLICATE_RECIPIENT'};throw e;}
  }
  if(item.kind==='payment_due'&&meta.dueDate!==moment.tz(new Date(),item.timezone||'Asia/Qatar').format('YYYY-MM-DD'))return {status:'suppressed',errorCode:'REMINDER_DATE_PASSED'};
- const snapshot=item.kind==='daily_summary'?meta.snapshot:current;
- const text=item.kind==='daily_summary'?(meta.reportText||reports.text(snapshot)):finance.message(item.kind,snapshot,{business:meta.business});
+ const snapshot=item.kind==='daily_summary'?meta.snapshot:(item.kind==='ai_usage_monthly'?meta:current);
+ const text=item.kind==='daily_summary'?(meta.reportText||reports.text(snapshot)):item.kind==='ai_usage_monthly'
+  ? `7Network AI usage reminder for ${snapshot.month}: estimated spend is $${Number(snapshot.estimatedUsd).toFixed(2)} against the $${Number(snapshot.thresholdUsd).toFixed(2)} monthly reminder threshold. This is a reminder only; AI replies continue without a spending cap.\n\nتذكير باستخدام الذكاء الاصطناعي لشهر ${snapshot.month}: الإنفاق التقديري هو ${Number(snapshot.estimatedUsd).toFixed(2)} دولار من حد التذكير الشهري البالغ ${Number(snapshot.thresholdUsd).toFixed(2)} دولار. هذا تذكير فقط، وتستمر الردود دون حد لإيقافها.`
+  : finance.message(item.kind,snapshot,{business:meta.business});
  const pdf=item.part==='pdf'?await require('./business-report-pdf').render(snapshot):null;
  const safeBusiness=String(snapshot.business||'7Network').normalize('NFKD').replace(/[^\p{L}\p{N}]+/gu,'_').replace(/^_+|_+$/g,'').slice(0,60)||'7Network';
  return send(db,{tenantId:item.tenant_id,to,text:item.part==='pdf'?`${safeBusiness} sale summary report · ${snapshot.day}`:text,pdf,fileName:`${safeBusiness}_sale_summary_report.pdf`});
@@ -121,7 +124,7 @@ async function tick(pool,{scan=true,now=new Date(),limit=20}={}){
  try{
   if(scan){const [tenants]=await db.query("SELECT id,name,category_key,timezone FROM sx_tenants WHERE status='active' AND id>? ORDER BY id LIMIT 100",[tenantScanCursor]);tenantScanCursor=tenants.length===100?tenants.at(-1).id:'';for(const tenant of tenants)try{await scanTenant(db,tenant,{now});}catch(e){console.error(JSON.stringify({event:'business_notification_scan_failed',code:e.code||'SCAN_FAILED'}));}}
   for(let i=0;i<limit;i++){
-   await db.beginTransaction();try{const [[event]]=await db.query("SELECT e.*,t.name,t.timezone FROM sx_business_notification_events e JOIN sx_tenants t ON t.id=e.tenant_id AND t.status='active' JOIN sx_business_notification_settings s ON s.tenant_id=t.id AND s.enabled=1 WHERE e.status='queued' ORDER BY e.created_at,e.id LIMIT 1 FOR UPDATE SKIP LOCKED");if(!event){await db.commit();break;}await prepare(db,event,{id:event.tenant_id,name:event.name,timezone:event.timezone});await db.commit();totals.prepared++;}catch(e){await db.rollback();throw e;}
+   await db.beginTransaction();try{const [[event]]=await db.query("SELECT e.*,t.name,t.timezone FROM sx_business_notification_events e JOIN sx_tenants t ON t.id=e.tenant_id AND t.status='active' LEFT JOIN sx_business_notification_settings s ON s.tenant_id=t.id WHERE e.status='queued' AND (e.kind='ai_usage_monthly' OR s.enabled=1) ORDER BY e.created_at,e.id LIMIT 1 FOR UPDATE SKIP LOCKED");if(!event){await db.commit();break;}await prepare(db,event,{id:event.tenant_id,name:event.name,timezone:event.timezone});await db.commit();totals.prepared++;}catch(e){await db.rollback();throw e;}
   }
  }finally{db.release();}
  for(let i=0;i<limit;i++){const c=await pool.getConnection();try{const item=await claim(c);if(!item)break;let result;try{result=await dispatch(c,item);}catch(e){result={status:'unknown',errorCode:e.code||'BUSINESS_SEND_UNCONFIRMED'};}const status=await finish(c,item,result);if(status in totals)totals[status]++;}finally{c.release();}}

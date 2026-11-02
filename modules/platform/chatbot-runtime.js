@@ -311,8 +311,8 @@ function tokenEstimate(text) { return Math.min(12000, Math.max(256, Math.ceil(Bu
 async function reserveTokens(ctx, providerConfig, amount) {
   return tenantAiSettings.reserveTokens(dbPool, ctx.tenant.id, providerConfig.daily_token_limit, amount);
 }
-async function settleTokens(ctx, reservation, used) {
-  return tenantAiSettings.settleTokens(dbPool, ctx.tenant.id, reservation, used);
+async function settleTokens(ctx, reservation, used, details = {}) {
+  return tenantAiSettings.settleTokens(dbPool, ctx.tenant.id, reservation, used, details);
 }
 
 async function saveConversationalState({ ctx, profile, chatId, channelKind, channelRef, state }) {
@@ -415,15 +415,9 @@ async function generateAiAnswer({ ctx, profile, uid, customerMessage, chatId = n
   if (inputBytes > 12000) return factualOverviewFallback(context) || { canAnswer: true, reply: businessContext.clarification(profile.config, context.language), confidence: 0, state: nextState, route: 'clarification' };
   const prompt = `${system}\n\n${input}`;
   const estimate = tokenEstimate(prompt);
-  const reservation = await reserveTokens(ctx, settings, estimate);
-  if (!reservation) return factualOverviewFallback(context) || {
-    canAnswer: true, confidence: 0,
-    reply: context.language === 'ar'
-      ? 'لا أستطيع تأكيد هذه المعلومة الآن من المعلومات المتاحة. سأطلب من فريقنا متابعتك.'
-      : 'I can’t confirm this from the available business information right now. I’ll ask our team to follow up.',
-    state: nextState, route: 'handoff', reason: 'DAILY_TOKEN_LIMIT', handoffAfterReply: true,
-    metrics: { inputTokens: 0, outputTokens: 0, cacheHit: false, sources: context.sources },
-  };
+  let reservation = null;
+  try { reservation = await reserveTokens(ctx, settings, estimate); }
+  catch (error) { console.warn('[chatbot] AI usage reservation unavailable', error.code || 'USAGE_RESERVATION_FAILED'); }
   const providerStarted = Date.now();
   let response;
   let succeeded = false;
@@ -439,7 +433,13 @@ async function generateAiAnswer({ ctx, profile, uid, customerMessage, chatId = n
     if (courseOverview) return factualOverviewFallback(context) || { handedOff: true, code: error.code || 'AI_PROVIDER_ERROR' };
     throw error;
   } finally {
-    await settleTokens(ctx, reservation, succeeded ? ((response?.inputTokens || 0) + (response?.outputTokens || 0) || null) : failedUsage);
+    try {
+      await settleTokens(ctx, reservation, succeeded ? ((response?.inputTokens || 0) + (response?.outputTokens || 0) || null) : failedUsage, {
+        provider: settings.provider, model: settings.model,
+        inputTokens: succeeded ? response?.inputTokens : null,
+        outputTokens: succeeded ? response?.outputTokens : failedUsage,
+      });
+    } catch (error) { console.warn('[chatbot] AI usage settlement unavailable', error.code || 'USAGE_SETTLEMENT_FAILED'); }
   }
   const metrics = { inputTokens: response.inputTokens || 0, outputTokens: response.outputTokens || 0, cacheHit: false, latencyMs: Date.now() - providerStarted, sources: context.sources, provider: settings.provider, model: settings.model };
   const validation = businessContext.validateAnswer(response, context);
@@ -532,7 +532,6 @@ async function aiTurn({ ctx, profile, uid, message, user, sessionId, origin, cha
   if (!onboarding) await require('./chatbot-lead-capture').markAsked(dbPool, leadInfo, uid);
   const media = require('./chatbot-course-media').coursePdfs(leadInfo?.facts || [], answer.state?.selectedCourseCode, textOf(message), answer.state?.sentCoursePdfIds || []);
   if (media.length) await sendTurnCourseMedia({ ctx, profile, uid, chatId, sessionId, message, origin, media, state: answer.state }).catch(error => console.warn('[chatbot] course attachment unavailable', error.code || 'COURSE_MEDIA_ERROR'));
-  if (answer.handoffAfterReply) await handoffConversation(ctx, chatId, channelFor(origin), sessionId, answer.reason || 'ai-budget-exhausted', profile, uid);
   return { sent: true, route: answer.route, reason: answer.reason, metrics: answer.metrics };
 }
 

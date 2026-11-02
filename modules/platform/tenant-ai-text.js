@@ -29,8 +29,9 @@ async function generate({ pool, tenantId, mode, text, targetLanguage, history = 
   if (!settings) fail('AI_PROVIDER_NOT_CONFIGURED', 409);
   const prompt = buildRequest({ mode, text, targetLanguage, history });
   const estimate = estimateTokens(prompt.system, prompt.user);
-  const reservation = await settingsService.reserveTokens(pool, tenantId, Number(settings.daily_token_limit), estimate);
-  if (!reservation) fail('DAILY_TOKEN_LIMIT', 429);
+  let reservation = null;
+  try { reservation = await settingsService.reserveTokens(pool, tenantId, Number(settings.daily_token_limit), estimate); }
+  catch (error) { console.warn('[tenant-ai-text] usage reservation unavailable', error.code || 'USAGE_RESERVATION_FAILED'); }
   let response, used = null;
   try {
     response = await providerService.generate({
@@ -47,7 +48,12 @@ async function generate({ pool, tenantId, mode, text, targetLanguage, history = 
     if (Number.isSafeInteger(error.tokensUsed) && error.tokensUsed >= 0) used = error.tokensUsed;
     throw error;
   } finally {
-    await settingsService.settleTokens(pool, tenantId, reservation, used);
+    try {
+      await settingsService.settleTokens(pool, tenantId, reservation, used, {
+        provider: settings.provider, model: settings.model,
+        inputTokens: response?.inputTokens, outputTokens: response?.outputTokens,
+      });
+    } catch (error) { console.warn('[tenant-ai-text] usage settlement unavailable', error.code || 'USAGE_SETTLEMENT_FAILED'); }
   }
 }
 
