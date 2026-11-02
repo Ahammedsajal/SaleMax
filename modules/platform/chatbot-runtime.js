@@ -72,9 +72,10 @@ async function claimTurn(ctx, profile, message, chatId) {
   finally { db.release(); }
 }
 
-async function finishTurn(turn, status, resultClass) {
+async function finishTurn(turn, status, resultClass, diagnostic = null) {
   if (!turn?.id) return;
-  await query(`UPDATE sx_chatbot_turns SET status=?,result_class=?,lease_until=UTC_TIMESTAMP(3) WHERE id=? AND status='processing'`, [status, resultClass, turn.id]);
+  await query(`UPDATE sx_chatbot_turns SET status=?,result_class=?,error_stage=?,error_code=?,lease_until=UTC_TIMESTAMP(3) WHERE id=? AND status='processing'`,
+    [status, resultClass, diagnostic?.stage || null, diagnostic?.code || null, turn.id]);
 }
 
 async function sendBotText({ origin, sessionId, message, uid, chatId, body }) {
@@ -488,7 +489,8 @@ function guidedFlowNodeGuard({ctx,profile,uid,origin,sessionId,chatId,message}){
   };
 }
 
-async function generateAiAnswer({ ctx, profile, uid, customerMessage, chatId = null, channelKind = null, channelRef = null, state = null, factsOverride = null, referral = null }) {
+async function generateAiAnswer({ ctx, profile, uid, customerMessage, chatId = null, channelKind = null, channelRef = null, state = null, factsOverride = null, referral = null, onStage = null }) {
+  onStage?.('ai-settings');
   const settings = await tenantAiSettings.forRuntime(dbPool, ctx.tenant.id);
   if (uid && chatId && await shouldPause(uid, chatId, channelKind, channelRef)) return { paused: true };
   if (!customerMessage) return { handedOff: true, code: 'UNSUPPORTED_MESSAGE_TYPE' };
@@ -499,8 +501,10 @@ async function generateAiAnswer({ ctx, profile, uid, customerMessage, chatId = n
     try { return await pack.loadFacts({ db, tenantId: ctx.tenant.id, platformOrigin: process.env.SALEMAX_PLATFORM_ORIGIN, config: profile.config }); }
     finally { db.release(); }
   };
+  onStage?.('course-facts');
   const facts = factsOverride || await loadFacts();
   const session = state || (chatId ? await loadDomainGuidedSession({ ctx, profile, chatId, channelKind, channelRef }) : null) || {};
+  onStage?.('approved-faqs');
   const knowledgeEntries = mergeKnowledgeEntries(profile.config?.knowledgeEntries || [], await loadApprovedFaqs(ctx.tenant.id));
   const context = businessContext.retrieveContext({ facts, knowledgeEntries, message: customerMessage, state: session, profileRevision: profile.revision, referral });
   const nextState = {
@@ -562,6 +566,7 @@ async function generateAiAnswer({ ctx, profile, uid, customerMessage, chatId = n
   let response;
   let succeeded = false;
   let failedUsage = null;
+  onStage?.('provider-request');
   try {
     response = await provider.generate({ provider: settings.provider, model: settings.model, apiKey: settings.apiKey, system, user: input, requireSources: true, maxOutputTokens: courseOverview ? 90 : 250 });
     if (Array.isArray(response.sourceIds)) response.sourceIds = response.sourceIds.map(id => sourceAliases.get(id) || 'invalid:' + id);
@@ -582,6 +587,7 @@ async function generateAiAnswer({ ctx, profile, uid, customerMessage, chatId = n
     } catch (error) { console.warn('[chatbot] AI usage settlement unavailable', error.code || 'USAGE_SETTLEMENT_FAILED'); }
   }
   const metrics = { inputTokens: response.inputTokens || 0, outputTokens: response.outputTokens || 0, cacheHit: false, latencyMs: Date.now() - providerStarted, sources: context.sources, provider: settings.provider, model: settings.model };
+  onStage?.('answer-validation');
   const validation = businessContext.validateAnswer(response, context);
   const threshold = Number(profile.config?.confidenceThreshold ?? 0.72);
   if (!validation.valid || response.confidence < threshold) {
@@ -604,7 +610,8 @@ async function generateAiAnswer({ ctx, profile, uid, customerMessage, chatId = n
   return answer;
 }
 
-async function aiTurn({ ctx, profile, uid, message, user, sessionId, origin, chatId, leadInfo }) {
+async function aiTurn({ ctx, profile, uid, message, user, sessionId, origin, chatId, leadInfo, onStage = null }) {
+  onStage?.('bot-routing');
   if (profile.engine === 'hybrid' && !profile.config?.flowId && profile.config?.guidedMode !== 'domain_default') return { handedOff: true, code: 'GUIDED_FLOW_REQUIRED' };
   const incomingText = textOf(message);
   const certificateQuestion = /\b(?:what certificate|which certificate|certificate do i get|certificate will i get|certificate after|certificate for this course|certification|accreditation|accredited|attestation)\b|اي شهادة|ما الشهادة|شهادة احصل|شهادة الدورة|الشهادة التي سأحصل|اعتماد الدورة/iu.test(incomingText);
@@ -615,6 +622,7 @@ async function aiTurn({ ctx, profile, uid, message, user, sessionId, origin, cha
     return dispatched ? { flowDispatched: true, route: 'handoff' } : { handedOff: true, code: 'HUMAN_REVIEW_REQUIRED' };
   }
   if (profile.config.guidedMode === 'domain_default' || (profile.engine === 'ai' && ctx.category.key === 'training_center')) {
+    onStage?.('guided-route-check');
     const channelKind = channelFor(origin);
     const session = await loadDomainGuidedSession({ ctx, profile, chatId, channelKind, channelRef: sessionId });
     const incoming = textOf(message);
@@ -633,10 +641,12 @@ async function aiTurn({ ctx, profile, uid, message, user, sessionId, origin, cha
     }
     const applicationAccepted = session?.step === 'course_detail' && /^(?:yes(?:[,.! ]+(?:please(?:\s+(?:send it|send me|share it))?|send it|send me|share it))?|sure|please do|send it|send me|share it|i'm interested|im interested|اي|نعم|نعم من فضلك|أرسلها|ارسلها|أرسل النموذج|ارسل النموذج)$/iu.test(incoming.trim());
     if (route !== 'answer' || leadInfo?.nameOnly || applicationAccepted || bareCourseSelection || (profile.engine === 'hybrid' && profile.config.aiFallback === false)) {
+      onStage?.('training-center-guided-reply');
       const dispatched = await trainingCenterGuidedTurn({ ctx, profile, uid, message, sessionId, origin, chatId, leadInfo, intent: route === 'human' ? (businessContext.languageFor(incoming, session || {}) === 'ar' ? 'موظف' : 'agent') : null });
       return dispatched ? { flowDispatched: true, route } : { handedOff: true, code: 'GUIDED_FLOW_UNAVAILABLE' };
     }
   } else if (profile.engine === 'hybrid' && profile.config.flowId) {
+    onStage?.('configured-flow-check');
     const [session] = await query(`SELECT id FROM flow_session WHERE uid=? AND flow_id=? AND sender_mobile=? LIMIT 1`, [uid, executionFlowId(profile), message.senderMobile]);
     const incoming = textOf(message);
     const plan = hybridTurnPlan({ hasSession: !!session, isChoice: isGuidedChoice(incoming), aiFallback: profile.config.aiFallback });
@@ -645,7 +655,8 @@ async function aiTurn({ ctx, profile, uid, message, user, sessionId, origin, cha
       if (dispatched || !plan.allowAiFallback) return dispatched ? { flowDispatched: true } : { handedOff: true, code: 'GUIDED_FLOW_UNAVAILABLE' };
     }
   }
-  const answer = await generateAiAnswer({ ctx, profile, uid, customerMessage: textOf(message), chatId, channelKind: channelFor(origin), channelRef: sessionId, factsOverride: leadInfo?.facts, referral: message?.msgContext?.referral || null });
+  onStage?.('ai-answer-generation');
+  const answer = await generateAiAnswer({ ctx, profile, uid, customerMessage: textOf(message), chatId, channelKind: channelFor(origin), channelRef: sessionId, factsOverride: leadInfo?.facts, referral: message?.msgContext?.referral || null, onStage });
   if (answer.handedOff || answer.paused) return answer;
   const pack = getDomainPack(ctx.category.key, ctx.category.version);
   const onboarding = ctx.tenant.categoryKey === 'training_center' && !answer.state?.greeted;
@@ -660,10 +671,13 @@ async function aiTurn({ ctx, profile, uid, message, user, sessionId, origin, cha
     answer.state = { ...(answer.state || {}), greeted: true };
   }
   answer.reply = require('./chatbot-lead-capture').addQuestion(answer.reply, questionLeadInfo, profile.config, pack.guidedContentDefaults);
+  onStage?.('reply-authority-check');
   if (!await canSendNow({ ctx, profile, uid, origin, sessionId, chatId, message })) return { paused: true };
   const { sendWaMessage } = require('../../automation/functions');
+  onStage?.('whatsapp-send');
   const sentId = await sendWaMessage({ origin, sessionId, message, uid, chatId, content: { type: 'text', text: { preview_url: false, body: answer.reply } } });
   if (!sentId) return { handedOff: true, code: 'CHANNEL_SEND_FAILED' };
+  onStage?.('conversation-persist');
   const timestamp = Math.trunc(Date.now() / 1000);
   const messageData = { type: 'text', metaChatId: sentId, msgContext: { type: 'text', text: { preview_url: false, body: answer.reply } }, reaction: '', timestamp, senderName: message.senderName, senderMobile: message.senderMobile, star: 0, route: 'OUTGOING', context: null, origin, sentBy: 'bot' };
   await query(`INSERT INTO beta_conversation SET ?`, { ...messageData, msgContext: JSON.stringify(messageData.msgContext), context: null, uid, chat_id: chatId });
@@ -799,8 +813,11 @@ async function runConfiguredBot({ uid, message, user, sessionId, origin, chatId 
     return { handled: true, handedOff: true, code: 'INBOUND_MESSAGE_ID_UNAVAILABLE' };
   }
   if (turn.duplicate) return { handled: true, duplicate: true };
+  let activeStage = 'turn-processing';
+  const setStage = stage => { activeStage = stage; };
   try {
     if (testReset) {
+      setStage('test-reset');
       const db = await dbPool.getConnection();
       try { await require('./chatbot-test-reset').resetTestConversation(db, { ctx, profile, uid, chatId, origin, sender: message.senderMobile, turnId: turn.id }); }
       finally { db.release(); }
@@ -809,7 +826,8 @@ async function runConfiguredBot({ uid, message, user, sessionId, origin, chatId 
     let result;
     if (completionAction) result = await finishRecruitmentChat({ctx,profile,uid,message,sessionId,origin,chatId,completion,action:completionAction});
     else if (profile.engine === 'guided') { const guided=await guidedTurn({ ctx, profile, uid, message, user, sessionId, origin, chatId, leadInfo });result=guided?.paused?{paused:true}:guided?{sent:true}:{handedOff:true,code:'GUIDED_FLOW_UNAVAILABLE'}; }
-    else result = await aiTurn({ ctx, profile, uid, message, user, sessionId, origin, chatId, leadInfo });
+    else result = await aiTurn({ ctx, profile, uid, message, user, sessionId, origin, chatId, leadInfo, onStage: setStage });
+    setStage('turn-metrics');
     if (result?.metrics) await query(`INSERT INTO sx_audit_events(id,tenant_id,actor_identity_id,actor_kind,action,resource_type,resource_id,changes,correlation_id) VALUES (?,?,NULL,'system','chatbot.turn-measured','chatbot-turn',?,?,?)`, [crypto.randomUUID(), ctx.tenant.id, turn.id, JSON.stringify({ route: result.route, reason: result.reason || null, ...result.metrics }), crypto.randomUUID()]);
     if (result?.sent || result?.flowDispatched) await finishTurn(turn, 'sent', result?.flowDispatched ? 'guided-flow-dispatched' : 'reply-sent');
     else if (result?.paused) await finishTurn(turn, 'handed_off', 'human-paused');
@@ -824,10 +842,12 @@ async function runConfiguredBot({ uid, message, user, sessionId, origin, chatId 
       await finishTurn(turn, 'failed', 'test-reset-busy');
       return { handled: true, code: error.code };
     }
+    const diagnosticCode = typeof error.code === 'string' && /^[A-Z0-9_]{1,64}$/.test(error.code) ? error.code : 'UNCLASSIFIED_RUNTIME_ERROR';
     const failure = ['AI_PROVIDER_NOT_CONFIGURED','AI_PROVIDER_TIMEOUT','AI_PROVIDER_REQUEST_FAILED','AI_PROVIDER_INVALID_OUTPUT'].includes(error.code) ? error.code : 'runtime-error';
+    console.warn('[chatbot] inbound turn failed', JSON.stringify({ stage: activeStage, code: diagnosticCode }));
     const claim = await handoffConversation(ctx, chatId, channelKind, sessionId, failure, profile, uid).catch(() => null);
     if (claim) await sendCustomerHandoffNotice({ ctx, profile, uid, message, origin, sessionId, chatId }).catch(() => false);
-    await finishTurn(turn, 'handed_off', failure).catch(() => {});
+    await finishTurn(turn, 'handed_off', failure, { stage: activeStage, code: diagnosticCode }).catch(() => {});
     return { handled: true, handedOff: true, code: error.code || 'BOT_RUNTIME_ERROR' };
   }
 }
