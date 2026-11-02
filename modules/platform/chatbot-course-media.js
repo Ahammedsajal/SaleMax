@@ -18,7 +18,7 @@ async function sendCourseMedia({ pool, ctx, profile, uid, chatId, sessionId, mes
   const pauseCheck = paused || require('./chatbot-conversation-control').shouldPause;
   const sentIds = [];
   for (const item of media.slice(0, 2)) {
-    if (!recipientAllowed(profile.config, message.senderMobile) || await pauseCheck(uid, chatId, 'whatsapp_qr', sessionId) || (valid && !await valid())) break;
+    if (!recipientAllowed(profile.config, message.senderMobile, profile.id) || await pauseCheck(uid, chatId, 'whatsapp_qr', sessionId) || (valid && !await valid())) break;
     const db = await pool.getConnection();
     let file;
     try {
@@ -30,7 +30,7 @@ async function sendCourseMedia({ pool, ctx, profile, uid, chatId, sessionId, mes
     const bytes = await fs.readFile(file.path);
     if (bytes.length !== file.sizeBytes) throw Object.assign(new Error('COURSE_MEDIA_SIZE_MISMATCH'), { code: 'COURSE_MEDIA_SIZE_MISMATCH' });
     // Recheck after disk I/O so an operator pause prevents the next attachment.
-    if (!recipientAllowed(profile.config, message.senderMobile) || await pauseCheck(uid, chatId, 'whatsapp_qr', sessionId) || (valid && !await valid())) break;
+    if (!recipientAllowed(profile.config, message.senderMobile, profile.id) || await pauseCheck(uid, chatId, 'whatsapp_qr', sessionId) || (valid && !await valid())) break;
     const content = { [file.kind]: bytes, mimetype: file.mimeType, fileName: file.originalName, caption: file.originalName };
     let id;
     if (send) id = await send({ content, sessionId, recipient: message.senderMobile });

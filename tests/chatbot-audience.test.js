@@ -13,6 +13,35 @@ test('restricted bot admits only an exact international phone and fails closed f
   assert.equal(recipientAllowed({}, '97450000002'), true);
 });
 
+test('gradual rollout keeps explicit testers pinned and assigns stable sender cohorts', () => {
+  const phone = '97450000001';
+  const config = { allowedRecipientPhones: [phone], rolloutPercent: 25 };
+  assert.equal(recipientAllowed(config, phone, 'profile-a'), true);
+  const first = recipientAllowed(config, '97450000002', 'profile-a');
+  assert.equal(recipientAllowed(config, '+97450000002@s.whatsapp.net', 'profile-a'), first);
+  assert.equal(recipientAllowed({ rolloutPercent: 0 }, '97450000002', 'profile-a'), false);
+  assert.equal(recipientAllowed({ rolloutPercent: 100 }, '97450000002', 'profile-a'), true);
+  assert.equal(recipientAllowed({}, '97450000002', 'profile-a'), true);
+});
+
+test('saving test recipients without an explicit audience creates a strict allowlist', () => {
+  const saved = botInput({
+    name: 'Synthetic staged bot',
+    engine: 'hybrid',
+    config: { testRecipientPhones: ['+97450000001', '97450000002'], rolloutPercent: 0 },
+  }, 'training_center');
+  assert.deepEqual(saved.config.testRecipientPhones, ['97450000001', '97450000002']);
+  assert.deepEqual(saved.config.allowedRecipientPhones, ['97450000001', '97450000002']);
+  assert.equal(recipientAllowed(saved.config, '97450000001', 'profile-a'), true);
+  assert.equal(recipientAllowed(saved.config, '97450000003', 'profile-a'), false);
+});
+
+test('bot configuration rejects invalid rollout percentages', () => {
+  for (const rolloutPercent of [-1, 101, 12.5, '25']) {
+    assert.throws(() => botInput({ name: 'Synthetic staged bot', engine: 'guided', config: { rolloutPercent } }, 'training_center'), { code: 'INVALID_BOT_ROLLOUT_PERCENT' });
+  }
+});
+
 test('editing a guided profile preserves its explicit audience and rejects invalid lists', () => {
   const input = { name: 'Synthetic restricted guide', engine: 'guided', config: { allowedRecipientPhones: ['+97450000001', '97450000001'] } };
   assert.deepEqual(botInput(input, 'training_center').config.allowedRecipientPhones, ['97450000001']);

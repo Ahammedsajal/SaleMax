@@ -111,6 +111,10 @@ function botInput(input, categoryKey, categoryVersion = 1) {
   if(source.captureFormId!==undefined){const forms=require('./chatbot-capture-forms');if(!forms.supports({key:categoryKey,version:categoryVersion}))throw Object.assign(new Error('INVALID_CAPTURE_FORM'),{code:'INVALID_CAPTURE_FORM'});config.captureFormId=forms.normalize(source.captureFormId);}
   const audience = normalizeAudience(source.allowedRecipientPhones);
   if (audience !== undefined) config.allowedRecipientPhones = audience;
+  if (source.rolloutPercent !== undefined) {
+    if (!Number.isSafeInteger(source.rolloutPercent) || source.rolloutPercent < 0 || source.rolloutPercent > 100) throw Object.assign(new Error('INVALID_BOT_ROLLOUT_PERCENT'), { code: 'INVALID_BOT_ROLLOUT_PERCENT' });
+    config.rolloutPercent = source.rolloutPercent;
+  }
   if (source.testRecipientPhone != null && source.testRecipientPhone !== '') {
     const phone = require('./chatbot-audience').recipientPhone(source.testRecipientPhone);
     if (!phone || (audience !== undefined && !audience.includes(phone))) throw Object.assign(new Error('INVALID_TEST_PHONE'), { code: 'INVALID_TEST_PHONE' });
@@ -121,6 +125,7 @@ function botInput(input, categoryKey, categoryVersion = 1) {
     if (!phones || phones.length > 10 || (audience !== undefined && phones.some(phone => !audience.includes(phone)))) throw Object.assign(new Error('INVALID_TEST_PHONE'), { code: 'INVALID_TEST_PHONE' });
     config.testRecipientPhones = phones;
     delete config.testRecipientPhone;
+    if (audience === undefined && phones.length) config.allowedRecipientPhones = phones;
   }
   if (source.sharedInboxRouting != null) {
     if (typeof source.sharedInboxRouting !== 'boolean') throw Object.assign(new Error('INVALID_SHARED_INBOX_ROUTING'), { code: 'INVALID_SHARED_INBOX_ROUTING' });

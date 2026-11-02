@@ -3,11 +3,11 @@ const crypto = require('node:crypto');
 const { recipientPhone, recipientAllowed } = require('./chatbot-audience');
 const { executionFlowId } = require('./chatbot-profile-utils');
 
-function isTestReset(config, sender, text) {
+function isTestReset(config, sender, text, profileId = '') {
   const phone = recipientPhone(sender);
   const testers = Array.isArray(config?.testRecipientPhones) ? config.testRecipientPhones : [config?.testRecipientPhone];
   return !!phone && testers.includes(phone)
-    && recipientAllowed(config, sender) && /^(?:reset bot|restart bot|إعادة ضبط الروبوت)$/iu.test(String(text || '').trim());
+    && recipientAllowed(config, sender, profileId) && /^(?:reset bot|restart bot|إعادة ضبط الروبوت)$/iu.test(String(text || '').trim());
 }
 
 async function resetTestConversation(db, { ctx, profile, uid, chatId, origin, sender, turnId }) {
@@ -15,7 +15,7 @@ async function resetTestConversation(db, { ctx, profile, uid, chatId, origin, se
   try {
     const [[current]] = await db.query(`SELECT revision,status,config FROM sx_chatbot_profiles WHERE tenant_id=? AND id=? FOR UPDATE`, [ctx.tenant.id, profile.id]);
     const config = typeof current?.config === 'string' ? JSON.parse(current.config) : current?.config;
-    if (current?.status !== 'live' || Number(current.revision) !== Number(profile.revision) || !isTestReset(config, sender, 'reset bot')) throw Object.assign(new Error('TEST_RESET_BUSY'), { code: 'TEST_RESET_BUSY' });
+    if (current?.status !== 'live' || Number(current.revision) !== Number(profile.revision) || !isTestReset(config, sender, 'reset bot', profile.id)) throw Object.assign(new Error('TEST_RESET_BUSY'), { code: 'TEST_RESET_BUSY' });
     const [pending] = await db.query(`SELECT id FROM sx_chatbot_turns WHERE tenant_id=? AND conversation_id=? AND id<>? AND status='processing' AND lease_until>UTC_TIMESTAMP(3) FOR UPDATE`, [ctx.tenant.id, chatId, turnId]);
     if (pending.length) throw Object.assign(new Error('TEST_RESET_BUSY'), { code: 'TEST_RESET_BUSY' });
     await db.query(`DELETE FROM sx_chatbot_guided_sessions WHERE tenant_id=? AND profile_id=? AND channel_kind=? AND channel_ref=? AND conversation_id=?`, [ctx.tenant.id, profile.id, profile.channelKind, profile.channelRef, chatId]);

@@ -14,6 +14,7 @@ business feature. Add future changes to that implementation once.
 | Products & services catalogue (SaleMaX Sales) | `/api/workspace/products-services` | None |
 | Students | `/api/workspace/students` | `/api/user/training/students` |
 | Business profile | `/api/workspace/profile` | `/api/user/training/profile` |
+| Shared tenant AI settings | `/api/workspace/ai/settings` | `/api/user/chatbots/settings/provider` |
 | Tenant customization | `/api/workspace/customization` | `/api/crm/customization` |
 | Forms | `/api/workspace/forms` | `/api/user/training/forms` |
 
@@ -67,6 +68,16 @@ Compatibility URLs mount the same router instances; Finance actions register
 once. Do not add separate owner/accountant/agent handlers for future features.
 Keep role-specific differences in the policy/service contract and preserve
 compatibility aliases for cached clients.
+
+Shared AI provider settings are configured in the existing Business Profile.
+They are tenant-wide, owner-managed, encrypted at rest, revisioned and audited;
+the API never returns the provider key. AI-enabled features load the same
+tenant configuration through `modules/platform/tenant-ai-settings.js` rather
+than keeping per-feature provider credentials. The existing chatbot provider
+URL is a compatibility alias. The current provider consumer remains the
+chatbot runtime; adding AI behavior to another feature requires that feature's
+own evaluated workflow and permission checks, while reusing this provider and
+the tenant's shared token budget.
 
 Regression gates: `tests/unified-feature-api.test.js`,
 `tests/workspace-api-client.test.js`, and

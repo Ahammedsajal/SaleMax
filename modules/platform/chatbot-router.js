@@ -4,7 +4,6 @@ const crypto = require('node:crypto');
 const { legacyChatbotContext } = require('./chatbot-identity');
 const { decision } = require('./policy');
 const chatbotSecrets = require('./chatbot-secrets');
-const chatbotProvider = require('./chatbot-provider');
 const { ENGINES, botInput, cleanText, botRequirements } = require('./chatbot-config');
 const { previewGuidedTurn } = require('./chatbot-guide-preview');
 const { getDomainPack } = require('./chatbot-domain-packs');
@@ -42,46 +41,6 @@ function createChatbotRouter({ pool, origin, userGuard, canonicalGuard }) {
   const audit = (db, ctx, action, id, changes) => db.query(
     `INSERT INTO sx_audit_events(id,tenant_id,actor_identity_id,actor_kind,action,resource_type,resource_id,changes,correlation_id)
      VALUES (?,?,?,'identity',?,'chatbot',?,?,?)`, [uuid(), ctx.tenant.id, ctx.identity.id, action, id, JSON.stringify(changes), uuid()]);
-
-  router.get('/settings/provider', wrap(async (req, res) => {
-    const ctx = context(req);
-    const data = await withDb(async db => {
-      const [[row]] = await db.query(`SELECT provider,model,daily_token_limit AS dailyTokenLimit,revision,updated_at AS updatedAt FROM sx_chatbot_provider_configs WHERE tenant_id=?`, [ctx.tenant.id]);
-      return row ? { configured: true, ...row, revision: Number(row.revision), dailyTokenLimit: Number(row.dailyTokenLimit), maskedKey: '••••••••' } : { configured: false, revision: 0, supportedProviders: Object.keys(chatbotProvider.PROVIDERS) };
-    });
-    res.json({ success: true, data });
-  }));
-  router.put('/settings/provider', wrap(async (req, res) => {
-    const ctx = context(req); const { provider, model, apiKey, expectedRevision } = req.body;
-    const spec = chatbotProvider.PROVIDERS[provider];
-    if (!spec || typeof model !== 'string' || !/^[A-Za-z0-9._:-]{1,80}$/.test(model) || !Number.isSafeInteger(expectedRevision) || expectedRevision < 0) fail('INVALID_PROVIDER_CONFIG');
-    if (apiKey !== undefined && (typeof apiKey !== 'string' || apiKey.length < 16 || apiKey.length > 2048)) fail('INVALID_PROVIDER_KEY');
-    const dailyTokenLimit = req.body.dailyTokenLimit ?? 50000;
-    if (!Number.isSafeInteger(dailyTokenLimit) || dailyTokenLimit < 1000 || dailyTokenLimit > 1000000) fail('INVALID_DAILY_TOKEN_LIMIT');
-    const encrypted = apiKey === undefined ? null : chatbotSecrets.encrypt(apiKey);
-    const data = await withDb(async db => {
-      await db.beginTransaction(); try {
-        const [[row]] = await db.query(`SELECT provider,model,revision,key_ciphertext,key_iv,key_auth_tag FROM sx_chatbot_provider_configs WHERE tenant_id=? FOR UPDATE`, [ctx.tenant.id]);
-        const revision = row ? Number(row.revision) : 0;
-        if (revision !== expectedRevision) fail('STALE_REVISION');
-        const [[liveAiBot]] = await db.query(`SELECT id FROM sx_chatbot_profiles
-          WHERE tenant_id=? AND status='live' AND (engine='ai' OR (engine='hybrid' AND COALESCE(JSON_UNQUOTE(JSON_EXTRACT(config,'$.aiFallback')),'true')<>'false'))
-          LIMIT 1`, [ctx.tenant.id]);
-        if (liveAiBot) fail('LIVE_BOT_MUST_BE_PAUSED');
-        if (!row && !encrypted) fail('PROVIDER_KEY_REQUIRED');
-        if (row && row.provider !== provider && !encrypted) fail('PROVIDER_KEY_REQUIRED');
-        const nextRevision = revision + 1;
-        if (row) {
-          await db.query(`UPDATE sx_chatbot_provider_configs SET provider=?,model=?,key_ciphertext=?,key_iv=?,key_auth_tag=?,daily_token_limit=?,revision=?,updated_by_identity_id=? WHERE tenant_id=?`, [provider, model, encrypted?.ciphertext ?? row.key_ciphertext, encrypted?.iv ?? row.key_iv, encrypted?.authTag ?? row.key_auth_tag, dailyTokenLimit, nextRevision, ctx.identity.id, ctx.tenant.id]);
-        } else {
-          await db.query(`INSERT INTO sx_chatbot_provider_configs(tenant_id,provider,model,key_ciphertext,key_iv,key_auth_tag,daily_token_limit,revision,updated_by_identity_id) VALUES (?,?,?,?,?,?,?,1,?)`, [ctx.tenant.id, provider, model, encrypted.ciphertext, encrypted.iv, encrypted.authTag, dailyTokenLimit, ctx.identity.id]);
-        }
-        await audit(db, ctx, 'chatbot.provider-configured', ctx.tenant.id, { provider, model, dailyTokenLimit, keyRotated: !!encrypted });
-        await db.commit(); return { configured: true, provider, model, dailyTokenLimit, revision: nextRevision, maskedKey: '••••••••' };
-      } catch (error) { await db.rollback(); throw error; }
-    });
-    res.json({ success: true, data });
-  }));
 
   router.get('/channels', wrap(async (req, res) => {
     const ctx = context(req);
@@ -301,11 +260,7 @@ function createChatbotRouter({ pool, origin, userGuard, canonicalGuard }) {
   }));
   async function legacyUidFor(db, req, ctx) {
     if (req.decode?.uid) return req.decode.uid;
-    const [rows] = await db.query(`SELECT u.uid,o.legacy_uid_hash AS uidHash
-      FROM sx_legacy_ownership o JOIN user u ON u.id=CAST(o.source_id AS UNSIGNED)
-      WHERE o.source_table='user' AND o.tenant_id=? AND u.role='user' LIMIT 2`, [ctx.tenant.id]);
-    if (rows.length !== 1 || rows[0].uidHash !== crypto.createHash('sha256').update(rows[0].uid).digest('hex')) fail('LEGACY_INBOX_LINK_REQUIRED');
-    return rows[0].uid;
+    return require('./chatbot-owner-uid').legacyOwnerUidForTenant(db, ctx.tenant.id);
   }
   async function assertLiveProfileReady(db, req, ctx, profile) {
     const [[assignment]] = await db.query(`SELECT COUNT(*) AS count FROM sx_chatbot_channel_assignments WHERE tenant_id=? AND chatbot_id=?`, [ctx.tenant.id, profile.id]);
