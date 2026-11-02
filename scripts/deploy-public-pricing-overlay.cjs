@@ -1,6 +1,6 @@
 "use strict";
 
-// Copy only reviewed public pricing assets and the protected catalogue updater
+// Copy only reviewed public website/pricing assets and the protected catalogue updater
 // into a release copied from the exact live release.
 const fs = require("node:fs");
 const path = require("node:path");
@@ -23,7 +23,7 @@ const files = [
 ];
 const html = fs.readFileSync(path.join(source, files[0]), "utf8");
 for (const asset of ["website.css", "plan-presentation.js", "website.js"])
-  if (!html.includes(`/website/${asset}?v=20261031-hero-motion1`))
+  if (!html.includes(`/website/${asset}?v=20261102-custom-crm1`))
     throw Error("PUBLIC_PRICING_CACHE_VERSION_MISMATCH");
 
 for (const file of files) {
