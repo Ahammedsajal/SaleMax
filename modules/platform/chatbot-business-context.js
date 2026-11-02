@@ -44,13 +44,21 @@ function languageFor(message, state = {}) {
   return state.language === 'ar' ? 'ar' : 'en';
 }
 
-function controlRoute(message, config, state = {}) {
+function controlRoute(message, config, state = {}, facts = []) {
   const text = normalized(message);
   // Controls must be whole messages. Natural questions mentioning a course,
   // registration or a staff member must remain conversational.
   if (/^(agent|human|staff|person|talk to (a )?(human|person)|موظف|بشر|موظفة|اريد موظف|ابي موظف)$/.test(text) || /\b(?:speak|talk|connect|transfer|chat)\b.*\b(?:person|human|agent|staff|advisor|team)\b|(?:التحدث|التواصل|تحويل|اكلم).*(?:موظف|فريق|شخص)/.test(text)) return 'human';
   if (/\b(?:image|photo|picture|screenshot|document|file|voice note|audio|video|location pin)\b|\b(?:shared|sent|dropped) my location\b|\b(?:attached|sent|shared|uploaded)\b.{0,45}\b(?:media|attachment|file)\b|ارفق|مرفق|صورة|ملف|مقطع صوت|رسالة صوتية|فيديو|موقعي/u.test(text)) return 'handoff';
   if (/\b(?:job|jobs|career|careers|employment|vacancy|vacancies|hiring|recruitment|recruiter|cv|resume|work permit)\b|وظيفة|وظائف|توظيف|فرصة عمل|فرص عمل|سيرة ذاتية/u.test(text)) return 'handoff';
+  const existingStudentQuestion = /\b(?:existing student|current student|already enrolled|already registered|my registration|my account|student account|payment|paid|receipt|invoice|refund|complaint|not received|haven't received|have not received)\b|طالب حالي|طالبة حالية|انا طالب|انا طالبة|مسجل مسبقا|مسجلة مسبقة|حسابي|مشكلتي|شكوى|شكوي|استرداد|استرجاع|مشكلة دفع|مشكلة في الدفع|لم يصلني|ما وصلني|لم استلم|ما استلمت/u.test(text);
+  if (existingStudentQuestion) return 'handoff';
+  const certificateQuestion = /\b(?:what certificate|which certificate|certificate do i get|certificate will i get|certificate after|certificate for this course|certification|accreditation|accredited|attestation)\b|اي شهادة|ما الشهادة|شهادة احصل|شهادة الدورة|الشهادة التي سأحصل|اعتماد الدورة/u.test(text);
+  if (certificateQuestion) {
+    const context = retrieveContext({ facts: Array.isArray(facts) ? facts : [], message, state });
+    if (context.selectedCourseCode && context.evidence.filter(item => item.kind === 'course' && item.certificateDetails).length === 1) return 'answer';
+    return 'handoff';
+  }
   if (/\b(?:existing student|current student|already enrolled|already registered|my registration|my account|student account|payment|paid|receipt|invoice|refund|complaint|not received|haven't received|have not received|certificate|accreditation|accredited|attestation)\b|طالب حالي|طالبة حالية|انا طالب|انا طالبة|مسجل مسبقا|مسجلة مسبقا|حسابي|مشكلتي|شكوى|شكوي|استرداد|استرجاع|مشكلة دفع|مشكلة في الدفع|شهادة|اعتماد|لم يصلني|ما وصلني|لم استلم|ما استلمت/u.test(text)) return 'handoff';
   if (/^(hi|hello|hey|good morning|good evening|salam|مرحبا|اهلا|السلام عليكم|صباح الخير|مساء الخير|menu|back|القائمة|رجوع|0|english|en|arabic|ar|العربية|عربي)$/.test(text)) return 'guided';
   if (/^(courses|course list|show courses|available courses|what courses do you have|الدورات|دورات|عرض الدورات|قائمة الدورات|next|previous|التالي|السابق|form|enquiry form|registration form|نموذج|نموذج التسجيل)$/.test(text)) return 'guided';
@@ -124,7 +132,7 @@ function retrieveContext({ facts, knowledgeEntries = [], message, state = {}, pr
     .sort((a, b) => b.score - a.score);
   const generalBusinessQuestion = /where|location|address|refund|policy|discount|اين|عنوان|موقع|استرداد|استرجاع|سياسة|خصم/i.test(message);
   let selected = direct.length ? direct.slice(0, 3) : referralCourse ? [referralCourse] : generalBusinessQuestion ? [] : ranked.filter(row => row.score >= 3).slice(0, 3).map(row => row.item);
-  const followUp = /\b(?:that|this|it|its|the course|how much|how long|when does|when is)\b|هذه|تلك|مدتها|رسومها|موعدها|كم الرسوم|كم مدتها|متى تبدأ/i.test(message);
+  const followUp = /\b(?:that|this|it|its|the course|how much|how long|when does|when is|certificate|certification|online|offline|in person|face to face|classroom|remote|hybrid|delivery|study mode|course format)\b|هذه|تلك|مدتها|رسومها|موعدها|كم الرسوم|كم مدتها|متى تبدأ|شهادة|الشهادة|اعتماد|اونلاين|عن بعد|حضوري|طريقة الدراسة|طريقة التقديم/iu.test(message);
   if (!direct.length && followUp && state.selectedCourseCode) selected = courses.filter(item => item.code === state.selectedCourseCode);
   if (!selected.length && state.selectedCourseCode) selected = courses.filter(item => item.code === state.selectedCourseCode);
   const recommendation = /recommend|compare|difference|best|improve|career|beginner|توصي|تنصح|افضل|مقارن|الفرق|مبتدئ/i.test(message);
@@ -138,6 +146,7 @@ function retrieveContext({ facts, knowledgeEntries = [], message, state = {}, pr
     outcomes: String(local(course, 'outcomes', language)).slice(0, 250),
     difficultyLevel: course.difficultyLevel || null,
     prerequisites: String(local(course, 'prerequisites', language)).slice(0, 220),
+    certificateDetails: String(course['certificateDetails' + (language === 'ar' ? 'Ar' : 'En')] || '').slice(0, 2000),
     duration: publishedDurationRange(course.descriptionEn, course.descriptionAr, language) || (course.durationValue ? `${course.durationValue} ${durationUnit(course.durationUnit, course.durationValue, language)}` : null),
     delivery: course.deliveryMode, offer: course.offer, batches: course.batches?.slice(0, 2),
   }));
@@ -185,6 +194,7 @@ function validateAnswer(response, context) {
   for (const number of reply.match(/\d+(?:[.,]\d+)?/g) || []) {
     if (!permittedNumbers.has(Number(number.replace(/,/g, '')))) return { valid: false, code: 'ANSWER_NUMBER_INVALID' };
   }
+  if (/\b(?:certificate|certification|accreditation|accredited|attestation)\b|شهادة|اعتماد/u.test(reply) && !evidence.some(item => item.kind === 'course' && item.certificateDetails)) return { valid: false, code: 'ANSWER_CERTIFICATE_UNVERIFIED' };
   if (/\b(?:i have|i've|we have|we've|you are|you're)\s+(?:booked|enrolled|registered|reserved|confirmed your)|تم (?:تسجيلك|حجز|تأكيد تسجيلك)/i.test(reply)) return { valid: false, code: 'ANSWER_COMMITMENT_INVALID' };
   return { valid: true };
 }
@@ -240,6 +250,12 @@ function simpleFactualReply(message, context, config = {}) {
   if (courses.length !== 1 || /\b(?:compare|recommend|difference|best|better|cheaper)\b|مقارن|افضل|الفرق|تنصح/.test(text)) return null;
   const course = courses[0];
   const asksDuration = /how long|duration|مدة|مدتها/i.test(message);
+  const asksCertificate = /\b(?:certificate|certification|accreditation|accredited|attestation)\b|شهادة|اعتماد/u.test(text);
+  if (asksCertificate) {
+    if (!course.certificateDetails) return null;
+    const template = ar ? 'تفاصيل الشهادة المنشورة لدورة {course}: {details}. هل ترغب في معرفة شيء آخر عنها؟' : 'The published certificate details for {course} are: {details}. Would you like to know anything else about it?';
+    return { reply: template.replaceAll('{course}', course.name).replaceAll('{details}', course.certificateDetails), sourceIds: [course.sourceId] };
+  }
   const asksFee = /\b(?:fee|fees|price|cost|how much)\b|رسوم|سعر|تكلفة/i.test(message);
   const registrationForm = context.evidence.find(item => item.kind === 'published_enquiry_form' && item.purpose === 'registration');
   const courseInterest = /\b(?:interested|would like to join|want to join|want to study|like to enrol|like to enroll)\b|مهتم|ارغب في التسجيل/i.test(message);
@@ -334,9 +350,15 @@ function redactCustomerText(value) {
 }
 
 function polishGuidedReply({ result, profile, message, state, defaults }) {
-  if (profile.engine !== 'guided' && !result.reply?.includes('[1]') && /^(?:hi|hello|hey|good morning|good evening|مرحبا|أهلا|السلام عليكم|صباح الخير|مساء الخير)$/i.test(message)) {
+  if (profile.engine !== 'guided' && /^(?:hi|hello|hey|good morning|good evening|مرحبا|أهلا|السلام عليكم|صباح الخير|مساء الخير)$/i.test(message)) {
     const language = languageFor(message, state || {});
-    result.reply = profile.config?.guidedContent?.messages?.greeting?.[language] || defaults.messages.greeting[language];
+    const greeting = profile.config?.guidedContent?.messages?.greeting?.[language] || defaults.messages.greeting[language];
+    const configured = profile.config?.guidedContent?.messages?.menuPrompt?.[language] || defaults.messages.menuPrompt?.[language];
+    const legacyNumericPrompt = /\b(?:reply|type|send)\b.{0,35}\b(?:number|option|[0-3])\b|\b[0-3]\s*(?:for|to)\b|أرسل\s*رقم|ارسل\s*رقم|الخيار\s*رقم/u.test(configured || '');
+    const followUp = legacyNumericPrompt || !configured
+      ? (language === 'ar' ? 'ما الدورة التي تهمك، وما الذي ترغب في معرفته عنها؟' : 'Which course are you interested in, and what would you like to know about it?')
+      : configured;
+    result.reply = `${greeting}\n\n${followUp}`;
   }
   return result;
 }

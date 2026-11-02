@@ -359,7 +359,13 @@ async function generateAiAnswer({ ctx, profile, uid, customerMessage, chatId = n
   const session = state || (chatId ? await loadDomainGuidedSession({ ctx, profile, chatId, channelKind, channelRef }) : null) || {};
   const knowledgeEntries = mergeKnowledgeEntries(profile.config?.knowledgeEntries || [], await loadApprovedFaqs(ctx.tenant.id));
   const context = businessContext.retrieveContext({ facts, knowledgeEntries, message: customerMessage, state: session, profileRevision: profile.revision, referral });
-  const nextState = { ...session, language: context.language, selectedCourseCode: (context.explicitCourses ? context.selectedCourseCode : null) || session.selectedCourseCode };
+  const nextState = {
+    ...session,
+    language: context.language,
+    // An explicit multi-course question has no single selected course. Clear
+    // the prior single-course context so the next follow-up cannot mix it in.
+    selectedCourseCode: context.explicitCourses ? context.selectedCourseCode : session.selectedCourseCode || null,
+  };
   if (typeof businessContext.shouldClarifyGenericCourseInterest === 'function' && businessContext.shouldClarifyGenericCourseInterest(customerMessage, context, session)) {
     const reply = context.language === 'ar'
       ? 'بكل سرور — عن أي دورة تسأل؟ إذا وصلت من إعلان، أرسل اسم الدورة الظاهر فيه وسأشاركك التفاصيل المناسبة.'
@@ -449,8 +455,10 @@ async function generateAiAnswer({ ctx, profile, uid, customerMessage, chatId = n
 
 async function aiTurn({ ctx, profile, uid, message, user, sessionId, origin, chatId, leadInfo }) {
   if (profile.engine === 'hybrid' && !profile.config?.flowId && profile.config?.guidedMode !== 'domain_default') return { handedOff: true, code: 'GUIDED_FLOW_REQUIRED' };
-  const safetyRoute = businessContext.controlRoute(textOf(message), profile.config || {}, {});
-  if (safetyRoute === 'handoff' && ctx.category.key === 'training_center') {
+  const incomingText = textOf(message);
+  const certificateQuestion = /\b(?:what certificate|which certificate|certificate do i get|certificate will i get|certificate after|certificate for this course|certification|accreditation|accredited|attestation)\b|اي شهادة|ما الشهادة|شهادة احصل|شهادة الدورة|الشهادة التي سأحصل|اعتماد الدورة/iu.test(incomingText);
+  const safetyRoute = businessContext.controlRoute(incomingText, profile.config || {}, {}, leadInfo?.facts || []);
+  if (safetyRoute === 'handoff' && ctx.category.key === 'training_center' && !certificateQuestion) {
     const language = businessContext.languageFor(textOf(message));
     const dispatched = await trainingCenterGuidedTurn({ ctx, profile, uid, message, sessionId, origin, chatId, leadInfo, intent: language === 'ar' ? 'موظف' : 'agent' });
     return dispatched ? { flowDispatched: true, route: 'handoff' } : { handedOff: true, code: 'HUMAN_REVIEW_REQUIRED' };
@@ -459,7 +467,7 @@ async function aiTurn({ ctx, profile, uid, message, user, sessionId, origin, cha
     const channelKind = channelFor(origin);
     const session = await loadDomainGuidedSession({ ctx, profile, chatId, channelKind, channelRef: sessionId });
     const incoming = textOf(message);
-    const route = businessContext.controlRoute(incoming, profile.config, session || {});
+    const route = businessContext.controlRoute(incoming, profile.config, session || {}, leadInfo?.facts || []);
     const applicationAccepted = session?.step === 'course_detail' && /^(?:yes(?:[,.! ]+(?:please(?:\s+(?:send it|send me|share it))?|send it|send me|share it))?|sure|please do|send it|send me|share it|i'm interested|im interested|اي|نعم|نعم من فضلك|أرسلها|ارسلها|أرسل النموذج|ارسل النموذج)$/iu.test(incoming.trim());
     if (route !== 'answer' || leadInfo?.nameOnly || applicationAccepted || (profile.engine === 'hybrid' && profile.config.aiFallback === false)) {
       const dispatched = await trainingCenterGuidedTurn({ ctx, profile, uid, message, sessionId, origin, chatId, leadInfo, intent: route === 'human' ? (businessContext.languageFor(incoming, session || {}) === 'ar' ? 'موظف' : 'agent') : null });
@@ -483,8 +491,9 @@ async function aiTurn({ ctx, profile, uid, message, user, sessionId, origin, cha
     const language = businessContext.languageFor(textOf(message), answer.state || {});
     const messages = profile.config?.guidedContent?.messages || {};
     const greeting = messages.greeting?.[language] || pack.guidedContentDefaults.messages.greeting[language];
-    const menu = require('./chatbot-training-guide').menuText(leadInfo?.facts || [], profile.config?.guidedContent || {}, language, { includeGreeting: false });
-    answer.reply = `${greeting}\n\n${answer.reply}\n\n${menu}`;
+    const naturalFollowUp = language === 'ar' ? 'ما المعلومات الأخرى التي تود معرفتها عن هذه الدورة؟' : 'What else would you like to know about this course?';
+    const reply = String(answer.reply || '').trim();
+    answer.reply = `${greeting}\n\n${reply}${/[?؟]/u.test(reply) ? '' : `\n\n${naturalFollowUp}`}`;
     answer.state = { ...(answer.state || {}), greeted: true };
   }
   answer.reply = require('./chatbot-lead-capture').addQuestion(answer.reply, questionLeadInfo, profile.config, pack.guidedContentDefaults);

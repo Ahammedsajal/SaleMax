@@ -26,16 +26,18 @@ test('English and Arabic menus, details and recovery replies stay readable with 
 
 test('course lists show every configured course at once and support both languages', () => {
   let result = run('courses');
-  assert.match(result.reply, /1\. Program 1/);
-  assert.match(result.reply, /9\. Program 9/);
-  assert.match(result.reply, /Reply with a course number/);
+  assert.match(result.reply, /• Program 1/);
+  assert.match(result.reply, /• Program 9/);
+  assert.match(result.reply, /Tell me the course name/);
+  assert.doesNotMatch(result.reply, /\b(?:Reply|send) 0|course number|\d+\. Program/i);
   assert.ok(result.reply.split('\n').length <= 15, result.reply);
   const selected = run('3', result.state);
   assert.equal(selected.state.selectedCourseCode, 'C3');
   assert.equal(selected.handoff, undefined);
 
   const arabic = run('الدورات', undefined);
-  assert.match(arabic.reply, /1\. برنامج 1/);
-  assert.match(arabic.reply, /9\. برنامج 9/);
-  assert.match(arabic.reply, /أرسل رقم الدورة/);
+  assert.match(arabic.reply, /• برنامج 1/);
+  assert.match(arabic.reply, /• برنامج 9/);
+  assert.match(arabic.reply, /أرسل اسم الدورة/);
+  assert.doesNotMatch(arabic.reply, /رقم الدورة|أرسل 0|\d+\. برنامج/u);
 });

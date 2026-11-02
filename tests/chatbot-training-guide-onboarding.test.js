@@ -11,19 +11,20 @@ const facts = [
   { kind: 'published_enquiry_form', purpose: 'registration', url: 'https://example.invalid/student-registration' },
 ];
 
-test('first greeting feels welcoming, offers numbered choices and does not ask for a name yet', () => {
+test('first greeting feels welcoming, invites natural discovery and does not ask for a name yet', () => {
   const result = trainingCenterGuidedReply({ message: 'Hi', state: null, facts, config: {}, defaults });
   assert.match(result.reply, /Welcome to Pro Catalyst Training Center/);
-  for (const choice of ['[1]', '[2]', '[3]', '[0]']) assert.ok(result.reply.includes(choice));
+  assert.match(result.reply, /Which course are you interested in/);
+  assert.doesNotMatch(result.reply, /\[1\]|\[2\]|\[3\]|\[0\]|reply with a number/i);
   assert.doesNotMatch(result.reply, /May I have your name\?/);
   assert.equal(result.state.greeted, true);
 });
 
-test('Hybrid greeting polishing preserves the numbered welcome menu', () => {
+test('Hybrid greeting polishing preserves a natural welcome prompt without a numbered menu', () => {
   const result = trainingCenterGuidedReply({ message: 'Hi', state: null, facts, config: {}, defaults });
   polishGuidedReply({ result, profile: { engine: 'hybrid', config: {} }, message: 'Hi', state: null, defaults });
-  assert.ok(result.reply.includes('[1]'));
-  assert.ok(result.reply.includes('[3]'));
+  assert.match(result.reply, /Which course are you interested in/);
+  assert.doesNotMatch(result.reply, /\[1\]|\[2\]|\[3\]|\[0\]/);
 });
 
 test('guided FAQs answer after two meaningful question words match', () => {
@@ -34,12 +35,13 @@ test('guided FAQs answer after two meaningful question words match', () => {
   assert.doesNotMatch(partial.reply, /We open from 9 AM/);
 });
 
-test('a first course question receives the greeting and menu after its answer', () => {
+test('a first course question receives its answer and one useful follow-up without a menu', () => {
   const result = trainingCenterGuidedReply({ message: 'Advanced Excel', state: null, facts, config: {}, defaults });
   assert.match(result.reply, /Welcome to Pro Catalyst Training Center/);
   assert.match(result.reply, /QAR|950/);
   assert.match(result.reply, /send the application form/i);
-  assert.ok(result.reply.includes('[1]'));
+  assert.match(result.reply, /Would you like to know anything else about this course\?/);
+  assert.doesNotMatch(result.reply, /\[1\]|\[2\]|\[3\]|\[0\]/);
 });
 
 test('an interested learner receives the published application link only after agreeing', () => {

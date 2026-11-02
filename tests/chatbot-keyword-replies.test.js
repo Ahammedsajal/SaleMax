@@ -51,7 +51,7 @@ test('every edited canned message is used without hidden shortening', () => {
   const facts = [{ code: 'C', nameEn: 'Sample course' }];
   const first = pack.guidedReply({ message: 'hello', facts, config });
   assert.ok(first.reply.startsWith(config.messages.greeting.en));
-  assert.match(first.reply, /MENU CUSTOM/); assert.match(first.reply, /TEAM CUSTOM/);
+  assert.match(first.reply, /MENU CUSTOM/); assert.doesNotMatch(first.reply, /TEAM CUSTOM|\[1\]|\[2\]|\[3\]|\[0\]/);
   const list = pack.guidedReply({ message: 'courses', facts, state: first.state, config });
   assert.match(list.reply, /LIST CUSTOM/);
   assert.match(pack.guidedReply({ message: '999', state: list.state, facts, config }).reply, /INVALID CUSTOM/);
