@@ -4,6 +4,10 @@
 
 ## ProCatalyst Hybrid bot — source reconciliation and pilot preparation, 2 November 2026
 
+### Natural discovery greeting and course-first reply — deployed, 2 November 2026
+
+A plain greeting now returns a welcome and one natural discovery question without numeric choices. If a customer names a course in the first message, the Hybrid preview retrieves that course’s published facts so the customer can continue with specific questions. The saved legacy numeric wording remains in the profile, but a case-insensitive production-derived prompt guard replaces it for greeting responses. Focused greeting/course tests pass 23/23, and production previews verify the intended greeting plus a GPT-6 Luna course-fact response. The app is healthy; a real WhatsApp reply after the latest test-chat reset is still unverified because the previous real inbound ended in an unclassified `runtime-error`. See `DEPLOYMENT.md` for the overlay, rollback and hashes.
+
 ### Customer-visible handoffs and first eligible staff claim — deployed, 2 November 2026
 
 System handoffs now send the customer a bilingual acknowledgement, open a durable handoff claim, and notify every active staff identity with Inbox read/reply permission and a phone number. Staff reply `YES` to claim one waiting chat or `YES <code>` when several are open; the first claim transaction wins and transfers the conversation using the existing Inbox permission checks. Additional messages during a system handoff receive a rate-limited status reply. Staff-set pauses remain in staff control. The handoff handler runs before Flow Builder, so a staff claim cannot be consumed as customer input. Migration `20270121_chatbot_staff_handoff_claims.sql` is applied and the app-only release is healthy. Focused checks pass 43/43 and the adjacent bot/Inbox checks pass 377/377. No WhatsApp test message was sent during release; verify customer acknowledgement, staff notification, first-YES assignment and customer confirmation with an already approved tester. See DEPLOYMENT.md for rollback, hashes and production evidence.
