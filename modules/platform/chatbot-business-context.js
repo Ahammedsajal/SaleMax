@@ -197,7 +197,7 @@ function unavailableReply(message, config, language) {
 
 function isCourseOverviewRequest(message, context) {
   return context.evidence.filter(item => item.kind === 'course').length === 1
-    && /\bwhat about\b|\btell me (?:more|about)\b|\bmore about\b|\bmore info(?:rmation)? (?:on|about|for)\b|\bdetails? (?:on|about|for)\b|\bi(?:'|’)m interested in\b|\bi am interested in\b|\bcourse overview\b|\bwhat (?:does|will) (?:i|we|you) learn\b|\bwhat is (?:in|covered in) (?:this|the) course\b|\bsyllabus\b|\btopics\b|ماذا عن|اخبرني المزيد|أخبرني المزيد|معلومات اكثر عن|معلومات أكثر عن|مهتم(?:ة)? ب|تفاصيل (?:عن|حول)|محتوى الدورة|ماذا سنتعلم|ماذا سأتعلم|ما الذي سأتعلمه|الموضوعات|المواضيع|مواضيع/i.test(message);
+    && /\bwhat about\b|\btell me (?:more|about)\b|\bmore about\b|\bmore info(?:rmation)? (?:on|about|for)\b|\bdetails? (?:on|about|for)\b|\bi(?:'|’)m interested in\b|\bi am interested in\b|\bcourse overview\b|\bwhat (?:does|will) (?:i|we|you) learn\b|\bwhat is (?:in|covered in) (?:this|the) course\b|\bwhat (?:practical )?(?:skills?|topics?|content|subjects)\b|\bsyllabus\b|\btopics\b|ماذا عن|اخبرني المزيد|أخبرني المزيد|معلومات اكثر عن|معلومات أكثر عن|مهتم(?:ة)? ب|تفاصيل (?:عن|حول)|محتوى الدورة|ماذا سنتعلم|ماذا سأتعلم|ما الذي سأتعلمه|ما المهارات|المهارات العملية|الموضوعات|المواضيع|مواضيع/i.test(message);
 }
 
 function isGenericAdInterest(message) {

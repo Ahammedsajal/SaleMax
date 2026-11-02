@@ -159,6 +159,14 @@ test('Arabic practical-topic questions are treated as course overviews before br
  assert.match(reply,/850.00 QAR/);
 });
 
+test('first-message practical-skills questions bypass a broad course duration FAQ',()=>{
+ const source=[{courseId:'office',code:'OFFICE',nameEn:'MS Office Training',nameAr:'تدريب MS Office',descriptionEn:'✅ *MS Word:* Documents and reports\n✅ *MS Excel:* Formulas and data analysis',descriptionAr:'',difficultyLevel:'all_levels',durationValue:10,durationUnit:'weeks'}];
+ const message='I already know the basics. What practical skills would this MS Office course add for me?';
+ const context=retrieveContext({facts:source,message,knowledgeEntries:[{questionEn:'How long is MS Office Training?',answerEn:'The MS Office Training course takes 8–10 weeks.'}]});
+ assert.equal(isCourseOverviewRequest(message,context),true);
+ assert.match(simpleFactualReply(message,context).reply,/MS Word: Documents and reports/);
+});
+
 test('general policy questions omit unrelated courses and retain approved refund FAQs',()=>{const c=retrieveContext({facts,message:'What is your refund fees policy?',knowledgeEntries:[{questionEn:'What is your refund fees policy?',answerEn:'Contact the centre before cancelling.'}]});assert.equal(c.evidence.filter(x=>x.kind==='course').length,0);assert.equal(c.evidence.filter(x=>x.kind==='approved_faq').length,1);});
 
 test('approved FAQs match two meaningful question words and remain ambiguous-safe',()=>{
