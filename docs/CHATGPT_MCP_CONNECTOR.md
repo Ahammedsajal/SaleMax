@@ -1,5 +1,7 @@
 # 7Network for ChatGPT — MCP connector scope
 
+**Production status (2 November 2026):** `https://7network.live/mcp` and the connection manager in the existing 7Network business panel are deployed. The signed-in page and empty connection state load correctly. No ChatGPT workspace has connected yet, so OAuth from ChatGPT, tool calls and workspace publication remain unverified. See `DEPLOYMENT.md` for release and rollback evidence.
+
 **Product thesis:** make ChatGPT a permission-aware 7Network copilot for finding the next best business action, while the existing 7Network app remains the place to manage accounts, people, access, and operational records.
 
 This is a custom MCP app/connector, not the retired ChatGPT Plugins API. ChatGPT connects to the remote MCP endpoint, the user authorizes an existing 7Network account with OAuth, and each request is checked against that account's current tenant and role. Workspace app setup and an individual user's 7Network account authorization are separate steps.
@@ -34,7 +36,7 @@ This is a custom MCP app/connector, not the retired ChatGPT Plugins API. ChatGPT
 
 ## The improvement that makes this valuable
 
-Build toward a **Revenue Recovery Desk**, not a generic "chat with your CRM" connector. For every answer, aim to return the record, the evidence and date behind the answer, a suggested next step, and a reversible task action. A future workflow could identify stale high-value leads, explain why each is at risk from 7Network fields, draft a follow-up for review, and create a task only after the user approves it. Later, measure whether the follow-up happened and whether the opportunity moved stages.
+Build toward a **Revenue Recovery Desk**, not a generic "chat with your CRM" connector. A user should be able to ask, “Which warm leads need attention today, what evidence makes you think so, and what should I do next?” The answer should cite the permitted 7Network record and its last activity, explain the reason, and offer a reversible task action. A later workflow could rank stale high-value leads, prepare a follow-up for review, and create an internal task only after the user approves it. Then measure whether the follow-up happened and the opportunity moved stages.
 
 That creates a closed loop from customer requirement to permitted sales activity and fulfilment, matching the 7Network roadmap. Start with the existing Pipeline and task system; expand only after owners can verify useful recommendations and permission boundaries with real accounts.
 
@@ -66,13 +68,22 @@ That creates a closed loop from customer requirement to permitted sales activity
 - Validate demand before pricing. A sensible test is to bundle read access, then offer approved action workflows as a higher business tier or usage add-on, with per-seat controls and transparent AI/provider cost limits.
 - If the connector is adopted by resellers, provide a tenant onboarding checklist and workspace-admin setup guide; never share one tenant's OAuth grant across customers.
 
+### Phase 5 — Proactive events and consented demand capture
+
+- After the request/response pilot proves reliable, consider [MCP Events](https://developers.openai.com/plugins/build/mcp-events) for opt-in follow-up reminders in supported ChatGPT Work environments. This requires durable subscriptions, authenticated HTTPS callbacks, replay protection, delivery retries and a clear unsubscribe/revoke path; it is not part of the deployed pilot.
+- A longer-term acquisition loop could let a person describe a business need in ChatGPT, then explicitly choose whether to share it with eligible 7Network businesses. Route that requirement into the existing proposal and fulfilment workflow, show who will receive it, and record consent. Keep identity and contact details private unless the person approves sharing; never broadcast one tenant's pipeline to another.
+
+## Current pilot status
+
+The r6 endpoint and existing business-panel account screen are deployed. Public checks confirm health, OAuth metadata, MCP routing and unauthenticated access denial. The authenticated 7Network page loads and reports an empty connection list. No real ChatGPT account is connected yet, and no MCP tool has been called from ChatGPT. Workspace setup, OAuth consent, live role checks and tool execution must be verified before enabling the connector for a wider workspace.
+
 ## Acceptance gates
 
-- ChatGPT web can scan the server, complete OAuth/PKCE, receive refreshed credentials, list tools, and call each permitted tool.
+- ChatGPT web can scan the server, complete OAuth/PKCE, receive refreshed credentials, list tools, and call each permitted tool. This is still open until an authorized workspace administrator performs the setup and a user completes a real connection.
 - English/Arabic consent, RTL, phone/tablet/desktop layout, keyboard focus and dark/light styling are checked.
 - Business owner and agent accounts connect independently; managers/accountants see only their existing role grants; changing or revoking a role cuts off stale access.
 - Synthetic tenant tests prove tenant isolation, task idempotency under concurrency, stale revision rejection, audit creation and no customer contact side effects.
-- Production health, app-only rollback and tracked release evidence are verified. A 7Network production deployment alone does not complete ChatGPT workspace publication; an authorized ChatGPT admin must create/test/publish the custom app and confirm a real account connection.
+- Production health, app-only rollback and tracked release evidence are verified. A 7Network production deployment alone does not complete ChatGPT workspace publication; an authorized ChatGPT admin must create/test/publish the custom app and confirm real OAuth and tool calls.
 
 ## ChatGPT availability and setup
 
