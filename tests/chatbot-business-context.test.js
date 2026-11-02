@@ -1,7 +1,7 @@
 'use strict';
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { controlRoute, isScheduleQuestion, hasPublishedSchedule, courseDetailNeedsCoordinator, trainingCenterCoordinatorReason, retrieveContext, validateAnswer, languageFor, fingerprint, previewState, simpleFactualReply, unavailableReply } = require('../modules/platform/chatbot-business-context');
+const { controlRoute, isScheduleQuestion, hasPublishedSchedule, courseDetailNeedsCoordinator, trainingCenterCoordinatorReason, publishedDurationRange, retrieveContext, validateAnswer, languageFor, fingerprint, previewState, simpleFactualReply, unavailableReply } = require('../modules/platform/chatbot-business-context');
 const facts = [
  { courseId:'english',code:'ENG',nameEn:'Business English',nameAr:'الإنجليزية للأعمال',descriptionEn:'English communication for work and presentations',descriptionAr:'التواصل باللغة الإنجليزية في العمل والعروض',durationValue:8,durationUnit:'weeks',offer:{priceAmount:'350.00',registrationFeeAmount:'25.00',currency:'QAR'},batches:[{startsOn:'2026-11-15',seatsAvailable:7}] },
  { courseId:'excel',code:'EXCEL',nameEn:'Excel Essentials',nameAr:'أساسيات إكسل',descriptionEn:'Practical spreadsheets and office skills',descriptionAr:'مهارات الجداول والحاسوب المكتبية',offer:{priceAmount:'250.00',currency:'QAR'},batches:[] },
@@ -42,6 +42,16 @@ for (const message of ['When is the next batch?','What is the course schedule?',
 test('schedule enquiry without a published batch is handed to a coordinator',()=>assert.equal(trainingCenterCoordinatorReason('When is the next batch?',facts,'EXCEL'),'SCHEDULE_REQUIRES_COORDINATOR'));
 test('duration with a published value stays answerable',()=>assert.equal(trainingCenterCoordinatorReason('How long is Business English?',facts,'ENG'),null));
 test('missing selected course details are handed to a coordinator',()=>assert.equal(trainingCenterCoordinatorReason('Is Business English online?',facts,'ENG'),'COURSE_DETAIL_REQUIRES_COORDINATOR'));
+test('published duration ranges override a conflicting single-value field in English and Arabic',()=>{
+ const description='⏱️ 8 - 10 Weeks Practical Training';
+ assert.equal(publishedDurationRange(description,'','en'),'8–10 weeks');
+ assert.equal(publishedDurationRange(description,'','ar'),'8–10 أسابيع');
+ const office={courseId:'office',code:'OFFICE',nameEn:'Computer Skills Training – MS Office Application',nameAr:'MS Office Training',descriptionEn:description,descriptionAr:'',durationValue:10,durationUnit:'weeks',offer:{priceAmount:'850.00',currency:'QAR'},batches:[]};
+ const en=retrieveContext({facts:[office],message:'How long is MS Office Training?'});
+ const ar=retrieveContext({facts:[office],message:'كم مدة دورة MS Office؟'});
+ assert.match(simpleFactualReply('How long is MS Office Training?',en).reply,/8–10 weeks/);
+ assert.match(simpleFactualReply('كم مدة دورة MS Office؟',ar).reply,/8–10 أسابيع/);
+});
 test('published schedules are checked globally or against the selected course',()=>{
  assert.equal(hasPublishedSchedule(facts),true);
  assert.equal(hasPublishedSchedule(facts,'ENG'),true);

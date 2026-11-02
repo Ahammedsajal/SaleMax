@@ -9,6 +9,24 @@ const STOP_WORDS = new Set('the for your our are can you what how want would lik
 const tokens = value => normalized(value).split(' ').filter(word => word.length > 2 && !STOP_WORDS.has(word));
 const fingerprint = value => crypto.createHash('sha256').update(JSON.stringify(value)).digest('hex');
 const durationUnit = (unit, amount, language) => { const ar = {hours:['ساعة','ساعتان','ساعات'],days:['يوم','يومان','أيام'],weeks:['أسبوع','أسبوعان','أسابيع'],months:['شهر','شهران','أشهر']}; return language === 'ar' && ar[unit] ? ar[unit][Number(amount) === 2 ? 1 : Number(amount) >= 3 && Number(amount) <= 10 ? 2 : 0] : Number(amount) === 1 ? String(unit).replace(/s$/, '') : unit; };
+function publishedDurationRange(descriptionEn, descriptionAr, language = 'en') {
+  const arabicDigits = value => String(value).replace(/[٠-٩۰-۹]/g, digit => String('٠١٢٣٤٥٦٧٨٩۰۱۲۳۴۵۶۷۸۹'.indexOf(digit) % 10));
+  const lines = [descriptionEn, descriptionAr].filter(Boolean).flatMap(value => String(value).split(/[\r\n]+/));
+  for (const rawLine of lines) {
+    const line = arabicDigits(rawLine);
+    const match = line.match(/(?:^|\s)(\d{1,3})\s*(?:–|—|−|-|to)\s*(\d{1,3})\s*(hours?|days?|weeks?|months?|ساعات?|أيام?|ايام?|أسابيع?|اسابيع?|أشهر?|اشهر?)(?=\s|$)/iu);
+    if (!match || !/(?:training|course|duration|تدريب|دورة|مدة)/iu.test(line)) continue;
+    const min = Number(match[1]), max = Number(match[2]);
+    if (!Number.isSafeInteger(min) || !Number.isSafeInteger(max) || min < 1 || max < min) continue;
+    const unit = /hour|ساعة|ساع/iu.test(match[3]) ? 'hours'
+      : /day|يوم|أيام|ايام/iu.test(match[3]) ? 'days'
+        : /month|شهر|أشهر|اشهر/iu.test(match[3]) ? 'months' : 'weeks';
+    if (language === 'ar') return `${min}–${max} ${durationUnit(unit, max, 'ar')}`;
+    const englishUnit = unit === 'hours' ? 'hours' : unit === 'days' ? 'days' : unit === 'months' ? 'months' : 'weeks';
+    return `${min}–${max} ${englishUnit}`;
+  }
+  return null;
+}
 const local = (item, field, language) => item[field + (language === 'ar' ? 'Ar' : 'En')] || item[field + (language === 'ar' ? 'En' : 'Ar')] || '';
 
 function languageFor(message, state = {}) {
@@ -90,7 +108,7 @@ function retrieveContext({ facts, knowledgeEntries = [], message, state = {}, pr
     kind: 'course', code: course.code, name: local(course, 'name', language),
     description: String(local(course, 'description', language)).slice(0, 900),
     outcomes: String(local(course, 'outcomes', language)).slice(0, 250),
-    duration: course.durationValue ? `${course.durationValue} ${durationUnit(course.durationUnit, course.durationValue, language)}` : null,
+    duration: publishedDurationRange(course.descriptionEn, course.descriptionAr, language) || (course.durationValue ? `${course.durationValue} ${durationUnit(course.durationUnit, course.durationValue, language)}` : null),
     delivery: course.deliveryMode, offer: course.offer, batches: course.batches?.slice(0, 2),
   }));
   const forms = facts.filter(item => item.kind === 'published_enquiry_form');
@@ -255,4 +273,4 @@ function polishGuidedReply({ result, profile, message, state, defaults }) {
   return result;
 }
 
-module.exports = { normalized, fingerprint, languageFor, controlRoute, isScheduleQuestion, hasPublishedSchedule, courseDetailNeedsCoordinator, trainingCenterCoordinatorReason, retrieveContext, validateAnswer, clarification, unavailableReply, simpleFactualReply, isCourseOverviewRequest, previewState, redactCustomerText, polishGuidedReply };
+module.exports = { normalized, fingerprint, languageFor, controlRoute, isScheduleQuestion, hasPublishedSchedule, courseDetailNeedsCoordinator, trainingCenterCoordinatorReason, publishedDurationRange, retrieveContext, validateAnswer, clarification, unavailableReply, simpleFactualReply, isCourseOverviewRequest, previewState, redactCustomerText, polishGuidedReply };
