@@ -145,6 +145,14 @@ test('natural course-overview follow-ups use the previously selected course and 
  assert.match(localized.reply,/٣٥٠|350\.00 QAR/);
 });
 
+test('Arabic practical-topic questions are treated as course overviews before broad course FAQs',()=>{
+ const message='ما الموضوعات العملية التي تغطيها دورة MS Office، وهل تناسب المبتدئين؟';
+ const source=[{courseId:'office',code:'OFFICE',nameEn:'MS Office Training',nameAr:'تدريب MS Office',descriptionEn:'Practical Word, Excel and PowerPoint.',descriptionAr:'تدريب عملي على Word وExcel وPowerPoint.',durationValue:10,durationUnit:'weeks',offer:{priceAmount:'850.00',currency:'QAR'}}];
+ const context=retrieveContext({facts:source,message});
+ assert.equal(context.evidence.filter(item=>item.kind==='course').length,1);
+ assert.equal(isCourseOverviewRequest(message,context),true);
+});
+
 test('general policy questions omit unrelated courses and retain approved refund FAQs',()=>{const c=retrieveContext({facts,message:'What is your refund fees policy?',knowledgeEntries:[{questionEn:'What is your refund fees policy?',answerEn:'Contact the centre before cancelling.'}]});assert.equal(c.evidence.filter(x=>x.kind==='course').length,0);assert.equal(c.evidence.filter(x=>x.kind==='approved_faq').length,1);});
 
 test('approved FAQs match two meaningful question words and remain ambiguous-safe',()=>{
