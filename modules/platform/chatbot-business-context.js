@@ -8,6 +8,14 @@ const normalized = value => normalizeDigits(value).toLowerCase().normalize('NFKC
 const STOP_WORDS = new Set('the for your our are can you what how want would like tell about course courses training please help certificate certification professional class classes session sessions شهادة الشهادة شهادات احترافي اريد دورة الدورات التدريب ماهي ممكن لو سمحت'.split(' '));
 const tokens = value => normalized(value).split(' ').filter(word => word.length > 2 && !STOP_WORDS.has(word));
 const fingerprint = value => crypto.createHash('sha256').update(JSON.stringify(value)).digest('hex');
+const COURSE_TOPIC_AR = new Map([
+  ['ms word', 'Word: إنشاء المستندات وتنسيقها وإعداد التقارير الاحترافية'],
+  ['ms excel', 'Excel: استخدام الصيغ والجداول المحورية وتحليل البيانات'],
+  ['ms powerpoint', 'PowerPoint: إعداد العروض التقديمية والمحتوى المرئي'],
+  ['ai tools', 'أدوات الذكاء الاصطناعي: مقدمة عملية للاستخدام في بيئة العمل'],
+  ['google sheets', 'Google Sheets: العمل على البيانات عبر الإنترنت والتعاون'],
+  ['google workspace', 'Google Workspace: أدوات أساسية للعمل'],
+]);
 const durationUnit = (unit, amount, language) => { const ar = {hours:['ساعة','ساعتان','ساعات'],days:['يوم','يومان','أيام'],weeks:['أسبوع','أسبوعان','أسابيع'],months:['شهر','شهران','أشهر']}; return language === 'ar' && ar[unit] ? ar[unit][Number(amount) === 2 ? 1 : Number(amount) >= 3 && Number(amount) <= 10 ? 2 : 0] : Number(amount) === 1 ? String(unit).replace(/s$/, '') : unit; };
 function publishedDurationRange(descriptionEn, descriptionAr, language = 'en') {
   const arabicDigits = value => String(value).replace(/[٠-٩۰-۹]/g, digit => String('٠١٢٣٤٥٦٧٨٩۰۱۲۳۴۵۶۷۸۹'.indexOf(digit) % 10));
@@ -242,7 +250,10 @@ function simpleFactualReply(message, context, config = {}) {
     const description = String(course.description || '').replace(/\s+/g, ' ').trim();
     const overviewMatch = String(course.description || '').split(/[\r\n]+/).map(line => line.trim()).filter(Boolean)
       .map(line => line.match(/^✅?\s*\*{0,2}([^:*]{2,45})\*{0,2}\s*:\s*(.+)$/u)).filter(Boolean);
-    const overviewDetails = overviewMatch.slice(0, 6).map(([, label, detail]) => `${label.trim()}: ${detail.replace(/\*+/g, '').trim()}`);
+    const overviewDetails = overviewMatch.slice(0, 6).map(([, label, detail]) => {
+      const cleanLabel = label.trim(), cleanDetail = detail.replace(/\*+/g, '').trim();
+      return ar ? COURSE_TOPIC_AR.get(normalized(cleanLabel)) || `${cleanLabel}: ${cleanDetail}` : `${cleanLabel}: ${cleanDetail}`;
+    });
     const levelMatch = String(course.description || '').match(/\b(beginner\s+to\s+intermediate|beginner|intermediate|advanced)\b/i);
     const levelEn = levelMatch?.[1] || ({ all_levels: 'all levels', beginner: 'beginner', intermediate: 'intermediate', advanced: 'advanced' }[course.difficultyLevel] || '');
     const levelAr = levelMatch ? ({ 'beginner to intermediate': 'المبتدئين إلى المستوى المتوسط', beginner: 'المبتدئين', intermediate: 'المستوى المتوسط', advanced: 'المستوى المتقدم' }[levelMatch[1].toLowerCase()] || '')

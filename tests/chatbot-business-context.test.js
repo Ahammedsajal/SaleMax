@@ -152,7 +152,8 @@ test('Arabic practical-topic questions are treated as course overviews before br
  assert.equal(context.evidence.filter(item=>item.kind==='course').length,1);
  assert.equal(isCourseOverviewRequest(message,context),true);
  const reply=simpleFactualReply(message,context).reply;
- assert.match(reply,/Word: Documents, formatting & professional reports/);
+ assert.match(reply,/Word: إنشاء المستندات وتنسيقها وإعداد التقارير الاحترافية/);
+ assert.match(reply,/Excel: استخدام الصيغ والجداول المحورية وتحليل البيانات/);
  assert.match(reply,/مناسبة لمتعلمين من المبتدئين إلى المستوى المتوسط/);
  assert.match(reply,/8–10 أسابيع/);
  assert.match(reply,/850.00 QAR/);
