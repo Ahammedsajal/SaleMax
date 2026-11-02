@@ -9,6 +9,7 @@ const { previewGuidedTurn } = require('./chatbot-guide-preview');
 const { getDomainPack } = require('./chatbot-domain-packs');
 const { SUPPORTED_CHANNEL_KINDS } = require('./chatbot-channels');
 const { validateFaqInput } = require('./chatbot-faq');
+const { previewAuditMetrics } = require('./chatbot-preview-audit');
 
 // Until the other adapters have inbound and outbound coverage, expose only
 // WhatsApp channels supported by the current inbox dispatch path.
@@ -172,7 +173,16 @@ function createChatbotRouter({ pool, origin, userGuard, canonicalGuard }) {
     });
     const uid = await withDb(db => legacyUidFor(db, req, ctx));
     const result = await require('../platform/chatbot-runtime').previewConfiguredBot({ ctx, profile, uid, message: req.body.message.trim(), state: req.body.state });
-    await withDb(db => audit(db, ctx, 'chatbot.preview-tested', req.params.id, { engine: profile.engine, revision: Number(profile.revision), inputCharacters: req.body.message.trim().length, outcome: result.canAnswer ? 'answer' : 'handoff', reason: result.reason || null }));
+    const metrics = previewAuditMetrics(result.metrics);
+    await withDb(db => audit(db, ctx, 'chatbot.preview-tested', req.params.id, {
+      engine: profile.engine,
+      revision: Number(profile.revision),
+      inputCharacters: req.body.message.trim().length,
+      outcome: result.canAnswer ? 'answer' : 'handoff',
+      route: typeof result.route === 'string' ? result.route : null,
+      reason: result.reason || null,
+      metrics,
+    }));
     res.json({ success: true, data: result });
   }));
   router.post('/', wrap(async (req, res) => {

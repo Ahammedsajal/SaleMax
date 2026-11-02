@@ -182,6 +182,15 @@ module.exports = async function chatbotApiIntegration(connection, pool, { t1, t2
     assert.equal(providerCalls, 1);
     assert.ok(previewInput.includes(faqAnswer));
     assert.ok(previewInput.includes('Evening classes are available in selected batches.'));
+    const [[previewAuditRow]] = await connection.query(`SELECT changes FROM sx_audit_events WHERE tenant_id=? AND action='chatbot.preview-tested' AND resource_id=? ORDER BY occurred_at DESC LIMIT 1`, [t1, botId]);
+    const previewAudit = typeof previewAuditRow.changes === 'string' ? JSON.parse(previewAuditRow.changes) : previewAuditRow.changes;
+    assert.equal(previewAudit.route, 'ai');
+    assert.equal(previewAudit.metrics.provider, 'openai');
+    assert.equal(previewAudit.metrics.model, 'gpt-test');
+    assert.equal(previewAudit.metrics.inputTokens, 31);
+    assert.equal(previewAudit.metrics.outputTokens, 14);
+    assert.equal(previewAudit.metrics.cacheHit, false);
+    assert.equal(Object.hasOwn(previewAudit, 'message'), false, 'preview audit excludes the prompt and response content');
     const [[turnCount]] = await connection.query('SELECT COUNT(*) AS count FROM sx_chatbot_turns WHERE tenant_id=?', [t1]);
     assert.equal(Number(turnCount.count), 0, 'preview does not create inbound WhatsApp turns');
 
