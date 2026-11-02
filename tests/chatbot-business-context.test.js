@@ -1,7 +1,7 @@
 'use strict';
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { controlRoute, isScheduleQuestion, hasPublishedSchedule, courseDetailNeedsCoordinator, trainingCenterCoordinatorReason, publishedDurationRange, retrieveContext, validateAnswer, languageFor, fingerprint, previewState, simpleFactualReply, unavailableReply } = require('../modules/platform/chatbot-business-context');
+const { controlRoute, isScheduleQuestion, hasPublishedSchedule, courseDetailNeedsCoordinator, trainingCenterCoordinatorReason, publishedDurationRange, retrieveContext, validateAnswer, languageFor, fingerprint, previewState, simpleFactualReply, unavailableReply, isCourseOverviewRequest } = require('../modules/platform/chatbot-business-context');
 const facts = [
  { courseId:'english',code:'ENG',nameEn:'Business English',nameAr:'الإنجليزية للأعمال',descriptionEn:'English communication for work and presentations',descriptionAr:'التواصل باللغة الإنجليزية في العمل والعروض',durationValue:8,durationUnit:'weeks',offer:{priceAmount:'350.00',registrationFeeAmount:'25.00',currency:'QAR'},batches:[{startsOn:'2026-11-15',seatsAvailable:7}] },
  { courseId:'excel',code:'EXCEL',nameEn:'Excel Essentials',nameAr:'أساسيات إكسل',descriptionEn:'Practical spreadsheets and office skills',descriptionAr:'مهارات الجداول والحاسوب المكتبية',offer:{priceAmount:'250.00',currency:'QAR'},batches:[] },
@@ -105,6 +105,14 @@ test('a natural what-about question answers from the explicitly named course fac
  assert.match(result.reply,/Would you like to know anything else about this course\?/);
  assert.doesNotMatch(result.reply,/I can’t confirm that|which course are you interested in/);
  assert.deepEqual(result.sourceIds,['course:preprimary']);
+});
+
+test('Meta-style first messages that name a course trigger an answer about that course',()=>{
+ const samples=['Hello! can I get more info on Business English course?','I’m interested in the Business English & computing skills training.','Hi! can I get more information about Business English?'];
+ for(const message of samples){const context=retrieveContext({facts,message});assert.equal(context.selectedCourseCode,'ENG',message);assert.equal(context.evidence.filter(item=>item.kind==='course').length,1);assert.equal(isCourseOverviewRequest(message,context),true);}
+ const generic=retrieveContext({facts,message:'Hello! can I get more info on this?'});
+ assert.equal(generic.evidence.filter(item=>item.kind==='course').length,0);
+ assert.equal(isCourseOverviewRequest('Hello! can I get more info on this?',generic),false);
 });
 
 test('natural course-overview follow-ups use the previously selected course and localize the response',()=>{

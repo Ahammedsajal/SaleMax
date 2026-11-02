@@ -187,7 +187,7 @@ function unavailableReply(message, config, language) {
 
 function isCourseOverviewRequest(message, context) {
   return context.evidence.filter(item => item.kind === 'course').length === 1
-    && /\bwhat about\b|\btell me (?:more|about)\b|\bmore about\b|\bdetails? (?:on|about|for)\b|\bcourse overview\b|\bwhat (?:does|will) (?:i|we|you) learn\b|\bwhat is (?:in|covered in) (?:this|the) course\b|\bsyllabus\b|\btopics\b|ماذا عن|اخبرني المزيد|أخبرني المزيد|تفاصيل (?:عن|حول)|محتوى الدورة|ماذا سنتعلم|ماذا سأتعلم/i.test(message);
+    && /\bwhat about\b|\btell me (?:more|about)\b|\bmore about\b|\bmore info(?:rmation)? (?:on|about|for)\b|\bdetails? (?:on|about|for)\b|\bi(?:'|’)m interested in\b|\bi am interested in\b|\bcourse overview\b|\bwhat (?:does|will) (?:i|we|you) learn\b|\bwhat is (?:in|covered in) (?:this|the) course\b|\bsyllabus\b|\btopics\b|ماذا عن|اخبرني المزيد|أخبرني المزيد|معلومات اكثر عن|معلومات أكثر عن|مهتم(?:ة)? ب|تفاصيل (?:عن|حول)|محتوى الدورة|ماذا سنتعلم|ماذا سأتعلم/i.test(message);
 }
 
 function simpleFactualReply(message, context, config = {}) {
