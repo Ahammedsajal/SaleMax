@@ -8,7 +8,7 @@ if (!sourcePath || !outputPath) {
   process.exit(2);
 }
 
-const source = fs.readFileSync(sourcePath, 'utf8');
+const source = sourcePath === '-' ? fs.readFileSync(0, 'utf8') : fs.readFileSync(sourcePath, 'utf8');
 const lines = source.split(/\r?\n/);
 const matches = lines
   .map((line, index) => ({ line, index }))
@@ -22,4 +22,6 @@ if (line.endsWith("/u.test(configured || '');")) {
   throw new Error('UNEXPECTED_DISCOVERY_PROMPT_GUARD');
 }
 
-fs.writeFileSync(outputPath, lines.join('\n'), { mode: 0o644 });
+const output = lines.join('\n');
+if (outputPath === '-') process.stdout.write(output);
+else fs.writeFileSync(outputPath, output, { mode: 0o644 });
