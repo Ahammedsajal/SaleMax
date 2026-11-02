@@ -95,15 +95,29 @@ test('handoff alerts target every active Inbox reader/replier with a phone and d
   assert.equal(inserted.some(row=>row[3]==='manager-id'),false,'the shared agent/manager phone receives only one staff alert');
  }finally{qr.staff=staff;require('../modules/platform/team-conversation-assignment').eligibleStaff=eligible;}
 });
-test('handoff dispatch rechecks open status and sends the claim code without customer details',async()=>{
+test('handoff dispatch sends the private staff brief and reuses the claim summary',async()=>{
  const staff=qr.staff,eligible=require('../modules/platform/team-conversation-assignment').eligibleStaff,sends=[];
  qr.staff=async(_db,_tenant,options={})=>options.roles?[{id:'manager-id',phone:'97450000002',role:'manager'}]:[];
  require('../modules/platform/team-conversation-assignment').eligibleStaff=async()=>[{identityId:'manager-id'}];
- const db={query:async sql=>sql.includes('FROM sx_chatbot_handoff_claims')?[[{claim_code:'ABC123',status:'open'}]]:[[]]};
+ const db={query:async sql=>sql.includes('FROM sx_chatbot_handoff_claims')?[[{claimCode:'ABC123',status:'open',customerName:'Sample learner',customerPhone:'+97455550000',courseDetails:'[{"code":"EXCEL","nameEn":"Advanced Excel"}]',latestEnquiry:'Which certificate will I get?'}]]:[[]]};
  try{
-  const result=await notifications.dispatch(db,{id:1,event_id:'event-id',tenant_id:tenant,kind:'chatbot_handoff',source_type:'chatbot_handoff',source_id:id,recipient_kind:'identity',recipient_id:'manager-id',destination_hash:qr.hash('97450000002'),payload_json:{claimCode:'ABC123'}},{authorize:async()=>true,send:async(_db,payload)=>{sends.push(payload);return {status:'accepted',providerMessageId:'synthetic-handoff-alert'};}});
-  assert.equal(result.status,'accepted');assert.equal(sends.length,1);assert.match(sends[0].text,/Reply YES to claim it/);assert.match(sends[0].text,/YES ABC123/);assert.doesNotMatch(sends[0].text,/97450000002|Sample customer/i);
+  const result=await notifications.dispatch(db,{id:1,event_id:'event-id',tenant_id:tenant,kind:'chatbot_handoff',source_type:'chatbot_handoff',source_id:id,recipient_kind:'identity',recipient_id:'manager-id',destination_hash:qr.hash('97450000002'),payload_json:{claimCode:'ABC123'}},{authorize:async()=>true,summarizeHandoff:async()=>({text:'Customer asks about certificate details; staff should confirm the course certificate.',ai:true}),send:async(_db,payload)=>{sends.push(payload);return {status:'accepted',providerMessageId:'synthetic-handoff-alert'};}});
+  assert.equal(result.status,'accepted');assert.equal(sends.length,1);assert.match(sends[0].text,/Reply YES ABC123/);assert.match(sends[0].text,/Sample learner/);assert.match(sends[0].text,/97455550000/);assert.match(sends[0].text,/Advanced Excel/);assert.match(sends[0].text,/Which certificate will I get/);assert.match(sends[0].text,/AI summary: Customer asks about certificate details/);assert.doesNotMatch(sends[0].text,/97450000002/);
  }finally{qr.staff=staff;require('../modules/platform/team-conversation-assignment').eligibleStaff=eligible;}
+});
+test('handoff recipient matching the customer is suppressed before any staff-only details are sent',async()=>{
+ const staff=qr.staff,eligible=require('../modules/platform/team-conversation-assignment').eligibleStaff;
+ qr.staff=async(_db,_tenant,options={})=>options.roles?[{id:'manager-id',phone:'97455550000',role:'manager'}]:[];
+ require('../modules/platform/team-conversation-assignment').eligibleStaff=async()=>[{identityId:'manager-id'}];
+ const inserted=[],db={query:async(sql)=>{if(sql.includes('FROM sx_chatbot_handoff_claims'))return [[{id,claimCode:'ABC123',status:'open',customerName:'Customer',customerPhone:'+97455550000'}]];if(sql.includes('INSERT INTO sx_business_notification_deliveries'))inserted.push(sql);return [[]];}};
+ try{await notifications.prepare(db,{id:'event-id',tenant_id:tenant,kind:'chatbot_handoff',source_type:'chatbot_handoff',source_id:id,payload_json:{}},{id:tenant,name:'Center'});assert.equal(inserted.length,0);}finally{qr.staff=staff;require('../modules/platform/team-conversation-assignment').eligibleStaff=eligible;}
+});
+test('handoff send rechecks a changed staff/customer number collision immediately before delivery',async()=>{
+ const staff=qr.staff,eligible=require('../modules/platform/team-conversation-assignment').eligibleStaff;
+ qr.staff=async(_db,_tenant,options={})=>options.roles?[{id:'manager-id',phone:'97455550000',role:'manager'}]:[];
+ require('../modules/platform/team-conversation-assignment').eligibleStaff=async()=>[{identityId:'manager-id'}];
+ const db={query:async(sql)=>sql.includes('FROM sx_chatbot_handoff_claims')?[[{claimCode:'ABC123',status:'open',customerPhone:'+97455550000'}]]:[[]]};
+ try{const result=await notifications.dispatch(db,{tenant_id:tenant,kind:'chatbot_handoff',source_id:id,recipient_kind:'identity',recipient_id:'manager-id',destination_hash:qr.hash('97455550000'),payload_json:{}},{authorize:async()=>true,summarizeHandoff:async()=>assert.fail('summary must not run for a customer collision'),send:async()=>assert.fail('staff-only content must not reach customer')});assert.equal(result.errorCode,'HANDOFF_CUSTOMER_STAFF_NUMBER_MATCH');}finally{qr.staff=staff;require('../modules/platform/team-conversation-assignment').eligibleStaff=eligible;}
 });
 test('paid/cancelled resources suppress queued notices',async()=>{
  const load=finance.load;finance.load=async()=>null;try{const result=await notifications.dispatch({}, {tenant_id:tenant,kind:'payment_due',source_type:'training_invoice',source_id:id},{authorize:async()=>true,send:()=>assert.fail('must not send')});assert.equal(result.status,'suppressed');}finally{finance.load=load;}

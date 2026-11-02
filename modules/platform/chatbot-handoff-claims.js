@@ -18,7 +18,7 @@ function phone(value, normalizer = require('./business-whatsapp').phone) {
 
 function newCode() { return crypto.randomInt(36 ** 6).toString(36).toUpperCase().padStart(6, '0'); }
 
-async function open(db, { ctx, profile, uid, chatId, channelKind, channelRef, reason }) {
+async function open(db, { ctx, profile, uid, chatId, channelKind, channelRef, reason, brief = {} }) {
   if (!ctx?.tenant?.id || !profile?.id || !uid || !chatId || !['whatsapp_qr', 'whatsapp_meta'].includes(channelKind) || !channelRef) fail('HANDOFF_INVALID_CONTEXT');
   const ownerHash = crypto.createHash('sha256').update(uid).digest('hex');
   const [[existing]] = await db.query(`SELECT id,claim_code AS claimCode,status,revision,notification_event_key AS notificationEventKey
@@ -32,12 +32,17 @@ async function open(db, { ctx, profile, uid, chatId, channelKind, channelRef, re
   if (existing) {
     await db.query(`UPDATE sx_chatbot_handoff_claims SET profile_id=?,owner_uid_hash=?,claim_code=?,reason=?,status='open',
       handoff_task_id=NULL,notification_event_key=?,claimed_identity_id=NULL,claimed_at=NULL,last_customer_ack_at=NULL,
-      last_customer_ack_inbound_id=NULL,revision=? WHERE tenant_id=? AND id=?`,
-    [profile.id, ownerHash, claimCode, String(reason || 'human-review').slice(0, 120), eventKey, revision, ctx.tenant.id, id]);
+      last_customer_ack_inbound_id=NULL,customer_name=?,customer_phone=?,course_details=?,latest_enquiry=?,summary_context=?,ai_summary=NULL,
+      ai_summary_status='pending',ai_summary_lease_until=NULL,ai_summary_attempts=0,revision=? WHERE tenant_id=? AND id=?`,
+    [profile.id, ownerHash, claimCode, String(reason || 'human-review').slice(0, 120), eventKey,
+      brief.customerName || null, brief.customerPhone || null, JSON.stringify(brief.courseDetails || []), brief.latestEnquiry || null,
+      brief.summaryContext ? JSON.stringify(brief.summaryContext) : null, revision, ctx.tenant.id, id]);
   } else {
-    await db.query(`INSERT INTO sx_chatbot_handoff_claims(id,tenant_id,profile_id,channel_kind,channel_ref,conversation_id,owner_uid_hash,claim_code,reason,notification_event_key,revision)
-      VALUES (?,?,?,?,?,?,?,?,?,?,?)`,
-    [id, ctx.tenant.id, profile.id, channelKind, channelRef, chatId, ownerHash, claimCode, String(reason || 'human-review').slice(0, 120), eventKey, revision]);
+    await db.query(`INSERT INTO sx_chatbot_handoff_claims(id,tenant_id,profile_id,channel_kind,channel_ref,conversation_id,owner_uid_hash,claim_code,reason,notification_event_key,customer_name,customer_phone,course_details,latest_enquiry,summary_context,revision)
+      VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+    [id, ctx.tenant.id, profile.id, channelKind, channelRef, chatId, ownerHash, claimCode, String(reason || 'human-review').slice(0, 120), eventKey,
+      brief.customerName || null, brief.customerPhone || null, JSON.stringify(brief.courseDetails || []), brief.latestEnquiry || null,
+      brief.summaryContext ? JSON.stringify(brief.summaryContext) : null, revision]);
   }
   return { id, claimCode, revision, notificationEventKey: eventKey, created: true };
 }

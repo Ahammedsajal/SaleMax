@@ -47,14 +47,15 @@ async function scanTenant(db,tenant,{now=new Date()}={}){
 }
 async function prepare(db,event,tenant){
  const meta=finance.parse(event.payload_json);let data;
- if(event.kind==='daily_summary')data=await reports.build(db,tenant,{day:meta.day});else if(event.kind==='ai_usage_monthly')data={month:meta.month,estimatedUsd:Number(meta.estimatedUsd),thresholdUsd:Number(meta.thresholdUsd||10)};else if(event.kind==='chatbot_handoff'){const [[claim]]=await db.query("SELECT id,claim_code,status FROM sx_chatbot_handoff_claims WHERE tenant_id=? AND id=?",[event.tenant_id,event.source_id]);data=claim?.status==='open'?claim:null;}else data=await finance.load(db,event);
+ if(event.kind==='daily_summary')data=await reports.build(db,tenant,{day:meta.day});else if(event.kind==='ai_usage_monthly')data={month:meta.month,estimatedUsd:Number(meta.estimatedUsd),thresholdUsd:Number(meta.thresholdUsd||10)};else if(event.kind==='chatbot_handoff'){const [[claim]]=await db.query("SELECT id,claim_code AS claimCode,status,customer_name AS customerName,customer_phone AS customerPhone FROM sx_chatbot_handoff_claims WHERE tenant_id=? AND id=?",[event.tenant_id,event.source_id]);data=claim?.status==='open'?claim:null;}else data=await finance.load(db,event);
  if(!data){await db.query("UPDATE sx_business_notification_events SET status='failed',last_error_code=? WHERE id=? AND tenant_id=?",[event.kind==='chatbot_handoff'?'HANDOFF_ALREADY_CLAIMED':'FINANCE_RESOURCE_CLOSED_OR_UNAVAILABLE',event.id,event.tenant_id]);return;}
  let members=data.customerOnly?[]:await qr.staff(db,event.tenant_id,{ownerOnly:event.kind==='daily_summary'});
  if(event.kind==='ai_usage_monthly')members=members.filter(member=>['owner','manager'].includes(member.role));
  if(event.kind==='chatbot_handoff'){
   const eligible=require('./team-conversation-assignment').eligibleStaff;
   const permitted=new Set((await eligible(db,event.tenant_id)).map(member=>member.identityId));
-  members=(await qr.staff(db,event.tenant_id,{roles:['owner','manager','team_leader','agent']})).filter(member=>permitted.has(member.id)&&member.phone);
+  members=(await qr.staff(db,event.tenant_id,{roles:['owner','manager','team_leader','agent']})).filter(member=>permitted.has(member.id)&&member.phone
+    &&(!data.customerPhone||qr.hash(qr.phone(member.phone)||'')!==qr.hash(qr.phone(data.customerPhone)||'')));
  }
  if(['payment_due','payment_received'].includes(event.kind)&&event.source_type!=='sales_receipt'){
   let optedOut=false;if(event.kind==='payment_due'&&data.invoiceId){const [[p]]=await db.query('SELECT status FROM sx_training_reminder_preferences WHERE tenant_id=? AND invoice_id=?',[event.tenant_id,data.invoiceId]);optedOut=p?.status==='opted_out';}
@@ -63,7 +64,8 @@ async function prepare(db,event,tenant){
  const seen=new Set();for(const member of members){const destination=qr.hash(member.phone||`missing:${member.id}`);if(seen.has(destination))continue;seen.add(destination);
   for(const part of event.kind==='daily_summary'?['text','pdf']:['text'])await db.query('INSERT INTO sx_business_notification_deliveries(tenant_id,event_id,recipient_kind,recipient_id,destination_hash,part) VALUES (?,?,?,?,?,?) ON DUPLICATE KEY UPDATE id=id',[event.tenant_id,event.id,member.kind,member.id,destination,part]);
  }
- await db.query("UPDATE sx_business_notification_events SET status='prepared',payload_json=? WHERE id=? AND tenant_id=?",[JSON.stringify({...meta,snapshot:data,business:tenant.name||'7Network'}),event.id,event.tenant_id]);
+ const eventMeta=event.kind==='chatbot_handoff'?{...meta,claimCode:data.claimCode}:({...meta,snapshot:data,business:tenant.name||'7Network'});
+ await db.query("UPDATE sx_business_notification_events SET status='prepared',payload_json=? WHERE id=? AND tenant_id=?",[JSON.stringify(eventMeta),event.id,event.tenant_id]);
 }
 async function claim(db){
  await db.beginTransaction();try{
@@ -75,9 +77,9 @@ async function claim(db){
  }catch(e){await db.rollback();throw e;}
 }
 async function allowed(db,item){const e=await require('./plans').loadEntitlements(db,item.tenant_id);if(!e||!['active','trial','grace'].includes(e.status))return false;const caps=e.capabilities||[],finance=caps.includes('finance.invoices')||caps.includes('sales.finance');if(['ai_usage_monthly','chatbot_handoff'].includes(item.kind))return caps.includes('automation.chatbot');return item.kind==='daily_summary'?dailyReportAllowed(e.categoryKey,caps):finance;}
-async function dispatch(db,item,{send=qr.send,authorize=allowed}={}){
+async function dispatch(db,item,{send=qr.send,authorize=allowed,summarizeHandoff=null}={}){
  if(!await authorize(db,item))return {status:'suppressed',errorCode:'BUSINESS_NOTIFICATION_FEATURE_UNAVAILABLE'};
- const meta=finance.parse(item.payload_json);let current=null;
+ const meta=finance.parse(item.payload_json);let current=null,handoff=null;
  if(item.kind!=='daily_summary'&&item.kind!=='ai_usage_monthly'&&item.kind!=='chatbot_handoff'){current=await finance.load(db,{...item,tenant_id:item.tenant_id});if(!current)return {status:'suppressed',errorCode:'FINANCE_RESOURCE_CLOSED_OR_UNAVAILABLE'};}
  let to;if(item.recipient_kind==='identity'){let members=await qr.staff(db,item.tenant_id,{ownerOnly:item.kind==='daily_summary'});if(item.kind==='chatbot_handoff'){const eligible=require('./team-conversation-assignment').eligibleStaff;const permitted=new Set((await eligible(db,item.tenant_id)).map(member=>member.identityId));members=(await qr.staff(db,item.tenant_id,{roles:['owner','manager','team_leader','agent']})).filter(member=>permitted.has(member.id)&&member.phone);}to=members.find(r=>r.id===item.recipient_id)?.phone;}else if(item.recipient_kind==='report_recipient'){
   const [[r]]=await db.query("SELECT destination FROM sx_training_report_recipients WHERE tenant_id=? AND id=? AND channel='whatsapp' AND status='verified'",[item.tenant_id,item.recipient_id]);to=qr.phone(r?.destination);
@@ -92,14 +94,19 @@ async function dispatch(db,item,{send=qr.send,authorize=allowed}={}){
  }
  if(item.kind==='payment_due'&&meta.dueDate!==moment.tz(new Date(),item.timezone||'Asia/Qatar').format('YYYY-MM-DD'))return {status:'suppressed',errorCode:'REMINDER_DATE_PASSED'};
  if(item.kind==='chatbot_handoff'){
-  const [[pending]]=await db.query("SELECT claim_code,status FROM sx_chatbot_handoff_claims WHERE tenant_id=? AND id=?",[item.tenant_id,item.source_id]);
+  const [[pending]]=await db.query("SELECT claim_code AS claimCode,status,customer_name AS customerName,customer_phone AS customerPhone,course_details AS courseDetails,latest_enquiry AS latestEnquiry FROM sx_chatbot_handoff_claims WHERE tenant_id=? AND id=?",[item.tenant_id,item.source_id]);
   if(!pending||pending.status!=='open')return {status:'suppressed',errorCode:'HANDOFF_ALREADY_CLAIMED'};
+  if(pending.customerPhone&&qr.hash(qr.phone(to)||'')===qr.hash(qr.phone(pending.customerPhone)||''))return {status:'suppressed',errorCode:'HANDOFF_CUSTOMER_STAFF_NUMBER_MATCH'};
+  const summarize=summarizeHandoff||((tenantId,claimId)=>require('./chatbot-handoff-summary').summarize(require('../../database/config').promise(),tenantId,claimId));
+  const summary=await summarize(item.tenant_id,item.source_id);
+  try{pending.courseDetails=typeof pending.courseDetails==='string'?JSON.parse(pending.courseDetails):pending.courseDetails||[];}catch{pending.courseDetails=[];}
+  handoff={...pending,...summary};
  }
- const snapshot=item.kind==='daily_summary'?meta.snapshot:(item.kind==='ai_usage_monthly'||item.kind==='chatbot_handoff'?meta:current);
+ const snapshot=item.kind==='daily_summary'?meta.snapshot:(item.kind==='ai_usage_monthly'?meta:item.kind==='chatbot_handoff'?handoff:current);
  const text=item.kind==='daily_summary'?(meta.reportText||reports.text(snapshot)):item.kind==='ai_usage_monthly'
   ? `7Network AI usage reminder for ${snapshot.month}: estimated spend is $${Number(snapshot.estimatedUsd).toFixed(2)} against the $${Number(snapshot.thresholdUsd).toFixed(2)} monthly reminder threshold. This is a reminder only; AI replies continue without a spending cap.\n\nتذكير باستخدام الذكاء الاصطناعي لشهر ${snapshot.month}: الإنفاق التقديري هو ${Number(snapshot.estimatedUsd).toFixed(2)} دولار من حد التذكير الشهري البالغ ${Number(snapshot.thresholdUsd).toFixed(2)} دولار. هذا تذكير فقط، وتستمر الردود دون حد لإيقافها.`
   : item.kind==='chatbot_handoff'
-   ? `A customer handoff is waiting in the 7Network Inbox. Reply YES to claim it. If you have more than one request, reply YES ${snapshot.claimCode}. The first eligible staff reply is assigned the chat.\n\nيوجد استفسار عميل بانتظار الفريق في صندوق وارد 7Network. للمتابعة أرسل YES. إذا كان لديك أكثر من طلب، أرسل YES ${snapshot.claimCode}. سيتم تحويل المحادثة لأول موظف مؤهل يرد.`
+   ? `New 7Network customer handoff · ${snapshot.claimCode}\nCustomer: ${snapshot.customerName || 'Name not available'}${snapshot.customerPhone ? ` · ${snapshot.customerPhone}` : ''}\nCourse: ${(snapshot.courseDetails||[]).map(course=>course.nameEn||course.nameAr||course.code).filter(Boolean).join(', ') || 'Not identified'}\nLatest enquiry: ${snapshot.latestEnquiry || 'Please review the chat'}\n${snapshot.ai?'AI summary':'Conversation context'}: ${snapshot.text || 'Please review the recent conversation.'}\n\nReply YES ${snapshot.claimCode} to claim this chat. The first eligible staff reply is assigned the chat.\n\nيوجد استفسار عميل جديد بانتظار الفريق · ${snapshot.claimCode}\nالعميل: ${snapshot.customerName || 'الاسم غير متوفر'}${snapshot.customerPhone ? ` · ${snapshot.customerPhone}` : ''}\nالدورة: ${(snapshot.courseDetails||[]).map(course=>course.nameAr||course.nameEn||course.code).filter(Boolean).join('، ') || 'غير محددة'}\nآخر استفسار: ${snapshot.latestEnquiry || 'يرجى مراجعة المحادثة'}\nملخص المحادثة: ${snapshot.text || 'يرجى مراجعة المحادثة الأخيرة.'}\n\nأرسل YES ${snapshot.claimCode} لاستلام المحادثة.`
    : finance.message(item.kind,snapshot,{business:meta.business});
  const pdf=item.part==='pdf'?await require('./business-report-pdf').render(snapshot):null;
  const safeBusiness=String(snapshot.business||'7Network').normalize('NFKD').replace(/[^\p{L}\p{N}]+/gu,'_').replace(/^_+|_+$/g,'').slice(0,60)||'7Network';

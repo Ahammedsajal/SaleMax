@@ -131,7 +131,8 @@ async function handoffConversation(ctx, chatId, channelKind, channelRef, reason,
     let claim = null;
     if (profile && uid) {
       const handoffs = require('./chatbot-handoff-claims');
-      claim = await handoffs.open(db, { ctx, profile, uid, chatId, channelKind, channelRef, reason });
+      const brief = await buildHandoffBrief(db, { ctx, profile, uid, chatId, channelKind, channelRef });
+      claim = await handoffs.open(db, { ctx, profile, uid, chatId, channelKind, channelRef, reason, brief });
       if (claim.created) {
         const taskId = await require('./chatbot-handoff-task').assignHandoffTask(db, { ctx, profile, uid, chatId, channelKind, channelRef, reason });
         if (taskId) await db.query('UPDATE sx_chatbot_handoff_claims SET handoff_task_id=? WHERE tenant_id=? AND id=?', [taskId, ctx.tenant.id, claim.id]);
@@ -145,6 +146,43 @@ async function handoffConversation(ctx, chatId, channelKind, channelRef, reason,
     return claim;
   } catch (error) { await db.rollback(); throw error; }
   finally { db.release(); }
+}
+
+async function buildHandoffBrief(db, { ctx, profile, uid, chatId, channelKind, channelRef }) {
+  try {
+    const [[chat]] = await db.query('SELECT sender_mobile AS senderMobile,sender_name AS senderName FROM beta_chats WHERE uid=? AND chat_id=? LIMIT 1', [uid, chatId]);
+    const [rows] = await db.query(`SELECT route,type,msgContext FROM beta_conversation
+      WHERE uid=? AND chat_id=? ORDER BY id DESC LIMIT 12`, [uid, chatId]);
+    const transcript = rows.reverse().map(row => {
+      let value = row.msgContext;
+      try { if (typeof value === 'string') value = JSON.parse(value); } catch { value = null; }
+      const text = value?.text?.body ?? value?.button?.text ?? value?.interactive?.button_reply?.title ?? value?.interactive?.list_reply?.title;
+      return typeof text === 'string' && text.trim() ? { role: row.route === 'OUTGOING' ? 'assistant' : 'user', text: text.trim().slice(0, 400) } : null;
+    }).filter(Boolean).slice(-8);
+    const inbound = transcript.filter(turn => turn.role === 'user');
+    const latestEnquiry = inbound.at(-1)?.text || '';
+    let courseDetails = [];
+    if (ctx.tenant.categoryKey === 'training_center') {
+      const [courses] = await db.query(`SELECT code,name_en AS nameEn,name_ar AS nameAr FROM sx_training_courses
+        WHERE tenant_id=? AND status='active' ORDER BY updated_at DESC LIMIT 100`, [ctx.tenant.id]);
+      let selectedCourseCode = null;
+      const [[session]] = await db.query(`SELECT state FROM sx_chatbot_guided_sessions WHERE tenant_id=? AND profile_id=? AND channel_kind=?
+        AND channel_ref=? AND conversation_id=? LIMIT 1`, [ctx.tenant.id, profile.id, channelKind, channelRef]).catch(() => [[]]);
+      try { const state = typeof session?.state === 'string' ? JSON.parse(session.state) : session?.state; selectedCourseCode = state?.selectedCourseCode || null; } catch {}
+      const matched = businessContext.retrieveContext({ facts: courses, message: inbound.map(turn => turn.text).join('\n'), state: { selectedCourseCode } });
+      courseDetails = (matched.evidence || []).filter(item => item.kind === 'course').slice(0, 3).map(item => ({ code: item.code, nameEn: item.name, nameAr: courses.find(course => course.code === item.code)?.nameAr || '' }));
+    }
+    return {
+      customerName: String(chat?.senderName || '').trim().slice(0, 160) || null,
+      customerPhone: require('./business-whatsapp').phone(chat?.senderMobile) || null,
+      courseDetails,
+      latestEnquiry: businessContext.redactCustomerText(latestEnquiry).slice(0, 1000),
+      summaryContext: profile.config?.aiDataProcessingConfirmed === true ? transcript.map(turn => ({ ...turn, text: businessContext.redactCustomerText(turn.text).slice(0, 300) })) : null,
+    };
+  } catch (error) {
+    console.warn('[chatbot] handoff brief unavailable', error.code || 'HANDOFF_BRIEF_UNAVAILABLE');
+    return {};
+  }
 }
 
 async function processHandoffPriorityForProfile({ ctx, profile, uid, message, user, sessionId, origin, chatId }) {
