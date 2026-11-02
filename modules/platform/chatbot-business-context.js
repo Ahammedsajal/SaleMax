@@ -24,15 +24,12 @@ function controlRoute(message, config, state = {}) {
   // registration or a staff member must remain conversational.
   if (/^(agent|human|staff|person|talk to (a )?(human|person)|موظف|بشر|موظفة|اريد موظف|ابي موظف)$/.test(text) || /\b(?:speak|talk|connect|transfer|chat)\b.*\b(?:person|human|agent|staff|advisor|team)\b|(?:التحدث|التواصل|تحويل|اكلم).*(?:موظف|فريق|شخص)/.test(text)) return 'human';
   if (/\b(?:image|photo|picture|screenshot|document|file|voice note|audio|video|location pin)\b|\b(?:shared|sent|dropped) my location\b|\b(?:attached|sent|shared|uploaded)\b.{0,45}\b(?:media|attachment|file)\b|ارفق|مرفق|صورة|ملف|مقطع صوت|رسالة صوتية|فيديو|موقعي/u.test(text)) return 'handoff';
-  // These requests require a person in this training-center rollout. Resolve
-  // them before provider use so an AI answer cannot turn a support case into
-  // an admissions claim or promise.
   if (/\b(?:job|jobs|career|careers|employment|vacancy|vacancies|hiring|recruitment|recruiter|cv|resume|work permit)\b|وظيفة|وظائف|توظيف|فرصة عمل|فرص عمل|سيرة ذاتية/u.test(text)) return 'handoff';
   if (/\b(?:existing student|current student|already enrolled|already registered|my registration|my account|student account|payment|paid|receipt|invoice|refund|complaint|not received|haven't received|have not received|certificate|accreditation|accredited|attestation)\b|طالب حالي|طالبة حالية|انا طالب|انا طالبة|مسجل مسبقا|مسجلة مسبقا|حسابي|مشكلتي|شكوى|شكوي|استرداد|استرجاع|مشكلة دفع|مشكلة في الدفع|شهادة|اعتماد|لم يصلني|ما وصلني|لم استلم|ما استلمت/u.test(text)) return 'handoff';
-  if (/^(hi|hello|hey|good morning|good evening|salam|مرحبا|اهلا|السلام عليكم|صباح الخير|مساء الخير)$/.test(text)) return 'greeting';
-  if (/^(courses|course list|show courses|available courses|what courses do you have|الدورات|دورات|عرض الدورات|قائمة الدورات)$/.test(text)) return 'answer';
-  if (/^(menu|back|القائمة|رجوع|0|english|en|arabic|ar|العربية|عربي|next|previous|التالي|السابق|form|enquiry form|registration form|نموذج|نموذج التسجيل)$/.test(text)) return 'guided';
+  if (/^(hi|hello|hey|good morning|good evening|salam|مرحبا|اهلا|السلام عليكم|صباح الخير|مساء الخير|menu|back|القائمة|رجوع|0|english|en|arabic|ar|العربية|عربي)$/.test(text)) return 'guided';
+  if (/^(courses|course list|show courses|available courses|what courses do you have|الدورات|دورات|عرض الدورات|قائمة الدورات|next|previous|التالي|السابق|form|enquiry form|registration form|نموذج|نموذج التسجيل)$/.test(text)) return 'guided';
   if (/^\d{1,2}$/.test(text) && state.step) return 'guided';
+  if (keywordReply(message, config?.guidedContent?.keywordReplies)) return 'keyword';
   return 'answer';
 }
 
@@ -60,12 +57,18 @@ function courseDetailNeedsCoordinator(message, facts, selectedCourseCode = null)
   return (durationQuestion && !durationPublished) || (deliveryQuestion && !deliveryPublished);
 }
 
+function trainingCenterCoordinatorReason(message, facts, selectedCourseCode = null) {
+  if (isScheduleQuestion(message) && !hasPublishedSchedule(facts, selectedCourseCode)) return 'SCHEDULE_REQUIRES_COORDINATOR';
+  if (courseDetailNeedsCoordinator(message, facts, selectedCourseCode)) return 'COURSE_DETAIL_REQUIRES_COORDINATOR';
+  return null;
+}
+
 function score(query, text) {
   const value = normalized(text), words = new Set(tokens(value));
   return tokens(query).reduce((sum, word) => sum + (words.has(word) ? 3 : value.includes(word) ? 1 : 0), 0);
 }
 
-function retrieveContext({ facts, knowledgeEntries = [], message, state = {}, profileRevision = 0, config = {} }) {
+function retrieveContext({ facts, knowledgeEntries = [], message, state = {}, profileRevision = 0 }) {
   const language = languageFor(message, state);
   const courses = facts.filter(item => item.code && !item.kind);
   const nameWords = new Map(courses.map(item => [item.code, new Set(tokens([item.nameEn, item.nameAr].join(' ')).filter(word => word.length >= 4))]));
@@ -107,8 +110,6 @@ function retrieveContext({ facts, knowledgeEntries = [], message, state = {}, pr
     const item = knowledgeEntries[matchedFaq.index];
     add('faq:' + matchedFaq.index, { item, profileRevision }, { kind: 'approved_faq', question: local(item, 'question', language), answer: matchedFaq.answer });
   }
-  const configuredReply = keywordReply(message, config.guidedContent?.keywordReplies, language);
-  if (configuredReply) add('keyword:matched', { configuredReply, profileRevision }, { kind: 'approved_reply_rule', reply: String(configuredReply).slice(0, 700) });
   // Names are a discovery index, never evidence for unpublished prices/policies.
   if (!direct.length) add('catalogue:index', courses.map(item => ({code:item.code,nameEn:item.nameEn,nameAr:item.nameAr})), { kind: 'course_index', names: courses.slice(0, 60).map(item => local(item, 'name', language)), totalCourses: courses.length, complete: courses.length < 500 && courses.length <= 60 });
   return { evidence, sources, selectedCourseCode: selected.length === 1 ? selected[0].code : null, language, revision: fingerprint({ facts, knowledgeEntries, profileRevision }), explicitCourses: direct.length };
@@ -254,4 +255,4 @@ function polishGuidedReply({ result, profile, message, state, defaults }) {
   return result;
 }
 
-module.exports = { normalized, fingerprint, languageFor, controlRoute, isScheduleQuestion, hasPublishedSchedule, courseDetailNeedsCoordinator, retrieveContext, validateAnswer, clarification, unavailableReply, simpleFactualReply, isCourseOverviewRequest, previewState, redactCustomerText, polishGuidedReply };
+module.exports = { normalized, fingerprint, languageFor, controlRoute, isScheduleQuestion, hasPublishedSchedule, courseDetailNeedsCoordinator, trainingCenterCoordinatorReason, retrieveContext, validateAnswer, clarification, unavailableReply, simpleFactualReply, isCourseOverviewRequest, previewState, redactCustomerText, polishGuidedReply };
