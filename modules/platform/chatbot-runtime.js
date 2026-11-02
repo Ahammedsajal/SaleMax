@@ -336,10 +336,12 @@ async function sendTurnCourseMedia({ ctx, profile, uid, chatId, sessionId, messa
   await query(`UPDATE sx_chatbot_guided_sessions SET state=JSON_SET(state,'$.sentCoursePdfIds',JSON_EXTRACT(?,'$')) WHERE tenant_id=? AND profile_id=? AND channel_kind=? AND channel_ref=? AND conversation_id=?`, [JSON.stringify(recorded.slice(-20)), ctx.tenant.id, profile.id, channelFor(origin), sessionId, chatId]);
 }
 
-async function trainingCenterGuidedTurn({ ctx, profile, uid, message, sessionId, origin, chatId, intent = null, leadInfo }) {
+async function trainingCenterGuidedTurn({ ctx, profile, uid, message, sessionId, origin, chatId, intent = null, leadInfo, onStage = null }) {
+  onStage?.('training-channel-and-pack');
   const channelKind = channelFor(origin);
   const pack = getDomainPack(ctx.category.key, ctx.category.version);
   if (!channelKind || !pack.guidedReply) return false;
+  onStage?.('training-session-prune');
   await pruneExpiredGuidedSessions();
   let cvSubmission = null, cvError = null;
   if(ctx.category.key==='7network_sales'&&message?.type==='document'){
@@ -350,14 +352,18 @@ async function trainingCenterGuidedTurn({ ctx, profile, uid, message, sessionId,
       }catch(error){cvError=error.code||'CV_SAVE_FAILED';}
     }
   }
+  onStage?.('training-db-connect');
   const db = await dbPool.getConnection();
   let reply = null;
   let deferLeadQuestion = false;
   try {
+    onStage?.('training-course-facts');
     const facts = leadInfo?.facts || (pack.requiresDatabase
       ? await pack.loadFacts({ db, tenantId: ctx.tenant.id, platformOrigin: process.env.SALEMAX_PLATFORM_ORIGIN, config: profile.config })
       : []);
+    onStage?.('training-approved-faqs');
     const knowledgeEntries = mergeKnowledgeEntries(profile.config?.knowledgeEntries || [], await loadApprovedFaqs(ctx.tenant.id));
+    onStage?.('training-session-transaction');
     await db.beginTransaction();
     await db.query(`INSERT IGNORE INTO sx_chatbot_guided_sessions(id,tenant_id,profile_id,channel_kind,channel_ref,conversation_id,conversation_hash,state,expires_at)
       VALUES (?,?,?,?,?,?,?,JSON_OBJECT(),DATE_ADD(UTC_TIMESTAMP(3),INTERVAL 24 HOUR))`,
@@ -365,6 +371,7 @@ async function trainingCenterGuidedTurn({ ctx, profile, uid, message, sessionId,
     const [[row]] = await db.query(`SELECT id,state,expires_at AS expiresAt FROM sx_chatbot_guided_sessions
       WHERE tenant_id=? AND profile_id=? AND channel_kind=? AND channel_ref=? AND conversation_hash=? AND conversation_id=?
       FOR UPDATE`, [ctx.tenant.id, profile.id, channelKind, sessionId, guidedConversationHash(chatId), chatId]);
+    onStage?.('training-session-read');
     let priorState = null;
     if (row && new Date(row.expiresAt).getTime() <= Date.now()) priorState = null;
     else if (row) { try { priorState = typeof row.state === 'string' ? JSON.parse(row.state) : row.state; } catch { priorState = null; } }
@@ -391,6 +398,7 @@ async function trainingCenterGuidedTurn({ ctx, profile, uid, message, sessionId,
         : !intent && referralCourse
           ? `${textOf(message)} ${referralContext.language === 'ar' ? (referralCourse.nameAr || referralCourse.nameEn) : (referralCourse.nameEn || referralCourse.nameAr)}`
           : intent || textOf(message);
+      onStage?.('training-guide-compose');
       reply = pack.guidedReply({ message: guideMessage, state: priorState, facts, config: { ...(profile.config?.guidedContent || {}), knowledgeEntries } });
     }
     // A lead-capture name prompt must never erase a substantive safety route
@@ -400,12 +408,14 @@ async function trainingCenterGuidedTurn({ ctx, profile, uid, message, sessionId,
       await db.rollback();
       return false;
     }
+    onStage?.('training-guide-polish');
     reply = businessContext.polishGuidedReply({ result: reply, profile, message: textOf(message), state: priorState, defaults: pack.guidedContentDefaults });
     const questionLeadInfo = deferLeadQuestion ? { ...leadInfo, questionKey: null } : leadInfo;
     if (!reply.handoff) reply.reply = require('./chatbot-lead-capture').addQuestion(reply.reply, questionLeadInfo, profile.config, pack.guidedContentDefaults);
     reply.state.sentCoursePdfIds = priorState?.sentCoursePdfIds || [];
     const pdfs = require('./chatbot-course-media').coursePdfs(facts, reply.state.selectedCourseCode, textOf(message), reply.state.sentCoursePdfIds);
     reply.media = [...(reply.media || []).filter(item => item.kind !== 'document'), ...pdfs];
+    onStage?.('training-session-save');
     const nextState = JSON.stringify(reply.state || {});
     await db.query(`UPDATE sx_chatbot_guided_sessions SET state=?,expires_at=DATE_ADD(UTC_TIMESTAMP(3),INTERVAL 24 HOUR) WHERE id=?`, [nextState, row.id]);
     if(ctx.category.key==='7network_sales'&&reply.state?.screeningConsent===true&&reply.state?.answers){
@@ -422,21 +432,25 @@ async function trainingCenterGuidedTurn({ ctx, profile, uid, message, sessionId,
     if(ctx.category.key==='7network_sales'&&reply.notifyRecruiter){
       await require('./recruitment-founder-notifications').enqueue(db,{tenantId:ctx.tenant.id,profileId:profile.id,channelKind,channelRef:sessionId,conversationId:chatId,inboundMessageId:String(message.metaChatId||`recruiter:${chatId}:${Date.now()}`),payload:{answers:{...(reply.state.answers||{}),fullName:reply.state.answers?.fullName||message.senderName||'Not provided',whatsappNumber:reply.state.answers?.whatsappNumber||message.senderMobile||'Not provided',contactNumber:reply.state.answers?.contactNumber||message.senderMobile||'Not provided'},whatsappNumber:reply.state.answers?.whatsappNumber||message.senderMobile||'Not provided',senderName:reply.state.answers?.fullName||message.senderName||'Candidate',source:'Candidate requested the recruiter'}});
     }
+    onStage?.('training-db-commit');
     await db.commit();
   } catch (error) {
     await db.rollback().catch(() => {});
     throw error;
   } finally { db.release(); }
 
+  onStage?.('training-authority-check');
   if (!await canSendNow({ ctx, profile, uid, origin, sessionId, chatId, message })) return false;
   const { sendWaMessage } = require('../../automation/functions');
   const interactiveButtons=channelKind==='whatsapp_meta'&&Array.isArray(reply.buttons)?reply.buttons.filter(item=>item&&typeof item.id==='string'&&typeof item.title==='string'&&item.id.length<=256&&item.title.length<=20).slice(0,3):[];
   const messageContext=interactiveButtons.length?{type:'interactive',interactive:{type:'button',body:{text:reply.reply.slice(0,1024)},action:{buttons:interactiveButtons.map(item=>({type:'reply',reply:{id:item.id,title:item.title}}))}}}:{type:'text',text:{preview_url:false,body:reply.reply}};
+  onStage?.('training-whatsapp-send');
   const sentId = await sendWaMessage({ origin, sessionId, message, uid, chatId, content: messageContext });
   if (!sentId) return false;
   if (reply.handoff) await handoffConversation(ctx, chatId, channelKind, sessionId, reply.handoffReason||'customer-requested-human', profile, uid);
   const timestamp = Math.trunc(Date.now() / 1000);
   const messageData = { type: messageContext.type, metaChatId: sentId, msgContext: messageContext, reaction: '', timestamp, senderName: message.senderName, senderMobile: message.senderMobile, star: 0, route: 'OUTGOING', context: null, origin, sentBy: 'bot' };
+  onStage?.('training-conversation-persist');
   await require('./chatbot-conversation-store').persistConversationMessage({ uid, chatId, data: { ...messageData, msgContext: JSON.stringify(messageData.msgContext), context: null } });
   await query(`UPDATE beta_chats SET last_message=? WHERE uid=? AND chat_id=?`, [JSON.stringify(messageData), uid, chatId]);
   if (!reply.handoff && !deferLeadQuestion) await require('./chatbot-lead-capture').markAsked(dbPool, leadInfo, uid);
@@ -618,7 +632,7 @@ async function aiTurn({ ctx, profile, uid, message, user, sessionId, origin, cha
   const safetyRoute = businessContext.controlRoute(incomingText, profile.config || {}, {}, leadInfo?.facts || []);
   if (safetyRoute === 'handoff' && ctx.category.key === 'training_center' && !certificateQuestion) {
     const language = businessContext.languageFor(textOf(message));
-    const dispatched = await trainingCenterGuidedTurn({ ctx, profile, uid, message, sessionId, origin, chatId, leadInfo, intent: language === 'ar' ? 'موظف' : 'agent' });
+    const dispatched = await trainingCenterGuidedTurn({ ctx, profile, uid, message, sessionId, origin, chatId, leadInfo, intent: language === 'ar' ? 'موظف' : 'agent', onStage });
     return dispatched ? { flowDispatched: true, route: 'handoff' } : { handedOff: true, code: 'HUMAN_REVIEW_REQUIRED' };
   }
   if (profile.config.guidedMode === 'domain_default' || (profile.engine === 'ai' && ctx.category.key === 'training_center')) {
@@ -642,7 +656,7 @@ async function aiTurn({ ctx, profile, uid, message, user, sessionId, origin, cha
     const applicationAccepted = session?.step === 'course_detail' && /^(?:yes(?:[,.! ]+(?:please(?:\s+(?:send it|send me|share it))?|send it|send me|share it))?|sure|please do|send it|send me|share it|i'm interested|im interested|اي|نعم|نعم من فضلك|أرسلها|ارسلها|أرسل النموذج|ارسل النموذج)$/iu.test(incoming.trim());
     if (route !== 'answer' || leadInfo?.nameOnly || applicationAccepted || bareCourseSelection || (profile.engine === 'hybrid' && profile.config.aiFallback === false)) {
       onStage?.('training-center-guided-reply');
-      const dispatched = await trainingCenterGuidedTurn({ ctx, profile, uid, message, sessionId, origin, chatId, leadInfo, intent: route === 'human' ? (businessContext.languageFor(incoming, session || {}) === 'ar' ? 'موظف' : 'agent') : null });
+      const dispatched = await trainingCenterGuidedTurn({ ctx, profile, uid, message, sessionId, origin, chatId, leadInfo, intent: route === 'human' ? (businessContext.languageFor(incoming, session || {}) === 'ar' ? 'موظف' : 'agent') : null, onStage });
       return dispatched ? { flowDispatched: true, route } : { handedOff: true, code: 'GUIDED_FLOW_UNAVAILABLE' };
     }
   } else if (profile.engine === 'hybrid' && profile.config.flowId) {
@@ -842,7 +856,8 @@ async function runConfiguredBot({ uid, message, user, sessionId, origin, chatId 
       await finishTurn(turn, 'failed', 'test-reset-busy');
       return { handled: true, code: error.code };
     }
-    const diagnosticCode = typeof error.code === 'string' && /^[A-Z0-9_]{1,64}$/.test(error.code) ? error.code : 'UNCLASSIFIED_RUNTIME_ERROR';
+    const diagnosticName = typeof error.name === 'string' && /^[A-Za-z][A-Za-z0-9]{0,39}$/.test(error.name) ? error.name.toUpperCase() : 'ERROR';
+    const diagnosticCode = typeof error.code === 'string' && /^[A-Z0-9_]{1,64}$/.test(error.code) ? error.code : `UNCLASSIFIED_${diagnosticName}`;
     const failure = ['AI_PROVIDER_NOT_CONFIGURED','AI_PROVIDER_TIMEOUT','AI_PROVIDER_REQUEST_FAILED','AI_PROVIDER_INVALID_OUTPUT'].includes(error.code) ? error.code : 'runtime-error';
     console.warn('[chatbot] inbound turn failed', JSON.stringify({ stage: activeStage, code: diagnosticCode }));
     const claim = await handoffConversation(ctx, chatId, channelKind, sessionId, failure, profile, uid).catch(() => null);
