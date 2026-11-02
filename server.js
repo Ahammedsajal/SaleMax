@@ -22,6 +22,7 @@ const {
   isMetaTemplateBuilderRequest,
   injectMetaTemplateSamplesScript,
 } = require("./modules/web/meta-template-samples-shell");
+const chatgptMcpShell = require("./modules/web/chatgpt-mcp-shell");
 
 const app = express();
 let businessNotificationRuntime = null;
@@ -95,6 +96,7 @@ validateAndRepairFrontendShell();
 
 // Mounted before global body parsers so auth and contract limits remain effective.
 require('./modules/platform/mount-existing-upgrade').mountConfiguredUpgrade(app);
+app.use(require('./modules/platform/chatgpt-mcp/server').createRouter());
 
 // ─── Middleware ───────────────────────────────────────────────────────────────
 app.use(express.json({ limit: "10mb", verify: require("./modules/platform/meta-webhook-signature").captureRawBody }));
@@ -264,10 +266,15 @@ app.get("*", async (request, response, next) => {
 
 app.get("*", function (request, response) {
   const indexPath = path.resolve(publicDir, "index.html");
-  if (!isMetaTemplateBuilderRequest(request)) return response.sendFile(indexPath);
+  const addChatGPTWorkspace = chatgptMcpShell.isBusinessShellPath(request.path);
+  const addTemplateSamples = isMetaTemplateBuilderRequest(request);
+  if (!addChatGPTWorkspace && !addTemplateSamples) return response.sendFile(indexPath);
   fs.readFile(indexPath, "utf8", (error, html) => {
     if (error) return response.sendFile(indexPath);
-    return response.type("html").send(injectMetaTemplateSamplesScript(html));
+    let output = html;
+    if (addChatGPTWorkspace) output = chatgptMcpShell.injectChatGPTWorkspace(output);
+    if (addTemplateSamples) output = injectMetaTemplateSamplesScript(output);
+    return response.type("html").send(output);
   });
 });
 

@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <meta name="theme-color" content="#10284a">
+  <meta name="referrer" content="no-referrer">
+  <title>Connect ChatGPT to 7Network</title>
+  <link rel="stylesheet" href="/chatgpt-oauth.css?v=20261102-mcp2">
+  <script defer src="/chatgpt-oauth.js?v=20261102-mcp2"></script>
+</head>
+<body>
+  <main class="oauth-card" aria-labelledby="title">
+    <header class="brand"><span class="brand-mark" aria-hidden="true">7</span><span>7Network</span></header>
+    <p class="eyebrow" data-copy="eyebrow">Secure account connection</p>
+    <h1 id="title" data-copy="title">Connect ChatGPT to 7Network</h1>
+    <p class="intro" data-copy="intro">Choose what ChatGPT can access for this account. You can disconnect it from your 7Network integrations page at any time.</p>
+    <p class="account" id="account" aria-live="polite" hidden></p>
+    <div class="account-switch" id="account-switch" hidden>
+      <p data-copy="switchAccount">Choose which signed-in account to connect:</p>
+      <div class="account-switch-actions">
+        <button id="switch-user" class="button secondary" type="button" data-copy="ownerLogin">Business account</button>
+        <button id="switch-agent" class="button secondary" type="button" data-copy="agentLogin">Agent account</button>
+      </div>
+    </div>
+    <div id="notice" class="notice" role="status" aria-live="polite"></div>
+    <div id="sign-in" class="sign-in" hidden>
+      <p data-copy="signIn">Sign in with your existing 7Network account to continue.</p>
+      <div class="sign-in-actions">
+        <a id="owner-login" class="button primary" href="/user/login" data-copy="ownerLogin">Business account sign in</a>
+        <a id="agent-login" class="button secondary" href="/agent/login" data-copy="agentLogin">Agent sign in</a>
+      </div>
+    </div>
+    <section id="consent" hidden aria-labelledby="access-title">
+      <h2 id="access-title" data-copy="accessTitle">Requested access</h2>
+      <fieldset id="scopes" class="scopes">
+        <legend data-copy="scopeLegend">Select permissions for this ChatGPT connection</legend>
+      </fieldset>
+      <div class="actions">
+        <button id="allow" class="button primary" type="button" disabled data-copy="allow">Allow and continue</button>
+        <button id="deny" class="button secondary" type="button" data-copy="deny">Cancel</button>
+      </div>
+    </section>
+    <footer>
+      <span data-copy="footer">Your account permissions still apply to every request. ChatGPT cannot send messages to customers through this pilot.</span>
+    </footer>
+  </main>
+</body>
+</html>

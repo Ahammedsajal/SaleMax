@@ -6,6 +6,7 @@ business feature. Add future changes to that implementation once.
 | Feature | Common API | Compatibility aliases |
 | --- | --- | --- |
 | Current role and permitted actions | `/api/workspace/session` | None |
+| ChatGPT MCP account connections and OAuth consent | `/api/workspace/chatgpt` | None; MCP protocol at `/mcp` |
 | Inbox course replies | `/api/workspace/inbox/course-replies` | `/api/inbox/course-replies`, `/api/agent/course-replies` |
 | QR Inbox groups | `/api/workspace/inbox/groups` | `/api/inbox/groups`, `/api/agent/inbox/groups` |
 | Phonebook | `/api/workspace/phonebook` | `/api/phonebook/workspace`, `/api/agent/phonebook` |
@@ -146,3 +147,10 @@ The browser client registers `icp` at `/api/workspace/icp`. The router uses the 
 The typed document captures industry, geography, company size, revenue or budget range, business model, growth stage, priority needs, desired outcomes, buying triggers, decision roles, technology signals, budget evidence, exclusions, evidence or assumptions, and confidence (`hypothesis`, `needs_review`, or `validated`). Values have bounded lengths and list sizes. Profiles start as hypotheses; the workflow asks users to record the evidence behind each criterion and does not infer ICPs from customer data or score leads.
 
 Migration `20261224_7network_sales_icp_profiles.sql` adds one tenant-scoped profile table with creator/updater identity attribution, a revision number, JSON document and newest-first index. It has no seed rows and does not alter plan entitlements or customer records. Stale writes return `STALE_ICP_PROFILE`; cross-tenant profile IDs resolve as not found. Follow-up work can add evidence-linked account samples and fit scoring after this internal pilot validates its criteria.
+
+
+## ChatGPT MCP connector
+
+`docs/CHATGPT_MCP_CONNECTOR.md` defines the first-release scope and product gates. The authenticated connection/consent/revocation UI uses the existing shared business session at `/api/workspace/chatgpt`. ChatGPT connects to the remote MCP endpoint at `/mcp` through the OAuth authorization-server endpoints under `/mcp/oauth/*` and the OAuth discovery documents under `/.well-known/*`.
+
+The connector re-resolves the linked owner or agent on every tool request and checks current tenant, role, feature access, task permission and connection revocation. `pipeline.read`, `tasks.read`, and `tasks.manage` are distinct grants. Do not add customer messaging or broad write tools through this connector without a reviewed action-specific approval and rollback design.
