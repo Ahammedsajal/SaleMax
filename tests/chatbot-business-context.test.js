@@ -1,7 +1,7 @@
 'use strict';
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { controlRoute, isScheduleQuestion, hasPublishedSchedule, courseDetailNeedsCoordinator, trainingCenterCoordinatorReason, publishedDurationRange, retrieveContext, validateAnswer, languageFor, fingerprint, previewState, simpleFactualReply, unavailableReply, isCourseOverviewRequest } = require('../modules/platform/chatbot-business-context');
+const { controlRoute, isScheduleQuestion, hasPublishedSchedule, courseDetailNeedsCoordinator, trainingCenterCoordinatorReason, publishedDurationRange, retrieveContext, validateAnswer, languageFor, fingerprint, previewState, simpleFactualReply, unavailableReply, isCourseOverviewRequest, isGenericAdInterest } = require('../modules/platform/chatbot-business-context');
 const facts = [
  { courseId:'english',code:'ENG',nameEn:'Business English',nameAr:'الإنجليزية للأعمال',descriptionEn:'English communication for work and presentations',descriptionAr:'التواصل باللغة الإنجليزية في العمل والعروض',durationValue:8,durationUnit:'weeks',offer:{priceAmount:'350.00',registrationFeeAmount:'25.00',currency:'QAR'},batches:[{startsOn:'2026-11-15',seatsAvailable:7}] },
  { courseId:'excel',code:'EXCEL',nameEn:'Excel Essentials',nameAr:'أساسيات إكسل',descriptionEn:'Practical spreadsheets and office skills',descriptionAr:'مهارات الجداول والحاسوب المكتبية',offer:{priceAmount:'250.00',currency:'QAR'},batches:[] },
@@ -113,6 +113,10 @@ test('Meta-style first messages that name a course trigger an answer about that 
  const generic=retrieveContext({facts,message:'Hello! can I get more info on this?'});
  assert.equal(generic.evidence.filter(item=>item.kind==='course').length,0);
  assert.equal(isCourseOverviewRequest('Hello! can I get more info on this?',generic),false);
+ assert.equal(isGenericAdInterest('Hello! can I get more info on this?'),true);
+ assert.equal(isGenericAdInterest('I’m interested in this'),true);
+ assert.equal(isGenericAdInterest('What is the fee for Kids Python Programming?'),false);
+ assert.equal(isGenericAdInterest('مرحباً، أريد معلومات أكثر عن هذا'),true);
 });
 
 test('natural course-overview follow-ups use the previously selected course and localize the response',()=>{

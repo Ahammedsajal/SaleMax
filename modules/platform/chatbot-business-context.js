@@ -190,6 +190,10 @@ function isCourseOverviewRequest(message, context) {
     && /\bwhat about\b|\btell me (?:more|about)\b|\bmore about\b|\bmore info(?:rmation)? (?:on|about|for)\b|\bdetails? (?:on|about|for)\b|\bi(?:'|’)m interested in\b|\bi am interested in\b|\bcourse overview\b|\bwhat (?:does|will) (?:i|we|you) learn\b|\bwhat is (?:in|covered in) (?:this|the) course\b|\bsyllabus\b|\btopics\b|ماذا عن|اخبرني المزيد|أخبرني المزيد|معلومات اكثر عن|معلومات أكثر عن|مهتم(?:ة)? ب|تفاصيل (?:عن|حول)|محتوى الدورة|ماذا سنتعلم|ماذا سأتعلم/i.test(message);
 }
 
+function isGenericAdInterest(message) {
+  return /\b(?:more info(?:rmation)?|details?)\s+(?:on|about)\s+(?:this|it)\b|\b(?:interested in)\s+(?:this|it)\b|معلومات\s*أكثر\s*عن\s*هذا|معلومات\s*اكثر\s*عن\s*هذا|تفاصيل\s*أكثر\s*عن\s*هذا|تفاصيل\s*اكثر\s*عن\s*هذا/iu.test(String(message || ''));
+}
+
 function simpleFactualReply(message, context, config = {}) {
   const text = normalized(message), ar = context.language === 'ar';
   const courses = context.evidence.filter(item => item.kind === 'course');
@@ -273,4 +277,4 @@ function polishGuidedReply({ result, profile, message, state, defaults }) {
   return result;
 }
 
-module.exports = { normalized, fingerprint, languageFor, controlRoute, isScheduleQuestion, hasPublishedSchedule, courseDetailNeedsCoordinator, trainingCenterCoordinatorReason, publishedDurationRange, retrieveContext, validateAnswer, clarification, unavailableReply, simpleFactualReply, isCourseOverviewRequest, previewState, redactCustomerText, polishGuidedReply };
+module.exports = { normalized, fingerprint, languageFor, controlRoute, isScheduleQuestion, hasPublishedSchedule, courseDetailNeedsCoordinator, trainingCenterCoordinatorReason, publishedDurationRange, retrieveContext, validateAnswer, clarification, unavailableReply, simpleFactualReply, isCourseOverviewRequest, isGenericAdInterest, previewState, redactCustomerText, polishGuidedReply };
