@@ -1,10 +1,10 @@
 # 7Network for ChatGPT — MCP connector scope
 
-**Production status (2 November 2026):** r6 of `https://7network.live/mcp` and the connection manager in the existing 7Network business panel are deployed. The r7 source increment adds an evidence-based follow-up brief and a separate opt-in for recent text-only conversation context; that increment is not live until its release is recorded in `DEPLOYMENT.md`. No ChatGPT workspace has connected yet, so real ChatGPT OAuth, tool calls and workspace publication remain unverified.
+**Production status (2 November 2026):** r10 of `https://7network.live/mcp`, including the r7 supervised follow-up tools, is live. Users manage connections in the existing 7Network business panel at `/user?page=chatgpt`; each account has its own OAuth consent and can be revoked there. The signed-in 7Network owner browser verified Arabic/RTL locale refresh, then restored English/dark preferences. Health, OAuth discovery, static asset integrity and anonymous access denial pass. The ChatGPT workspace is signed out in the available browser, so its server scan, OAuth consent, real tool calls and workspace publication remain unverified.
 
 **Product thesis:** make ChatGPT a permission-aware 7Network copilot for finding the next best business action, while the existing 7Network app remains the place to manage accounts, people, access, and operational records.
 
-This is a custom MCP app/connector, not the retired ChatGPT Plugins API. ChatGPT connects to the remote MCP endpoint, the user authorizes an existing 7Network account with OAuth, and each request is checked against that account's current tenant and role. Workspace app setup and an individual user's 7Network account authorization are separate steps.
+This is a ChatGPT custom MCP app/plugin backed by a remote MCP server; it does not use the legacy `ai-plugin.json` protocol. ChatGPT connects to the endpoint, each person authorizes their existing 7Network account with OAuth, and every request is checked against that account's current tenant and role. Workspace app setup and an individual user's 7Network authorization are separate steps.
 
 ## First release: Lead Follow-up Copilot
 
@@ -79,7 +79,7 @@ That creates a closed loop from customer requirement to permitted sales activity
 
 ## Current pilot status
 
-The r6 endpoint and existing business-panel account screen are deployed. Public checks confirm health, OAuth metadata, MCP routing and unauthenticated access denial. The authenticated 7Network page loads and reports an empty connection list. No real ChatGPT account is connected yet, and no MCP tool has been called from ChatGPT. Workspace setup, OAuth consent, live role checks and tool execution must be verified before enabling the connector for a wider workspace.
+The r10 endpoint and existing business-panel account screen are deployed. Public checks confirm health, OAuth metadata, MCP routing and unauthenticated access denial; the served r10 workspace JavaScript matches the deployed file. The authenticated 7Network page reports no linked ChatGPT account. No ChatGPT user is connected yet and no MCP tool has been called from ChatGPT. Workspace setup, OAuth consent, live role checks and tool execution must pass before wider rollout.
 
 ## Acceptance gates
 
@@ -91,6 +91,8 @@ The r6 endpoint and existing business-panel account screen are deployed. Public 
 
 ## ChatGPT availability and setup
 
-As of 2 November 2026, OpenAI documents custom MCP server connections on ChatGPT web for Business and Enterprise/Edu workspaces. Business workspace admins/owners create and publish custom apps; Enterprise/Edu administrators can delegate creation and control access with RBAC. Full write-capable MCP is not the same as a read-only Pro connection. Current availability and UI labels can change; follow the [OpenAI custom MCP server setup guide](https://help.openai.com/en/articles/12584461-connecting-custom-mcp-servers-in-chatgpt) when configuring a workspace.
+As of 2 November 2026, OpenAI documents full custom MCP support on ChatGPT web for Business and Enterprise/Edu. Business admins/owners create and publish workspace apps. Enterprise/Edu admins can grant selected users creation access with RBAC and control who can access approved apps. Pro currently supports custom MCP read/fetch access, not the full write-capable workflow. Published server tool changes are not automatically enabled in workspace apps; an authorized admin must review and refresh the tool list. See the [OpenAI custom MCP setup guide](https://help.openai.com/en/articles/12584461-connecting-custom-mcp-servers-in-chatgpt).
 
-The administrator adds the endpoint `https://7network.live/mcp`, selects OAuth, completes authorization, scans tools, tests the connection, and publishes it to the intended workspace. Each 7Network user then signs in with their own account and grants scopes. Do not publish the app to all members until the role/tenant acceptance gates above have passed.
+**Private workspace pilot:** an authorized workspace admin adds `https://7network.live/mcp`, selects OAuth, completes the connection, scans the tools, tests them, and publishes to a limited pilot group. Each 7Network user then signs in with their own account and grants scopes. Do not publish to all members until the role/tenant acceptance gates above pass.
+
+**Public plugin-directory distribution is a separate launch path.** It requires a verified publishing identity, a package ZIP, MCP domain verification, automated tool checks and OpenAI review. It can broaden discovery beyond one workspace, but it is not required for the private pilot. Complete the [OpenAI plugin submission process](https://developers.openai.com/plugins/deploy/submission) only after direct ChatGPT OAuth and tool-call acceptance passes.

@@ -1,3 +1,37 @@
+## 2026-11-02 — ChatGPT MCP connector r10 locale refresh, deployed
+
+- Source commit `a53fde1d397d43579f955fcb0563f0ef09151c3f` is pushed to `Ahammedsajal/SaleMax` `main` and `codex/chatgpt-mcp`. The existing connection screen now updates its translations and direction when the workspace language changes, including changes emitted by the shared shell without a full page reload. The asset cache key is `20261102-mcp5`.
+- Supplemental release: `/opt/salemax/releases/chatgpt-mcp-a53fde1d-20261102-r10`. Artifact SHA-256: `4cbfd0618ceb400b400ee488be2a4388a05d06296d3e7d6da3f4bebc023775f4`. Only `salemax-app-1` was recreated; final container ID `6f50448c807df319eae58ad83715885f36ce0be7c061155633c101170ae8c80b` is healthy with zero restarts and 60 mounts. `/opt/salemax/current` remains `/opt/salemax/releases/hero-motion-06487407-20261031`; the app image remains `sha256:6cb200add2e8f24b38fc5ad3b3bc416f1e7ede5c3a533005ee47a43004f471e2`. Database container `0a8f89195e0537bebe331c25d6df91f849ed968f3e030ec59e403402b68e7665` remains healthy and unchanged; all support container identities are unchanged. The live Compose chain has 102 inputs, including the concurrent `procatalyst-chatbot-handoff-brief` overlay, which was preserved.
+- No migration or business-data change was made for r10. One initial activation attempt was automatically rolled back after a path-prefix normalization bug in the mount verifier; the corrected verifier confirmed that all 60 candidate mounts matched the expected r10 set. The final activation then passed the full app/database/support invariants.
+- Verification: `https://7network.live/healthz`, both OAuth discovery resources, and the cache-busted r10 JavaScript/CSS return HTTP 200; served workspace JavaScript SHA-256 `f1e857e6993aae241cca8395d72e1b029d2e01bc670b97e7c903c8349a3adda1` matches the deployed file. Anonymous `/api/workspace/chatgpt/connections` returns 401 and `GET /mcp` returns the expected 405. Signed-in 7Network browser review confirmed Arabic/RTL updates on the page, then restored English/dark. The 390px screen was inspected under r9; r10 mobile visual acceptance remains open. No ChatGPT workspace OAuth or tool call has been completed.
+- Protected rollback snapshot `/opt/salemax/shared/rollback-chatgpt-mcp-a53fde1d-20261102-r10-retry1` (root-owned, mode 0700; protected files mode 0600) records the exact r9 app/container/image, Compose chain, 60 mounts, database and support-container pre-state. To return from r10 to r9, only while the saved r10 Compose chain and base release are still active, run:
+
+  ```sh
+  sudo -n /opt/salemax/shared/with-production-lock.sh bash -s <<'SH'
+  bash /opt/salemax/shared/rollback-chatgpt-mcp-a53fde1d-20261102-r10-retry1/restore-under-lock.sh
+  SH
+  ```
+
+  The guarded helper restores only the app and verifies the 60 saved mount pairs plus unchanged database/support services. No database rollback applies.
+
+## 2026-11-02 — ChatGPT MCP connector r9 dark theme contrast
+
+- Source commit `407cb3af6386db43c32506f908698f42d6fa0f63` is pushed to `main` and `codex/chatgpt-mcp`. It improves text and heading contrast for the connection manager in dark theme.
+- Supplemental release `/opt/salemax/releases/chatgpt-mcp-407cb3af-20261102-r9`; artifact SHA-256 `f6a39d1f440e64133d558067fd319d384621e8fdffc16a2446fc060ee09767ae`. App-only deployment; no migration or business-data write. The protected pre-release snapshot is `/opt/salemax/shared/rollback-chatgpt-mcp-407cb3af-20261102-r9` (mode 0700) with a syntax-checked, chain-guarded app-only restore helper. If r9 is still active, the helper can restore its captured prior r8 state under `with-production-lock.sh`; after r10, use the r10 snapshot procedure above to return to r9.
+- The owner screen was reviewed in light and dark themes at desktop and 390px mobile dimensions. Later r10 locale updates were checked in Arabic/RTL and English/dark. Actual ChatGPT connection and tool calls were not part of this release.
+
+## 2026-11-02 — ChatGPT MCP connector r8 workspace theme binding
+
+- Source commit `0553803892c50f1ce1299727923c2dbbb4b26e14` is pushed to `main` and `codex/chatgpt-mcp`. It binds the connection manager to the workspace's existing light/dark theme setting and preserves the current business shell.
+- Supplemental release `/opt/salemax/releases/chatgpt-mcp-05538038-20261102-r8`; artifact SHA-256 `de37400a2931ddcd02348a557d0b918fe43bc2e6d6553094a6bb313988cc5204`. App-only deployment; no migration or business-data write. Protected snapshot `/opt/salemax/shared/rollback-chatgpt-mcp-05538038-20261102-r8` (mode 0700) contains its pre-state and a syntax-checked, chain-guarded restore helper. If r8 is still active, invoke that helper through `with-production-lock.sh` to restore its saved r7 pre-state; later releases require their own current-chain rollback procedure.
+- Theme styling was then refined by r9. ChatGPT workspace connection, OAuth, and tool-call acceptance remain open.
+
+## 2026-11-02 — ChatGPT MCP connector r7 supervised follow-up tools
+
+- Source commit `26964d035e363748fad066a81575fcb6134c559c` is pushed to `main` and `codex/chatgpt-mcp`. It adds the evidence-based `prepare_follow_up` brief and separately consented `conversations.read` scope for up to 20 recent text-only messages, with current Inbox and per-chat permission checks. Messages are not sent; the tool set includes internal follow-up task management only.
+- Supplemental release `/opt/salemax/releases/chatgpt-mcp-26964d03-20261102-r7`; verified archive SHA-256 `f0fdf4a2781edccdb663bc0c32d956bafa973b3558f1ba8681482f0d382a5e5f`. App-only deployment and no migration. Protected snapshot `/opt/salemax/shared/rollback-chatgpt-mcp-26964d03-20261102-r7-retry1` (mode 0700) has a syntax-checked, chain-guarded helper that restores the captured pre-r7 app configuration under `with-production-lock.sh` if its exact chain is active. Later theme and locale changes have their own snapshots.
+- The focused MCP suite passed 19/19 before the r8–r10 client-only changes; JavaScript syntax and `git diff --check` passed. The ChatGPT workspace scan, OAuth consent and real tool calls were not performed.
+
 ## 2026-11-02 — ChatGPT MCP connector r6 production deployment
 
 - Source commit `89e37bdff49320dc0c08e63214ab79865d206fe6` is pushed to `Ahammedsajal/SaleMax` `main` and `codex/chatgpt-mcp`. It binds the existing mysql2 promise-pool method in the MCP identity, server and tool paths. The signed-in account screen had exposed a workspace request failure because the detached pool method lost its receiver.
