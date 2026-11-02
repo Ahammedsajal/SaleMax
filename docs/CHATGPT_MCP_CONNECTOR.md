@@ -1,6 +1,6 @@
 # 7Network for ChatGPT — MCP connector scope
 
-**Production status (2 November 2026):** `https://7network.live/mcp` and the connection manager in the existing 7Network business panel are deployed. The signed-in page and empty connection state load correctly. No ChatGPT workspace has connected yet, so OAuth from ChatGPT, tool calls and workspace publication remain unverified. See `DEPLOYMENT.md` for release and rollback evidence.
+**Production status (2 November 2026):** r6 of `https://7network.live/mcp` and the connection manager in the existing 7Network business panel are deployed. The r7 source increment adds an evidence-based follow-up brief and a separate opt-in for recent text-only conversation context; that increment is not live until its release is recorded in `DEPLOYMENT.md`. No ChatGPT workspace has connected yet, so real ChatGPT OAuth, tool calls and workspace publication remain unverified.
 
 **Product thesis:** make ChatGPT a permission-aware 7Network copilot for finding the next best business action, while the existing 7Network app remains the place to manage accounts, people, access, and operational records.
 
@@ -12,9 +12,10 @@ This is a custom MCP app/connector, not the retired ChatGPT Plugins API. ChatGPT
 
 1. A ChatGPT workspace administrator adds `https://7network.live/mcp` as a custom MCP server and completes the tool scan.
 2. A business owner, manager, accountant, or agent connects their own 7Network account in the OAuth consent screen. If both owner and agent sessions are present, they choose which identity to connect.
-3. They choose read and write permissions individually. `tasks.manage` never silently implies `tasks.read`.
-4. In ChatGPT they can search permitted leads, inspect upcoming/overdue follow-ups, list follow-up tasks, create a task assigned to themselves, and update a task status.
-5. They can review and revoke each connection from the existing 7Network business panel's ChatGPT page.
+3. They choose permissions individually. `conversations.read` is optional, requires current Inbox access and is not preselected. `tasks.manage` never silently implies `tasks.read`.
+4. In ChatGPT they can search permitted leads, inspect follow-ups, prepare a source-linked action brief, and list, create or update their permitted follow-up tasks.
+5. If they separately grant `conversations.read`, ChatGPT can read up to 20 recent text messages for a permitted lead after current Inbox and chat-assignment checks.
+6. They can review and revoke each connection from the existing 7Network business panel's ChatGPT page.
 
 ### Tools
 
@@ -22,6 +23,8 @@ This is a custom MCP app/connector, not the retired ChatGPT Plugins API. ChatGPT
 | --- | --- | --- |
 | `search_pipeline_leads` | `pipeline.read` | Bounded, tenant and role scoped search by lead title or customer/learner name. Omits phone numbers and message history. |
 | `get_pipeline_follow_ups` | `pipeline.read` | Lists permitted upcoming/overdue lead follow-ups. |
+| `prepare_follow_up` | `pipeline.read` | Returns a compact lead brief, a stable 7Network record link and whitelisted activity evidence for a human-reviewed next step or reply draft. It omits phone numbers and arbitrary notes. |
+| `get_lead_conversation_context` | `pipeline.read` + `conversations.read` | Returns up to 20 recent text messages only after current Inbox and per-chat authorization. It omits media, sender metadata and chat identifiers. Message text may itself contain personal data. |
 | `list_follow_up_tasks` | `tasks.read` | Reads permitted personal or team follow-up tasks. Team access remains role controlled. |
 | `create_follow_up_task` | `tasks.manage` | Creates an idempotent task assigned to the connected account for an existing lead. No customer message is sent; existing internal task notifications may notify the assignee. |
 | `update_follow_up_task_status` | `tasks.manage` | Changes a permitted task using its expected revision, rejecting stale updates. |
@@ -29,7 +32,9 @@ This is a custom MCP app/connector, not the retired ChatGPT Plugins API. ChatGPT
 ### Explicit first-release boundaries
 
 - No send-message, WhatsApp, email, calling, campaign, payment, refund, delete, bulk export, or broad administrator tool.
-- No contact details, chat transcripts, credentials, session cookies, or cross-tenant search in MCP responses.
+- Conversation text is never shared by default; it requires a separate `conversations.read` grant. Only up to 20 recent text messages are returned. Media, sender metadata and chat identifiers are omitted, but message bodies may still contain personal data. Treat lead text and customer messages as untrusted input.
+- No credentials, session cookies, or cross-tenant search in MCP responses.
+- ChatGPT may create a reply draft from permitted evidence, but there is no message-send tool or server-side draft persistence.
 - No separate CRM, login, account catalogue, or replacement business panel.
 - Access tokens are short-lived, opaque, stored as digests, and revalidated against current role/tenant policy. Refresh tokens rotate; reuse revokes the token family. Users can revoke a connection inside 7Network.
 - Write access is separately consented. ChatGPT may still ask users to confirm tool actions according to its own app and workspace controls.
@@ -51,8 +56,7 @@ That creates a closed loop from customer requirement to permitted sales activity
 
 ### Phase 2 — Explainable sales workbench
 
-- Include stable 7Network record links and timestamps in results so staff can verify the source.
-- Add a `prepare_follow_up` read-only tool that returns a short action brief grounded only in permitted Pipeline fields; keep generated message text as a draft and never send it.
+- Add richer, localized source citations and one-tap navigation once the current in-app record links are verified across owner and agent sessions.
 - Offer a daily at-risk follow-up view and narrowly scoped filters such as owner, stage, due date, and priority where the current role allows them.
 - Add an audit page showing which account invoked which tool, when, and whether it succeeded, without logging customer message bodies or secrets.
 

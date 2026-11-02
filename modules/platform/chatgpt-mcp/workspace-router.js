@@ -76,7 +76,7 @@ function createWorkspaceRouter({ db, pool, sessionGuard, origin }) {
       clientName: transaction.client_name,
       requestedScopes: requested,
       availableScopes: available,
-      suggestedScopes: available.filter(scope => scope !== 'tasks.manage'),
+      suggestedScopes: available.filter(scope => !['tasks.manage', 'conversations.read'].includes(scope)),
       account: { name: actor.rawActor.name || actor.rawActor.email, email: actor.rawActor.email, role: actor.role },
     });
   }));

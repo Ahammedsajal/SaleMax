@@ -1011,6 +1011,28 @@ async function getLead(uid, id, {role,agentId,scopeAgentIds,pool:sourcePool}={})
   },sourcePool);
 }
 
+// Read the minimum current lead evidence needed for a supervised follow-up
+// brief. Keep this separate from getLead(), which also loads application
+// submissions, attribution payloads and full activity details for the UI.
+async function getLeadFollowUpBrief(uid, id, {role,agentId,scopeAgentIds,pool:sourcePool}={}) {
+  if (!uid || !['owner','manager','team_leader','agent'].includes(role)) return null;
+  const uidHash=sha(uid),conditions=['l.uid_hash=?','l.uid=?','l.id=?'],values=[uidHash,uid,id];
+  appendAssignmentScope(conditions,values,role,agentId,scopeAgentIds);
+  const db=getPromisePool(sourcePool);
+  const [leads]=await db.query(`SELECT l.id,l.title,l.contact_name,l.learner_name,l.status,l.priority,
+      l.stage_key,l.stage_entered_at,l.next_follow_up_at,l.last_activity_at,l.created_at,l.updated_at,
+      l.owner_agent_id,a.name AS owner_name,s.title AS stage_title
+    FROM pipeline_leads l
+    LEFT JOIN agents a ON a.id=l.owner_agent_id AND a.owner_uid COLLATE utf8mb4_general_ci=l.uid COLLATE utf8mb4_general_ci
+    LEFT JOIN pipeline_stages s ON s.uid_hash=l.uid_hash AND s.stage_key=l.stage_key
+    WHERE ${conditions.join(' AND ')} LIMIT 1`,values);
+  if(!leads.length)return null;
+  const [activities]=await db.query(`SELECT activity_type,details,created_at FROM pipeline_activity
+    WHERE uid_hash=? AND lead_id=? AND activity_type IN ('stage_changed','contact_outcome','follow_up_completed','follow_up_rescheduled')
+    ORDER BY created_at DESC,id DESC LIMIT 12`,[uidHash,id]);
+  return {lead:leads[0],activities:activities.map(item=>({...item,details:typeof item.details==='string'?(()=>{try{return JSON.parse(item.details)}catch{return null}})():item.details}))};
+}
+
 async function getFollowUps({ uid, role, agentId, scopeAgentIds, period = "all", page = 1, limit = 20, pool: sourcePool }) {
   if (!['owner', 'manager', 'team_leader', 'agent'].includes(role)) { const error = new Error("You do not have access to pipeline follow-ups."); error.status = 403; throw error; }
   const pageNumber = Number(page), pageSize = Number(limit);
@@ -1297,6 +1319,7 @@ module.exports = {
   deleteStage,
   createManualLead,
   getLead,
+  getLeadFollowUpBrief,
   summarizeCampaignAttribution,
   getFollowUps,
   resolveFollowUp,

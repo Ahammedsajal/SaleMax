@@ -8,6 +8,7 @@ const pool = databaseConfig.promise.bind(databaseConfig);
 const pipelineActorResolver = require('../legacy-pipeline-actor');
 const businessFeatureSession = require('../business-feature-session');
 const createTaskContext = require('../training-task-context').createTaskContext;
+const inboxAccess = require('../team-inbox-scope');
 
 const hash = value => crypto.createHash('sha256').update(String(value), 'utf8').digest('hex');
 const denied = (code, status = 403) => Object.assign(new Error(code), { code, status });
@@ -110,10 +111,27 @@ async function taskContext(actor, permission) {
   }
 }
 
+async function conversationScope(actor) {
+  const query = async (sql, values) => (await pool().query(sql, values))[0];
+  const user = {
+    ...actor.rawActor,
+    uid: actor.ownerUid,
+    role: actor.role,
+    isAgent: Boolean(actor.agent),
+  };
+  return inboxAccess.resolveInboxScope(query, user, 'load_conversation');
+}
+
 async function allowedScopes(actor) {
   const scopes = new Set(['pipeline.read']);
   if (await taskContext(actor, 'tasks.read')) scopes.add('tasks.read');
   if (await taskContext(actor, 'tasks.manage')) scopes.add('tasks.manage');
+  try {
+    await conversationScope(actor);
+    scopes.add('conversations.read');
+  } catch (error) {
+    if (error?.code !== 'TEAM_INBOX_PERMISSION_DENIED') throw error;
+  }
   return scopes;
 }
 
@@ -127,4 +145,4 @@ async function actorForConnection(connection) {
   return actor;
 }
 
-module.exports = { resolveActor, actorFromFeatureSession, actorForConnection, allowedScopes, taskContext, hash, denied };
+module.exports = { resolveActor, actorFromFeatureSession, actorForConnection, allowedScopes, taskContext, conversationScope, hash, denied };

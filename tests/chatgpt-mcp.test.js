@@ -26,6 +26,8 @@ const express = require('express');
 const identity = require('../modules/platform/chatgpt-mcp/identity');
 const oauth = require('../modules/platform/chatgpt-mcp/oauth');
 const tools = require('../modules/platform/chatgpt-mcp/tools');
+const pipeline = require('../helper/pipeline/leadPipeline');
+const inboxAccess = require('../modules/platform/team-inbox-scope');
 const workspaceRouter = require('../modules/platform/chatgpt-mcp/workspace-router');
 const shell = require('../modules/web/chatgpt-mcp-shell');
 
@@ -58,6 +60,7 @@ test('OAuth origin requires HTTPS outside loopback and scope parsing is bounded 
   assert.throws(() => oauth.publicOrigin('http://7network.live'), /MCP_HTTPS_REQUIRED/);
   assert.equal(oauth.publicOrigin('http://127.0.0.1:3010/'), 'http://127.0.0.1:3010');
   assert.deepEqual(oauth.splitScopes('pipeline.read tasks.read pipeline.read'), ['pipeline.read', 'tasks.read']);
+  assert.ok(oauth.ALL_SCOPES.includes('conversations.read'));
   assert.equal(oauth.resourceUri('https://7network.live'), 'https://7network.live/mcp');
 });
 
@@ -311,9 +314,85 @@ test('MCP tool catalog follows only the granted scopes', async () => {
       await server.close();
     }
   }
-  assert.deepEqual(await listFor(['pipeline.read']), ['get_pipeline_follow_ups', 'search_pipeline_leads']);
+  assert.deepEqual(await listFor(['pipeline.read']), ['get_pipeline_follow_ups', 'prepare_follow_up', 'search_pipeline_leads']);
+  assert.deepEqual(await listFor(['pipeline.read', 'conversations.read']), ['get_lead_conversation_context', 'get_pipeline_follow_ups', 'prepare_follow_up', 'search_pipeline_leads']);
   assert.deepEqual(await listFor(['tasks.manage']), ['create_follow_up_task', 'update_follow_up_task_status']);
   assert.deepEqual(await listFor(['tasks.read', 'tasks.manage']), ['create_follow_up_task', 'list_follow_up_tasks', 'update_follow_up_task_status']);
+});
+
+test('conversation read is offered only when the existing Inbox scope check permits it', async () => {
+  const originalTaskContext = identity.taskContext;
+  const originalResolveInboxScope = inboxAccess.resolveInboxScope;
+  identity.taskContext = async () => null;
+  try {
+    inboxAccess.resolveInboxScope = async () => ({ canonical: true });
+    const actor = { rawActor: {}, ownerUid: 'synthetic-owner', role: 'owner', agent: false };
+    assert.equal((await identity.allowedScopes(actor)).has('conversations.read'), true);
+    inboxAccess.resolveInboxScope = async () => { throw Object.assign(new Error('denied'), { code: 'TEAM_INBOX_PERMISSION_DENIED' }); };
+    assert.equal((await identity.allowedScopes(actor)).has('conversations.read'), false);
+  } finally {
+    identity.taskContext = originalTaskContext;
+    inboxAccess.resolveInboxScope = originalResolveInboxScope;
+  }
+});
+
+test('follow-up preparation returns whitelisted evidence and a stable in-app record link', async () => {
+  const original = pipeline.getLeadFollowUpBrief;
+  pipeline.getLeadFollowUpBrief = async () => ({
+    lead: { id: 'lead-1', title: 'Course enquiry', contact_name: 'Customer', status: 'open', priority: 'high', stage_key: 'contacted', stage_title: 'Contacted', next_follow_up_at: '2026-11-03 10:00:00', owner_name: 'Agent' },
+    activities: [
+      { activity_type: 'contact_outcome', details: { outcome: 'interested', followUpRequired: true, note: 'Private arbitrary note must not be exposed.' }, created_at: '2026-11-02 10:00:00' },
+      { activity_type: 'note_added', details: { note: 'Skip this event.' }, created_at: '2026-11-02 09:00:00' },
+    ],
+  });
+  try {
+    const result = await tools.getLeadFollowUpBrief({ agent: true, pipelineActor: { uid: 'owner', role: 'agent', agentId: 7 } }, 'lead-1');
+    assert.equal(result.lead.recordUrl, '/user?page=lead-pipeline&lead=lead-1');
+    assert.equal(result.lead.title, 'Course enquiry');
+    assert.equal(result.recentEvidence.length, 1);
+    assert.equal(result.recentEvidence[0].outcome, 'interested');
+    assert.equal(JSON.stringify(result).includes('Private arbitrary note'), false);
+    assert.equal(result.handling.replyDraftOnly, true);
+    assert.equal(result.handling.dataIsUntrusted, true);
+  } finally { pipeline.getLeadFollowUpBrief = original; }
+});
+
+test('lead conversation context requires current chat authorization and returns bounded text only', async () => {
+  const originalBrief = pipeline.getLeadFollowUpBrief;
+  const originalScope = identity.conversationScope;
+  const originalQuery = fakePool.query;
+  const selectedSql = [];
+  pipeline.getLeadFollowUpBrief = async () => ({ lead: { id: 'lead-1', title: 'Course enquiry' }, activities: [] });
+  identity.conversationScope = async () => ({ canonical: true, assignedOnly: false, uid: 'synthetic-owner' });
+  fakePool.query = async (sql, values) => {
+    selectedSql.push(sql);
+    if (sql.includes('FROM pipeline_conversations')) return [[{ chat_id: 'private-chat-id' }], []];
+    if (sql.includes('FROM beta_chats')) return [[{ uid: values[0], chat_id: values[1], origin: 'meta', assigned_agent: null }], []];
+    if (sql.includes('FROM beta_conversation')) return [[
+      { type: 'text', msgContext: { text: { body: 'Is the evening class available?' } }, timestamp: Date.now(), route: 'INCOMING', senderMobile: '+97400000000' },
+      { type: 'image', msgContext: { image: { link: 'https://private.invalid/image' } }, timestamp: Date.now(), route: 'INCOMING' },
+    ], []];
+    throw new Error('UNEXPECTED_SYNTHETIC_QUERY');
+  };
+  try {
+    const result = await tools.getLeadConversationContext({
+      uidHash: 'a'.repeat(64), ownerUid: 'synthetic-owner', agent: false,
+      pipelineActor: { uid: 'synthetic-owner', role: 'owner' },
+    }, 'lead-1');
+    assert.equal(result.messageCount, 1);
+    assert.equal(result.messages[0].text, 'Is the evening class available?');
+    assert.equal(result.messages[0].direction, 'customer');
+    assert.equal(result.messages[0].untrustedContent, true);
+    assert.equal(JSON.stringify(result).includes('private-chat-id'), false);
+    assert.equal(JSON.stringify(result).includes('+97400000000'), false);
+    assert.equal(JSON.stringify(result).includes('private.invalid'), false);
+    assert.match(selectedSql.at(-1), /SELECT type,msgContext,timestamp,route FROM beta_conversation/);
+    assert.doesNotMatch(selectedSql.at(-1), /senderName|senderMobile|metaChatId/);
+  } finally {
+    pipeline.getLeadFollowUpBrief = originalBrief;
+    identity.conversationScope = originalScope;
+    fakePool.query = originalQuery;
+  }
 });
 
 test('lead search binds tenant and assigned-agent scope and omits phone and chat identifiers', async () => {
@@ -334,6 +413,25 @@ test('lead search binds tenant and assigned-agent scope and omits phone and chat
   assert.equal(values[1], 17);
   assert.doesNotMatch(statement, /l\.mobile|l\.chat_id|conversation/i);
   assert.equal(result.items[0].leadId, 'synthetic-lead');
+});
+
+test('follow-up evidence query preserves tenant and assigned-agent boundaries without loading sensitive columns', async () => {
+  const statements = [];
+  const sourcePool = {
+    query: async (sql, values) => {
+      statements.push({ sql, values });
+      if (sql.includes('FROM pipeline_leads l')) return [[{ id: 'lead-1', title: 'Synthetic lead' }], []];
+      return [[{ activity_type: 'contact_outcome', details: '{"outcome":"interested"}', created_at: '2026-11-02 10:00:00' }], []];
+    },
+  };
+  const result = await pipeline.getLeadFollowUpBrief('synthetic-owner', 'lead-1', {
+    role: 'agent', agentId: 17, pool: sourcePool,
+  });
+  assert.match(statements[0].sql, /l\.uid_hash=\? AND l\.uid=\? AND l\.id=\? AND l\.owner_agent_id = \?/);
+  assert.equal(statements[0].values[3], 17);
+  assert.doesNotMatch(statements[0].sql, /mobile|email|qualification_data|chat_id/i);
+  assert.match(statements[1].sql, /activity_type IN \('stage_changed','contact_outcome','follow_up_completed','follow_up_rescheduled'\)/);
+  assert.equal(result.activities[0].details.outcome, 'interested');
 });
 
 test('business login return survives the login redirect and remains same-origin', () => {
@@ -398,10 +496,17 @@ test('ChatGPT integration shell remains inside existing business routes', () => 
 test('ChatGPT OAuth consent lets a dual-signed-in user choose owner or agent identity', () => {
   const page = fs.readFileSync(path.join(__dirname, '../client/public/chatgpt-oauth.html'), 'utf8');
   const script = fs.readFileSync(path.join(__dirname, '../client/public/chatgpt-oauth.js'), 'utf8');
+  const workspace = fs.readFileSync(path.join(__dirname, '../client/public/chatgpt-mcp-workspace.js'), 'utf8');
+  const overlay = fs.readFileSync(path.join(__dirname, '../deploy/compose.chatgpt-mcp.override.yml'), 'utf8');
   assert.match(page, /id="account-switch"/);
   assert.match(page, /id="switch-user"/);
   assert.match(page, /id="switch-agent"/);
   assert.match(script, /localStorage\.getItem\('wacrm_user'\) && localStorage\.getItem\('wacrm_agent'\)/);
   assert.match(script, /selectedActor = 'agent'; initialize\(\)/);
   assert.match(script, /selectedActor = 'user'; initialize\(\)/);
+  assert.match(script, /'conversations\.read':\['conversation','conversationHelp'\]/);
+  assert.match(script, /up to 20 recent text messages/);
+  assert.match(workspace, /scopeConversation/);
+  assert.match(workspace, /step4/);
+  assert.match(overlay, /runtime\/helper\/pipeline\/leadPipeline\.js/);
 });

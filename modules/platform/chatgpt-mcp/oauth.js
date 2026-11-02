@@ -6,7 +6,7 @@ const express = require('express');
 const cors = require('cors');
 const identity = require('./identity');
 
-const BUSINESS_SCOPES = ['pipeline.read', 'tasks.read', 'tasks.manage'];
+const BUSINESS_SCOPES = ['pipeline.read', 'conversations.read', 'tasks.read', 'tasks.manage'];
 const ALL_SCOPES = [...BUSINESS_SCOPES, 'offline_access'];
 const ACCESS_TTL_SECONDS = 15 * 60;
 const REFRESH_TTL_SECONDS = 30 * 24 * 60 * 60;
