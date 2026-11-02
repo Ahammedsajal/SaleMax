@@ -4,6 +4,10 @@
 
 ## ProCatalyst Hybrid bot — source reconciliation and pilot preparation, 2 November 2026
 
+### Contextual follow-up correction — deployed, 2 November 2026
+
+The live Hybrid bot no longer treats a question after its greeting as a customer name or replaces a safety handoff with a generic prompt. Plain-text name capture now requires an explicit pending name request; English and Arabic certificate/course questions are excluded. Existing selected-course conversation context and the strict six-recipient pilot settings were left intact. The app-only runtime overlay is healthy in production, and 215 focused synthetic checks plus an in-container follow-up probe pass. Actual WhatsApp wording and owner Inbox task creation still need verification from an already allowed test recipient. See `DEPLOYMENT.md` for source/release hashes, protected rollback and the test sequence. The published certificate fact remains unconfirmed; route to staff unless the selected course record contains an approved answer.
+
 ### Opening-message intent correction — deployed, 2 November 2026
 
 The owner clarified that many Meta click-to-WhatsApp enquiries already name the advertised course in their first message; asking those customers which course they mean is incorrect. The fresh transcript audit matched 4,052 message rows across 644 distinct conversation IDs (the summary table has 654 rows, including ten duplicate/legacy summaries). Of 607 chats with a readable first inbound, 261 had one of the recognized catalogue courses. The most frequent normalized templates were “can I get more info on this?”, “can I get more info on certified [course] course?”, and “I’m interested in the [course] & computing skills training.” The source channel is recorded as QR for all summary rows and exact Meta referral IDs were absent, so ad attribution is inferred from the text pattern, not proven by channel metadata. The full current counts and anonymized patterns are in `docs/PROCatalyst_HYBRID_KNOWLEDGE.md`.
