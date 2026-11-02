@@ -2,7 +2,8 @@
 
 const express = require('express');
 const cors = require('cors');
-const { promise: getPool } = require('../../../database/config');
+const databaseConfig = require('../../../database/config');
+const getPool = databaseConfig.promise.bind(databaseConfig);
 const oauth = require('./oauth');
 const { createMcpServer } = require('./tools');
 

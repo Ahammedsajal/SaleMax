@@ -1,7 +1,8 @@
 'use strict';
 
 const { z } = require('zod');
-const { promise: getPool } = require('../../../database/config');
+const databaseConfig = require('../../../database/config');
+const getPool = databaseConfig.promise.bind(databaseConfig);
 const pipeline = require('../../../helper/pipeline/leadPipeline');
 const taskManagement = require('../task-management');
 const oauth = require('./oauth');

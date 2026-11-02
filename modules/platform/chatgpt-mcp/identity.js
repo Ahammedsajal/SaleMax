@@ -1,7 +1,10 @@
 'use strict';
 
 const crypto = require('node:crypto');
-const { promise: pool } = require('../../../database/config');
+const databaseConfig = require('../../../database/config');
+// mysql2's Pool#promise method uses its receiver. Keep it bound so every MCP
+// identity/permission recheck gets the existing promise pool reliably.
+const pool = databaseConfig.promise.bind(databaseConfig);
 const pipelineActorResolver = require('../legacy-pipeline-actor');
 const businessFeatureSession = require('../business-feature-session');
 const createTaskContext = require('../training-task-context').createTaskContext;

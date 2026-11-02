@@ -8,12 +8,18 @@ const vm = require('node:vm');
 const test = require('node:test');
 
 const fakePool = { query: async () => [[], []] };
+const fakeDatabaseConfig = {
+  promise() {
+    if (this !== fakeDatabaseConfig) throw new TypeError('PROMISE_METHOD_UNBOUND');
+    return fakePool;
+  },
+};
 const dbConfigPath = require.resolve('../database/config');
 require.cache[dbConfigPath] = {
   id: dbConfigPath,
   filename: dbConfigPath,
   loaded: true,
-  exports: { promise: () => fakePool },
+  exports: fakeDatabaseConfig,
 };
 
 const express = require('express');
@@ -216,6 +222,20 @@ test('MCP endpoint advertises OAuth metadata and rejects unauthenticated tool ca
   });
 });
 
+test('default MCP router binds the existing mysql2 promise-pool method for OAuth registration', async () => {
+  const { createRouter } = require('../modules/platform/chatgpt-mcp/server');
+  const router = createRouter({ origin: 'https://7network.live' });
+  await withServer(router, async base => {
+    const response = await fetch(`${base}/mcp/oauth/register`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ client_name: 'Synthetic MCP client', redirect_uris: ['https://chatgpt.com/connector/oauth/test-client'] }),
+    });
+    assert.equal(response.status, 201);
+    assert.match((await response.json()).client_id, /^[A-Za-z0-9_-]{43}$/);
+  });
+});
+
 test('ChatGPT connection settings use the shared pool option supplied by the business workspace mount', async () => {
   const originalActor = identity.actorFromFeatureSession;
   const originalScopes = identity.allowedScopes;
@@ -247,6 +267,31 @@ test('ChatGPT connection settings use the shared pool option supplied by the bus
   } finally {
     identity.actorFromFeatureSession = originalActor;
     identity.allowedScopes = originalScopes;
+  }
+});
+
+test('MCP identity authorization binds the existing mysql2 promise-pool method', async () => {
+  const originalQuery = fakePool.query;
+  const previousPlatformFlag = process.env.SALEMAX_PLATFORM_ENABLED;
+  const statements = [];
+  delete process.env.SALEMAX_PLATFORM_ENABLED;
+  fakePool.query = async sql => {
+    statements.push(sql);
+    if (sql.startsWith('SELECT id,uid,email,role,timezone FROM user')) {
+      return [[{ id: 17, uid: 'synthetic-owner', email: 'owner@example.invalid', role: 'user', timezone: 'Asia/Qatar' }], []];
+    }
+    if (sql.includes('FROM sx_legacy_ownership')) return [[], []];
+    throw new Error('UNEXPECTED_SYNTHETIC_QUERY');
+  };
+  try {
+    const actor = await identity.actorFromFeatureSession({ actor: { id: 17 }, agent: false });
+    assert.equal(actor.role, 'owner');
+    assert.equal(actor.uidHash, identity.hash('synthetic-owner'));
+    assert.equal(statements.length, 2);
+  } finally {
+    fakePool.query = originalQuery;
+    if (previousPlatformFlag === undefined) delete process.env.SALEMAX_PLATFORM_ENABLED;
+    else process.env.SALEMAX_PLATFORM_ENABLED = previousPlatformFlag;
   }
 });
 
