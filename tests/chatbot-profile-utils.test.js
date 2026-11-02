@@ -62,6 +62,7 @@ test('training-center bot validation produces a bounded reusable category profil
   const bot = botInput({ name: ' Admissions ', engine: 'hybrid', config: {
     flowId: 'admissions_1', aiFallback: true, confidenceThreshold: 0.8,
     instructions: 'Use the approved course facts.', aiDataProcessingConfirmed: true,
+    handoffAssigneeIdentityId: '11111111-1111-4111-8111-111111111111', assignHandoffsToInbox: true,
     knowledgeEntries: [{ questionEn: 'Fees?', answerEn: 'Check current course offers.', questionAr: 'الرسوم؟', answerAr: 'تحقق من العروض.' }],
     untrustedProviderKey: 'must-not-be-stored-in-profile'
   } }, 'training_center');
@@ -71,8 +72,12 @@ test('training-center bot validation produces a bounded reusable category profil
   assert.deepEqual(bot.config.collect, ['name', 'course_interest', 'preferred_schedule', 'phone', 'consent']);
   assert.equal(bot.config.flowId, 'admissions_1');
   assert.equal(bot.config.aiFallback, true);
+  assert.equal(bot.config.handoffAssigneeIdentityId, '11111111-1111-4111-8111-111111111111');
+  assert.equal(bot.config.assignHandoffsToInbox, true);
   assert.equal(Object.hasOwn(bot.config, 'untrustedProviderKey'), false);
   assert.throws(() => botInput({ name: 'Bad', engine: 'ai', config: { confidenceThreshold: 0.1 } }, 'training_center'), { code: 'INVALID_CONFIDENCE_THRESHOLD' });
+  assert.throws(() => botInput({ name: 'Bad', engine: 'hybrid', config: { handoffAssigneeIdentityId: 'not-a-uuid' } }, 'training_center'), { code: 'INVALID_HANDOFF_ASSIGNEE' });
+  assert.throws(() => botInput({ name: 'Bad', engine: 'hybrid', config: { assignHandoffsToInbox: true } }, 'training_center'), { code: 'HANDOFF_ASSIGNEE_REQUIRED' });
   assert.throws(() => botInput({ name: 'Bad', engine: 'guided', config: { flowId: '../unsafe' } }, 'training_center'), { code: 'INVALID_FLOW_ID' });
   assert.deepEqual(botRequirements('guided'), { requiresGuidedFlow: true, requiresAi: false });
   assert.deepEqual(botRequirements('hybrid', { aiFallback: true }), { requiresGuidedFlow: true, requiresAi: true });

@@ -89,7 +89,7 @@ async function handoffConversation(ctx, chatId, channelKind, channelRef, reason,
       VALUES (?,?,NULL,'system','chatbot.conversation-auto-handoff','chatbot-conversation',?,?,?)`,
     [crypto.randomUUID(), ctx.tenant.id, chatId, JSON.stringify({ mode: 'paused', reason: String(reason || 'human-review').slice(0, 240) }), crypto.randomUUID()]);
     if (profile && uid) await require('./chatbot-handoff-task').assignHandoffTask(db, { ctx, profile, uid, chatId, channelKind, channelRef, reason });
-    if (profile?.config?.sharedInboxRouting === true && profile.config.handoffAssigneeIdentityId && uid) {
+    if (profile?.config?.assignHandoffsToInbox === true && profile.config.handoffAssigneeIdentityId && uid) {
       await require('./team-conversation-assignment').assignConversation(db, { ctx, uid, chatId, identityId: profile.config.handoffAssigneeIdentityId, reason: 'bot-human-handover' });
     }
     await db.commit();

@@ -39,6 +39,13 @@ function createChatbotRouter({ pool, origin, userGuard, canonicalGuard }) {
   });
   const withDb = async fn => { const db = await pool.getConnection(); try { return await fn(db); } finally { db.release(); } };
   const context = req => { authorize(req.botContext); return req.botContext; };
+  const validateHandoffAssignee = async (db, ctx, identityId) => {
+    if (!identityId) return;
+    const [[member]] = await db.query(`SELECT m.identity_id FROM sx_memberships m JOIN sx_identities i ON i.id=m.identity_id
+      WHERE m.tenant_id=? AND m.identity_id=? AND m.status='active' AND i.status='active'
+        AND m.role IN ('owner','manager','team_leader') LIMIT 1`, [ctx.tenant.id, identityId]);
+    if (!member) fail('INVALID_HANDOFF_ASSIGNEE');
+  };
   const audit = (db, ctx, action, id, changes) => db.query(
     `INSERT INTO sx_audit_events(id,tenant_id,actor_identity_id,actor_kind,action,resource_type,resource_id,changes,correlation_id)
      VALUES (?,?,?,'identity',?,'chatbot',?,?,?)`, [uuid(), ctx.tenant.id, ctx.identity.id, action, id, JSON.stringify(changes), uuid()]);
@@ -92,6 +99,10 @@ function createChatbotRouter({ pool, origin, userGuard, canonicalGuard }) {
         bot.channels = channels;
       }
       const pack = getDomainPack(ctx.category.key, ctx.category.version);
+      const [handoffAssignees] = await db.query(`SELECT m.identity_id AS id,m.role,i.display_name AS name FROM sx_memberships m
+        JOIN sx_identities i ON i.id=m.identity_id AND i.status='active'
+        WHERE m.tenant_id=? AND m.status='active' AND m.role IN ('owner','manager','team_leader')
+        ORDER BY FIELD(m.role,'owner','manager','team_leader'),i.display_name,m.identity_id`, [ctx.tenant.id]);
       return {
         category: ctx.category.key,
         categoryTitle: ctx.category.title,
@@ -102,6 +113,7 @@ function createChatbotRouter({ pool, origin, userGuard, canonicalGuard }) {
         captureFormsSupported:require('./chatbot-capture-forms').supports(ctx.category),
         captureForms:await require('./chatbot-capture-forms').options(db,ctx),
         chatbotLeadCaptureSupported:require('./chatbot-lead-capture').genericCaptureEnabled(ctx),
+        handoffAssignees: handoffAssignees.map(item => ({ id: String(item.id), role: item.role, name: String(item.name || '') })),
         items: bots,
       };
     });
@@ -192,6 +204,7 @@ function createChatbotRouter({ pool, origin, userGuard, canonicalGuard }) {
     const data = await withDb(async db => {
       await db.beginTransaction(); try {
         await require('./chatbot-capture-forms').validate(db,ctx,input.config);
+        await validateHandoffAssignee(db,ctx,input.config.handoffAssigneeIdentityId);
         await db.query(`INSERT INTO sx_chatbot_profiles(id,tenant_id,category_key,category_version,name,engine,status,config,created_by_identity_id,updated_by_identity_id) VALUES (?,?,?,?,?,?,'draft',?,?,?)`, [id, ctx.tenant.id, ctx.category.key, ctx.category.version, input.name, input.engine, JSON.stringify(input.config), ctx.identity.id, ctx.identity.id]);
         await audit(db, ctx, 'chatbot.profile-created', id, { engine: input.engine, category: ctx.category.key });
         await db.commit(); return { id, status: 'draft', revision: 1, runtime: 'configuration_only' };
@@ -209,6 +222,7 @@ function createChatbotRouter({ pool, origin, userGuard, canonicalGuard }) {
         if (!row) fail('BOT_NOT_FOUND');
         if (Number(row.revision) !== req.body.expectedRevision) fail('STALE_REVISION');
         await require('./chatbot-capture-forms').validate(db,ctx,input.config);
+        await validateHandoffAssignee(db,ctx,input.config.handoffAssigneeIdentityId);
         if (row.status === 'live') await assertLiveProfileReady(db, req, ctx, {
           id: req.params.id, engine: input.engine, config: input.config,
           categoryKey: row.categoryKey, categoryVersion: Number(row.categoryVersion),

@@ -199,3 +199,15 @@ test('built-in guide supports a saved opening Flow and leaves other first messag
   assert.match(runtime,/claimOpeningFlow/);
   assert.match(runtime,/isOpeningGreeting\(textOf\(message\)\)/);
 });
+
+test('bot editor assigns handoffs to an active tenant manager and routes them through Inbox',()=>{
+  assert.match(admin,/name="handoffAssigneeIdentityId"/);
+  assert.match(admin,/name="assignHandoffsToInbox"/);
+  assert.match(admin,/handoffAssigneeIdentityId:String\(data\.get\('handoffAssigneeIdentityId'\)/);
+  assert.match(admin,/Assign handed-off conversations to this member in Inbox/);
+  assert.match(chatbotRouter,/handoffAssignees: handoffAssignees\.map/);
+  assert.match(chatbotRouter,/m\.tenant_id=\? AND m\.identity_id=\? AND m\.status='active' AND i\.status='active'[\s\S]*m\.role IN \('owner','manager','team_leader'\)/);
+  assert.match(chatbotRouter,/validateHandoffAssignee\(db,ctx,input\.config\.handoffAssigneeIdentityId\)/);
+  assert.match(runtime,/config\?\.assignHandoffsToInbox === true/);
+  assert.match(runtime,/sharedInboxRouting === true/);
+});

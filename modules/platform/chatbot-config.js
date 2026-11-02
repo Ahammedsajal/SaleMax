@@ -135,6 +135,11 @@ function botInput(input, categoryKey, categoryVersion = 1) {
     if (typeof source.handoffAssigneeIdentityId !== 'string' || !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(source.handoffAssigneeIdentityId)) throw Object.assign(new Error('INVALID_HANDOFF_ASSIGNEE'), { code: 'INVALID_HANDOFF_ASSIGNEE' });
     config.handoffAssigneeIdentityId = source.handoffAssigneeIdentityId;
   }
+  if (source.assignHandoffsToInbox != null) {
+    if (typeof source.assignHandoffsToInbox !== 'boolean') throw Object.assign(new Error('INVALID_HANDOFF_ROUTING'), { code: 'INVALID_HANDOFF_ROUTING' });
+    config.assignHandoffsToInbox = source.assignHandoffsToInbox;
+  }
+  if (config.assignHandoffsToInbox === true && !config.handoffAssigneeIdentityId) throw Object.assign(new Error('HANDOFF_ASSIGNEE_REQUIRED'), { code: 'HANDOFF_ASSIGNEE_REQUIRED' });
   if (input.engine === 'guided') {
     if (source.flowId != null && (typeof source.flowId !== 'string' || !/^[A-Za-z0-9_-]{1,80}$/.test(source.flowId))) throw Object.assign(new Error('INVALID_FLOW_ID'), { code: 'INVALID_FLOW_ID' });
     config.flowId = source.flowId || null;

@@ -1,0 +1,8 @@
+services:
+  app:
+    volumes:
+      - ${SALEMAX_PROCATALYST_HANDOFF_RELEASE:?SALEMAX_PROCATALYST_HANDOFF_RELEASE is required}/runtime/chatbot-admin.js:/app/client/public/chatbot-admin.js:ro
+      - ${SALEMAX_PROCATALYST_HANDOFF_RELEASE:?SALEMAX_PROCATALYST_HANDOFF_RELEASE is required}/runtime/training-sidebar.js:/app/client/public/training-sidebar.js:ro
+      - ${SALEMAX_PROCATALYST_HANDOFF_RELEASE:?SALEMAX_PROCATALYST_HANDOFF_RELEASE is required}/runtime/index.html:/app/client/public/index.html:ro
+      - ${SALEMAX_PROCATALYST_HANDOFF_RELEASE:?SALEMAX_PROCATALYST_HANDOFF_RELEASE is required}/runtime/chatbot-router.js:/app/modules/platform/chatbot-router.js:ro
+      - ${SALEMAX_PROCATALYST_HANDOFF_RELEASE:?SALEMAX_PROCATALYST_HANDOFF_RELEASE is required}/runtime/chatbot-config.js:/app/modules/platform/chatbot-config.js:ro
