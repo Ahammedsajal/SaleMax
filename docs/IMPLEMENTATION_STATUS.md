@@ -1,3 +1,7 @@
+## OpenAI Ads conversion tracking — production, 3 November 2026
+
+The public 7Network website now offers optional OpenAI ad measurement in English and Arabic. The pixel loads only after a visitor opts in; a demo request sends lead_created only after the application confirms the request was saved. The Ads data source is 7Network Website and the 7Network Demo Request event is linked to one campaign. Production and Ads Manager checks recorded in DEPLOYMENT.md show the app healthy, Qatar as the campaign’s only included location, QAR 60/day (the current platform minimum), a Nov 4 end date, and the campaign paused. No test lead or purchase was generated, so Ads Manager currently reports zero events. The campaign objective remains Clicks, so the event is available for reporting; it is not lead-optimized. Billing and creative setup remain incomplete. Subscription-purchase tracking is not implemented.
+
 ## Public website floating WhatsApp icon — production, 3 November 2026
 
 The floating contact action is now icon-only and remains visible after the hero, including over the contact section and footer. It retains a localized accessible name and the editable, localized WhatsApp interest message. Source `a7cb266dcb7f4e633da3919510510ae500c27e64` is deployed in `/opt/salemax/releases/website-whatsapp-icon-a7cb266-20261103`. Production health, English/Arabic message links, asset hashes and rollback procedure are recorded in `DEPLOYMENT.md`. No migration or customer data changed.
