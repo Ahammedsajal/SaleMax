@@ -11,7 +11,7 @@
   const active = () => /^\/(?:user|agent)\/?$/.test(location.pathname) && new URLSearchParams(location.search).get('page') === 'ai-integrations';
   const identity = () => `${window.SaleMaxActor || 'user'}:${localStorage.getItem(window.SaleMaxActor === 'agent' ? 'wacrm_agent' : 'wacrm_user') || 'cookie'}`;
   const request = (path, options) => window.SaleMaxWorkspace.request('ai', '/settings' + path, options).then(result => result.data);
-  let epoch = 0, loading = false, identityKey = '', data = null;
+  let epoch = 0, loading = false, identityKey = '', preferenceKey = '', data = null;
 
   function errorText(error) {
     return ({ PERMISSION_DENIED: tr('Only the business owner can configure AI integrations.', 'مالك النشاط فقط يمكنه إعداد تكاملات الذكاء الاصطناعي.'),
@@ -116,19 +116,25 @@
   function update() {
     let node = $('#sx-ai-integrations');
     if (!active()) { if (node) { epoch++; loading = false; data = null; node.remove(); } return; }
+    const nextPreferenceKey = `${arabic()}:${prefs()?.isRtl()}:${prefs()?.isDark()}`;
     if (!node) {
+      preferenceKey = nextPreferenceKey;
       node = document.createElement('main'); node.id = 'sx-ai-integrations'; node.setAttribute('aria-label', tr('AI Integrations', 'تكاملات الذكاء الاصطناعي'));
       syncPreferences(node); document.body.append(node); layout(node); load(node);
     } else {
       syncPreferences(node);
-      if (identity() !== identityKey) { data = null; layout(node); load(node); }
+      const preferencesChanged = nextPreferenceKey !== preferenceKey;
+      const identityChanged = identity() !== identityKey;
+      if (preferencesChanged || identityChanged) {
+        preferenceKey = nextPreferenceKey;
+        if (identityChanged) data = null;
+        layout(node);
+        if (data) render(node, data.config, data.usage); else load(node);
+      }
     }
   }
   window.addEventListener('popstate', update);
-  window.addEventListener('salemax:languagechange', () => {
-    const node = $('#sx-ai-integrations');
-    if (node) { syncPreferences(node); layout(node); if (data) render(node, data.config, data.usage); else load(node); }
-  });
+  window.addEventListener('salemax:languagechange', update);
   window.addEventListener('storage', update);
   new MutationObserver(update).observe(document.documentElement, { childList: true, subtree: true, attributes: true, attributeFilter: ['dir', 'lang', 'data-theme'] });
   update();
