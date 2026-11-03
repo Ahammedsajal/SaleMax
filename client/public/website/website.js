@@ -441,21 +441,14 @@
     );
   }
   const floating = document.querySelector(".floating-cta");
-  if ("IntersectionObserver" in window) {
-    let heroVisible = true,
-      contactVisible = false;
-    new IntersectionObserver((entries) => {
-      entries.forEach((entry) => {
-        if (entry.target.classList.contains("hero"))
-          heroVisible = entry.isIntersecting;
-        else contactVisible = entry.isIntersecting;
-      });
-      floating.classList.toggle("visible", !heroVisible && !contactVisible);
-    }).observe(document.querySelector(".hero"));
-    new IntersectionObserver((entries) => {
-      contactVisible = entries[0].isIntersecting;
-      floating.classList.toggle("visible", !heroVisible && !contactVisible);
-    }).observe(document.getElementById("contact"));
+  if (floating) {
+    // Keep the contact shortcut available through the contact section and footer.
+    floating.classList.add("visible");
+    if ("IntersectionObserver" in window) {
+      new IntersectionObserver(([entry]) => {
+        floating.classList.toggle("visible", !entry.isIntersecting);
+      }).observe(document.querySelector(".hero"));
+    }
   }
   document.getElementById("year").textContent = String(
     new Date().getFullYear(),

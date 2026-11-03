@@ -1301,11 +1301,14 @@ nav {
   color: white;
   display: flex;
   align-items: center;
-  gap: 10px;
+  justify-content: center;
+  width: 54px;
+  height: 54px;
+  min-width: 44px;
+  min-height: 44px;
   border: 1px solid #ffffff65;
-  padding: 10px 18px;
-  border-radius: 30px;
-  font-size: 12px;
+  padding: 0;
+  border-radius: 50%;
   box-shadow: 0 4px 30px #22314226;
   z-index: 15;
   transition:
@@ -1325,19 +1328,14 @@ nav {
   transform: none;
 }
 .floating-cta-icon {
-  width: 20px;
-  height: 20px;
-  flex: 0 0 20px;
+  width: 25px;
+  height: 25px;
+  flex: 0 0 25px;
   fill: none;
   stroke: currentColor;
   stroke-width: 1.7;
   stroke-linecap: round;
   stroke-linejoin: round;
-}
-.floating-cta-label {
-  font-size: 12px;
-  font-weight: 650;
-  white-space: nowrap;
 }
 .reveal {
   opacity: 1;
@@ -2163,8 +2161,8 @@ nav {
   .floating-cta {
     inset-inline-end: 17px;
     inset-block-end: 17px;
-    font-size: 11px;
-    padding: 8px 15px;
+    width: 50px;
+    height: 50px;
   }
   [dir="rtl"] .hero h1 {
     font-size: clamp(49px, 11vw, 75px);
