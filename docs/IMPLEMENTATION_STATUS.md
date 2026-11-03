@@ -1,3 +1,7 @@
+## Public website floating WhatsApp icon — production, 3 November 2026
+
+The floating contact action is now icon-only and remains visible after the hero, including over the contact section and footer. It retains a localized accessible name and the editable, localized WhatsApp interest message. Source `a7cb266dcb7f4e633da3919510510ae500c27e64` is deployed in `/opt/salemax/releases/website-whatsapp-icon-a7cb266-20261103`. Production health, English/Arabic message links, asset hashes and rollback procedure are recorded in `DEPLOYMENT.md`. No migration or customer data changed.
+
 ## Public website floating WhatsApp CTA — production, 3 November 2026
 
 The floating `Let’s talk` button now opens the existing 7Network WhatsApp number with an editable, localized message of interest. English and Arabic page languages get matching copy and accessible labels. The visitor chooses whether to send; the link does not send on click automatically. The existing enquiry form is retained elsewhere on the page. Source `6fd359df09df6425880128893c85fbc32f340d8c` is deployed in `/opt/salemax/releases/website-whatsapp-cta-6fd359df-20261103`. Live English/Arabic browser checks, asset hashes and rollback procedure are in `DEPLOYMENT.md`. No migration or data change occurred.
