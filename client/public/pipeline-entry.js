@@ -24,10 +24,15 @@
     return r.width > 0 && r.height > 0 && getComputedStyle(el).visibility !== 'hidden';
   };
 
-  // Measure the actual shell once for every embedded workspace. Temporary
-  // drawers overlay the page; docked drawers consume the physical side they occupy.
+  // Embedded workspaces must fit the currently visible viewport, including
+  // mobile browsers whose layout viewport is wider than the screen.
   function workspaceBounds(){
-    const viewportWidth=window.innerWidth,viewportHeight=window.innerHeight;
+    const visual=window.visualViewport;
+    const layoutWidth=window.innerWidth,layoutHeight=window.innerHeight;
+    const viewportLeft=Math.max(0,visual?.offsetLeft||0),viewportTop=Math.max(0,visual?.offsetTop||0);
+    const viewportWidth=Math.min(layoutWidth,Math.ceil(visual?.width||layoutWidth));
+    const viewportHeight=Math.min(layoutHeight,Math.ceil(visual?.height||layoutHeight));
+    const viewportRight=viewportLeft+viewportWidth;
     let left=0,right=0;
     for(const drawer of document.querySelectorAll('.MuiDrawer-paper')){
       if(!visible(drawer)||getComputedStyle(drawer).display==='none')continue;
@@ -35,14 +40,14 @@
       const docked=drawer.closest('.MuiDrawer-docked')||drawer.classList.contains('MuiDrawer-paperAnchorDockedLeft')||drawer.classList.contains('MuiDrawer-paperAnchorDockedRight');
       const compactPersistent=viewportWidth>720&&drawer.querySelector('[data-sx-sidebar-list]');
       if(drawer.closest('.MuiModal-root')&&!docked&&!compactPersistent)continue;
-      if(r.right<=0||r.left>=viewportWidth||r.width>=viewportWidth*.75)continue;
-      if(r.left<=1)left=Math.max(left,Math.min(viewportWidth,r.right));
-      else if(r.right>=viewportWidth-1)right=Math.max(right,viewportWidth-Math.max(0,r.left));
+      if(r.right<=viewportLeft||r.left>=viewportRight||r.width>=viewportWidth*.75)continue;
+      if(r.left<=viewportLeft+1)left=Math.max(left,Math.min(viewportWidth,r.right-viewportLeft));
+      else if(r.right>=viewportRight-1)right=Math.max(right,viewportRight-Math.max(viewportLeft,r.left));
     }
     const candidates=[...document.querySelectorAll('header.MuiAppBar-root, .MuiAppBar-root, .MuiBox-root')];
-    const topbar=candidates.filter(el=>{const r=el.getBoundingClientRect();return visible(el)&&getComputedStyle(el).display!=='none'&&r.y>=-1&&r.y<=5&&r.height>=30&&r.height<100&&r.width>viewportWidth*.5;}).sort((a,b)=>{const primary=el=>el.matches('.MuiAppBar-root')?0:1;return primary(a)-primary(b)||a.getBoundingClientRect().height-b.getBoundingClientRect().height;})[0];
-    const top=Math.min(viewportHeight,Math.max(0,topbar?.getBoundingClientRect().bottom||0));
-    return {left,top,width:Math.max(0,viewportWidth-left-right),height:Math.max(0,viewportHeight-top),topbar};
+    const topbar=candidates.filter(el=>{const r=el.getBoundingClientRect();return visible(el)&&getComputedStyle(el).display!=='none'&&r.y>=viewportTop-1&&r.y<=viewportTop+5&&r.height>=30&&r.height<100&&r.width>viewportWidth*.5;}).sort((a,b)=>{const primary=el=>el.matches('.MuiAppBar-root')?0:1;return primary(a)-primary(b)||a.getBoundingClientRect().height-b.getBoundingClientRect().height;})[0];
+    const top=Math.min(viewportHeight,Math.max(0,(topbar?.getBoundingClientRect().bottom||viewportTop)-viewportTop));
+    return {left:viewportLeft+left,top:viewportTop+top,width:Math.max(0,viewportWidth-left-right),height:Math.max(0,viewportHeight-top),topbar};
   }
 
   function bindWorkspaceNavigation(frame){
@@ -292,6 +297,8 @@
   });
   observer.observe(document.documentElement, { childList: true, subtree: true, attributes: true, attributeFilter: ['class','hidden','dir'] });
   window.addEventListener('resize', update);
+  window.visualViewport?.addEventListener('resize', update);
+  window.visualViewport?.addEventListener('scroll', update);
   window.addEventListener('transitionend', event=>{if(event.target.closest?.('.MuiDrawer-root,.MuiAppBar-root'))update();});
   window.addEventListener('popstate', update);
   update();

@@ -38,6 +38,7 @@ const selfProfile = require("../modules/platform/self-profile");
 const selfProfileAuth = createSelfProfileAuth();
 const {issueForVerifiedLegacyAccount} = require("../modules/platform/legacy-session-bridge");
 const { authenticateAgentLogin } = require("../modules/platform/agent-login-service");
+const { shouldTryAgentLogin } = require("../modules/platform/unified-agent-login-policy");
 const Stripe = require("stripe");
 const {
   checkPlan,
@@ -310,7 +311,7 @@ router.post("/login", async (req, res) => {
       });
     }
 
-    if (loginAs === 'agent' || (loginAs === 'auto' && userFind.length === 0)) {
+    if (shouldTryAgentLogin({ actor: loginAs, businessUserAuthenticated: compare })) {
       const agent = await authenticateAgentLogin({ req, email, password });
       if (agent.status) return res.status(agent.status).json({ success: false, code: agent.code, msg: agent.msg });
       if (agent.success) {
