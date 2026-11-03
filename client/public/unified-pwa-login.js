@@ -21,7 +21,10 @@
     }
   };
   const agentWorkspacePath = () => ['/user', '/pipeline', '/call-center', '/sales-workspace', '/tasks'].includes(location.pathname.replace(/\/$/, ''));
-  const activeAgent = () => agentWorkspacePath() && (params.get('actor') === 'agent' || sessionStorage.getItem('sx_workspace_actor') === 'agent');
+  // Keep explicit agent intent active for the entire login document. The
+  // legacy React login can make an authenticated request before its route
+  // changes; that request must already read and send the agent token.
+  const activeAgent = () => loginIntent || (agentWorkspacePath() && (params.get('actor') === 'agent' || sessionStorage.getItem('sx_workspace_actor') === 'agent'));
   const agentUrl = value => {
     const target = new URL(value, location.href);
     const page = target.searchParams.get('page') || 'dashboard';
