@@ -14,6 +14,12 @@
  const redirectToSharedAgent=(url)=>{sessionStorage.setItem('sx_workspace_actor','agent');document.documentElement.style.visibility='hidden';location.replace(url);};
  if(location.pathname==='/user/login'||params.get('actor')==='user')sessionStorage.removeItem('sx_workspace_actor');
  if(params.get('actor')==='agent')sessionStorage.setItem('sx_workspace_actor','agent');
+ // Keep the legacy agent URL working, but run sign-in through the unified
+ // workspace form so the role-aware credential adapter handles the session.
+ if(location.pathname.replace(/\/$/,'')==='/agent/login'){
+  location.replace('/user/login?actor=agent');
+  return;
+ }
  if(location.pathname.startsWith('/agent/login')){
   const enter=()=>{if(location.pathname.replace(/\/$/,'')==='/agent'&&raw('wacrm_agent'))redirectToSharedAgent(sharedAgentEntry(location.href));};
   for(const method of ['pushState','replaceState']){const original=history[method];history[method]=function(state,title,url,...rest){if(typeof url==='string'&&raw('wacrm_agent')){const destination=sharedAgentEntry(url);if(destination!==url){redirectToSharedAgent(destination);return;}}const result=original.call(this,state,title,url,...rest);enter();return result;};}

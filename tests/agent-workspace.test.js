@@ -52,12 +52,11 @@ test('existing agent entry point opens the shared shell; a normal business tab i
  assert.deepEqual(browserSandbox('https://crm.example.invalid/agent?page=chat').redirects,['/user?actor=agent&page=inbox']);
  const {box,redirects}=browserSandbox('https://crm.example.invalid/user?page=courses');assert.equal(box.window.SaleMaxActor,undefined);assert.equal(box.localStorage.getItem('wacrm_user'),'manager-token');assert.deepEqual(redirects,[]);
 });
-test('agent login bypasses the legacy Agent route before its screen can render',()=>{
+test('legacy agent login opens the role-aware shared login before the legacy screen can render',()=>{
  const {box,redirects,historyCalls}=browserSandbox('https://crm.example.invalid/agent/login');
- box.history.pushState({},'', '/agent');
- assert.deepEqual(redirects,['/user?actor=agent&page=dashboard']);
- assert.equal(box.document.documentElement.style.visibility,'hidden');
- assert.deepEqual(historyCalls,[],'the shared-shell navigation must happen before legacy React route listeners run');
+ assert.deepEqual(redirects,['/user/login?actor=agent']);
+ assert.equal(box.document.documentElement.style.visibility,'');
+ assert.deepEqual(historyCalls,[],'the role-aware login must open before legacy React route listeners run');
 });
 test('legacy Agent URLs map to the shared dashboard while preserving supported Inbox and Task aliases',()=>{
  assert.equal(agentEntry.targetForAgentEntry('/agent'),'/user?actor=agent&page=dashboard');
