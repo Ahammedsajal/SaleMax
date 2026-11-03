@@ -4,6 +4,32 @@ Agents can sign in from the existing `/user/login` page and use the same install
 
 Commits `fafe4f6f4208fb9e8444916c9c1cfc191c314b16` and `ee78d3d4e2f3bf7b0f9cffe4abfaf68bc65a03f8` are pushed and deployed. Focused tests pass 10/10, runtime syntax and public health/shell/manifest checks pass, and non-app production services were unchanged. Live owner/agent credential, permission-denial and English/Arabic browser acceptance remain open. Deployment and rollback evidence is in `DEPLOYMENT.md`.
 
+## ChatGPT MCP connector — r10 deployed; ChatGPT acceptance open, 2 November 2026
+
+The existing 7Network business shell includes the ChatGPT connection manager at `/user?page=chatgpt`. The live remote MCP server at `https://7network.live/mcp` uses per-user OAuth and current tenant/role checks. Its Pipeline tools search permitted leads and follow-ups, prepare an evidence-based next-step brief, and read/create/update internal follow-up tasks. `conversations.read` is separately consented and returns at most 20 recent text messages after current Inbox and chat checks; it is not selected by default. There is no send-message, campaign, payment, delete or bulk-export tool.
+
+Production r10 (`a53fde1d`) updates the existing connection screen when the workspace language changes and keeps English/Arabic, RTL, and light/dark behavior in the current shell. Arabic/RTL locale refresh and restored English/dark preferences were checked in the signed-in owner browser. Public health/OAuth metadata and versioned assets pass; the served workspace JavaScript matches the release hash, `GET /mcp` returns expected 405, and anonymous connections access returns 401. No migration or business-data update occurred in r10. Focused MCP tests and source checks passed in earlier implementation increments; r10 changes only the client locale-refresh behavior.
+
+The ChatGPT workspace connection itself remains open. The available ChatGPT tab is signed out, so a workspace administrator has not yet scanned/published the app, and no ChatGPT OAuth user or live tool call has been verified. Next acceptance must cover OAuth/PKCE and refresh, actual tool selection/calls, owner/agent and denied-role boundaries, task idempotency, revocation, and tool refresh after publication. The 390px responsive layout was inspected under r9; rerun the current r10 screen on mobile and complete the remaining responsive, role and accessibility gates before wide rollout. The full 42-ticket upgrade remains active; see `DEPLOYMENT.md` and `docs/CHATGPT_MCP_CONNECTOR.md`.
+
+## Public 7Network website pricing and responsive hero — production, 29 October 2026
+
+The existing public site now presents its two existing paid CRM plans at QAR 370 monthly / 30 days and QAR 3,840 yearly / 365 days, with QAR 600 annual savings, and describes invoicing/payment workflows with category/setup availability qualified. The mobile hero is larger, the Pause controls are removed, and its capability rail uses a dark-green full-bleed treatment. Mobile and desktop horizontal overflow are resolved. Deployed source commits 9b34b9d3 through 2b16968e; final release, prices, rollback and live evidence are recorded in DEPLOYMENT.md. Database catalogue rows retain their existing IDs and assignments; no migration was applied. Mobile emulation confirmed the rail in the first viewport, and desktop/mobile checks confirmed no horizontal page overflow. Reduced-motion preferences render the ticker static; default motion loops continuously. Physical-device, Arabic/RTL and the broader application upgrade remain open.
+
+## Owner-approved connected-business roadmap — 27 October 2026
+
+`docs/7NETWORK_VISION_ROADMAP.md` records the customer requirement → proposals/permitted calls → fulfilment vision and category-specific business operations. `skills/7network-product-direction/SKILL.md` and AGENTS.md direct future upgrades toward it, requiring responsive phone/tablet/desktop layouts, EN/AR and RTL, light/dark themes and PWA readiness for new/materially changed screens. This is guidance, not implementation of marketplace or AI features. The full 42-ticket objective and existing acceptance/release gates remain active. Production publication evidence is recorded separately in DEPLOYMENT.md.
+
+## Real Estate agents, teams and tenant requirements — deployed, 28 October 2026
+
+The existing Team Access, Lead Pipeline and Inbox now support the Real Estate office workflow: owner/manager/team-leader/agent reporting scopes, agent seniority, working areas and languages, listing assignments and optional co-agents, documented agent/listing commissions, opt-in public profiles with an explicitly limited activity indicator, tenant requirements on existing CRM leads, QAR listing matches, next actions/outcomes, and many-to-many lead/unit links. CRM identity, leads, conversations and pipeline remain shared; no replacement CRM or login was added. Source commit `b1e547c5051a768fd26baad4b43838115d328ab6` is included in the active production lineage. Migrations `20270115`–`20270119` are applied.
+
+The agent/requirements and Pipeline theme releases above are prior lineage checkpoints. The latest production release is `/opt/salemax/releases/real-estate-pipeline-unassigned-ar-a233077-20261028`, image `salemax-app:real-estate-pipeline-unassigned-ar-20261028` (`sha256:e7a52d7e5c62fa33948a5b6cde064424e4e1a437a2cb4b5b634b0617b8702f10`), healthy with zero restarts. It preserves the existing Team Access, CRM Pipeline and Inbox integration, and localizes Arabic stage and unassigned choices in the lead form. Production `/healthz`, `/pipeline/`, the user route and served assets return HTTP 200; anonymous Properties API requests return 401. Authenticated owner review confirmed Team Access and Pipeline quick lead form; in Arabic, every default stage and the corrected `غير مُسند` assignment choice render in the existing form. No invitation or lead was submitted. Workspace preferences were restored to English/LTR/light and Team Access. The focused Real Estate/Pipeline suite passes 74/74; a cookie/bearer real-session integration against the isolated MariaDB 11.4 test container covered owner, manager, team leader and agent scopes, requirement saves, co-agents, profiles, commissions and agreement denial. Its unique schema was dropped and only MariaDB system schemas remain. Category assignment and Yearly CRM terms are separately verified in the Super Admin flow recorded in `DEPLOYMENT.md`. Manager/Team Leader/Agent browser acceptance, responsive/PWA visual checks, private-media backup/restore, external listing portal publishing and broader platform release gates remain open. See `DEPLOYMENT.md` for hashes, rollback and runtime evidence.
+
+## WhatsApp media retention — production, 26 October 2026
+
+The existing retention worker now removes group media after 48 hours and individual WhatsApp chat media after 28 days, checking every 15 minutes. Text/history is preserved; the former whole-conversation purge is removed. Shared business assets and unexpired reused files are protected, and expired attachments show a bilingual notice. The production scheduler has completed a sweep without errors; no live file was old enough to expire. Nineteen focused checks pass. Source `fb9162fa34b39f825a2e6da72ccfff895626b2ce` is deployed at `/opt/salemax/releases/whatsapp-media-retention-fb9162f-20261026`; release, hashes, rollback and remaining expiry gates are recorded in `DEPLOYMENT.md`. The full 42-ticket upgrade remains in progress.
+
 ## Recruitment application failure diagnostics — production, 21 October 2026
 
 The existing public application form already gives applicants plain-language
@@ -1909,3 +1935,174 @@ the existing Inbox so its native provider initializes with that mode. This
 avoids relying on React context discovery through the filter panel portal.
 Source commit `dba23bc` is deployed. A signed-in click and visual review are
 still pending because browser control is unavailable in this Work session.
+
+# Real Estate Properties — implementation status, 27 October 2026
+
+A first internal real-estate inventory increment is implemented in the isolated
+`codex/real-estate-inventory-20261027` worktree. The existing Properties workspace
+has two sidebar pages: Buildings & Units and Listings. Quick add asks for a name,
+type and optional area/bedrooms, then offers a short optional rental listing form.
+Less common unit and rental details are tucked behind “More details” sections.
+The physical unit and each rental listing are separate records; one unit can have
+multiple listings, while availability remains on the unit.
+
+The additive `20270110_real_estate_units_and_listings.sql` migration preserves
+legacy listing IDs and maps each old listing to its own unit without automatic
+deduplication. Workspace APIs use the existing shared session and feature route.
+They support building/unit management, listing terms, unit availability and
+private media. Private owner/address values are omitted from agent detail reads;
+media is tenant-scoped, signature/size checked, stored outside the public tree,
+and served with no-store headers. Existing public signup does not expose the
+Real Estate category; it is enabled only for reviewed internal provisioning.
+
+Focused Real Estate tests and a disposable MariaDB 11.4 migration/concurrency
+rehearsal passed. A synthetic HTTP/media check passed using a test auth adapter.
+This is not authenticated browser acceptance. English/Arabic screen behavior,
+RTL, themes, PWA navigation, real user/staff permissions, production storage
+backup/restore and the complete migration history still need acceptance. The
+broader migration integration suite remains red on an unrelated Finance fixture
+expectation (275000 generated versus 260000 expected); no unrelated report or
+migration-runner changes are included in this increment.
+
+Production source commit `8aef35af18d84ae54cb3d63f6d9dcc2bd5a43e1c` is pushed
+to `main`. The app-only release is active at
+`/opt/salemax/releases/real-estate-inventory-0e9d15a-20261027`, built as a
+single layer on the exact prior runtime image. Health and anonymous-route
+checks pass. Both migrations are recorded as applied, and the four inventory
+tables currently contain zero rows. The deployment preserves the previous
+production-derived shell and makes the Properties navigation visible.
+
+Authenticated tenant/staff UI acceptance, Arabic/RTL, themes, mobile/PWA,
+authorized office access and private-media backup/restore remain open. No
+customer property or tenant data was created and no category was assigned to a
+tenant. The original checkout at `/Users/ahammed/Documents/ChatGPT/7network`
+was left untouched. The full 42-ticket platform upgrade and its existing
+release gates remain open. See `DEPLOYMENT.md` for production verification and
+rollback details.
+
+## Real Estate agents and tenant requirements — production, 28 October 2026
+
+The existing Team Access and Lead Pipeline now include the Real Estate agent
+workflow: owner, manager, team leader and agent scopes; optional direct
+reporting; working areas and languages; senior-agent seniority; listing
+co-agents; owner-managed first-month commission rules and documented listing
+overrides. Tenant preferences extend existing Pipeline leads, with many-to-many
+lead/unit links, availability-aware listing matches, contact preferences and
+consent, and a required reason when a lead is lost. No second CRM or login was
+introduced. Public profiles are opt-in; their only quality indicator is an
+explicitly described active-listing count, not a rating or certification.
+
+The source increment has 64 passing focused checks and a disposable MariaDB
+11.4 integration run. The integration exercises cookie/bearer sessions,
+team-scoped leads, listing co-agents, agent profiles, commission visibility,
+public opt-in fields and agreement denial. Production release
+`/opt/salemax/releases/real-estate-agents-requirements-11be884-20261028`
+serves the updated Team Access and Lead Pipeline assets. Migrations
+`20270115`–`20270119` are applied; the added tenant-requirement, agent-profile,
+commission, co-agent and public-profile tables are empty. The failed first
+attempt at `20270115` created no tables or completed statements; the saved
+schema/ledger was reviewed, the lead-ID collation issue was corrected, and the
+migration was reconciled under the DB advisory lock before the remaining
+migrations ran. Production health, Pipeline and user routes return HTTP 200;
+anonymous property/agent APIs return 401. The app is healthy with zero restarts,
+its 65 existing Compose inputs and one Real Estate overlay are retained, and
+support services are unchanged. See `DEPLOYMENT.md` for the image, rollback and
+verification evidence. Authenticated owner review confirmed Team Access and the
+existing Pipeline lead form, including expandable property requirements,
+without creating production records. The cookie/bearer integration was rerun
+against the isolated MariaDB 11.4 test container and passed for owner, manager,
+team leader and agent scopes, including saved requirements, co-agents, profiles,
+commission visibility, public profile limits and agreement denial. Its unique
+synthetic schema was dropped after the run. Category assignment is separately
+verified in the Super Admin Manage Users flow (see `DEPLOYMENT.md`). Manager,
+team-leader and agent browser acceptance, responsive/PWA checks, private-media
+backup/restore and external listing portal publishing remain open.
+
+## Real Estate owners, partners and mandates — production, 27 October 2026
+
+The existing Properties workspace now includes Owners & Partners, Mandates and
+Shared with us views. The directory supports owners, property managers,
+brokerages and authorized partner workspaces, with company contacts, license
+expiry reminders, optional responsible-agent assignment, private notes and
+revision history. Mandates and partner agreements scope authority to selected
+units and dates, record exclusivity, advertising, viewing/referral permissions,
+approved media and descriptions, permitted channels, commission terms,
+agreement documents, and active/revoked/expired status with audit events.
+Overlapping active agreements of the same type cannot violate a current
+exclusive agreement; unit locks serialize concurrent activation attempts.
+
+Management agreements link to an active owner mandate covering the same units
+and dates. Brokerage and referral agreements can be directly authorized by an
+owner or linked to an active property manager agreement; manager and broker
+rights, dates, unit coverage, channels, approved media and descriptions are
+bounded by every agreement in the chain. Listing activation, partner sharing
+and agreement history evaluate the full chain. Revoking upstream authority
+immediately removes the downstream marketing path and pauses listings unless
+another complete authority chain remains valid. The bilingual agreement form
+filters contacts and parent agreements by the selected agreement type. Source
+commit `8bfbce80dc5d54ff94fc854f85fc3a16c06ec208` is deployed in
+`/opt/salemax/releases/real-estate-authority-chain-8bfbce8-20261027`; the
+additive parent migration was already applied. Thirty-nine focused tests and a
+disposable MariaDB 11.4 chain, isolation, revocation and concurrency rehearsal
+pass. Production health, asset hashes and anonymous API denial pass; only the
+app container changed. No Real Estate tenant or agreement data was created.
+Signed-in owner/manager/partner acceptance and EN/AR, RTL, themes, responsive/PWA
+visual acceptance remain open because production has no assigned Real Estate
+tenant. A follow-up production release fixes two issues found in a synthetic
+browser review: contacts without licence expiry dates no longer count as due,
+and Arabic owner/partner/agreement labels now select the translated value. The
+review exercised the agreement form and directory at 360, 390, 768, 1024 and
+1440 CSS pixels and Arabic RTL/dark mode at 360px; it verified modal scrolling,
+role-filtered contact/parent choices and no horizontal overflow. Candidate
+verification passed 41 focused tests and the disposable MariaDB rehearsal.
+Source `a29320c3b8303599bbf3a36779750984a0d84905` is deployed in
+`/opt/salemax/releases/real-estate-directory-polish-a29320c-20261027`; app
+health, public asset hashes and anonymous API denial pass, and support
+containers/mounts are unchanged. This is synthetic UI acceptance, not a signed-in
+production office review. See `DEPLOYMENT.md` for image, rollback and remaining
+gates.
+
+The 32 focused authority/inventory/router/media checks and a disposable MariaDB
+11.4 migration, tenant-isolation, document-isolation, revocation and concurrency
+rehearsal pass. Production source commits
+`700a545e42547fc43cf0742b7634dcba0673dbb7`,
+`60a5e95305ab2b17553736e64cc0ca908fe91ce8`, and
+`238e08c942736841f8b1ac2c2fffb5805ce9f644` are on `main`. The active app-only
+release is `/opt/salemax/releases/real-estate-authority-history-238e08c-20261027`.
+Agreement cards now expose a tenant-scoped audit history view. The migration
+ledger and public API boundary were verified. No Real Estate
+tenant or owner/agreement data was created. Authenticated office workflow,
+English/Arabic visual and RTL, light/dark, mobile/PWA, and private-media
+backup/restore acceptance remain open because no production tenant is assigned.
+See `DEPLOYMENT.md` for rollback and verification evidence.
+
+### Company documents follow-up — production, 27 October 2026
+
+Owner, manager, brokerage and partner cards now have a private PDF document
+drawer for company records such as trade licences. Contact documents use a
+separate tenant-qualified table and private media path, are limited to 20 per
+contact and the existing tenant quota, and are audited on upload/removal. The
+workspace offers download/removal to authorized owners and managers only.
+The directory shows both a due-soon/expired summary and warnings on the
+affected cards. These are in-app reminders when staff open Owners & Partners;
+scheduled or outbound reminders are not configured.
+
+Source `55dc0eb59cd33442503e340a38d9de58bb64c8ea` is pushed to `main`. The
+additive migration `20270113_real_estate_contact_documents.sql` is applied in
+production. The active app-only release is
+`/opt/salemax/releases/real-estate-contact-docs-55dc0eb-20261027`. The follow-up
+reminder UI source `a4409ca4e930a771a081adf09bdbefaa609db443` is also pushed to
+`main` and active at
+`/opt/salemax/releases/real-estate-license-reminders-a4409ca-20261027`.
+Candidate verification passed 38 focused Real Estate tests. Production health,
+the cache-busted bilingual owner/partner UI asset hashes and anonymous API
+denials were verified; the five supporting containers were unchanged. No Real
+Estate tenant or business documents were provisioned. Signed-in office, file
+upload, Arabic/RTL, themes, mobile/PWA and private-media backup/restore
+acceptance remain open because no production workspace is assigned. See
+`DEPLOYMENT.md` for rollback and release evidence.
+
+
+### Approved-content sharing hardening — production, 27 October 2026
+
+Source commit `4fa962b8735f9d3d64ab1ef836efd28d73f47bc9` is deployed at `/opt/salemax/releases/real-estate-content-approval-4fa962b-20261027`. Media and listing descriptions approved by active authority agreements are now hash-bound per unit; any edit invalidates sharing until reconfirmed. Partner photos/videos are returned only through a tenant-authenticated endpoint that rechecks agreement dates, full parent authority and current content hashes. Staff need the explicit `properties.shared.read` permission; assigned/team property reads do not widen into partner-shared inventory. The additive hash migration is applied; all Real Estate tables remain empty. Candidate verification passed 44 focused tests and the disposable MariaDB authority/media-isolation/concurrency rehearsal. Production health, asset hashes, anonymous API denial, support-service identities and mounts were verified. Signed-in office acceptance, role-grant workflow, Arabic/RTL, themes, responsive/PWA, and private-media backup/restore remain open because no Real Estate tenant is assigned. See `DEPLOYMENT.md` for complete release and rollback evidence.
