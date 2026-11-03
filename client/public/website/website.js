@@ -1,6 +1,88 @@
 (() => {
   "use strict";
   const root = document.documentElement;
+  const OPENAI_PIXEL_ID = "7f1xi4bh2i2PvmUAM8RNCh";
+  const OPENAI_CONSENT_KEY = "7network_openai_ads_measurement_consent_v1";
+  const consentPanel = document.getElementById("analytics-consent");
+  const consentSave = document.getElementById("analytics-accept");
+  const consentReject = document.getElementById("analytics-reject");
+  const consentSettings = document.getElementById("analytics-settings");
+  const openAiConsentChoice = document.getElementById("openai-analytics-choice");
+  let openAiConsent = readOpenAiConsent();
+  let openAiPixelLoaded = false;
+  function readOpenAiConsent() {
+    try {
+      const value = localStorage.getItem(OPENAI_CONSENT_KEY);
+      return value === "granted" || value === "denied" ? value : null;
+    } catch (_) {
+      return null;
+    }
+  }
+  function persistOpenAiConsent(value) {
+    openAiConsent = value;
+    try {
+      localStorage.setItem(OPENAI_CONSENT_KEY, value);
+    } catch (_) {
+      // The choice remains active for this page even if storage is unavailable.
+    }
+  }
+  function showConsentPanel(focusSave = true) {
+    openAiConsentChoice.checked = openAiConsent === "granted";
+    consentSettings.hidden = true;
+    consentPanel.hidden = false;
+    if (focusSave) consentSave.focus({ preventScroll: true });
+  }
+  function loadOpenAiPixel() {
+    if (openAiConsent !== "granted" || openAiPixelLoaded) return;
+    openAiPixelLoaded = true;
+    if (!window.oaiq) {
+      const queue = function () {
+        queue.q.push(arguments);
+      };
+      queue.q = [];
+      window.oaiq = queue;
+      const script = document.createElement("script");
+      script.async = true;
+      script.src = "https://bzrcdn.openai.com/sdk/oaiq.min.js";
+      document.head.appendChild(script);
+    }
+    window.oaiq("consent", true);
+    window.oaiq("init", { pixelId: OPENAI_PIXEL_ID });
+  }
+  function saveOpenAiConsent(value) {
+    persistOpenAiConsent(value);
+    if (value === "granted") {
+      loadOpenAiPixel();
+    } else if (window.oaiq) {
+      window.oaiq("consent", false);
+    }
+    consentPanel.hidden = true;
+    consentSettings.hidden = false;
+    consentSettings.focus({ preventScroll: true });
+  }
+  function sendOpenAiLead(eventId) {
+    if (openAiConsent !== "granted" || !openAiPixelLoaded || !window.oaiq)
+      return;
+    window.oaiq(
+      "measure",
+      "lead_created",
+      { type: "customer_action" },
+      { event_id: eventId },
+    );
+  }
+  if (openAiConsent === "granted") {
+    consentSettings.hidden = false;
+    loadOpenAiPixel();
+  } else if (openAiConsent === null) {
+    window.addEventListener("load", () => showConsentPanel(false), { once: true });
+  } else {
+    consentSettings.hidden = false;
+  }
+  consentSave.addEventListener("click", () =>
+    saveOpenAiConsent(openAiConsentChoice.checked ? "granted" : "denied"),
+  );
+  consentReject.addEventListener("click", () => saveOpenAiConsent("denied"));
+  consentSettings.addEventListener("click", () => showConsentPanel());
   let language =
     new URLSearchParams(location.search).get("lang") === "ar" ? "ar" : "en";
   const headlineMiddle = document.getElementById("hero-headline-middle");
@@ -83,6 +165,7 @@
   );
   const languageButton = document.getElementById("language");
   const floatingWhatsApp = document.querySelector(".floating-cta");
+  const openAiPrivacyLink = document.querySelector(".analytics-consent-policy a");
   const status = document.getElementById("form-status");
   let statusMessage = null;
   function updateFloatingWhatsApp() {
@@ -100,6 +183,9 @@
     root.lang = language;
     root.dir = language === "ar" ? "rtl" : "ltr";
     updateFloatingWhatsApp();
+    if (openAiPrivacyLink)
+      openAiPrivacyLink.href =
+        "/website/meta-privacy.html" + (language === "ar" ? "?lang=ar" : "");
     translations.forEach(([node, en, ar]) => {
       node.textContent = language === "ar" ? ar : en;
     });
@@ -497,6 +583,8 @@
           throw Object.assign(new Error(), { type: "validation" });
         throw new Error("unavailable");
       }
+      const conversionEventId = submissionToken;
+      sendOpenAiLead(conversionEventId);
       form.reset();
       submissionToken = crypto.randomUUID();
       submittedPayload = null;
