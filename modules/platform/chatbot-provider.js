@@ -1,5 +1,6 @@
 'use strict';
 const fetch = require('node-fetch');
+const promptCache = require('./ai-prompt-cache');
 
 const PROVIDERS = Object.freeze({
   openai: { endpoint: 'https://api.openai.com/v1/chat/completions', style: 'openai' },
@@ -15,7 +16,7 @@ async function boundedJson(response, maxBytes = 65536) {
   try { return JSON.parse(text); } catch { throw Object.assign(new Error('PROVIDER_INVALID_RESPONSE'), { code: 'PROVIDER_INVALID_RESPONSE' }); }
 }
 
-async function generate({ provider, model, apiKey, system, user, requireSources = false, maxOutputTokens = 350, fetchImpl = fetch }) {
+async function generate({ provider, model, apiKey, system, context, user, cacheScope, requireSources = false, maxOutputTokens = 350, fetchImpl = fetch }) {
   const spec = PROVIDERS[provider];
   if (!spec) throw Object.assign(new Error('AI_PROVIDER_UNSUPPORTED'), { code: 'AI_PROVIDER_UNSUPPORTED' });
   if (typeof model !== 'string' || !/^[A-Za-z0-9._:-]{1,80}$/.test(model)) throw Object.assign(new Error('AI_MODEL_INVALID'), { code: 'AI_MODEL_INVALID' });
@@ -46,10 +47,12 @@ async function generate({ provider, model, apiKey, system, user, requireSources 
           delete body.temperature;
         }
       }
+      if (context) body.messages.splice(1, 0, { role: 'user', content: context });
+      promptCache.configure(body, { provider, model, cacheScope, stablePrefixIndex: context ? 1 : 0 });
     } else {
       url += `${encodeURIComponent(model)}:generateContent`;
       headers['x-goog-api-key'] = apiKey;
-      body = { systemInstruction: { parts: [{ text: system }] }, contents: [{ role: 'user', parts: [{ text: user }] }], generationConfig: { temperature: 0.1, maxOutputTokens: Math.min(Math.max(maxOutputTokens, 64), 700), responseMimeType: 'application/json' } };
+      body = { systemInstruction: { parts: [{ text: system }] }, contents: [{ role: 'user', parts: [{ text: [context, user].filter(Boolean).join('\n\n') }] }], generationConfig: { temperature: 0.1, maxOutputTokens: Math.min(Math.max(maxOutputTokens, 64), 700), responseMimeType: 'application/json' } };
     }
     const response = await fetchImpl(url, { method: 'POST', headers, body: JSON.stringify(body), signal: controller.signal, redirect: 'error', size: 65536 });
     if (!response.ok) throw Object.assign(new Error('AI_PROVIDER_REQUEST_FAILED'), { code: 'AI_PROVIDER_REQUEST_FAILED', status: response.status });
@@ -62,13 +65,14 @@ async function generate({ provider, model, apiKey, system, user, requireSources 
       throw error;
     }
     const text = spec.style === 'openai' ? payload?.choices?.[0]?.message?.content : payload?.candidates?.[0]?.content?.parts?.map(part => part.text || '').join('');
-    const tokensUsed = Number(payload?.usage?.prompt_tokens ?? payload?.usageMetadata?.promptTokenCount ?? 0) + Number(payload?.usage?.completion_tokens ?? payload?.usageMetadata?.candidatesTokenCount ?? 0) + Number(payload?.usageMetadata?.thoughtsTokenCount ?? 0);
-    const invalidOutput = () => Object.assign(new Error('AI_PROVIDER_INVALID_OUTPUT'), { code: 'AI_PROVIDER_INVALID_OUTPUT', ...(Number.isSafeInteger(tokensUsed) && tokensUsed > 0 ? { tokensUsed } : {}) });
+    const usage = promptCache.usage(payload);
+    const tokensUsed = usage.inputTokens + usage.outputTokens;
+    const invalidOutput = () => Object.assign(new Error('AI_PROVIDER_INVALID_OUTPUT'), { code: 'AI_PROVIDER_INVALID_OUTPUT', usage, ...(tokensUsed > 0 ? { tokensUsed } : {}) });
     if (typeof text !== 'string' || !text.trim() || text.length > 12000) throw invalidOutput();
     let parsed;
     try { parsed = JSON.parse(text); } catch { throw invalidOutput(); }
     if (!parsed || typeof parsed !== 'object' || typeof parsed.reply !== 'string' || parsed.reply.length > 1600 || typeof parsed.can_answer !== 'boolean' || !Number.isFinite(parsed.confidence) || parsed.confidence < 0 || parsed.confidence > 1 || (requireSources && (!Array.isArray(parsed.source_ids) || parsed.source_ids.length > 8 || parsed.source_ids.some(id => typeof id !== 'string' || id.length > 100)))) throw invalidOutput();
-    return { ...(Array.isArray(parsed.source_ids) ? { sourceIds: parsed.source_ids.filter(id => typeof id === 'string' && id.length <= 100).slice(0, 8) } : {}), canAnswer: parsed.can_answer, confidence: parsed.confidence, reply: parsed.reply.trim(), inputTokens: Number(payload?.usage?.prompt_tokens ?? payload?.usageMetadata?.promptTokenCount ?? 0), outputTokens: Number(payload?.usage?.completion_tokens ?? payload?.usageMetadata?.candidatesTokenCount ?? 0) };
+    return { ...(Array.isArray(parsed.source_ids) ? { sourceIds: parsed.source_ids.filter(id => typeof id === 'string' && id.length <= 100).slice(0, 8) } : {}), canAnswer: parsed.can_answer, confidence: parsed.confidence, reply: parsed.reply.trim(), ...usage };
   } catch (error) {
     if (error.name === 'AbortError') throw Object.assign(new Error('AI_PROVIDER_TIMEOUT'), { code: 'AI_PROVIDER_TIMEOUT' });
     if (['AI_PROVIDER_REQUEST_FAILED', 'AI_PROVIDER_INVALID_OUTPUT'].includes(error.code)) throw error;
@@ -98,7 +102,7 @@ function geminiSchema(schema) {
   return result;
 }
 
-async function generateConversation({ provider, model, apiKey, messages, functions = [], maxOutputTokens = 350, fetchImpl = fetch }) {
+async function generateConversation({ provider, model, apiKey, messages, cacheScope, functions = [], maxOutputTokens = 350, fetchImpl = fetch }) {
   const spec = PROVIDERS[provider];
   if (!spec) throw Object.assign(new Error('AI_PROVIDER_UNSUPPORTED'), { code: 'AI_PROVIDER_UNSUPPORTED' });
   if (typeof model !== 'string' || !/^[A-Za-z0-9._:-]{1,80}$/.test(model)) throw Object.assign(new Error('AI_MODEL_INVALID'), { code: 'AI_MODEL_INVALID' });
@@ -123,6 +127,8 @@ async function generateConversation({ provider, model, apiKey, messages, functio
         if (model !== 'gpt-6-luna') { body.reasoning_effort = 'low'; delete body.temperature; }
         else body.reasoning_effort = 'none';
       }
+      const firstUser = messages.findIndex(message => message.role !== 'system');
+      promptCache.configure(body, { provider, model, cacheScope, stablePrefixIndex: firstUser > 0 ? firstUser - 1 : -1, conversation: true });
     } else {
       url += `${encodeURIComponent(model)}:generateContent`;
       headers['x-goog-api-key'] = apiKey;
@@ -135,6 +141,7 @@ async function generateConversation({ provider, model, apiKey, messages, functio
     const response = await fetchImpl(url, { method: 'POST', headers, body: JSON.stringify(body), signal: controller.signal, redirect: 'error', size: 65536 });
     if (!response.ok) throw Object.assign(new Error('AI_PROVIDER_REQUEST_FAILED'), { code: 'AI_PROVIDER_REQUEST_FAILED', status: response.status });
     const payload = await boundedJson(response);
+    const usage = promptCache.usage(payload);
     let msg = '', functionName = null, functionArguments = null;
     if (spec.style === 'openai') {
       const choice = payload?.choices?.[0]?.message;
@@ -142,7 +149,7 @@ async function generateConversation({ provider, model, apiKey, messages, functio
       const toolCall = choice?.tool_calls?.[0]?.function;
       functionName = toolCall?.name || choice?.function_call?.name || null;
       const rawArguments = toolCall?.arguments ?? choice?.function_call?.arguments;
-      if (typeof rawArguments === 'string') { try { functionArguments = JSON.parse(rawArguments); } catch { throw Object.assign(new Error('AI_PROVIDER_INVALID_OUTPUT'), { code: 'AI_PROVIDER_INVALID_OUTPUT' }); } }
+      if (typeof rawArguments === 'string') { try { functionArguments = JSON.parse(rawArguments); } catch { throw Object.assign(new Error('AI_PROVIDER_INVALID_OUTPUT'), { code: 'AI_PROVIDER_INVALID_OUTPUT', tokensUsed: usage.inputTokens + usage.outputTokens, usage }); } }
     } else {
       const parts = payload?.candidates?.[0]?.content?.parts || [];
       msg = parts.map(part => typeof part.text === 'string' ? part.text : '').join('');
@@ -150,12 +157,8 @@ async function generateConversation({ provider, model, apiKey, messages, functio
       functionName = call?.name || null;
       functionArguments = call?.args && typeof call.args === 'object' ? call.args : null;
     }
-    const usage = {
-      inputTokens: Number(payload?.usage?.prompt_tokens ?? payload?.usageMetadata?.promptTokenCount ?? 0),
-      outputTokens: Number(payload?.usage?.completion_tokens ?? payload?.usageMetadata?.candidatesTokenCount ?? 0) + Number(payload?.usageMetadata?.thoughtsTokenCount ?? 0),
-    };
-    if ((!msg.trim() && !functionName) || msg.length > 12000) throw Object.assign(new Error('AI_PROVIDER_INVALID_OUTPUT'), { code: 'AI_PROVIDER_INVALID_OUTPUT', tokensUsed: usage.inputTokens + usage.outputTokens });
-    if (functionName && !toolList.some(fn => fn.name === functionName)) throw Object.assign(new Error('AI_PROVIDER_INVALID_OUTPUT'), { code: 'AI_PROVIDER_INVALID_OUTPUT', tokensUsed: usage.inputTokens + usage.outputTokens });
+    if ((!msg.trim() && !functionName) || msg.length > 12000) throw Object.assign(new Error('AI_PROVIDER_INVALID_OUTPUT'), { code: 'AI_PROVIDER_INVALID_OUTPUT', tokensUsed: usage.inputTokens + usage.outputTokens, usage });
+    if (functionName && !toolList.some(fn => fn.name === functionName)) throw Object.assign(new Error('AI_PROVIDER_INVALID_OUTPUT'), { code: 'AI_PROVIDER_INVALID_OUTPUT', tokensUsed: usage.inputTokens + usage.outputTokens, usage });
     return { success: true, msg: msg.trim(), function: functionName || false, functionArguments, ...usage, usage };
   } catch (error) {
     if (error.name === 'AbortError') throw Object.assign(new Error('AI_PROVIDER_TIMEOUT'), { code: 'AI_PROVIDER_TIMEOUT' });

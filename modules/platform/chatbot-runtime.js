@@ -556,7 +556,7 @@ async function generateAiAnswer({ ctx, profile, uid, customerMessage, chatId = n
   const historySafe = Array.isArray(session.recentConversation) ? session.recentConversation.slice(-4).map(item => ({ role: item.role, text: businessContext.redactCustomerText(item.text) })) : [];
   const key = businessContext.fingerprint({ tenant: ctx.tenant.id, profile: profile.id, revision: context.revision, model: settings.model, provider: settings.provider, question: businessContext.normalized(customerMessage), language: context.language, history: historySafe, selected: session.selectedCourseCode });
   const cached = replyCache.get(key);
-  if (cached && cached.expiresAt > Date.now()) return { ...cached.answer, state: nextState, metrics: { ...cached.answer.metrics, cacheHit: true, inputTokens: 0, outputTokens: 0 } };
+  if (cached && cached.expiresAt > Date.now()) return { ...cached.answer, state: nextState, metrics: { ...cached.answer.metrics, cacheHit: true, inputTokens: 0, outputTokens: 0, cachedInputTokens: 0, cacheWriteTokens: 0 } };
   const sourceAliases = new Map();
   const aiEvidence = courseOverview
     ? context.evidence.filter(item => item.kind === 'course').map(item => ({
@@ -570,9 +570,9 @@ async function generateAiAnswer({ ctx, profile, uid, customerMessage, chatId = n
     }))
     : context.evidence;
   const compactEvidence = aiEvidence.map((item, index) => { const alias = 's' + index; sourceAliases.set(alias, item.sourceId); return { ...item, sourceId: alias }; });
-  const { system, user: input, inputBytes } = buildAiPrompt({ pack, profile, customerMessage: businessContext.redactCustomerText(customerMessage), facts: compactEvidence, history: historySafe, courseOverview });
+  const { system, context: promptContext, user: input, inputBytes } = buildAiPrompt({ pack, profile, customerMessage: businessContext.redactCustomerText(customerMessage), facts: compactEvidence, history: historySafe, courseOverview });
   if (inputBytes > 12000) return factualOverviewFallback(context) || { canAnswer: true, reply: businessContext.clarification(profile.config, context.language), confidence: 0, state: nextState, route: 'clarification' };
-  const prompt = `${system}\n\n${input}`;
+  const prompt = `${system}\n\n${promptContext}\n\n${input}`;
   const estimate = tokenEstimate(prompt);
   let reservation = null;
   try { reservation = await reserveTokens(ctx, settings, estimate); }
@@ -583,11 +583,12 @@ async function generateAiAnswer({ ctx, profile, uid, customerMessage, chatId = n
   let failedUsage = null;
   onStage?.('provider-request');
   try {
-    response = await provider.generate({ provider: settings.provider, model: settings.model, apiKey: settings.apiKey, system, user: input, requireSources: true, maxOutputTokens: courseOverview ? 90 : 250 });
+    response = await provider.generate({ provider: settings.provider, model: settings.model, apiKey: settings.apiKey, system, context: promptContext, user: input, cacheScope: `${ctx.tenant.id}:chatbot`, requireSources: true, maxOutputTokens: courseOverview ? 90 : 250 });
     if (Array.isArray(response.sourceIds)) response.sourceIds = response.sourceIds.map(id => sourceAliases.get(id) || 'invalid:' + id);
     if (courseOverview && typeof response.reply === 'string') response.reply = response.reply.replace(/\s*\[s\d+\]/gi, '').trim();
     succeeded = true;
   } catch (error) {
+    if (error.usage) response = error.usage;
     if (Number.isSafeInteger(error.tokensUsed)) failedUsage = error.tokensUsed;
     else if (Number.isInteger(error.status)) failedUsage = 0;
     if (courseOverview) return factualOverviewFallback(context) || { handedOff: true, code: error.code || 'AI_PROVIDER_ERROR' };
@@ -596,12 +597,13 @@ async function generateAiAnswer({ ctx, profile, uid, customerMessage, chatId = n
     try {
       await settleTokens(ctx, reservation, succeeded ? ((response?.inputTokens || 0) + (response?.outputTokens || 0) || null) : failedUsage, {
         provider: settings.provider, model: settings.model,
-        inputTokens: succeeded ? response?.inputTokens : null,
-        outputTokens: succeeded ? response?.outputTokens : failedUsage,
+        inputTokens: response?.inputTokens,
+        outputTokens: response?.outputTokens ?? failedUsage,
+        cachedInputTokens: response?.cachedInputTokens, cacheWriteTokens: response?.cacheWriteTokens,
       });
     } catch (error) { console.warn('[chatbot] AI usage settlement unavailable', error.code || 'USAGE_SETTLEMENT_FAILED'); }
   }
-  const metrics = { inputTokens: response.inputTokens || 0, outputTokens: response.outputTokens || 0, cacheHit: false, latencyMs: Date.now() - providerStarted, sources: context.sources, provider: settings.provider, model: settings.model };
+  const metrics = { inputTokens: response.inputTokens || 0, outputTokens: response.outputTokens || 0, cachedInputTokens: response.cachedInputTokens || 0, cacheWriteTokens: response.cacheWriteTokens || 0, cacheHit: false, latencyMs: Date.now() - providerStarted, sources: context.sources, provider: settings.provider, model: settings.model };
   onStage?.('answer-validation');
   const validation = businessContext.validateAnswer(response, context);
   const threshold = Number(profile.config?.confidenceThreshold ?? 0.72);

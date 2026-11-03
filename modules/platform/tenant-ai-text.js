@@ -38,13 +38,15 @@ async function generate({ pool, tenantId, mode, text, targetLanguage, history = 
       provider: settings.provider,
       model: settings.model,
       apiKey: settings.apiKey,
+      cacheScope: `${tenantId}:text:${mode}`,
       ...prompt,
       maxOutputTokens: mode === 'translation' ? 350 : 180,
     });
     used = (response.inputTokens || 0) + (response.outputTokens || 0);
     if (!response.canAnswer || !response.reply?.trim()) fail('AI_PROVIDER_INVALID_OUTPUT', 502);
-    return { text: response.reply.trim(), usage: { inputTokens: response.inputTokens || 0, outputTokens: response.outputTokens || 0 } };
+    return { text: response.reply.trim(), usage: { inputTokens: response.inputTokens || 0, outputTokens: response.outputTokens || 0, cachedInputTokens: response.cachedInputTokens || 0, cacheWriteTokens: response.cacheWriteTokens || 0 } };
   } catch (error) {
+    if (error.usage) response = error.usage;
     if (Number.isSafeInteger(error.tokensUsed) && error.tokensUsed >= 0) used = error.tokensUsed;
     throw error;
   } finally {
@@ -52,6 +54,7 @@ async function generate({ pool, tenantId, mode, text, targetLanguage, history = 
       await settingsService.settleTokens(pool, tenantId, reservation, used, {
         provider: settings.provider, model: settings.model,
         inputTokens: response?.inputTokens, outputTokens: response?.outputTokens,
+        cachedInputTokens: response?.cachedInputTokens, cacheWriteTokens: response?.cacheWriteTokens,
       });
     } catch (error) { console.warn('[tenant-ai-text] usage settlement unavailable', error.code || 'USAGE_SETTLEMENT_FAILED'); }
   }

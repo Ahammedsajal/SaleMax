@@ -5,33 +5,9 @@
 
   const root = '/api/user/chatbots';
   const engines = ['guided', 'hybrid', 'ai'];
-  // Curated chat-capable models supported by the current provider adapters.
-  // Prices are USD per 1M text tokens and should be refreshed when providers change rates.
-  const providerModels = Object.freeze({
-    openai: [
-      { id: 'gpt-6-luna', en: 'GPT-6 Luna · Recommended · $0.10 input / $0.50 output', ar: 'GPT-6 Luna · موصى به · 0.10$ إدخال / 0.50$ إخراج' },
-      { id: 'gpt-6.1-sol', en: 'GPT-6.1 Sol · Balanced · $2.00 / $10.00', ar: 'GPT-6.1 Sol · متوازن · 2.00$ / 10.00$' },
-      { id: 'gpt-6-astra', en: 'GPT-6 Astra · Highest capability · $10.00 / $50.00', ar: 'GPT-6 Astra · أعلى قدرات · 10.00$ / 50.00$' },
-    ],
-    gemini: [
-      { id: 'gemini-3.1-flash-lite', en: 'Gemini 3.1 Flash-Lite · Recommended · $0.25 input / $1.50 output', ar: 'Gemini 3.1 Flash-Lite · موصى به · 0.25$ إدخال / 1.50$ إخراج' },
-      { id: 'gemini-3.8-flash', en: 'Gemini 3.8 Flash · Balanced · $0.75 / $4.50 through Dec 31, 2026', ar: 'Gemini 3.8 Flash · متوازن · 0.75$ / 4.50$ حتى 31 ديسمبر 2026' },
-      { id: 'gemini-3.5-flash', en: 'Gemini 3.5 Flash · Higher capability · $1.50 / $9.00', ar: 'Gemini 3.5 Flash · قدرات أعلى · 1.50$ / 9.00$' },
-    ],
-    deepseek: [
-      { id: 'deepseek-flash', en: 'DeepSeek Flash · Recommended · $0.15–$0.30 input / $0.60–$1.20 output', ar: 'DeepSeek Flash · موصى به · 0.15–0.30$ إدخال / 0.60–1.20$ إخراج' },
-      { id: 'deepseek-v4-pro', en: 'DeepSeek V4 Pro · Higher capability · $0.66–$1.32 / $1.98–$3.96', ar: 'DeepSeek V4 Pro · قدرات أعلى · 0.66–1.32$ / 1.98–3.96$' },
-    ],
-  });
   const state = { tab: 'legacy', bots: [], channels: [], flows: [], handoffAssignees: [], categoryKey: 'training_center', categoryTitle: null, categoryVersion: 1, guidedContentDefaults: null, guidedContentSchema: null, captureForms:[],captureFormsSupported:false,chatbotLeadCaptureSupported:false, provider: { configured: false, revision: 0 }, csrf: null, mounted: false, assignmentPage: true };
   const ar = () => window.SaleMaxLocale?.isArabic() ?? /^(ar(?:[-_]|$)|arabic)/i.test(localStorage.getItem('language') || document.documentElement.lang || 'en');
   const tr = (en, arabic) => ar() ? arabic : en;
-  function modelChoices(provider, selected) {
-    const choices = providerModels[provider] || providerModels.openai;
-    const legacy = selected && !choices.some(item => item.id === selected) ? `<option value="${esc(selected)}" selected>${esc(tr(`Saved model: ${selected}`, `النموذج المحفوظ: ${selected}`))}</option>` : '';
-    const selectedId = selected ? (choices.some(item => item.id === selected) ? selected : null) : choices[0].id;
-    return legacy + choices.map(item => `<option value="${esc(item.id)}" ${item.id === selectedId ? 'selected' : ''}>${esc(item[ar() ? 'ar' : 'en'])}</option>`).join('');
-  }
   function presetChoices(values, selected, recommended) {
     const selectedValue = String(selected ?? recommended);
     const legacy = values.includes(selectedValue) ? '' : `<option value="${esc(selectedValue)}" selected>${esc(tr(`Saved setting: ${selectedValue}`, `الإعداد المحفوظ: ${selectedValue}`))}</option>`;
@@ -704,7 +680,7 @@
     const testSettings = `<div class="sx-full sx-test-phone-field"><label for="sx-test-number-entry">${esc(tr('Test numbers','أرقام الاختبار'))}</label><div class="sx-test-number-list" data-test-number-list role="list" aria-label="${esc(tr('Configured test numbers','أرقام الاختبار المضافة'))}"></div><div class="sx-test-number-entry"><input id="sx-test-number-entry" type="tel" inputmode="tel" autocomplete="tel" maxlength="24" data-test-number-entry aria-describedby="sx-test-number-help sx-test-number-error" placeholder="+974 5011 9041"><button type="button" class="sx-secondary" data-test-number-add>${esc(tr('Add number','إضافة رقم'))}</button></div><input type="hidden" name="testRecipientPhone" value="${esc((config.testRecipientPhones || [config.testRecipientPhone]).filter(Boolean).join(', '))}"><small class="sx-muted" id="sx-test-number-help">${esc(tr('Add up to 10 numbers one at a time. These numbers can receive test replies and use “reset bot” to restart after a handover. Leave the list empty to disable test access. Existing messages and staff tasks are kept.','أضف حتى 10 أرقام واحداً تلو الآخر. يمكن لهذه الأرقام تلقي الردود التجريبية وإرسال reset bot للبدء من جديد بعد التحويل للموظف. اترك القائمة فارغة لتعطيل الاختبار. تبقى الرسائل ومهام الموظفين محفوظة.'))}</small><small class="sx-test-number-error" id="sx-test-number-error" role="alert" hidden></small></div>`;
     const instructions = engine === 'guided' ? '' : `<label class="sx-full">${esc(tr('Business instructions','تعليمات النشاط'))}<textarea name="instructions" maxlength="4000" placeholder="${esc(tr('Describe tone and approved answers. Do not include payment or enrollment commitments.','صف الأسلوب والإجابات المعتمدة دون وعود بالدفع أو التسجيل.'))}">${esc(config.instructions||'')}</textarea></label>`;
     const faq = `<div class="sx-full sx-muted">${esc(tr('Manage approved FAQs for all bots from the FAQs page. Guided replies match meaningful words; Hybrid uses approved FAQ answers and business information.','أدر الأسئلة الشائعة المعتمدة لجميع الروبوتات من صفحة الأسئلة الشائعة. تطابق الردود الموجّهة الكلمات المهمة، ويستخدم Hybrid الإجابات المعتمدة ومعلومات العمل.'))} <a href="/user?page=faqs">${esc(tr('Open FAQs','فتح الأسئلة الشائعة'))} ↗</a></div>`;
-    const providerFields = engine === 'guided' ? '' : `<div class="sx-full"><strong>${esc(tr('AI provider','مزود الذكاء الاصطناعي'))}</strong><div class="sx-muted">${esc(liveEdit ? tr('Provider credentials and model settings are locked while this bot is active. Pause it to change them.','بيانات المزود وإعدادات النموذج مقفلة أثناء نشاط الروبوت. أوقفه لتغييرها.') : state.provider.configured ? tr(`Configured: ${state.provider.provider} · ${state.provider.model}. Leave the key empty to keep the saved key.`,`تم الإعداد: ${state.provider.provider} · ${state.provider.model}. اترك المفتاح فارغًا للاحتفاظ بالمفتاح الحالي.`) : tr('An API key is required before an AI bot can be activated.','يلزم مفتاح API قبل تفعيل روبوت الذكاء الاصطناعي.'))}</div></div><label>${esc(tr('Provider','المزود'))}<select name="provider" ${locked}><option value="openai" ${state.provider.provider==='openai'?'selected':''}>OpenAI</option><option value="gemini" ${state.provider.provider==='gemini'?'selected':''}>Gemini</option><option value="deepseek" ${state.provider.provider==='deepseek'?'selected':''}>DeepSeek</option></select></label><label>${esc(tr('AI model','نموذج الذكاء الاصطناعي'))}<select name="model" ${locked}>${modelChoices(state.provider.provider || 'openai', state.provider.model || '')}</select><small class="sx-muted">${esc(tr('Prices are estimates in USD per 1 million text tokens. Check the provider account’s data-use terms before sending customer messages; rates and availability can change.','الأسعار تقديرية بالدولار لكل مليون رمز نصي. راجع شروط استخدام بيانات حساب المزود قبل إرسال رسائل العملاء؛ قد تتغير الأسعار وتوفّر النماذج.'))}</small></label><label class="sx-full">${esc(tr('Provider API key','مفتاح API للمزود'))}<input name="apiKey" type="password" maxlength="2048" autocomplete="new-password" placeholder="${esc(tr('Enter a key to add or rotate it','أدخل مفتاحًا لإضافته أو تغييره'))}" ${locked}></label><p class="sx-full sx-muted" role="note">${esc(tr('No daily token cap. We estimate monthly AI spend and send a reminder to the owner and manager when it reaches $10; replies continue.','لا يوجد حد يومي للرموز. نقدّر إنفاق الذكاء الاصطناعي الشهري ونرسل تذكيرًا للمالك والمدير عند بلوغ 10 دولارات، مع استمرار الردود.'))}</p>`;
+    const providerFields = engine === 'guided' ? '' : `<div class="sx-full"><strong>${esc(tr('AI integration','تكامل الذكاء الاصطناعي'))}</strong><div class="sx-muted">${esc(state.provider.configured ? tr(`Configured: ${state.provider.provider} · ${state.provider.model}.`,`تم الإعداد: ${state.provider.provider} · ${state.provider.model}.`) : tr('Configure a provider before activating AI replies.','أعدّ مزودًا قبل تفعيل ردود الذكاء الاصطناعي.'))} ${esc(tr('Provider, model, encrypted API key, prompt caching and monthly usage are managed in AI Integrations.','تُدار إعدادات المزود والنموذج ومفتاح API المشفر والتخزين المؤقت والاستخدام الشهري في تكاملات الذكاء الاصطناعي.'))}</div><a href="/user?page=ai-integrations">${esc(tr('Open AI Integrations','فتح تكاملات الذكاء الاصطناعي'))} ↗</a></div>`;
     const thresholdField = engine === 'guided' ? '' : `<label>${esc(tr('Confidence threshold','حد الثقة'))}<select name="confidenceThreshold">${presetChoices(['0.50','0.60','0.70','0.72','0.80','0.90','0.95'], String(config.confidenceThreshold ?? '0.72'), '0.72')}</select></label>`;
     const preview = existing && engine !== 'guided' && !(engine === 'hybrid' && config.aiFallback === false) ? `<section class="sx-preview"><div class="sx-preview-title">${esc(tr('Test this bot','اختبر هذا الروبوت'))}</div><div class="sx-preview-note">${esc(tr('Preview follows the real bot routing and remembers this test conversation. AI answers use the configured provider and contribute to estimated monthly spend; no token cap is applied. Greetings, keyword replies and simple Hybrid facts use no AI tokens. Uses saved settings.','تتبع المعاينة مسار الروبوت الفعلي وتتذكر محادثة الاختبار. تستخدم ردود الذكاء المزود وتُضاف إلى الإنفاق الشهري التقديري دون حد للرموز. لا تستهلك التحيات وردود الكلمات والحقائق الهجينة البسيطة رموزًا. تستخدم الإعدادات المحفوظة.'))}</div><label>${esc(tr('Test customer message','رسالة العميل للاختبار'))}<textarea id="sx-chatbot-preview-message" maxlength="2000" placeholder="${esc(tr('Ask a sample business or FAQ question…','اكتب سؤالاً تجريبياً عن النشاط أو سؤالاً شائعاً…'))}"></textarea></label><button type="button" class="sx-secondary" id="sx-chatbot-preview" ${state.provider.configured ? '' : 'disabled'}>${esc(tr('Preview reply','معاينة الرد'))}</button><div class="sx-preview-result" id="sx-chatbot-preview-result" aria-live="polite"></div></section>` : '';
     const liveEditNotice = liveEdit ? `<div class="sx-alert sx-full">${esc(tr('This bot stays active. Saved changes take effect on the next incoming message. Preview first; its connected number and AI provider settings stay unchanged.','سيظل هذا الروبوت نشطًا. تسري التغييرات المحفوظة على الرسالة الواردة التالية. عاين التغييرات أولاً؛ سيبقى الرقم المتصل وإعدادات مزود الذكاء الاصطناعي كما هي.'))}</div>` : '';
@@ -769,14 +745,6 @@
       if (row && button.hasAttribute('data-rule-remove')) row.remove();
       if (row && button.hasAttribute('data-rule-up') && row.previousElementSibling) rows.insertBefore(row, row.previousElementSibling);
       if (row && button.hasAttribute('data-rule-down') && row.nextElementSibling) rows.insertBefore(row.nextElementSibling, row);
-    });
-    const providerSelect = formElement.querySelector('select[name="provider"]');
-    const modelSelect = formElement.querySelector('select[name="model"]');
-    providerSelect?.addEventListener('change', () => {
-      const prior = modelSelect.value;
-      modelSelect.innerHTML = modelChoices(providerSelect.value, '');
-      modelSelect.value = providerModels[providerSelect.value]?.[0]?.id || '';
-      if (!modelSelect.value) modelSelect.value = prior;
     });
     const flowSelect = formElement.querySelector('select[name="flowId"]');
     const guideSection = formElement.querySelector('[data-guide-content]');
@@ -873,15 +841,6 @@
         if (existing) saved=await api(`/${bot.id}`,'PUT',{...body,expectedRevision:Number(bot.revision)});
         else saved=await api('', 'POST', body);
         let id=existing?.id||saved.id, revision=Number(saved.revision||1);
-        const usesAi = engine === 'ai' || (engine === 'hybrid' && body.config.aiFallback !== false);
-        if (usesAi && !liveEdit) {
-          const key=String(data.get('apiKey')||'');
-          const providerBody={provider:String(data.get('provider')),model:String(data.get('model')||''),expectedRevision:Number(state.provider.revision||0)};
-          if (key) providerBody.apiKey=key;
-          if (key || (state.provider.configured && (state.provider.provider!==providerBody.provider || state.provider.model!==providerBody.model))) {
-            state.provider=await api('/settings/provider','PUT',providerBody);
-          }
-        }
         dialog.remove(); await refresh(); render();
       } catch (err) {
         if (engine === 'guided') {
@@ -889,7 +848,7 @@
           submit.disabled = false;
           return;
         }
-        // Profile, provider and channel writes are individually transactional.
+        // Profile and channel writes are individually transactional.
         // Refresh after any later-stage failure so retrying cannot submit a stale
         // revision or accidentally create a second draft after partial success.
         dialog.remove();

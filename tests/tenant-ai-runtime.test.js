@@ -20,7 +20,7 @@ test('shared AI runtime runs with tenant provider and settles reported usage', a
   const fake = fakeSettings();
   const result = await run({ pool: {}, tenantId: 'tenant-a', input: 'short prompt', maxOutputTokens: 100, execute: async config => ({ reply: 'ok', usage: { inputTokens: 20, outputTokens: 8 }, config }) }, { settingsService: fake.service });
   assert.equal(result.configured, true);
-  assert.deepEqual(result.result.config, { provider: 'openai', model: 'gpt-6-luna', apiKey: 'test-key' });
+  assert.deepEqual(result.result.config, { provider: 'openai', model: 'gpt-6-luna', apiKey: 'test-key', cacheScope: 'tenant-a:automation' });
   assert.deepEqual(fake.calls.at(-1), ['settle', 'tenant-a', fake.calls[1][3], 28]);
 });
 

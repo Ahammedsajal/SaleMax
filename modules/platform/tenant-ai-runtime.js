@@ -23,18 +23,19 @@ async function run({ pool, tenantId, input, maxOutputTokens = 350, execute }, de
   catch (error) { console.warn('[tenant-ai] usage reservation unavailable', error.code || 'USAGE_RESERVATION_FAILED'); }
   let used = null, usageDetails = {};
   try {
-    const result = await execute({ provider: settings.provider, model: settings.model, apiKey: settings.apiKey });
+    const result = await execute({ provider: settings.provider, model: settings.model, apiKey: settings.apiKey, cacheScope: `${tenantId}:automation` });
     const usage = result?.usage;
     if (Number.isSafeInteger(usage?.inputTokens) && Number.isSafeInteger(usage?.outputTokens)) {
       used = Math.max(0, usage.inputTokens + usage.outputTokens);
-      usageDetails = { inputTokens: usage.inputTokens, outputTokens: usage.outputTokens };
+      usageDetails = { inputTokens: usage.inputTokens, outputTokens: usage.outputTokens, cachedInputTokens: usage.cachedInputTokens, cacheWriteTokens: usage.cacheWriteTokens };
     } else if (Number.isSafeInteger(result?.inputTokens) && Number.isSafeInteger(result?.outputTokens)) {
       used = Math.max(0, result.inputTokens + result.outputTokens);
-      usageDetails = { inputTokens: result.inputTokens, outputTokens: result.outputTokens };
+      usageDetails = { inputTokens: result.inputTokens, outputTokens: result.outputTokens, cachedInputTokens: result.cachedInputTokens, cacheWriteTokens: result.cacheWriteTokens };
     }
     return { configured: true, result };
   } catch (error) {
     if (Number.isSafeInteger(error?.tokensUsed) && error.tokensUsed >= 0) { used = error.tokensUsed; usageDetails = { inputTokens: 0, outputTokens: error.tokensUsed }; }
+    if (error.usage) usageDetails = error.usage;
     throw error;
   } finally {
     try { await settingsService.settleTokens(pool, tenantId, reservation, used, { provider: settings.provider, model: settings.model, ...usageDetails }); }

@@ -29,6 +29,11 @@ function createTenantAiSettingsRouter({ pool, origin, authenticate }) {
     try { res.json({ success: true, data: await settings.save(db, ctx, req.body) }); }
     finally { db.release(); }
   }));
+  router.get('/usage', wrap(async (req, res) => {
+    const ctx = ownerContext(req), db = await pool.getConnection();
+    try { res.json({ success: true, data: await settings.usage(db, ctx.tenant.id) }); }
+    finally { db.release(); }
+  }));
   router.use((error, req, res, next) => {
     if (res.headersSent) return next(error);
     const code = error.code || 'AI_SETTINGS_UNAVAILABLE';

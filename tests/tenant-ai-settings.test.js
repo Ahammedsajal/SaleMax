@@ -18,7 +18,7 @@ test('daily token settings no longer deny provider reservations', async () => {
   const reservation = await reserveTokens({ async getConnection() { return db; } }, 'tenant-1', 1000, 50000);
   assert.equal(reservation.amount, 50000);
   assert.equal(statements.some(([sql]) => /consumed_tokens AS consumed/.test(sql)), false);
-  assert.equal(statements.some(([sql]) => /reserved_tokens=reserved_tokens\+\?/.test(sql)), true);
+  assert.equal(statements.some(([sql]) => /reserved_tokens=reserved_tokens\+VALUES\(reserved_tokens\)/.test(sql)), true);
 });
 
 test('monthly spend crossing queues one owner-manager reminder event', async () => {

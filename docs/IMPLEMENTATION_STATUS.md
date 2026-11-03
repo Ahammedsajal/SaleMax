@@ -2,6 +2,28 @@
 
 `docs/7NETWORK_VISION_ROADMAP.md` records the customer requirement → proposals/permitted calls → fulfilment vision and category-specific business operations. `skills/7network-product-direction/SKILL.md` and AGENTS.md direct future upgrades toward it, requiring responsive phone/tablet/desktop layouts, EN/AR and RTL, light/dark themes and PWA readiness for new/materially changed screens. This is guidance, not implementation of marketplace or AI features. The full 42-ticket objective and existing acceptance/release gates remain active. Production publication evidence is recorded separately in DEPLOYMENT.md.
 
+## Shared AI Integrations and prompt caching — source tested, 3 November 2026
+
+The owner-only AI Integrations page reuses the existing business shell and shared
+workspace API. OpenAI, Gemini and DeepSeek model/key configuration is centralized;
+Business Profile and bot editors link to it. Existing encrypted credentials,
+provider aliases, live-bot credential locks and the informational $10 reminder are
+preserved. Supported OpenAI requests cache stable policy/evidence prefixes and
+propagate cache reads/writes across bot, Inbox, translation, flows and handoff
+summaries. An additive migration extends the monthly ledger with cache telemetry,
+read savings, write premiums and request counts; historical costs are retained.
+Atomic daily upserts remove a lock-upgrade deadlock found under concurrent usage.
+
+Source verification: 377 focused tests pass. The disposable MariaDB rehearsal
+passes real owner bearer/cookie and staff denial, Origin/CSRF, encryption/key
+retention, optimistic revision conflict, tenant isolation, the new migration and
+20 concurrent settlements. Its fixture applies the historical notification-default
+ALTER after its table creator; generic fresh bootstrap still has that pre-existing
+filename-order defect. The broader shared-feature suite has one unrelated existing
+Inbox unassigned-chat assertion failure. Production/provider/browser evidence is
+recorded separately in DEPLOYMENT.md. See `docs/AI_INTEGRATIONS.md` for the API,
+cost policy and proposed next AI uses; these proposals are not enabled features.
+
 ## ProCatalyst Hybrid bot — source reconciliation and pilot preparation, 2 November 2026
 
 ### Natural discovery greeting and course-first reply — deployed, 2 November 2026
