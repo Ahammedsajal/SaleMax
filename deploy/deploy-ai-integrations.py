@@ -88,7 +88,10 @@ def main():
     support = {name: inspect(name)['Id'] for name in SUPPORT}
     write(snapshot / 'support-before.json', json.dumps(support))
     values = Path(prior_vars).read_text()
-    values += f'\nSALEMAX_AI_INTEGRATIONS_RELEASE={release}\nSALEMAX_AI_INTEGRATIONS_BASE_IMAGE={before["Image"]}\n'
+    variable_suffix = re.sub(r'[^A-Za-z0-9]', '_', name).upper()
+    release_variable = f'SALEMAX_{variable_suffix}_RELEASE'
+    image_variable = f'SALEMAX_{variable_suffix}_BASE_IMAGE'
+    values += f'\n{release_variable}={release}\n{image_variable}={before["Image"]}\n'
     # The prior snapshot predates the last grounded-delivery override.
     if 'SALEMAX_PROCATALYST_GROUNDED_DELIVERY_RELEASE=' not in values:
         values += 'SALEMAX_PROCATALYST_GROUNDED_DELIVERY_RELEASE=/opt/salemax/releases/procatalyst-grounded-delivery-a7ce2406-20261102\n'
@@ -123,9 +126,9 @@ def main():
         candidate.parent.mkdir(parents=True, exist_ok=True)
         candidate.write_bytes(source.read_bytes())
         candidate.chmod(0o444)
-        overrides.append(f'      - ${{SALEMAX_AI_INTEGRATIONS_RELEASE:?}}/runtime/{relative}:{target}:ro')
+        overrides.append(f'      - ${{{release_variable}:?}}/runtime/{relative}:{target}:ro')
     overlay = release / 'compose.ai-integrations.override.yml'
-    overlay.write_text('services:\n  app:\n    image: ${SALEMAX_AI_INTEGRATIONS_BASE_IMAGE:?}\n    volumes:\n' + '\n'.join(overrides) + '\n')
+    overlay.write_text(f'services:\n  app:\n    image: ${{{image_variable}:?}}\n    volumes:\n' + '\n'.join(overrides) + '\n')
     overlay.chmod(0o444)
     write(snapshot / 'candidate-overlay.txt', str(overlay))
     own = Path(__file__).read_text()
