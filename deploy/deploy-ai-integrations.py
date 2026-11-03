@@ -7,6 +7,7 @@ Rollback retains the additive usage migration and all later customer writes.
 import hashlib
 import json
 import os
+import re
 from pathlib import Path
 import subprocess
 import sys
@@ -91,6 +92,17 @@ def main():
     # The prior snapshot predates the last grounded-delivery override.
     if 'SALEMAX_PROCATALYST_GROUNDED_DELIVERY_RELEASE=' not in values:
         values += 'SALEMAX_PROCATALYST_GROUNDED_DELIVERY_RELEASE=/opt/salemax/releases/procatalyst-grounded-delivery-a7ce2406-20261102\n'
+    # Recover release paths omitted from an older deployment's variable file.
+    # Preflight below still compares every unrelated mount against the live app.
+    known = {line.split('=', 1)[0] for line in values.splitlines() if '=' in line}
+    for file in files:
+        owner = Path(file).parent
+        if owner.name == 'deploy':
+            owner = owner.parent
+        for variable in re.findall(r'\$\{(SALEMAX_[A-Z0-9_]+_RELEASE)(?=[:}])', Path(file).read_text()):
+            if variable not in known:
+                values += f'{variable}={owner}\n'
+                known.add(variable)
     write(snapshot / 'compose-values.env', values)
     overrides = []
     for relative, expected in manifest['files'].items():

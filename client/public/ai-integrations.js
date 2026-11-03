@@ -3,8 +3,9 @@
   if (window.__sxAiIntegrations) return;
   window.__sxAiIntegrations = true;
   const $ = selector => document.querySelector(selector);
-  const prefs = window.SxTeamUiPreferences?.create({ storage: localStorage, document, getComputedStyle });
-  const arabic = () => prefs?.isArabic() ?? window.SaleMaxLocale?.isArabic?.() ?? false;
+  let preferences;
+  const prefs = () => preferences || (preferences = window.SxTeamUiPreferences?.create({ storage: localStorage, document, getComputedStyle }));
+  const arabic = () => prefs()?.isArabic() ?? window.SaleMaxLocale?.isArabic?.() ?? false;
   const tr = (en, ar) => arabic() ? ar : en;
   const esc = value => String(value ?? '').replace(/[&<>"']/g, char => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[char]));
   const active = () => /^\/(?:user|agent)\/?$/.test(location.pathname) && new URLSearchParams(location.search).get('page') === 'ai-integrations';
@@ -23,7 +24,7 @@
   }
 
   function syncPreferences(node) {
-    const lang = arabic() ? 'ar' : 'en', dir = prefs?.isRtl() ? 'rtl' : arabic() ? 'rtl' : 'ltr', theme = prefs?.isDark() ? 'dark' : 'light';
+    const lang = arabic() ? 'ar' : 'en', dir = prefs()?.isRtl() ? 'rtl' : arabic() ? 'rtl' : 'ltr', theme = prefs()?.isDark() ? 'dark' : 'light';
     if (node.lang !== lang) node.lang = lang;
     if (node.dir !== dir) node.dir = dir;
     if (node.dataset.theme !== theme) node.dataset.theme = theme;
