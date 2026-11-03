@@ -1,5 +1,6 @@
 services:
   app:
+    image: salemax-app:openai-ads-lead-01fde9e1-20261103
     volumes:
       - type: bind
         source: ${SALEMAX_UNIFIED_AGENT_LOGIN_RELEASE}/routes/user.js
