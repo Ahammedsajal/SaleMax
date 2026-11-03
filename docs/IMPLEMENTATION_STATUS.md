@@ -2,7 +2,7 @@
 
 `docs/7NETWORK_VISION_ROADMAP.md` records the customer requirement → proposals/permitted calls → fulfilment vision and category-specific business operations. `skills/7network-product-direction/SKILL.md` and AGENTS.md direct future upgrades toward it, requiring responsive phone/tablet/desktop layouts, EN/AR and RTL, light/dark themes and PWA readiness for new/materially changed screens. This is guidance, not implementation of marketplace or AI features. The full 42-ticket objective and existing acceptance/release gates remain active. Production publication evidence is recorded separately in DEPLOYMENT.md.
 
-## Shared AI Integrations and prompt caching — source tested, 3 November 2026
+## Shared AI Integrations and prompt caching — deployed and verified, 3 November 2026
 
 The owner-only AI Integrations page reuses the existing business shell and shared
 workspace API. OpenAI, Gemini and DeepSeek model/key configuration is centralized;
@@ -14,15 +14,28 @@ summaries. An additive migration extends the monthly ledger with cache telemetry
 read savings, write premiums and request counts; historical costs are retained.
 Atomic daily upserts remove a lock-upgrade deadlock found under concurrent usage.
 
-Source verification: 377 focused tests pass. The disposable MariaDB rehearsal
-passes real owner bearer/cookie and staff denial, Origin/CSRF, encryption/key
-retention, optimistic revision conflict, tenant isolation, the new migration and
-20 concurrent settlements. Its fixture applies the historical notification-default
-ALTER after its table creator; generic fresh bootstrap still has that pre-existing
-filename-order defect. The broader shared-feature suite has one unrelated existing
-Inbox unassigned-chat assertion failure. Production/provider/browser evidence is
-recorded separately in DEPLOYMENT.md. See `docs/AI_INTEGRATIONS.md` for the API,
-cost policy and proposed next AI uses; these proposals are not enabled features.
+Source verification: 377 focused tests passed; after the Arabic refresh and saved
+theme fixes, 18 focused AI/settings regressions passed. The disposable MariaDB
+rehearsal passes owner bearer/cookie and staff denial, Origin/CSRF,
+encryption/key retention, optimistic revision conflict, tenant isolation, the
+new migration and 20 concurrent settlements. Its fixture applies the historical
+notification-default ALTER after its table creator; generic fresh bootstrap still
+has that pre-existing filename-order defect. The broader shared-feature suite has
+one unrelated existing Inbox unassigned-chat assertion failure.
+
+Production source `8daceb025653e09b7902b6dc08b91b845c261ca7` is live in
+`/opt/salemax/releases/ai-integrations-8daceb02-20261103`; its 19 runtime files
+match the previously verified UI source, and its Compose variables are pinned per
+release for reliable rollback. The account’s OpenAI
+`gpt-6-luna` configuration remains encrypted, and live-bot settings are locked
+while the Hybrid profile is active. Synthetic provider traffic confirmed a cache
+read of 1,855 tokens from a 1,890-token repeat request. The monthly spend reminder
+is $10, queues owner and manager notifications, and never caps replies. The
+signed-in page was reviewed in English/Arabic, LTR/RTL, light/dark and phone,
+tablet and desktop sizes with no horizontal overflow. No WhatsApp message or
+actual $10 notification was sent. See `DEPLOYMENT.md` for the exact release,
+rollback, billing meter and remaining gates. See `docs/AI_INTEGRATIONS.md` for the
+API, cost policy and proposed next AI uses; these proposals are not enabled.
 
 ## ProCatalyst Hybrid bot — source reconciliation and pilot preparation, 2 November 2026
 
