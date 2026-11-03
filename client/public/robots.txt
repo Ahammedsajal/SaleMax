@@ -1,3 +1,20 @@
-# https://www.robotstxt.org/robotstxt.html
+# Public discovery rules for 7network.live.
+User-agent: OAI-SearchBot
+Allow: /
+Disallow: /admin
+Disallow: /user
+Disallow: /api
+
+User-agent: Googlebot
+Allow: /
+Disallow: /admin
+Disallow: /user
+Disallow: /api
+
 User-agent: *
-Disallow:
+Allow: /
+Disallow: /admin
+Disallow: /user
+Disallow: /api
+
+Sitemap: https://7network.live/sitemap.xml

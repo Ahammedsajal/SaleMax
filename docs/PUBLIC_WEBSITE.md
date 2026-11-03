@@ -6,6 +6,12 @@ The visual direction adapts the service discovery, guided enquiry and animated d
 
 ## Existing systems reused
 
+## Search discovery
+
+- `client/public/robots.txt` explicitly allows `OAI-SearchBot`, Googlebot and other public crawlers to fetch public pages, while disallowing crawl of admin, business-login and API paths. These rules are crawl guidance, not an access-control boundary.
+- `client/public/sitemap.xml` lists the canonical public homepage only. Dynamic `/view/privacy-policy` and `/view/terms-and-conditions` currently return the generic application shell without server-rendered policy content, so they are intentionally excluded until those pages are publicly rendered as their own content.
+- Search Console ownership and Analytics reporting require the site owner’s Google account/property setup. No GA4 ID, Search Console verification token, DNS change or Google credential is stored in source.
+
 - Pricing reads the existing `/api/admin/get_plans` and `/api/web/get_web_public` endpoints. Plan IDs, prices, currency, durations, limits and `/user/checkout?product=<id>` links remain authoritative; no second catalogue is created.
 - `POST /api/public/website/enquiries` creates a record in the current `contact_form` list and an opportunity through the existing `createManualLead` service. Industry is retained in the lead title/activity and the enquiry record. The existing `/api/web/submit_contact_form` endpoint is compatibly intercepted as well.
 - Admin finds requests in **Contact Leads**. The designated SaleMaX Sales owner finds them in **Lead Pipeline**, initially unassigned, with `public_form` source, prefilled contact details, business/solution title and the full enquiry in activity. Existing mixed-collation board/filter/detail joins are explicitly normalized without changing tenant scope. Staff access and subsequent assignment use the current Pipeline permissions; no tenant or role access is expanded.
