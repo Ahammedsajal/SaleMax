@@ -1,0 +1,5 @@
+services:
+  app:
+    volumes:
+      - ${SALEMAX_BUSINESS_DASHBOARD_AGENT_RUNTIME:?set runtime directory}/client/public/business-dashboard/index.html:/app/client/public/business-dashboard/index.html:ro
+      - ${SALEMAX_BUSINESS_DASHBOARD_AGENT_RUNTIME:?set runtime directory}/client/public/business-dashboard/dashboard.js:/app/client/public/business-dashboard/dashboard.js:ro
