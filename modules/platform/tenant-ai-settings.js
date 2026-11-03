@@ -30,7 +30,7 @@ function estimatedCostUsd(provider, model, inputTokens, outputTokens, details) {
 function providerCatalog() {
   return catalog.PROVIDERS.map(provider => ({ ...provider, models: provider.models.map(id => ({ id,
     inputUsdPerMillion: PRICE_USD_PER_MILLION[provider.id][id][0], outputUsdPerMillion: PRICE_USD_PER_MILLION[provider.id][id][1],
-    ...(provider.id === 'openai' ? { cachedInputUsdPerMillion: PRICE_USD_PER_MILLION.openai[id][0] * (id === 'gpt-6.1-sol' ? 0.05 : 0.1), cacheWriteUsdPerMillion: PRICE_USD_PER_MILLION.openai[id][0] * 1.25 } : {}),
+    ...(provider.id === 'openai' ? { cachedInputUsdPerMillion: Number((PRICE_USD_PER_MILLION.openai[id][0] * (id === 'gpt-6.1-sol' ? 0.05 : 0.1)).toPrecision(8)), cacheWriteUsdPerMillion: PRICE_USD_PER_MILLION.openai[id][0] * 1.25 } : {}),
   })) }));
 }
 

@@ -10,7 +10,7 @@ function configure(body, { provider, model, cacheScope, stablePrefixIndex = 0, c
     // Cache stable policy/evidence, avoiding writes for every short customer question.
     body.prompt_cache_options = { mode: conversation ? 'implicit' : 'explicit', ttl: '30m' };
     body.messages = body.messages.map((message, index) => index === stablePrefixIndex || (index === 0 && message.role === 'system')
-      ? { ...message, prompt_cache_breakpoint: { mode: 'explicit' } } : message);
+      ? { ...message, content: [{ type: 'text', text: message.content, prompt_cache_breakpoint: { mode: 'explicit' } }] } : message);
   }
   return body;
 }

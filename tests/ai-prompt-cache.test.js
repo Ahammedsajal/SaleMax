@@ -23,7 +23,8 @@ test('OpenAI caches only the stable policy/evidence prefix and scopes its opaque
     assert.equal(result.cacheWriteTokens, 200);
   }
   assert.deepEqual(requests[0].prompt_cache_options, { mode: 'explicit', ttl: '30m' });
-  assert.deepEqual(requests[0].messages[1].prompt_cache_breakpoint, { mode: 'explicit' });
+  assert.deepEqual(requests[0].messages[1].content, [{ type: 'text', text: 'Stable evidence', prompt_cache_breakpoint: { mode: 'explicit' } }]);
+  assert.equal(requests[0].messages[1].prompt_cache_breakpoint, undefined);
   assert.equal(requests[0].messages[2].prompt_cache_breakpoint, undefined);
   assert.equal(requests[0].prompt_cache_key, requests[1].prompt_cache_key);
   assert.notEqual(requests[0].prompt_cache_key, requests[2].prompt_cache_key);
