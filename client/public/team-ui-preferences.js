@@ -13,6 +13,10 @@
           .filter(Boolean).join(' ').toLowerCase();
       } catch { return ''; }
     };
+    const storedTheme = () => {
+      try { return String(storage?.getItem('theme_mode') || '').toLowerCase(); }
+      catch { return ''; }
+    };
     const isArabic = () => {
       const locale = `${storedLocale()} ${document?.documentElement?.lang || ''}`.toLowerCase();
       if (/(?:^|[^a-z])ar(?:[-_.]|$)|arabic|العربية/.test(locale)) return true;
@@ -26,6 +30,9 @@
       return isArabic();
     };
     const isDark = () => {
+      const theme = storedTheme();
+      if (theme === 'dark') return true;
+      if (theme === 'light') return false;
       const labels = buttons();
       if (labels.some(value => /^(?:light mode|الوضع الفاتح)$/.test(value))) return true;
       if (labels.some(value => /^(?:dark mode|الوضع الداكن)$/.test(value))) return false;
