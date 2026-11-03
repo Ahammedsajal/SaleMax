@@ -6,6 +6,60 @@
   const headlineMiddle = document.getElementById("hero-headline-middle");
   const enquiryDialog = document.getElementById("enquiry-dialog");
   const enquiryForm = document.getElementById("enquiry-form");
+  const analyticsId = "G-EJGL58NV96";
+  const analyticsConsent = document.getElementById("analytics-consent");
+  const consentKey = "7network.analytics-consent.v1";
+  let analyticsLoaded = false;
+  function track(eventName, parameters = {}) {
+    if (!analyticsLoaded || typeof window.gtag !== "function") return;
+    window.gtag("event", eventName, parameters);
+  }
+  function loadAnalytics() {
+    if (analyticsLoaded) {
+      window["ga-disable-" + analyticsId] = false;
+      if (typeof window.gtag === "function") window.gtag("event", "page_view", { page_path: location.pathname, language: root.lang });
+      return;
+    }
+    analyticsLoaded = true;
+    window["ga-disable-" + analyticsId] = false;
+    window.dataLayer = window.dataLayer || [];
+    window.gtag = function () { window.dataLayer.push(arguments); };
+    window.gtag("js", new Date());
+    window.gtag("config", analyticsId, {
+      send_page_view: false,
+      allow_google_signals: false,
+      page_path: location.pathname,
+      language: root.lang,
+    });
+    const script = document.createElement("script");
+    script.async = true;
+    script.src = "https://www.googletagmanager.com/gtag/js?id=" + analyticsId;
+    script.referrerPolicy = "strict-origin-when-cross-origin";
+    document.head.append(script);
+    track("page_view", { page_path: location.pathname, language: root.lang });
+  }
+  function saveAnalyticsChoice(allowed) {
+    try { localStorage.setItem(consentKey, allowed ? "granted" : "denied"); } catch (_) {}
+    if (analyticsConsent) analyticsConsent.hidden = true;
+    if (allowed) {
+      loadAnalytics();
+      return;
+    }
+    window["ga-disable-" + analyticsId] = true;
+    if (analyticsLoaded && typeof window.gtag === "function") {
+      window.gtag("consent", "update", { analytics_storage: "denied" });
+      ["_ga", ...document.cookie.split(";").map((part) => part.trim().split("=")[0]).filter((name) => /^_ga_/.test(name))]
+        .forEach((name) => { document.cookie = name + "=; Max-Age=0; path=/; SameSite=Lax"; });
+    }
+  }
+  let analyticsChoice = "";
+  try { analyticsChoice = localStorage.getItem(consentKey) || ""; } catch (_) {}
+  if (analyticsChoice === "granted") loadAnalytics();
+  else if (!analyticsChoice && analyticsConsent) analyticsConsent.hidden = false;
+  document.querySelectorAll("[data-analytics-accept]").forEach((button) => button.addEventListener("click", () => saveAnalyticsChoice(true)));
+  document.querySelectorAll("[data-analytics-reject]").forEach((button) => button.addEventListener("click", () => saveAnalyticsChoice(false)));
+  document.querySelectorAll("[data-privacy-settings]").forEach((button) => button.addEventListener("click", () => { if (analyticsConsent) analyticsConsent.hidden = false; }));
+  document.querySelectorAll("[data-open-enquiry]").forEach((button) => button.addEventListener("click", () => track("contact_form_open", { page_path: location.pathname })));
   document.querySelectorAll("[data-open-enquiry]").forEach((button) =>
     button.addEventListener("click", () => {
       if (!enquiryDialog?.open) enquiryDialog?.showModal();
@@ -507,6 +561,7 @@
           result.reference,
         "success",
       );
+      track("generate_lead", { page_path: location.pathname, language });
       status.focus({ preventScroll: true });
     } catch (error) {
       if (error.type === "rate")

@@ -3643,3 +3643,9 @@ a.footer-contact-item:hover .footer-contact-icon { transform: translateY(-2px); 
      does not create a horizontal page scrollbar when browser gutters exist. */
   .funnel-section::before { inset-inline: -5.6vw; }
 }
+.analytics-consent{position:fixed;z-index:1500;inset:auto 20px 20px 20px;display:flex;align-items:center;justify-content:space-between;gap:20px;max-width:980px;margin-inline:auto;padding:18px 20px;border:1px solid #b9d9cb;border-radius:16px;background:rgba(250,255,252,.97);box-shadow:0 16px 48px #102c3b2e;color:#17314c;backdrop-filter:blur(18px)}
+.analytics-consent[hidden]{display:none}
+.analytics-consent-copy{max-width:620px}.analytics-consent-copy strong{font-size:14px}.analytics-consent-copy p{margin:5px 0 0;color:#5e7184;font-size:12px;line-height:1.55}
+.analytics-consent-actions{display:flex;flex:0 0 auto;gap:8px}.analytics-consent-actions button{min-height:40px;padding:0 14px;border:1px solid #c8d7df;border-radius:9px;background:#fff;color:#17314c;font:inherit;font-size:12px;font-weight:600;cursor:pointer}.analytics-consent-actions [data-analytics-accept]{border-color:#087c68;background:linear-gradient(110deg,#168c70,#6852aa);color:#fff}
+.privacy-settings{border:0;background:transparent;font:inherit;cursor:pointer;text-align:start}
+@media(max-width:640px){.analytics-consent{inset:auto 10px 10px;display:block;padding:16px;border-radius:14px}.analytics-consent-actions{margin-top:12px}.analytics-consent-actions button{flex:1;padding:0 8px}}
