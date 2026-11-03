@@ -82,11 +82,24 @@
     (node) => [node, node.textContent, node.dataset.ar],
   );
   const languageButton = document.getElementById("language");
+  const floatingWhatsApp = document.querySelector(".floating-cta");
   const status = document.getElementById("form-status");
   let statusMessage = null;
+  function updateFloatingWhatsApp() {
+    if (!floatingWhatsApp) return;
+    const message = language === "ar"
+      ? "مرحباً 7Network، أنا مهتم بنظام CRM. هل يمكنكم مشاركة المزيد من التفاصيل؟"
+      : "Hello 7Network, I’m interested in your CRM. Could you share more details?";
+    floatingWhatsApp.href = `https://wa.me/97455160323?text=${encodeURIComponent(message)}`;
+    floatingWhatsApp.setAttribute(
+      "aria-label",
+      language === "ar" ? "تواصل مع 7Network عبر واتساب" : "Chat with 7Network on WhatsApp",
+    );
+  }
   function applyLanguage() {
     root.lang = language;
     root.dir = language === "ar" ? "rtl" : "ltr";
+    updateFloatingWhatsApp();
     translations.forEach(([node, en, ar]) => {
       node.textContent = language === "ar" ? ar : en;
     });

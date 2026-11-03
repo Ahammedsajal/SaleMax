@@ -1297,12 +1297,12 @@ nav {
   position: fixed;
   inset-inline-end: 25px;
   inset-block-end: 25px;
-  background: var(--brand-blue);
+  background: #147a50;
   color: white;
   display: flex;
   align-items: center;
   gap: 10px;
-  border: 1px solid #ffffff45;
+  border: 1px solid #ffffff65;
   padding: 10px 18px;
   border-radius: 30px;
   font-size: 12px;
@@ -1310,18 +1310,34 @@ nav {
   z-index: 15;
   transition:
     transform 0.25s,
-    opacity 0.25s;
+    opacity 0.25s,
+    background-color 0.2s;
   opacity: 0;
   pointer-events: none;
   transform: translateY(15px);
+}
+.floating-cta:hover {
+  background: #0f6843;
 }
 .floating-cta.visible {
   opacity: 1;
   pointer-events: auto;
   transform: none;
 }
-.floating-cta > span:first-child {
-  font-size: 23px;
+.floating-cta-icon {
+  width: 20px;
+  height: 20px;
+  flex: 0 0 20px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.7;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.floating-cta-label {
+  font-size: 12px;
+  font-weight: 650;
+  white-space: nowrap;
 }
 .reveal {
   opacity: 1;
