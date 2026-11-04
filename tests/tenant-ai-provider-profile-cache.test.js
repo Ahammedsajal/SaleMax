@@ -43,3 +43,18 @@ test('production shell cache patch refuses an unknown shell version', () => {
     fs.rmSync(dir, { recursive: true, force: true });
   }
 });
+
+test('provider release overlay refreshes the main shell integrations restored from the current baseline', () => {
+  const overlay = fs.readFileSync(path.join(__dirname, '../deploy/compose.tenant-ai-provider-profiles.override.yml'), 'utf8');
+  for (const file of [
+    'client/public/chatbot-admin.js',
+    'client/public/index.html',
+    'client/public/tenant-crm-appearance.js',
+    'client/public/training-sidebar.js',
+    'client/public/ai-integrations.js',
+    'client/public/ai-integrations.css',
+    'modules/platform/tenant-ai-settings.js',
+    'modules/platform/tenant-ai-settings-router.js',
+    'database/migrations/20270120_chatbot_provider_profiles.sql',
+  ]) assert.ok(overlay.includes(`${file}:/app/${file}:ro`), `missing production mount for ${file}`);
+});

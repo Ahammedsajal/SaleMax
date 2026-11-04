@@ -4,6 +4,10 @@ services:
     volumes:
       - "${SALEMAX_TENANT_AI_PROVIDER_PROFILES_RUNTIME:?Set provider profile runtime directory}/modules/platform/tenant-ai-settings.js:/app/modules/platform/tenant-ai-settings.js:ro"
       - "${SALEMAX_TENANT_AI_PROVIDER_PROFILES_RUNTIME:?Set provider profile runtime directory}/modules/platform/tenant-ai-settings-router.js:/app/modules/platform/tenant-ai-settings-router.js:ro"
+      - "${SALEMAX_TENANT_AI_PROVIDER_PROFILES_RUNTIME:?Set provider profile runtime directory}/client/public/chatbot-admin.js:/app/client/public/chatbot-admin.js:ro"
+      - "${SALEMAX_TENANT_AI_PROVIDER_PROFILES_RUNTIME:?Set provider profile runtime directory}/client/public/index.html:/app/client/public/index.html:ro"
+      - "${SALEMAX_TENANT_AI_PROVIDER_PROFILES_RUNTIME:?Set provider profile runtime directory}/client/public/tenant-crm-appearance.js:/app/client/public/tenant-crm-appearance.js:ro"
+      - "${SALEMAX_TENANT_AI_PROVIDER_PROFILES_RUNTIME:?Set provider profile runtime directory}/client/public/training-sidebar.js:/app/client/public/training-sidebar.js:ro"
       - "${SALEMAX_TENANT_AI_PROVIDER_PROFILES_RUNTIME:?Set provider profile runtime directory}/client/public/ai-integrations.js:/app/client/public/ai-integrations.js:ro"
       - "${SALEMAX_TENANT_AI_PROVIDER_PROFILES_RUNTIME:?Set provider profile runtime directory}/client/public/ai-integrations.css:/app/client/public/ai-integrations.css:ro"
       - "${SALEMAX_TENANT_AI_PROVIDER_PROFILES_RUNTIME:?Set provider profile runtime directory}/database/migrations/20270120_chatbot_provider_profiles.sql:/app/database/migrations/20270120_chatbot_provider_profiles.sql:ro"
