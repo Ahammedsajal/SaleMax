@@ -20,11 +20,30 @@ test('production shell cache patch updates both screen loaders and is repeatable
       const result = spawnSync(process.execPath, [patcher, index, sidebar], { encoding: 'utf8' });
       assert.equal(result.status, 0, result.stderr);
     }
-    assert.match(fs.readFileSync(index, 'utf8'), /training-sidebar\.js\?v=20261104-ai-provider-profiles1/);
-    assert.match(fs.readFileSync(index, 'utf8'), /tenant-crm-appearance\.js\?v=20261104-ai-provider-profiles1/);
-    assert.match(fs.readFileSync(index, 'utf8'), /ai-integrations\.css\?v=20261104-ai-provider-profiles1/);
-    assert.match(fs.readFileSync(index, 'utf8'), /ai-integrations\.js\?v=20261104-ai-provider-profiles1/);
-    assert.match(fs.readFileSync(sidebar, 'utf8'), /chatbot-admin\.js\?v=20261104-ai-provider-profiles1/);
+    assert.match(fs.readFileSync(index, 'utf8'), /training-sidebar\.js\?v=20261104-ai-provider-profiles2/);
+    assert.match(fs.readFileSync(index, 'utf8'), /tenant-crm-appearance\.js\?v=20261104-ai-provider-profiles2/);
+    assert.match(fs.readFileSync(index, 'utf8'), /ai-integrations\.css\?v=20261104-ai-provider-profiles2/);
+    assert.match(fs.readFileSync(index, 'utf8'), /ai-integrations\.js\?v=20261104-ai-provider-profiles2/);
+    assert.match(fs.readFileSync(sidebar, 'utf8'), /chatbot-admin\.js\?v=20261104-ai-provider-profiles2/);
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test('production shell cache patch advances a previously deployed provider-profile key', () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), '7network-provider-cache-r1-'));
+  try {
+    const index = path.join(dir, 'index.html');
+    const sidebar = path.join(dir, 'training-sidebar.js');
+    fs.writeFileSync(index, '<script src="/training-sidebar.js?v=20261104-ai-provider-profiles1"></script><script src="/tenant-crm-appearance.js?v=20261104-ai-provider-profiles1"></script><link href="/ai-integrations.css?v=20261103-ai-integrations3"><script src="/ai-integrations.js?v=20261103-ai-integrations3"></script>');
+    fs.writeFileSync(sidebar, "chatbotScript.src = '/chatbot-admin.js?v=20261104-ai-provider-profiles1';");
+    const result = spawnSync(process.execPath, [patcher, index, sidebar], { encoding: 'utf8' });
+    assert.equal(result.status, 0, result.stderr);
+    assert.match(fs.readFileSync(index, 'utf8'), /training-sidebar\.js\?v=20261104-ai-provider-profiles2/);
+    assert.match(fs.readFileSync(index, 'utf8'), /tenant-crm-appearance\.js\?v=20261104-ai-provider-profiles2/);
+    assert.match(fs.readFileSync(index, 'utf8'), /ai-integrations\.css\?v=20261104-ai-provider-profiles2/);
+    assert.match(fs.readFileSync(index, 'utf8'), /ai-integrations\.js\?v=20261104-ai-provider-profiles2/);
+    assert.match(fs.readFileSync(sidebar, 'utf8'), /chatbot-admin\.js\?v=20261104-ai-provider-profiles2/);
   } finally {
     fs.rmSync(dir, { recursive: true, force: true });
   }
