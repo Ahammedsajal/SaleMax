@@ -1,0 +1,17 @@
+services:
+  app:
+    volumes:
+      - ${SALEMAX_PROCATALYST_GREETING_RELEASE:?SALEMAX_PROCATALYST_GREETING_RELEASE is required}/runtime/preserved/client/public/chatbot-admin.js:/app/client/public/chatbot-admin.js:ro
+      - ${SALEMAX_PROCATALYST_GREETING_RELEASE:?SALEMAX_PROCATALYST_GREETING_RELEASE is required}/runtime/preserved/client/public/index.html:/app/client/public/index.html:ro
+      - ${SALEMAX_PROCATALYST_GREETING_RELEASE:?SALEMAX_PROCATALYST_GREETING_RELEASE is required}/runtime/preserved/client/public/tenant-ai-settings.js:/app/client/public/tenant-ai-settings.js:ro
+      - ${SALEMAX_PROCATALYST_GREETING_RELEASE:?SALEMAX_PROCATALYST_GREETING_RELEASE is required}/runtime/preserved/client/public/tenant-crm-appearance.js:/app/client/public/tenant-crm-appearance.js:ro
+      - ${SALEMAX_PROCATALYST_GREETING_RELEASE:?SALEMAX_PROCATALYST_GREETING_RELEASE is required}/runtime/preserved/client/public/training-sidebar.js:/app/client/public/training-sidebar.js:ro
+      - ${SALEMAX_PROCATALYST_GREETING_RELEASE:?SALEMAX_PROCATALYST_GREETING_RELEASE is required}/runtime/preserved/database/migrations/20270120_chatbot_provider_profiles.sql:/app/database/migrations/20270120_chatbot_provider_profiles.sql:ro
+      - ${SALEMAX_PROCATALYST_GREETING_RELEASE:?SALEMAX_PROCATALYST_GREETING_RELEASE is required}/runtime/preserved/modules/platform/tenant-ai-settings-router.js:/app/modules/platform/tenant-ai-settings-router.js:ro
+      - ${SALEMAX_PROCATALYST_GREETING_RELEASE:?SALEMAX_PROCATALYST_GREETING_RELEASE is required}/runtime/preserved/modules/platform/tenant-ai-settings.js:/app/modules/platform/tenant-ai-settings.js:ro
+      - ${SALEMAX_PROCATALYST_GREETING_RELEASE:?SALEMAX_PROCATALYST_GREETING_RELEASE is required}/runtime/modules/platform/chatbot-runtime.js:/app/modules/platform/chatbot-runtime.js:ro
+      - ${SALEMAX_PROCATALYST_GREETING_RELEASE:?SALEMAX_PROCATALYST_GREETING_RELEASE is required}/runtime/modules/platform/chatbot-handoff-claims.js:/app/modules/platform/chatbot-handoff-claims.js:ro
+      - ${SALEMAX_PROCATALYST_GREETING_RELEASE:?SALEMAX_PROCATALYST_GREETING_RELEASE is required}/runtime/modules/platform/chatbot-ai-prompt.js:/app/modules/platform/chatbot-ai-prompt.js:ro
+      - ${SALEMAX_PROCATALYST_GREETING_RELEASE:?SALEMAX_PROCATALYST_GREETING_RELEASE is required}/runtime/modules/platform/chatbot-business-context.js:/app/modules/platform/chatbot-business-context.js:ro
+      - ${SALEMAX_PROCATALYST_GREETING_RELEASE:?SALEMAX_PROCATALYST_GREETING_RELEASE is required}/runtime/modules/platform/chatbot-opening-flow.js:/app/modules/platform/chatbot-opening-flow.js:ro
+      - ${SALEMAX_PROCATALYST_GREETING_RELEASE:?SALEMAX_PROCATALYST_GREETING_RELEASE is required}/runtime/modules/platform/chatbot-training-guide.js:/app/modules/platform/chatbot-training-guide.js:ro

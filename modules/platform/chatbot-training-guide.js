@@ -1,6 +1,7 @@
 'use strict';
 
 const { keywordReply } = require('./chatbot-keyword-replies');
+const { isOpeningGreeting } = require('./chatbot-opening-flow');
 
 function clean(value, max = 240) {
   if (typeof value !== 'string') return '';
@@ -175,6 +176,16 @@ function trainingCenterGuidedReplyTurn({ message, state, facts, config, defaults
   const step = state?.step;
   const nextState = (nextStep, extra = {}) => ({ ...extra, step: nextStep, language });
 
+  if (isOpeningGreeting(message)) {
+    const greetingLanguage = languageFor(message, null, config);
+    const retainedState = { ...(state || {}) };
+    for (const key of ['selectedCourseCode', 'courseCodes', 'page', 'recentConversation']) delete retainedState[key];
+    return {
+      reply: menuText(facts, settings, greetingLanguage, { includeGreeting: true }),
+      state: { ...retainedState, step: 'menu', language: greetingLanguage, greeted: true },
+    };
+  }
+
   if (step === 'course_detail' && registrationFormUrl && /^(?:yes(?:[,.! ]+(?:please(?:\s+(?:send it|send me|share it))?|send it|send me|share it))?|sure|please do|send it|send me|share it|i'm interested|im interested|اي|نعم|نعم من فضلك|أرسلها|ارسلها|أرسل النموذج|ارسل النموذج)$/iu.test(text)) {
     return { reply: `${copy(settings, 'applicationLinkIntro', language)}\n${registrationFormUrl}`, state: nextState('application_shared', { ...(state || {}) }) };
   }
@@ -235,8 +246,7 @@ function trainingCenterGuidedReplyTurn({ message, state, facts, config, defaults
   }
   if (step === 'course_list') return { reply: formatCourseList(courses, settings, language), state: nextState('course_list', { courseCodes: courses.slice(0, courseLimit(settings)).map(course => course.code) }) };
 
-  const greeting = /^(?:hi|hello|hey|good morning|good afternoon|good evening|مرحبا|أهلا|السلام عليكم|صباح الخير|مساء الخير)$/i.test(text);
-  if (!step || greeting) return { reply: menuText(facts, settings, language, { includeGreeting: !state?.greeted }), state: nextState('menu') };
+  if (!step) return { reply: menuText(facts, settings, language), state: nextState('menu') };
   const configuredFallback = copy(settings, 'fallbackMessage', language);
   const fallbackHasNumericMenu = /\b(?:choose|select|pick|reply|type|send)\b.{0,35}\b(?:number|option|[0-3])\b|\b[0-3]\s*(?:for|to)\b|أرسل\s*رقم|ارسل\s*رقم|أحد الخيارات|احد الخيارات/iu.test(configuredFallback);
   const fallback = fallbackHasNumericMenu
@@ -248,9 +258,10 @@ function trainingCenterGuidedReplyTurn({ message, state, facts, config, defaults
 function trainingCenterGuidedReply({ message, state, facts, config, defaults }) {
   const result = trainingCenterGuidedReplyTurn({ message, state, facts, config, defaults });
   const settings = mergeDefaults(defaults || {}, config || {});
-  const language = languageFor(message, state, config);
+  const language = result.state?.language || languageFor(message, state, config);
   const greeting = copy(settings, 'greeting', language, language === 'ar' ? 'أهلاً بك!' : 'Welcome!');
-  if (!state?.greeted && !result.handoff && !result.reply.startsWith(greeting)) {
+  const courseSpecificReply = result.state?.step === 'course_detail' && Boolean(result.state?.selectedCourseCode);
+  if (!state?.greeted && !result.handoff && !courseSpecificReply && !result.reply.startsWith(greeting)) {
     result.reply = `${greeting} ${result.reply}`;
   }
   const configuredPrompt = copy(settings, 'menuPrompt', language);

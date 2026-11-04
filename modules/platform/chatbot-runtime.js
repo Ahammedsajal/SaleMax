@@ -236,6 +236,17 @@ async function handleHandoffPriorityMessage({ uid, message, user, sessionId, ori
     const result = await processHandoffPriorityForProfile({ ctx, profile, uid, message, user, sessionId, origin, chatId });
     if (result.handled) return result;
   }
+  if (ctx.tenant.categoryKey === 'training_center' && isOpeningGreeting(textOf(message))) {
+    try {
+      const restarted = await claims.resetForCustomerGreeting(dbPool, {
+        tenantId: ctx.tenant.id, uid, channelKind: channelFor(origin), channelRef: sessionId, conversationId: chatId,
+      });
+      if (restarted) return { handled: false, restartedAfterHandoff: true };
+    } catch (error) {
+      console.warn('[chatbot] greeting handoff reset failed', error.code || 'GREETING_HANDOFF_RESET_FAILED');
+      return { handled: true, paused: true };
+    }
+  }
   const pause = await require('./chatbot-conversation-control').readPause(uid, chatId, channelFor(origin), sessionId);
   if (!pause) return { handled: false };
   return processHandoffPriorityForProfile({ ctx, profile, uid, message, user, sessionId, origin, chatId });
@@ -380,7 +391,8 @@ async function trainingCenterGuidedTurn({ ctx, profile, uid, message, sessionId,
     else if (row) { try { priorState = typeof row.state === 'string' ? JSON.parse(row.state) : row.state; } catch { priorState = null; } }
     if(priorState&&typeof message.senderMobile==='string')priorState.whatsappNumber=message.senderMobile;
     if (profile.engine !== 'guided' && priorState) priorState.language = businessContext.languageFor(intent || textOf(message), priorState);
-    deferLeadQuestion = !priorState?.greeted;
+    const openingGreeting = isOpeningGreeting(intent || textOf(message));
+    deferLeadQuestion = openingGreeting || !priorState?.greeted;
     if(cvSubmission){
       const success= cvSubmission.repeated
         ? (priorState?.language==='ar'?'تم تسجيل طلبك مسبقاً. سيرتك الذاتية محفوظة، وسيتواصل معك المؤسس قريباً.':'Your application is already recorded. Your CV is saved, and the Founder will contact you soon.')
@@ -406,7 +418,7 @@ async function trainingCenterGuidedTurn({ ctx, profile, uid, message, sessionId,
     }
     // A lead-capture name prompt must never erase a substantive safety route
     // (for example, a certificate question that needs staff confirmation).
-    if (leadInfo?.nameOnly && !reply?.handoff) reply = { reply: profile.config?.guidedContent?.messages?.nameCollectedMessage?.[leadInfo.language] || pack.guidedContentDefaults.messages.nameCollectedMessage[leadInfo.language], state: priorState || {} };
+    if (leadInfo?.nameOnly && !openingGreeting && !reply?.handoff) reply = { reply: profile.config?.guidedContent?.messages?.nameCollectedMessage?.[leadInfo.language] || pack.guidedContentDefaults.messages.nameCollectedMessage[leadInfo.language], state: priorState || {} };
     if (!reply || typeof reply.reply !== 'string' || !reply.reply.trim()) {
       await db.rollback();
       onStage?.('training-guide-empty-reply');
@@ -630,10 +642,47 @@ async function generateAiAnswer({ ctx, profile, uid, customerMessage, chatId = n
   return answer;
 }
 
+async function resetOpeningGreetingState({ ctx, profile, uid, chatId, sessionId, origin, senderMobile }) {
+  const channelKind = channelFor(origin);
+  const db = await dbPool.getConnection();
+  try {
+    await db.beginTransaction();
+    await db.query(`DELETE FROM sx_chatbot_guided_sessions
+      WHERE tenant_id=? AND profile_id=? AND channel_kind=? AND channel_ref=? AND conversation_id=?`,
+    [ctx.tenant.id, profile.id, channelKind, sessionId, chatId]);
+    if ((profile.config?.flowId || profile.config?.introFlowId) && senderMobile) {
+      const flowOrigin = origin === 'qr' ? 'qr' : 'meta';
+      const flowOriginId = flowOrigin === 'qr' ? sessionId : 'META';
+      await db.query(`DELETE FROM flow_session WHERE uid=? AND origin=? AND origin_id=? AND flow_id=? AND sender_mobile=?`,
+        [uid, flowOrigin, flowOriginId, executionFlowId(profile), senderMobile]);
+    }
+    await db.commit();
+  } catch (error) {
+    await db.rollback().catch(() => {});
+    throw error;
+  } finally { db.release(); }
+}
+
 async function aiTurn({ ctx, profile, uid, message, user, sessionId, origin, chatId, leadInfo, onStage = null }) {
   onStage?.('bot-routing');
-  if (profile.engine === 'hybrid' && !profile.config?.flowId && profile.config?.guidedMode !== 'domain_default') return { handedOff: true, code: 'GUIDED_FLOW_REQUIRED' };
   const incomingText = textOf(message);
+  if (ctx.category.key === 'training_center' && isOpeningGreeting(incomingText)) {
+    onStage?.('opening-greeting-reset');
+    try {
+      await resetOpeningGreetingState({ ctx, profile, uid, chatId, sessionId, origin, senderMobile: message.senderMobile });
+    } catch (error) {
+      console.warn('[chatbot] opening greeting state reset failed', error.code || 'GREETING_RESET_FAILED');
+      return { handedOff: true, code: 'GREETING_RESET_FAILED' };
+    }
+    const configuredOpeningFlow = profile.config?.flowId
+      || (profile.config?.guidedMode === 'domain_default' && profile.config?.introFlowId);
+    let dispatched = configuredOpeningFlow
+      ? await guidedTurn({ ctx, profile, uid, message, user, sessionId, origin, chatId, leadInfo, onStage })
+      : false;
+    if (!dispatched) dispatched = await trainingCenterGuidedTurn({ ctx, profile, uid, message, sessionId, origin, chatId, leadInfo, onStage });
+    return dispatched ? { flowDispatched: true, route: 'greeting' } : { handedOff: true, code: 'OPENING_GREETING_UNAVAILABLE' };
+  }
+  if (profile.engine === 'hybrid' && !profile.config?.flowId && profile.config?.guidedMode !== 'domain_default') return { handedOff: true, code: 'GUIDED_FLOW_REQUIRED' };
   const certificateQuestion = /\b(?:what certificate|which certificate|certificate do i get|certificate will i get|certificate after|certificate for this course|certification|accreditation|accredited|attestation)\b|اي شهادة|ما الشهادة|شهادة احصل|شهادة الدورة|الشهادة التي سأحصل|اعتماد الدورة/iu.test(incomingText);
   const safetyRoute = businessContext.controlRoute(incomingText, profile.config || {}, {}, leadInfo?.facts || []);
   if (safetyRoute === 'handoff' && ctx.category.key === 'training_center' && !certificateQuestion) {
@@ -684,15 +733,7 @@ async function aiTurn({ ctx, profile, uid, message, user, sessionId, origin, cha
   const pack = getDomainPack(ctx.category.key, ctx.category.version);
   const onboarding = ctx.tenant.categoryKey === 'training_center' && !answer.state?.greeted;
   const questionLeadInfo = onboarding ? { ...leadInfo, questionKey: null } : leadInfo;
-  if (onboarding && pack.guidedContentDefaults?.messages) {
-    const language = businessContext.languageFor(textOf(message), answer.state || {});
-    const messages = profile.config?.guidedContent?.messages || {};
-    const greeting = messages.greeting?.[language] || pack.guidedContentDefaults.messages.greeting[language];
-    const naturalFollowUp = language === 'ar' ? 'ما المعلومات الأخرى التي تود معرفتها عن هذه الدورة؟' : 'What else would you like to know about this course?';
-    const reply = String(answer.reply || '').trim();
-    answer.reply = `${greeting}\n\n${reply}${/[?؟]/u.test(reply) ? '' : `\n\n${naturalFollowUp}`}`;
-    answer.state = { ...(answer.state || {}), greeted: true };
-  }
+  if (onboarding) answer.state = { ...(answer.state || {}), greeted: true };
   answer.reply = require('./chatbot-lead-capture').addQuestion(answer.reply, questionLeadInfo, profile.config, pack.guidedContentDefaults);
   onStage?.('reply-authority-check');
   if (!await canSendNow({ ctx, profile, uid, origin, sessionId, chatId, message })) return { paused: true };
@@ -848,6 +889,7 @@ async function runConfiguredBot({ uid, message, user, sessionId, origin, chatId 
     }
     let result;
     if (completionAction) result = await finishRecruitmentChat({ctx,profile,uid,message,sessionId,origin,chatId,completion,action:completionAction});
+    else if (profile.engine === 'guided' && ctx.category.key === 'training_center' && isOpeningGreeting(textOf(message))) result = await aiTurn({ ctx, profile, uid, message, user, sessionId, origin, chatId, leadInfo, onStage: setStage });
     else if (profile.engine === 'guided') { const guided=await guidedTurn({ ctx, profile, uid, message, user, sessionId, origin, chatId, leadInfo });result=guided?.paused?{paused:true}:guided?{sent:true}:{handedOff:true,code:'GUIDED_FLOW_UNAVAILABLE'}; }
     else result = await aiTurn({ ctx, profile, uid, message, user, sessionId, origin, chatId, leadInfo, onStage: setStage });
     setStage('turn-metrics');

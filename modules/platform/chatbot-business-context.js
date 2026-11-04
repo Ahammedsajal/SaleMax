@@ -1,5 +1,6 @@
 'use strict';
 const crypto = require('node:crypto');
+const { isOpeningGreeting } = require('./chatbot-opening-flow');
 const { normalizeDigits } = require('./chatbot-training-guide');
 const { keywordReply } = require('./chatbot-keyword-replies');
 const { findApprovedFaq } = require('./chatbot-faq');
@@ -368,8 +369,8 @@ function redactCustomerText(value) {
 }
 
 function polishGuidedReply({ result, profile, message, state, defaults }) {
-  if (profile.engine !== 'guided' && /^(?:hi|hello|hey|good morning|good evening|مرحبا|أهلا|السلام عليكم|صباح الخير|مساء الخير)$/i.test(message)) {
-    const language = languageFor(message, state || {});
+  if (profile.engine !== 'guided' && isOpeningGreeting(message)) {
+    const language = languageFor(message, result.state || state || {});
     const greeting = profile.config?.guidedContent?.messages?.greeting?.[language] || defaults.messages.greeting[language];
     const configured = profile.config?.guidedContent?.messages?.menuPrompt?.[language] || defaults.messages.menuPrompt?.[language];
     const legacyNumericPrompt = /\b(?:reply|type|send)\b.{0,35}\b(?:number|option|[0-3])\b|\b[0-3]\s*(?:for|to)\b|أرسل\s*رقم|ارسل\s*رقم|الخيار\s*رقم/iu.test(configured || '');

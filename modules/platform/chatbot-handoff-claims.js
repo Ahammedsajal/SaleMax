@@ -113,6 +113,81 @@ async function expireDue(pool, { tenantId = null, channelKind = null, channelRef
   } finally { db.release(); }
 }
 
+async function resetForCustomerGreeting(pool, { tenantId, uid, channelKind, channelRef, conversationId }) {
+  if (!tenantId || !uid || !conversationId || !['whatsapp_meta', 'whatsapp_qr'].includes(channelKind) || !channelRef) return false;
+  const ownerUidHash = crypto.createHash('sha256').update(uid).digest('hex');
+  const db = await pool.getConnection();
+  try {
+    await db.beginTransaction();
+    const [[claim]] = await db.query(`SELECT id,owner_uid_hash AS ownerUidHash,handoff_task_id AS handoffTaskId,
+        notification_event_key AS notificationEventKey
+      FROM sx_chatbot_handoff_claims WHERE tenant_id=? AND channel_kind=? AND channel_ref=?
+        AND conversation_id=? AND owner_uid_hash=? AND status='open' FOR UPDATE`,
+    [tenantId, channelKind, channelRef, conversationId, ownerUidHash]);
+    const [[control]] = await db.query(`SELECT mode,updated_by_kind AS updatedByKind,
+        (pause_until IS NULL OR pause_until>UTC_TIMESTAMP(3)) AS isActive
+      FROM sx_chatbot_conversation_controls WHERE tenant_id=? AND channel_kind=? AND channel_ref=?
+        AND conversation_id=? FOR UPDATE`, [tenantId, channelKind, channelRef, conversationId]);
+    const activeSystemPause = control?.mode === 'paused' && control.updatedByKind === 'system' && Number(control.isActive) === 1;
+    if (!activeSystemPause) {
+      await db.commit();
+      return false;
+    }
+
+    const [resumed] = await db.query(`UPDATE sx_chatbot_conversation_controls SET mode='inherit',pause_until=NULL,reason=NULL,
+        revision=revision+1,updated_by_kind='system',updated_by_identity_id=NULL
+      WHERE tenant_id=? AND channel_kind=? AND channel_ref=? AND conversation_id=? AND mode='paused'
+        AND updated_by_kind='system' AND (pause_until IS NULL OR pause_until>UTC_TIMESTAMP(3))`,
+    [tenantId, channelKind, channelRef, conversationId]);
+    if (resumed.affectedRows !== 1) {
+      await db.commit();
+      return false;
+    }
+
+    let claimExpired = false;
+    if (claim) {
+      const [expired] = await db.query(`UPDATE sx_chatbot_handoff_claims SET status='expired',expires_at=UTC_TIMESTAMP(3),revision=revision+1
+        WHERE tenant_id=? AND id=? AND status='open'`, [tenantId, claim.id]);
+      claimExpired = expired.affectedRows === 1;
+      if (claimExpired) {
+        if (claim.handoffTaskId) {
+          const [[task]] = await db.query(`SELECT status,revision FROM sx_tasks WHERE tenant_id=? AND id=?
+            AND uid_hash=? AND task_type='chatbot_handoff' AND deleted_at IS NULL FOR UPDATE`,
+          [tenantId, claim.handoffTaskId, ownerUidHash]);
+          if (task && ['open', 'in_progress', 'blocked'].includes(task.status)) {
+            const revision = Number(task.revision) + 1;
+            const [updated] = await db.query(`UPDATE sx_tasks SET status='canceled',completed_at=NULL,revision=?
+              WHERE tenant_id=? AND id=? AND revision=? AND status IN ('open','in_progress','blocked') AND deleted_at IS NULL`,
+            [revision, tenantId, claim.handoffTaskId, task.revision]);
+            if (updated.affectedRows) await db.query(`INSERT INTO sx_task_events(tenant_id,task_id,revision,actor_type,actor_id,event_type,from_status,to_status,details_json)
+              VALUES (?,?,?,'system',NULL,'status_changed',?,'canceled',?)`,
+            [tenantId, claim.handoffTaskId, revision, task.status, JSON.stringify({ reason: 'customer-restarted-chat' })]);
+          }
+        }
+        if (claim.notificationEventKey) {
+          await db.query(`UPDATE sx_business_notification_deliveries d
+            JOIN sx_business_notification_events e ON e.tenant_id=d.tenant_id AND e.id=d.event_id
+            SET d.status='suppressed',d.error_code='HANDOFF_CUSTOMER_RESTARTED'
+            WHERE e.tenant_id=? AND e.event_key=? AND e.kind='chatbot_handoff' AND d.status IN ('queued','blocked')`,
+          [tenantId, claim.notificationEventKey]);
+          await db.query(`UPDATE sx_business_notification_events SET status='failed',last_error_code='HANDOFF_CUSTOMER_RESTARTED'
+            WHERE tenant_id=? AND event_key=? AND kind='chatbot_handoff' AND status IN ('queued','prepared')`,
+          [tenantId, claim.notificationEventKey]);
+        }
+      }
+    }
+    await db.query(`INSERT INTO sx_audit_events(id,tenant_id,actor_identity_id,actor_kind,action,resource_type,resource_id,changes,correlation_id)
+      VALUES (?,?,NULL,'system','chatbot.handoff-customer-restarted','chatbot-conversation',?,?,?)`,
+    [crypto.randomUUID(), tenantId, conversationId,
+      JSON.stringify({ channelKind, claimExpired, result: 'customer-restarted-with-greeting' }), crypto.randomUUID()]);
+    await db.commit();
+    return true;
+  } catch (error) {
+    await db.rollback().catch(() => {});
+    throw error;
+  } finally { db.release(); }
+}
+
 async function open(db, { ctx, profile, uid, chatId, channelKind, channelRef, reason, brief = {} }) {
   if (!ctx?.tenant?.id || !profile?.id || !uid || !chatId || !['whatsapp_qr', 'whatsapp_meta'].includes(channelKind) || !channelRef) fail('HANDOFF_INVALID_CONTEXT');
   const ownerHash = crypto.createHash('sha256').update(uid).digest('hex');
@@ -238,4 +313,4 @@ async function handleStaffClaim(pool, { ctx, uid, message, text, channelKind, ch
   } finally { db.release(); }
 }
 
-module.exports = { parseYes, phone, open, queue, findOpen, reserveCustomerAcknowledgement, releaseCustomerAcknowledgement, handleStaffClaim, expireDue, staffRoles };
+module.exports = { parseYes, phone, open, queue, findOpen, reserveCustomerAcknowledgement, releaseCustomerAcknowledgement, handleStaffClaim, expireDue, resetForCustomerGreeting, staffRoles };
