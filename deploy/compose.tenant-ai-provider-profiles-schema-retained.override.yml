@@ -1,0 +1,5 @@
+services:
+  app:
+    image: "${SALEMAX_TENANT_AI_PROVIDER_PROFILES_BASE_IMAGE:?Set the exact current app image}"
+    volumes:
+      - "${SALEMAX_TENANT_AI_PROVIDER_PROFILES_RUNTIME:?Set provider profile runtime directory}/database/migrations/20270120_chatbot_provider_profiles.sql:/app/database/migrations/20270120_chatbot_provider_profiles.sql:ro"
