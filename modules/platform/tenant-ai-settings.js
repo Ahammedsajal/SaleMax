@@ -86,7 +86,11 @@ async function saveProviderProfile(db, ctx, current, input, { strictProfileRevis
   const prior = current || (input.active && input.active.provider === provider ? input.active : null);
   const encrypted = apiKey === undefined ? null : secrets.encrypt(apiKey);
   if (!prior && !encrypted) fail('PROVIDER_KEY_REQUIRED');
-  const credential = encrypted || prior;
+  const credential = encrypted ? {
+    key_ciphertext: encrypted.ciphertext,
+    key_iv: encrypted.iv,
+    key_auth_tag: encrypted.authTag,
+  } : prior;
   const nextRevision = Number(prior?.revision || 0) + 1;
   const values = [model, credential.key_ciphertext, credential.key_iv, credential.key_auth_tag, nextRevision, ctx.identity.id];
   if (current) {
