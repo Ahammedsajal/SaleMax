@@ -1,4 +1,4 @@
-## AI provider profiles and live switching — source verified, production release in progress, 4 November 2026
+## AI provider profiles and live switching — deployed, 4 November 2026
 
 The existing owner-only AI Integrations screen now supports separately saved
 OpenAI, Gemini and DeepSeek model/key profiles, including save-for-later,
@@ -6,8 +6,15 @@ save-and-activate and activate-saved actions. Provider keys remain encrypted
 and are never returned. Switching requires no bot pause; new requests use the
 selected profile, while in-flight requests retain the settings they already
 loaded. Existing usage and prompt-cache accounting remain shared. Focused source
-checks pass; the production release and live-screen acceptance are pending.
-See `DEPLOYMENT.md` for the release result and remaining gates.
+Focused source checks passed 27/27. Production supplemental release
+`/opt/salemax/releases/tenant-ai-provider-profiles-58051c81-20261104` is healthy;
+five served assets match, `/healthz` returns 200 and anonymous settings access
+returns 401. The provider-profile migration was already applied (2/2 statements)
+with its checksum unchanged. The production shell defaults to English while
+respecting an explicit saved language preference. The browser route currently
+redirects to `/user/login`, so signed-in owner controls could not be reviewed;
+real provider connectivity and authenticated save/switch acceptance remain open.
+See `DEPLOYMENT.md` for source, release, rollback and verification evidence.
 
 ## Training Center lead organization and reply-driven stages — deployed, 4 November 2026
 
