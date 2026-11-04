@@ -69,5 +69,8 @@ html[data-sx-theme=dark] .toast { color: #effff9; background: #145b4a; }
 .card-badges{display:flex;align-items:flex-start;justify-content:flex-end;gap:5px;flex-wrap:wrap;min-width:0}
 .hot-lead{background:#fff0e8;color:#a43a12;border:1px solid #f2c3a7;font-weight:750}
 .engagement-hint{margin:10px 0 14px;padding:10px 12px;border:1px solid #f2d3bd;border-radius:9px;background:#fff8f2;color:#814624;font-size:12px;line-height:1.5}
+.pipeline-pagination{display:flex;justify-content:center;margin:12px auto;padding:4px 0 12px}
+.pipeline-pagination button{min-height:42px}
+.pipeline-pagination.hidden{display:none}
 html[data-sx-theme=dark] .hot-lead{background:#49291f;color:#ffd0b5;border-color:#754630}
 html[data-sx-theme=dark] .engagement-hint{background:#30251f;color:#f2c5a9;border-color:#5a4033}

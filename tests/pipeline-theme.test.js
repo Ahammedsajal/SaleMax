@@ -11,7 +11,7 @@ test('embedded Pipeline follows the saved workspace theme and includes dark moda
   const css=fs.readFileSync(path.join(root,'pipeline-theme.css'),'utf8');
   assert.match(script,/localStorage\.getItem\('theme_mode'\)/);
   assert.match(script,/addEventListener\('storage'/);
-  assert.match(html,/pipeline-theme\.css\?v=20261104-training-funnel1/);
+  assert.match(html,/pipeline-theme\.css\?v=20261104-training-funnel-correction1/);
   assert.match(css,/html\[data-sx-theme=dark\] \.modal/);
   assert.match(css,/html\[data-sx-theme=dark\] \.re-create-requirement/);
   assert.match(css,/html\[data-sx-theme=dark\] \.re-requirements input/);
@@ -24,5 +24,5 @@ test('Real Estate Pipeline localizes stages and unassigned choices in Arabic',()
   assert.equal((script.match(/escape\(stageName\(s\)\)/g)||[]).length,2);
   assert.ok((script.match(/tr\('unassigned'\)/g)||[]).length>=3);
   assert.match(script,/unassigned:'غير مُسند'/);
-  assert.match(html,/pipeline\.js\?v=20261104-training-funnel1/);
+  assert.match(html,/pipeline\.js\?v=20261104-training-funnel-correction1/);
 });

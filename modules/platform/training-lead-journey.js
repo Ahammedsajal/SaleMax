@@ -64,7 +64,8 @@ async function reconcileExisting(pool,{uid,categoryKey}){
         FROM pipeline_leads l JOIN sx_training_enrollments e ON e.legacy_uid_hash=l.uid_hash AND e.legacy_uid COLLATE utf8mb4_general_ci=l.uid COLLATE utf8mb4_general_ci AND e.lead_id=l.id
         JOIN sx_training_invoices i ON i.tenant_id=e.tenant_id AND i.enrollment_id=e.id AND i.status='issued'
         LEFT JOIN sx_training_certificates cert ON cert.tenant_id=e.tenant_id AND cert.enrollment_id=e.id
-        WHERE e.tenant_id=? AND l.uid_hash=? AND l.uid=? AND l.status='won' AND l.stage_key='won'
+        WHERE e.tenant_id=? AND l.uid_hash=? AND l.uid=? AND l.status='won'
+          AND l.stage_key NOT IN ('lost','training_payment_received','training_course_started','training_fully_paid','training_course_completed','training_certificate_issued')
         ORDER BY e.id FOR UPDATE`,[tenantId,uidHash,uid]);
       if(!rows.length)continue;
       await ensureStages(connection,uidHash,uid);
