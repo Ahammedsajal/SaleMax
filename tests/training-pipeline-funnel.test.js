@@ -22,8 +22,11 @@ test('training funnel setup is category scoped, preserves lead IDs, maps Proposa
   const stages=[];
   const leads=[{id:'synthetic-lead',uid_hash:uidHash,stage_key:'proposal',status:'open'},{id:'synthetic-won',uid_hash:uidHash,stage_key:'proposal',status:'won'},{id:'synthetic-lost',uid_hash:uidHash,stage_key:'proposal',status:'lost'}];
   const activities=[];
+  const queryOrder=[];
   let versionReads=0;
-  const db={async beginTransaction(){},async commit(){},async rollback(){},release(){},async query(sql,params=[]){
+  let transactionCount=0;
+  const db={async beginTransaction(){transactionCount++;},async commit(){},async rollback(){},release(){},async query(sql,params=[]){
+    queryOrder.push(sql);
     if(sql.includes('INSERT IGNORE INTO pipeline_settings'))return [{affectedRows:1}];
     if(sql.includes('INSERT IGNORE INTO pipeline_stages')){
       if(params.length===9){const [, ,stage_key,title,position,color,stage_type,probability,is_system]=params;if(!stages.some(stage=>stage.stage_key===stage_key))stages.push({stage_key,title,position:Number(position),color,stage_type,probability,is_system});}
@@ -49,7 +52,12 @@ test('training funnel setup is category scoped, preserves lead IDs, maps Proposa
   }};
   const pool={async getConnection(){return db;}};
   assert.equal(await pipeline.ensureTrainingPipeline({uid,categoryKey:'7network_sales',pool}),false);
-  assert.equal(await pipeline.ensureTrainingPipeline({uid,categoryKey:'training_center',pool}),true);
+  assert.deepEqual(await Promise.all([
+    pipeline.ensureTrainingPipeline({uid,categoryKey:'training_center',pool}),
+    pipeline.ensureTrainingPipeline({uid,categoryKey:'training_center',pool}),
+  ]),[true,true]);
+  assert.equal(transactionCount,1);
+  assert.ok(queryOrder.findIndex(sql=>sql.includes('SELECT training_funnel_version')&&sql.includes('FOR UPDATE'))<queryOrder.findIndex(sql=>sql.includes('INSERT IGNORE INTO pipeline_stages')));
   assert.deepEqual(stages.slice().sort((a,b)=>a.position-b.position).slice(0,6).map(stage=>stage.stage_key),[
     'new','interested','contacted','qualified','training_registration_pending','training_invoice_issued',
   ]);
