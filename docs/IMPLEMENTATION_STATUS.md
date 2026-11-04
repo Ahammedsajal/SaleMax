@@ -1,3 +1,7 @@
+## Agent assignment freshness — deployed, 4 November 2026
+
+The existing Agent Inbox now receives an authorized list-refresh event after a lead assignment commits. The agent Pipeline refreshes when its tab becomes active and checks for assignments every 30 seconds while visible. Source commit `bf5e075bef464f0f4676e2e5f4385484f149ae98` is live in supplemental release `/opt/salemax/releases/agent-assignment-refresh-bf5e075b-20261104`; the existing image and supporting services are preserved. Public health and Pipeline asset checks pass. No migration or automated test suite ran. A signed-in agent assignment round trip and browser/role acceptance remain open. See `DEPLOYMENT.md` for exact hashes, rollback and live evidence. The full 42-ticket upgrade remains the objective.
+
 ## AI provider profiles and live switching — deployed, 4 November 2026
 
 The existing owner-only AI Integrations screen now supports separately saved
