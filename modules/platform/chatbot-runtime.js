@@ -123,8 +123,8 @@ async function handoffConversation(ctx, chatId, channelKind, channelRef, reason,
   try {
     await db.beginTransaction();
     await db.query(`INSERT INTO sx_chatbot_conversation_controls(id,tenant_id,channel_kind,channel_ref,conversation_id,mode,pause_until,reason,revision,updated_by_kind,updated_by_identity_id)
-      VALUES (?,?,?,?,?,'paused',NULL,?,1,'system',NULL)
-      ON DUPLICATE KEY UPDATE mode='paused',pause_until=NULL,reason=VALUES(reason),revision=revision+1,updated_by_kind='system',updated_by_identity_id=NULL`,
+      VALUES (?,?,?,?,?,'paused',DATE_ADD(UTC_TIMESTAMP(3),INTERVAL 24 HOUR),?,1,'system',NULL)
+      ON DUPLICATE KEY UPDATE mode='paused',pause_until=DATE_ADD(UTC_TIMESTAMP(3),INTERVAL 24 HOUR),reason=VALUES(reason),revision=revision+1,updated_by_kind='system',updated_by_identity_id=NULL`,
     [crypto.randomUUID(), ctx.tenant.id, channelKind, channelRef, chatId, String(reason || 'human-review').slice(0, 240)]);
     await db.query(`INSERT INTO sx_audit_events(id,tenant_id,actor_identity_id,actor_kind,action,resource_type,resource_id,changes,correlation_id)
       VALUES (?,?,NULL,'system','chatbot.conversation-auto-handoff','chatbot-conversation',?,?,?)`,
@@ -229,6 +229,9 @@ async function handleHandoffPriorityMessage({ uid, message, user, sessionId, ori
   const profile = await profileFor(ctx, uid, origin, sessionId);
   if (!profile) return { handled: false };
   const claims = require('./chatbot-handoff-claims');
+  await claims.expireDue(dbPool, { tenantId: ctx.tenant.id, channelKind: channelFor(origin), channelRef: sessionId, conversationId: chatId }).catch(error => {
+    console.warn('[chatbot] handoff expiry sweep failed', error.code || 'HANDOFF_EXPIRY_FAILED');
+  });
   if (claims.parseYes(textOf(message))) {
     const result = await processHandoffPriorityForProfile({ ctx, profile, uid, message, user, sessionId, origin, chatId });
     if (result.handled) return result;

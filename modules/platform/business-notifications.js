@@ -47,7 +47,7 @@ async function scanTenant(db,tenant,{now=new Date()}={}){
 }
 async function prepare(db,event,tenant){
  const meta=finance.parse(event.payload_json);let data;
- if(event.kind==='daily_summary')data=await reports.build(db,tenant,{day:meta.day});else if(event.kind==='ai_usage_monthly')data={month:meta.month,estimatedUsd:Number(meta.estimatedUsd),thresholdUsd:Number(meta.thresholdUsd||10)};else if(event.kind==='chatbot_handoff'){const [[claim]]=await db.query("SELECT id,claim_code AS claimCode,status,customer_name AS customerName,customer_phone AS customerPhone FROM sx_chatbot_handoff_claims WHERE tenant_id=? AND id=?",[event.tenant_id,event.source_id]);data=claim?.status==='open'?claim:null;}else data=await finance.load(db,event);
+ if(event.kind==='daily_summary')data=await reports.build(db,tenant,{day:meta.day});else if(event.kind==='ai_usage_monthly')data={month:meta.month,estimatedUsd:Number(meta.estimatedUsd),thresholdUsd:Number(meta.thresholdUsd||10)};else if(event.kind==='chatbot_handoff'){const [[claim]]=await db.query("SELECT id,claim_code AS claimCode,status,COALESCE(expires_at,DATE_ADD(created_at,INTERVAL 24 HOUR))>UTC_TIMESTAMP(3) AS isActive,customer_name AS customerName,customer_phone AS customerPhone FROM sx_chatbot_handoff_claims WHERE tenant_id=? AND id=?",[event.tenant_id,event.source_id]);data=claim?.status==='open'&&Number(claim.isActive)?claim:null;}else data=await finance.load(db,event);
  if(!data){await db.query("UPDATE sx_business_notification_events SET status='failed',last_error_code=? WHERE id=? AND tenant_id=?",[event.kind==='chatbot_handoff'?'HANDOFF_ALREADY_CLAIMED':'FINANCE_RESOURCE_CLOSED_OR_UNAVAILABLE',event.id,event.tenant_id]);return;}
  let members=data.customerOnly?[]:await qr.staff(db,event.tenant_id,{ownerOnly:event.kind==='daily_summary'});
  if(event.kind==='ai_usage_monthly')members=members.filter(member=>['owner','manager'].includes(member.role));
@@ -72,7 +72,7 @@ async function claim(db){
   // An interrupted send may already have reached WhatsApp. It requires review,
   // rather than an automatic resend after a lease expires.
   await db.query("UPDATE sx_business_notification_deliveries SET status='unknown',lease_token=NULL,lease_expires_at=NULL,error_code='WORKER_SEND_OUTCOME_UNKNOWN' WHERE status='sending' AND lease_expires_at<=UTC_TIMESTAMP(3)");
-  const [[item]]=await db.query(`SELECT d.*,e.kind,e.source_type,e.source_id,e.payload_json,t.name,t.timezone FROM sx_business_notification_deliveries d JOIN sx_business_notification_events e ON e.tenant_id=d.tenant_id AND e.id=d.event_id JOIN sx_tenants t ON t.id=d.tenant_id AND t.status='active' LEFT JOIN sx_business_notification_settings s ON s.tenant_id=t.id WHERE d.status IN ('queued','blocked') AND (e.kind IN ('ai_usage_monthly','chatbot_handoff') OR s.enabled=1) AND (e.kind<>'chatbot_handoff' OR EXISTS(SELECT 1 FROM sx_chatbot_handoff_claims h WHERE h.tenant_id=e.tenant_id AND h.id=e.source_id AND h.status='open')) AND d.available_at<=UTC_TIMESTAMP(3) AND (d.part='text' OR EXISTS(SELECT 1 FROM sx_business_notification_deliveries x WHERE x.event_id=d.event_id AND x.destination_hash=d.destination_hash AND x.part='text' AND x.status='accepted')) ORDER BY d.id LIMIT 1 FOR UPDATE SKIP LOCKED`);
+  const [[item]]=await db.query(`SELECT d.*,e.kind,e.source_type,e.source_id,e.payload_json,t.name,t.timezone FROM sx_business_notification_deliveries d JOIN sx_business_notification_events e ON e.tenant_id=d.tenant_id AND e.id=d.event_id JOIN sx_tenants t ON t.id=d.tenant_id AND t.status='active' LEFT JOIN sx_business_notification_settings s ON s.tenant_id=t.id WHERE d.status IN ('queued','blocked') AND (e.kind IN ('ai_usage_monthly','chatbot_handoff') OR s.enabled=1) AND (e.kind<>'chatbot_handoff' OR EXISTS(SELECT 1 FROM sx_chatbot_handoff_claims h WHERE h.tenant_id=e.tenant_id AND h.id=e.source_id AND h.status='open' AND COALESCE(h.expires_at,DATE_ADD(h.created_at,INTERVAL 24 HOUR))>UTC_TIMESTAMP(3))) AND d.available_at<=UTC_TIMESTAMP(3) AND (d.part='text' OR EXISTS(SELECT 1 FROM sx_business_notification_deliveries x WHERE x.event_id=d.event_id AND x.destination_hash=d.destination_hash AND x.part='text' AND x.status='accepted')) ORDER BY d.id LIMIT 1 FOR UPDATE SKIP LOCKED`);
   if(!item){await db.commit();return null;}const token=crypto.randomUUID();await db.query("UPDATE sx_business_notification_deliveries SET status='sending',attempts=attempts+1,lease_token=?,lease_expires_at=DATE_ADD(UTC_TIMESTAMP(3),INTERVAL 120 SECOND) WHERE id=?",[token,item.id]);await db.commit();return {...item,token,attempts:Number(item.attempts)+1};
  }catch(e){await db.rollback();throw e;}
 }
@@ -94,8 +94,8 @@ async function dispatch(db,item,{send=qr.send,authorize=allowed,summarizeHandoff
  }
  if(item.kind==='payment_due'&&meta.dueDate!==moment.tz(new Date(),item.timezone||'Asia/Qatar').format('YYYY-MM-DD'))return {status:'suppressed',errorCode:'REMINDER_DATE_PASSED'};
  if(item.kind==='chatbot_handoff'){
-  const [[pending]]=await db.query("SELECT claim_code AS claimCode,status,customer_name AS customerName,customer_phone AS customerPhone,course_details AS courseDetails,latest_enquiry AS latestEnquiry FROM sx_chatbot_handoff_claims WHERE tenant_id=? AND id=?",[item.tenant_id,item.source_id]);
-  if(!pending||pending.status!=='open')return {status:'suppressed',errorCode:'HANDOFF_ALREADY_CLAIMED'};
+  const [[pending]]=await db.query("SELECT claim_code AS claimCode,status,COALESCE(expires_at,DATE_ADD(created_at,INTERVAL 24 HOUR))>UTC_TIMESTAMP(3) AS isActive,customer_name AS customerName,customer_phone AS customerPhone,course_details AS courseDetails,latest_enquiry AS latestEnquiry FROM sx_chatbot_handoff_claims WHERE tenant_id=? AND id=?",[item.tenant_id,item.source_id]);
+  if(!pending||pending.status!=='open'||!Number(pending.isActive))return {status:'suppressed',errorCode:'HANDOFF_ALREADY_CLAIMED'};
   if(pending.customerPhone&&qr.hash(qr.phone(to)||'')===qr.hash(qr.phone(pending.customerPhone)||''))return {status:'suppressed',errorCode:'HANDOFF_CUSTOMER_STAFF_NUMBER_MATCH'};
   const summarize=summarizeHandoff||((tenantId,claimId)=>require('./chatbot-handoff-summary').summarize(require('../../database/config').promise(),tenantId,claimId));
   const summary=await summarize(item.tenant_id,item.source_id);
@@ -138,7 +138,9 @@ async function scheduledReport(db,{tenantId,to,snapshot,text}){
  }catch(e){await db.rollback();throw e;}
 }
 async function tick(pool,{scan=true,now=new Date(),limit=20}={}){
- const totals={prepared:0,accepted:0,blocked:0,unknown:0};const db=await pool.getConnection();
+ const totals={prepared:0,accepted:0,blocked:0,unknown:0,expired:0};
+ const expiration=await require('./chatbot-handoff-claims').expireDue(pool,{limit:100});totals.expired=expiration.expired;
+ const db=await pool.getConnection();
  try{
   if(scan){const [tenants]=await db.query("SELECT id,name,category_key,timezone FROM sx_tenants WHERE status='active' AND id>? ORDER BY id LIMIT 100",[tenantScanCursor]);tenantScanCursor=tenants.length===100?tenants.at(-1).id:'';for(const tenant of tenants)try{await scanTenant(db,tenant,{now});}catch(e){console.error(JSON.stringify({event:'business_notification_scan_failed',code:e.code||'SCAN_FAILED'}));}}
   for(let i=0;i<limit;i++){
@@ -151,7 +153,7 @@ async function tick(pool,{scan=true,now=new Date(),limit=20}={}){
 function start({env=process.env,pool}={}){
  if(env.LOCAL_ONLY_MODE==='true'||env.SALEMAX_BUSINESS_NOTIFICATIONS_ENABLED!=='true')return {stop(){}};
  pool=pool||require('../../database/config').promise();let stopped=false,busy=false,timer,scanAt=0;
- const loop=async()=>{if(stopped||busy)return;busy=true;try{const scan=Date.now()-scanAt>60000;const result=await tick(pool,{scan});if(scan)scanAt=Date.now();if(result.prepared||result.accepted||result.unknown)console.log(JSON.stringify({businessNotifications:result}));}catch(e){console.error(JSON.stringify({event:'business_notifications_failed',code:e.code||'WORKER_FAILED'}));}finally{busy=false;if(!stopped)timer=setTimeout(loop,15000);}};
+ const loop=async()=>{if(stopped||busy)return;busy=true;try{const scan=Date.now()-scanAt>60000;const result=await tick(pool,{scan});if(scan)scanAt=Date.now();if(result.prepared||result.accepted||result.unknown||result.expired)console.log(JSON.stringify({businessNotifications:result}));}catch(e){console.error(JSON.stringify({event:'business_notifications_failed',code:e.code||'WORKER_FAILED'}));}finally{busy=false;if(!stopped)timer=setTimeout(loop,15000);}};
  timer=setTimeout(loop,20000);return {stop(){stopped=true;clearTimeout(timer);}};
 }
 module.exports={enqueue,due,scanTenant,prepare,claim,dispatch,finish,scheduledReport,tick,start};
