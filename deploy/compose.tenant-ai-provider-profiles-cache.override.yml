@@ -1,0 +1,6 @@
+services:
+  app:
+    image: "${SALEMAX_TENANT_AI_PROVIDER_PROFILES_CACHE_BASE_IMAGE:?Set the exact current app image}"
+    volumes:
+      - "${SALEMAX_TENANT_AI_PROVIDER_PROFILES_CACHE_RUNTIME:?Set the production-derived shell runtime directory}/client/public/index.html:/app/client/public/index.html:ro"
+      - "${SALEMAX_TENANT_AI_PROVIDER_PROFILES_CACHE_RUNTIME:?Set the production-derived shell runtime directory}/client/public/training-sidebar.js:/app/client/public/training-sidebar.js:ro"
