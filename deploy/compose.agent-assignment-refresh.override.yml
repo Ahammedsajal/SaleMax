@@ -1,0 +1,7 @@
+services:
+  app:
+    image: "${SALEMAX_AGENT_ASSIGNMENT_REFRESH_BASE_IMAGE:?Set the exact current app image}"
+    volumes:
+      - "${SALEMAX_AGENT_ASSIGNMENT_REFRESH_RUNTIME:?Set the agent assignment refresh runtime directory}/routes/pipeline.js:/app/routes/pipeline.js:ro"
+      - "${SALEMAX_AGENT_ASSIGNMENT_REFRESH_RUNTIME:?Set the agent assignment refresh runtime directory}/client/public/pipeline/pipeline.js:/app/client/public/pipeline/pipeline.js:ro"
+      - "${SALEMAX_AGENT_ASSIGNMENT_REFRESH_RUNTIME:?Set the agent assignment refresh runtime directory}/client/public/pipeline/index.html:/app/client/public/pipeline/index.html:ro"

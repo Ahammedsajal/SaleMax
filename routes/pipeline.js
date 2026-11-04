@@ -504,6 +504,7 @@ router.patch("/leads/:id", authorizeLead, async (req, res) => {
     const assignmentWillChange=requestedOwner!==undefined&&(requestedOwner===null?req.pipelineLead.owner_agent_id!=null:Number(req.pipelineLead.owner_agent_id)!==requestedOwner);
     const reminderContext=assignmentWillChange&&requestedOwner!==null
       ? await taskContext(req.pipelineActor,'tasks.manage') : null;
+    const assignmentNoticeRecipients=new Set();
     const data = await pipeline.updateLead({
       uid: req.pipelineActor.uid,
       id: req.params.id,
@@ -523,6 +524,8 @@ router.patch("/leads/:id", authorizeLead, async (req, res) => {
         const [previousAgents]=assignmentChange.fromAgentId===null?[[]]:await db.query('SELECT uid FROM agents WHERE id=? AND owner_uid=? LIMIT 1',[assignmentChange.fromAgentId,req.pipelineActor.uid]);
         const previousUid=previousAgents[0]?.uid;
         const target=agents[0]||null;
+        if(previousUid)assignmentNoticeRecipients.add(String(previousUid));
+        if(target?.uid)assignmentNoticeRecipients.add(String(target.uid));
         for(const chatId of ids){
           if(previousUid)await db.query('DELETE FROM agent_chats WHERE owner_uid=? AND uid=? AND chat_id=?',[req.pipelineActor.uid,previousUid,chatId]);
           if(target){
@@ -555,6 +558,12 @@ router.patch("/leads/:id", authorizeLead, async (req, res) => {
         return { chatsAssigned:target?ids.length:0, reminderTaskId:reminderTask?.id||null };
       },
     });
+    if(assignmentWillChange&&assignmentNoticeRecipients.size){
+      try{
+        const {sendToUid}=require('../socket');
+        for(const agentUid of assignmentNoticeRecipients)sendToUid(agentUid,{},'request_update_chat_list');
+      }catch(error){console.error('Pipeline agent refresh notification failed:',error?.code||'SOCKET_NOTIFICATION_FAILED');}
+    }
     res.json({ success: true, data });
   } catch (error) { fail(res, error); }
 });
