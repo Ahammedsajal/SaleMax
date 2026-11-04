@@ -1,0 +1,10 @@
+'use strict';
+const fs = require('node:fs');
+const file = process.argv[2];
+if (!file) throw new Error('Expected the workspace shell path');
+const oldRef = '/phonebook-workspace.js?v=20261027-parity1';
+const newRef = '/phonebook-workspace.js?v=20261104-phonebook-trigger-commas1';
+const html = fs.readFileSync(file, 'utf8');
+if (html.includes(newRef)) process.exit(0);
+if (html.split(oldRef).length !== 2) throw new Error('Expected exactly one current Phonebook script cache reference');
+fs.writeFileSync(file, html.replace(oldRef, newRef));
