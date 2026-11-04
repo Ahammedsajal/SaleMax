@@ -1,5 +1,7 @@
 'use strict';
 
+const { isOpeningGreeting } = require('./chatbot-opening-flow');
+
 function summarizeConversation(history) {
   if (!Array.isArray(history)) return '';
   return history.slice(-4).filter(item => ['user', 'assistant'].includes(item?.role) && typeof item.text === 'string')
@@ -9,7 +11,7 @@ function summarizeConversation(history) {
 }
 
 function buildAiPrompt({ pack, profile, customerMessage, facts, history, courseOverview = false }) {
-  const firstGreeting = (!Array.isArray(history) || history.length === 0) && /^(?:hi|hello|hey|good morning|good evening|salam|مرحبا|اهلا|السلام عليكم|صباح الخير|مساء الخير)[!.؟\s]*$/iu.test(String(customerMessage || '').trim());
+  const firstGreeting = isOpeningGreeting(customerMessage);
   const courseListRequest = /^(?:courses|course list|show courses|available courses|what courses do you have|الدورات|دورات|عرض الدورات|قائمة الدورات)[!.؟\s]*$/iu.test(String(customerMessage || '').trim());
   const overviewSystem = [
     `You are the ${pack.title} assistant for this 7Network business.`,

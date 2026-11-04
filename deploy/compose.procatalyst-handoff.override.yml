@@ -7,3 +7,8 @@ services:
       - ${SALEMAX_PROCATALYST_HANDOFF_RELEASE:?SALEMAX_PROCATALYST_HANDOFF_RELEASE is required}/runtime/chatbot-router.js:/app/modules/platform/chatbot-router.js:ro
       - ${SALEMAX_PROCATALYST_HANDOFF_RELEASE:?SALEMAX_PROCATALYST_HANDOFF_RELEASE is required}/runtime/chatbot-config.js:/app/modules/platform/chatbot-config.js:ro
       - ${SALEMAX_PROCATALYST_HANDOFF_RELEASE:?SALEMAX_PROCATALYST_HANDOFF_RELEASE is required}/runtime/chatbot-runtime.js:/app/modules/platform/chatbot-runtime.js:ro
+      - ${SALEMAX_PROCATALYST_HANDOFF_RELEASE:?SALEMAX_PROCATALYST_HANDOFF_RELEASE is required}/runtime/chatbot-handoff-claims.js:/app/modules/platform/chatbot-handoff-claims.js:ro
+      - ${SALEMAX_PROCATALYST_HANDOFF_RELEASE:?SALEMAX_PROCATALYST_HANDOFF_RELEASE is required}/runtime/chatbot-ai-prompt.js:/app/modules/platform/chatbot-ai-prompt.js:ro
+      - ${SALEMAX_PROCATALYST_HANDOFF_RELEASE:?SALEMAX_PROCATALYST_HANDOFF_RELEASE is required}/runtime/chatbot-business-context.js:/app/modules/platform/chatbot-business-context.js:ro
+      - ${SALEMAX_PROCATALYST_HANDOFF_RELEASE:?SALEMAX_PROCATALYST_HANDOFF_RELEASE is required}/runtime/chatbot-opening-flow.js:/app/modules/platform/chatbot-opening-flow.js:ro
+      - ${SALEMAX_PROCATALYST_HANDOFF_RELEASE:?SALEMAX_PROCATALYST_HANDOFF_RELEASE is required}/runtime/chatbot-training-guide.js:/app/modules/platform/chatbot-training-guide.js:ro
