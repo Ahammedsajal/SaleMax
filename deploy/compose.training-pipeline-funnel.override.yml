@@ -1,0 +1,12 @@
+services:
+  app:
+    volumes:
+      - ${SALEMAX_TRAINING_PIPELINE_RUNTIME:?set Training Pipeline runtime directory}/helper/pipeline/leadPipeline.js:/app/helper/pipeline/leadPipeline.js:ro
+      - ${SALEMAX_TRAINING_PIPELINE_RUNTIME:?set Training Pipeline runtime directory}/routes/pipeline.js:/app/routes/pipeline.js:ro
+      - ${SALEMAX_TRAINING_PIPELINE_RUNTIME:?set Training Pipeline runtime directory}/modules/platform/task-management.js:/app/modules/platform/task-management.js:ro
+      - ${SALEMAX_TRAINING_PIPELINE_RUNTIME:?set Training Pipeline runtime directory}/modules/platform/training-lead-journey.js:/app/modules/platform/training-lead-journey.js:ro
+      - ${SALEMAX_TRAINING_PIPELINE_RUNTIME:?set Training Pipeline runtime directory}/modules/platform/training-registration-workflow.js:/app/modules/platform/training-registration-workflow.js:ro
+      - ${SALEMAX_TRAINING_PIPELINE_RUNTIME:?set Training Pipeline runtime directory}/client/public/pipeline/index.html:/app/client/public/pipeline/index.html:ro
+      - ${SALEMAX_TRAINING_PIPELINE_RUNTIME:?set Training Pipeline runtime directory}/client/public/pipeline/pipeline.js:/app/client/public/pipeline/pipeline.js:ro
+      - ${SALEMAX_TRAINING_PIPELINE_RUNTIME:?set Training Pipeline runtime directory}/client/public/pipeline/pipeline-theme.css:/app/client/public/pipeline/pipeline-theme.css:ro
+      - ${SALEMAX_TRAINING_PIPELINE_RUNTIME:?set Training Pipeline runtime directory}/database/migrations/20261104_training_pipeline_funnel_version.sql:/app/database/migrations/20261104_training_pipeline_funnel_version.sql:ro

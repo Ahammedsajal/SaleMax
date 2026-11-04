@@ -1,0 +1,4 @@
+services:
+  app:
+    volumes:
+      - ${SALEMAX_AGENT_SIGNED_TOKEN_RUNTIME:?set runtime directory}/middlewares/user.js:/app/middlewares/user.js:ro

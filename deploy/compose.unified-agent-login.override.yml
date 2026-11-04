@@ -1,0 +1,24 @@
+services:
+  app:
+    image: salemax-app:openai-ads-lead-01fde9e1-20261103
+    volumes:
+      - type: bind
+        source: ${SALEMAX_UNIFIED_AGENT_LOGIN_RELEASE}/routes/user.js
+        target: /app/routes/user.js
+        read_only: true
+      - type: bind
+        source: ${SALEMAX_UNIFIED_AGENT_LOGIN_RELEASE}/routes/agent.js
+        target: /app/routes/agent.js
+        read_only: true
+      - type: bind
+        source: ${SALEMAX_UNIFIED_AGENT_LOGIN_RELEASE}/modules/platform/agent-login-service.js
+        target: /app/modules/platform/agent-login-service.js
+        read_only: true
+      - type: bind
+        source: ${SALEMAX_UNIFIED_AGENT_LOGIN_RELEASE}/client/public/unified-pwa-login.js
+        target: /app/client/public/unified-pwa-login.js
+        read_only: true
+      - type: bind
+        source: ${SALEMAX_UNIFIED_AGENT_LOGIN_RELEASE}/client/public/index.html
+        target: /app/client/public/index.html
+        read_only: true

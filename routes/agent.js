@@ -21,7 +21,6 @@ const {
   sendMetaMsg,
   removeTokenFromAll,
 } = require("../functions/function.js");
-const { sign } = require("jsonwebtoken");
 const validateUser = require("../middlewares/user.js");
 const validateAgent = require("../middlewares/agent.js");
 const Stripe = require("stripe");
@@ -38,7 +37,7 @@ const ffmpegStatic = require("ffmpeg-static");
 const fs = require("fs");
 const legacyAgentSeats = require("../modules/platform/legacy-agent-seats");
 const legacyAgentAccess = require("../modules/platform/legacy-agent-access");
-const {issueForVerifiedLegacyAccount} = require("../modules/platform/legacy-session-bridge");
+const { authenticateAgentLogin } = require("../modules/platform/agent-login-service");
 const legacyAgentTaskAdapter = require("../modules/platform/legacy-agent-task-adapter");
 const taskManagement = require("../modules/platform/task-management");
 
@@ -378,138 +377,23 @@ router.post("/del_assign_chat_by_owner", validateUser, async (req, res) => {
 });
 
 // login agent
-// router.post("/login", async (req, res) => {
-//   try {
-//     const { email, password } = req.body;
-
-//     if (!email || !password) {
-//       return res.json({
-//         success: false,
-//         msg: "Please provide email and password",
-//       });
-//     }
-
-//     // check for user
-//     const agentFind = await query(`SELECT * FROM agents WHERE email = ?`, [
-//       email,
-//     ]);
-//     if (agentFind.length < 1) {
-//       return res.json({ msg: "Invalid credentials" });
-//     }
-
-//     const compare = await bcrypt.compare(password, agentFind[0].password);
-
-//     if (!compare) {
-//       return res.json({ msg: "Invalid credentials" });
-//     } else {
-//       const token = sign(
-//         {
-//           uid: agentFind[0].uid,
-//           role: "agent",
-//           password: agentFind[0].password,
-//           email: agentFind[0].email,
-//           owner_uid: agentFind[0]?.owner_uid,
-//         },
-//         process.env.JWTKEY,
-//         {}
-//       );
-//       res.json({
-//         success: true,
-//         token,
-//       });
-//     }
-//   } catch (err) {
-//     res.json({ success: false, msg: "something went wrong", err });
-//     console.log(err);
-//   }
-// });
-
 router.post("/login", async (req, res) => {
   try {
-    const { email, password } = req.body;
+    const result = await authenticateAgentLogin({ req, email: req.body?.email, password: req.body?.password });
+    if (result.status) return res.status(result.status).json({ success: false, code: result.code, msg: result.msg });
+    if (!result.success) return res.json({ success: false, msg: result.msg });
 
-    if (!email || !password) {
-      return res.json({
-        success: false,
-        msg: "Please provide email and password",
-      });
-    }
-
-    // Check for user
-    const agentFind = await query(`SELECT * FROM agents WHERE email = ?`, [
-      email,
-    ]);
-    if (agentFind.length < 1) {
-      return res.json({ msg: "Invalid credentials" });
-    }
-
-    const compare = await bcrypt.compare(password, agentFind[0].password);
-    if (!compare) {
-      return res.json({ msg: "Invalid credentials" });
-    }
-
-    if(Number(agentFind[0].is_active)!==1)return res.status(403).json({success:false,msg:"This agent account is inactive."});
-
-    try { await require('../modules/platform/tenant-crm-domains').assertLegacyHost(query,req,'agents',agentFind[0].id); }
-    catch (error) { return res.status(error.status||403).json({success:false,code:error.code||'CRM_DOMAIN_TENANT_MISMATCH'}); }
-
-    const businessSession = await issueForVerifiedLegacyAccount({kind:'agent',legacyId:Number(agentFind[0].id),legacyUid:agentFind[0].uid,legacyEmail:agentFind[0].email,password,address:req.socket.remoteAddress,origin:req.get('Origin'),tenantHost:req.crmTenantDomain?.hostname});
-
-    // Generate token
-    const token = sign(
-      {
-        uid: agentFind[0].uid,
-        role: "agent",
-        password: agentFind[0].password,
-        email: agentFind[0].email,
-        owner_uid: agentFind[0]?.owner_uid,
-      },
-      process.env.JWTKEY,
-      {}
-    );
-
-    // Prepare tracking data
-    const currentDate = new Date().toISOString().split("T")[0]; // YYYY-MM-DD
-    const loginTime = new Date().toISOString();
-
-    // Parse existing logs or initialize
-    const existingLogs = agentFind[0].logs ? JSON.parse(agentFind[0].logs) : {};
-
-    // Initialize dateTracking if not exists
-    if (!existingLogs.dateTracking) {
-      existingLogs.dateTracking = {};
-    }
-
-    // Initialize date entry if not exists
-    if (!existingLogs.dateTracking[currentDate]) {
-      existingLogs.dateTracking[currentDate] = {
-        logins: 0,
-        logouts: 0,
-        lastLogin: loginTime,
-        lastLogout: null,
-      };
-    }
-
-    // Update tracking
-    existingLogs.dateTracking[currentDate].logins++;
-    existingLogs.dateTracking[currentDate].lastLogin = loginTime;
-
-    // Update database
-    await query(`UPDATE agents SET logs = ? WHERE uid = ?`, [
-      JSON.stringify(existingLogs),
-      agentFind[0].uid,
-    ]);
-
-    if(businessSession)res.cookie(businessSession.cookieName,businessSession.token,{...businessSession.cookie,maxAge:businessSession.maxAgeSeconds*1000});
-    res.json({
+    const { businessSession } = result;
+    if (businessSession) res.cookie(businessSession.cookieName, businessSession.token, { ...businessSession.cookie, maxAge: businessSession.maxAgeSeconds * 1000 });
+    return res.json({
       success: true,
-      token,
-      ...(businessSession?{businessSession:{context:businessSession.context,csrfToken:businessSession.csrfToken}}:{}),
-      todayStats: existingLogs.dateTracking[currentDate], // Optional: Return today's stats
+      token: result.token,
+      ...(businessSession ? { businessSession: { context: businessSession.context, csrfToken: businessSession.csrfToken } } : {}),
+      todayStats: result.todayStats,
     });
   } catch (err) {
-    console.error('Agent login failed:',err?.code||err?.name||'unknown');
-    res.status(err?.code==='AUTH_INVALID'?401:err?.code==='AUTH_RATE_LIMITED'?429:503).json({ success: false, msg: "Sign-in could not be completed. Please retry." });
+    console.error('Agent login failed:', err?.code || err?.name || 'unknown');
+    return res.status(err?.code === 'AUTH_INVALID' ? 401 : err?.code === 'AUTH_RATE_LIMITED' ? 429 : 503).json({ success: false, msg: "Sign-in could not be completed. Please retry." });
   }
 });
 

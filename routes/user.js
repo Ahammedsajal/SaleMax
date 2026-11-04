@@ -37,6 +37,8 @@ const {createSelfProfileAuth} = require("../modules/platform/self-profile-auth")
 const selfProfile = require("../modules/platform/self-profile");
 const selfProfileAuth = createSelfProfileAuth();
 const {issueForVerifiedLegacyAccount} = require("../modules/platform/legacy-session-bridge");
+const { authenticateAgentLogin } = require("../modules/platform/agent-login-service");
+const { shouldTryAgentLogin } = require("../modules/platform/unified-agent-login-policy");
 const Stripe = require("stripe");
 const {
   checkPlan,
@@ -283,17 +285,11 @@ router.post("/login", async (req, res) => {
       });
     }
 
-    // check for user
-    const userFind = await query(`SELECT * FROM user WHERE email = ?`, [email]);
-    if (userFind.length < 1) {
-      return res.json({ msg: "Invalid credentials" });
-    }
+    const loginAs = req.body?.actor === 'agent' ? 'agent' : req.body?.actor === 'user' ? 'user' : 'auto';
+    const userFind = loginAs === 'agent' ? [] : await query(`SELECT * FROM user WHERE email = ?`, [email]);
+    const compare = userFind.length ? await bcrypt.compare(password, userFind[0].password) : false;
 
-    const compare = await bcrypt.compare(password, userFind[0].password);
-
-    if (!compare) {
-      return res.json({ msg: "Invalid credentials" });
-    } else {
+    if (compare) {
       try { await require('../modules/platform/tenant-crm-domains').assertLegacyHost(query,req,'user',userFind[0].id); }
       catch (error) { return res.status(error.status||403).json({success:false,code:error.code||'CRM_DOMAIN_TENANT_MISMATCH'}); }
       const businessSession = await issueForVerifiedLegacyAccount({kind:'user',legacyId:Number(userFind[0].id),legacyUid:userFind[0].uid,legacyEmail:userFind[0].email,password,address:req.socket.remoteAddress,origin:req.get('Origin'),tenantHost:req.crmTenantDomain?.hostname});
@@ -308,12 +304,31 @@ router.post("/login", async (req, res) => {
         {},
       );
       if(businessSession)res.cookie(businessSession.cookieName,businessSession.token,{...businessSession.cookie,maxAge:businessSession.maxAgeSeconds*1000});
-      res.json({
+      return res.json({
         success: true,
         token,
         ...(businessSession?{businessSession:{context:businessSession.context,csrfToken:businessSession.csrfToken}}:{}),
       });
     }
+
+    if (shouldTryAgentLogin({ actor: loginAs, businessUserAuthenticated: compare })) {
+      const agent = await authenticateAgentLogin({ req, email, password });
+      if (agent.status) return res.status(agent.status).json({ success: false, code: agent.code, msg: agent.msg });
+      if (agent.success) {
+        const { businessSession } = agent;
+        if (businessSession) res.cookie(businessSession.cookieName, businessSession.token, { ...businessSession.cookie, maxAge: businessSession.maxAgeSeconds * 1000 });
+        return res.json({
+          success: true,
+          token: agent.token,
+          actor: 'agent',
+          redirectTo: '/user?actor=agent&page=dashboard',
+          ...(businessSession ? { businessSession: { context: businessSession.context, csrfToken: businessSession.csrfToken } } : {}),
+          todayStats: agent.todayStats,
+        });
+      }
+    }
+
+    return res.json({ msg: "Invalid credentials" });
   } catch (err) {
     console.error('Business login failed:',err?.code||err?.name||'unknown');
     res.status(err?.code==='AUTH_INVALID'?401:err?.code==='AUTH_RATE_LIMITED'?429:503).json({ success: false, msg: "Sign-in could not be completed. Please retry." });

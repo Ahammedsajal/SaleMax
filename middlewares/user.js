@@ -18,6 +18,13 @@ const validateUser = async (req, res, next) => {
           logout: true,
         });
       } else {
+        // A signed agent role is authoritative even if an older/mobile client
+        // omits the actor header. The agent guard still validates the token,
+        // active account, tenant mapping, and route permissions.
+        if (decode.role === "agent") {
+          return require("../modules/platform/agent-workspace-access")
+            .createAgentWorkspaceGuard({ pool: require("../database/config").promise() })(req, res, next);
+        }
         try { await require('../modules/platform/delegated-account-session').assertDelegatedSession(query,decode); }
         catch (_) { return res.status(401).json({success:false,logout:true,msg:'Account session expired'}); }
         const getUser = await query(

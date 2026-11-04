@@ -29,6 +29,7 @@
   "dependencies": {
     "@elevenlabs/elevenlabs-js": "^2.32.0",
     "@google/generative-ai": "^0.24.1",
+    "@modelcontextprotocol/sdk": "1.32.2",
     "@roamhq/wrtc": "^0.9.1",
     "axios": "^1.6.7",
     "baileys": "^7.0.0-rc.9",
@@ -68,7 +69,8 @@
     "unzipper": "^0.10.14",
     "url": "^0.11.4",
     "vm2": "^3.10.2",
-    "ws": "^8.20.0"
+    "ws": "^8.20.0",
+    "zod": "4.6.7"
   },
   "overrides": {
     "@tootallnate/once": "^3.0.1"

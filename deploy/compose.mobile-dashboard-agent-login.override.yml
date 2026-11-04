@@ -1,0 +1,9 @@
+services:
+  app:
+    volumes:
+      - ${SALEMAX_MOBILE_DASHBOARD_AGENT_RUNTIME:?set runtime directory}/client/public/index.html:/app/client/public/index.html:ro
+      - ${SALEMAX_MOBILE_DASHBOARD_AGENT_RUNTIME:?set runtime directory}/client/public/pipeline-entry.js:/app/client/public/pipeline-entry.js:ro
+      - ${SALEMAX_MOBILE_DASHBOARD_AGENT_RUNTIME:?set runtime directory}/client/public/business-dashboard/index.html:/app/client/public/business-dashboard/index.html:ro
+      - ${SALEMAX_MOBILE_DASHBOARD_AGENT_RUNTIME:?set runtime directory}/client/public/business-dashboard/dashboard.css:/app/client/public/business-dashboard/dashboard.css:ro
+      - ${SALEMAX_MOBILE_DASHBOARD_AGENT_RUNTIME:?set runtime directory}/routes/user.js:/app/routes/user.js:ro
+      - ${SALEMAX_MOBILE_DASHBOARD_AGENT_RUNTIME:?set runtime directory}/modules/platform/unified-agent-login-policy.js:/app/modules/platform/unified-agent-login-policy.js:ro

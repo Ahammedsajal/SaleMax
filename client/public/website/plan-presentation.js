@@ -76,5 +76,13 @@
         }
       : null;
   }
-  return { features, select, savings };
+  function localPreviewPlans() {
+    // Static website previews run without the application API. Keep these two
+    // preview rows aligned with the existing paid catalogue (IDs 26 and 25).
+    return [
+      { id: 26, title: "Monthly CRM", price: 370, plan_duration_in_days: 30, is_trial: 0 },
+      { id: 25, title: "Yearly CRM", price: 3840, plan_duration_in_days: 365, is_trial: 0 },
+    ];
+  }
+  return { features, select, savings, localPreviewPlans };
 });

@@ -1,0 +1,17 @@
+services:
+  app:
+    environment:
+      NODE_PATH: /app/.mcp-node-modules/node_modules
+    volumes:
+      - ${SALEMAX_CHATGPT_MCP_RELEASE:?Set SALEMAX_CHATGPT_MCP_RELEASE}/runtime/server.js:/app/server.js:ro
+      - ${SALEMAX_CHATGPT_MCP_RELEASE:?Set SALEMAX_CHATGPT_MCP_RELEASE}/runtime/modules/platform/mount-existing-upgrade.js:/app/modules/platform/mount-existing-upgrade.js:ro
+      - ${SALEMAX_CHATGPT_MCP_RELEASE:?Set SALEMAX_CHATGPT_MCP_RELEASE}/runtime/modules/platform/chatgpt-mcp:/app/modules/platform/chatgpt-mcp:ro
+      - ${SALEMAX_CHATGPT_MCP_RELEASE:?Set SALEMAX_CHATGPT_MCP_RELEASE}/runtime/modules/web/chatgpt-mcp-shell.js:/app/modules/web/chatgpt-mcp-shell.js:ro
+      - ${SALEMAX_CHATGPT_MCP_RELEASE:?Set SALEMAX_CHATGPT_MCP_RELEASE}/runtime/helper/pipeline/leadPipeline.js:/app/helper/pipeline/leadPipeline.js:ro
+      - ${SALEMAX_CHATGPT_MCP_RELEASE:?Set SALEMAX_CHATGPT_MCP_RELEASE}/runtime/client/public/chatgpt-mcp-login-return.js:/app/client/public/chatgpt-mcp-login-return.js:ro
+      - ${SALEMAX_CHATGPT_MCP_RELEASE:?Set SALEMAX_CHATGPT_MCP_RELEASE}/runtime/client/public/chatgpt-mcp-workspace.css:/app/client/public/chatgpt-mcp-workspace.css:ro
+      - ${SALEMAX_CHATGPT_MCP_RELEASE:?Set SALEMAX_CHATGPT_MCP_RELEASE}/runtime/client/public/chatgpt-mcp-workspace.js:/app/client/public/chatgpt-mcp-workspace.js:ro
+      - ${SALEMAX_CHATGPT_MCP_RELEASE:?Set SALEMAX_CHATGPT_MCP_RELEASE}/runtime/client/public/chatgpt-oauth.css:/app/client/public/chatgpt-oauth.css:ro
+      - ${SALEMAX_CHATGPT_MCP_RELEASE:?Set SALEMAX_CHATGPT_MCP_RELEASE}/runtime/client/public/chatgpt-oauth.html:/app/client/public/chatgpt-oauth.html:ro
+      - ${SALEMAX_CHATGPT_MCP_RELEASE:?Set SALEMAX_CHATGPT_MCP_RELEASE}/runtime/client/public/chatgpt-oauth.js:/app/client/public/chatgpt-oauth.js:ro
+      - ${SALEMAX_CHATGPT_MCP_RELEASE:?Set SALEMAX_CHATGPT_MCP_RELEASE}/deps/node_modules:/app/.mcp-node-modules/node_modules:ro
