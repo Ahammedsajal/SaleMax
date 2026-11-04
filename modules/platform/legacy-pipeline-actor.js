@@ -38,7 +38,10 @@ async function resolve(pool,user,{loadEntitlements=plans.loadEntitlements,catego
     const category=categoryFor(linked.categoryKey,Number(linked.categoryVersion));
     if(!pipelineCategory(category))return deny('CATEGORY_UNAVAILABLE');
     const legacyTraining=category.key==='training_center'&&category.version===1;
-    if(linked.role==='owner'&&legacyTraining)return null;
+    // Keep Training Center v1 on its established legacy authorization path,
+    // while carrying its verified category into Pipeline so category-scoped
+    // automation (including the one-time funnel setup) can run correctly.
+    if(linked.role==='owner'&&legacyTraining)return {uid:user.uid,role:'owner',actorType:'user',actorId:String(user.uid),tenantId:linked.tenantId,categoryKey:linked.categoryKey,categoryVersion:category.version,legacyUserId:Number(user.id),legacyUid:user.uid,timezone:user.timezone||'Asia/Qatar'};
     if(linked.role==='accountant')return deny('PERMISSION_DENIED');
     if(linked.role!=='owner'&&linked.role!=='manager'&&!([salemaxSales.key,realEstate.key].includes(linked.categoryKey)&&linked.role==='team_leader'))return deny('PERMISSION_DENIED');
     const entitlement=await loadEntitlements(db,linked.tenantId);

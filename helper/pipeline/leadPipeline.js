@@ -19,8 +19,28 @@ const DEFAULT_STAGES = [
   { key: "lost", title: "Lost", position: 70, color: "#be5260", type: "lost", probability: 0, system: 1 },
 ];
 
+const TRAINING_FUNNEL_VERSION = 1;
+const TRAINING_FUNNEL_STAGES = [
+  'new', 'interested', 'contacted', 'qualified', 'training_registration_pending',
+  'training_invoice_issued', 'training_payment_received', 'training_course_started',
+  'training_fully_paid', 'training_course_completed', 'training_certificate_issued',
+  'won', 'lost',
+];
+const trainingPipelineReady = new Set();
+
 const text = (value, limit = 255) => String(value || "").trim().slice(0, limit);
 const sha = (value) => crypto.createHash("sha256").update(String(value)).digest("hex");
+
+function engagementSignals({ totalReplies = 0, repliesIn7Days = 0, lastReplyAt = null, now = Date.now() } = {}) {
+  const rawLastReply = String(lastReplyAt || '').replace(' ', 'T');
+  const hasZone = /(?:Z|[+-]\d{2}:?\d{2})$/i.test(rawLastReply);
+  const lastReply = lastReplyAt instanceof Date ? lastReplyAt.getTime() : Date.parse(rawLastReply ? `${rawLastReply}${hasZone ? '' : 'Z'}` : '');
+  const current = now instanceof Date ? now.getTime() : Number(now);
+  return {
+    interested: Number(totalReplies) >= 2,
+    hot: Number(repliesIn7Days) >= 3 && Number.isFinite(lastReply) && current - lastReply >= 0 && current - lastReply <= 48 * 60 * 60 * 1000,
+  };
+}
 
 function normalizePhone(value) {
   const source = String(value || "").split("@")[0].split(":")[0];
@@ -188,6 +208,125 @@ async function ensureWorkspace(connection, uid) {
   return { uidHash, settings: settings[0] };
 }
 
+async function configureTrainingPipeline(connection, uid, uidHash) {
+  await connection.query(
+    'INSERT IGNORE INTO pipeline_settings (uid_hash, uid) VALUES (?, ?)',
+    [uidHash, uid],
+  );
+  const [[settings]] = await connection.query(
+    'SELECT training_funnel_version FROM pipeline_settings WHERE uid_hash = ? FOR UPDATE',
+    [uidHash],
+  );
+  if (Number(settings?.training_funnel_version || 0) >= TRAINING_FUNNEL_VERSION) return false;
+
+  await require('../../modules/platform/training-lead-journey').ensureStages(connection, uidHash, uid);
+  await connection.query(
+    `INSERT IGNORE INTO pipeline_stages
+      (uid_hash, uid, stage_key, title, position, color, stage_type, probability, is_system)
+     SELECT ?, ?, 'training_registration_pending', 'Admission', COALESCE(MAX(position), 0) + 1,
+       '#a66c16', 'open', 70, 1 FROM pipeline_stages WHERE uid_hash = ?`,
+    [uidHash, uid, uidHash],
+  );
+
+  const legacyTitles = [
+    ['new', 'New', 'New Lead'],
+    ['interested', 'Interested', 'Interested Lead'],
+    ['contacted', 'Contacted', 'Follow-up'],
+    ['training_registration_pending', 'Student registration · pending approval', 'Admission'],
+    ['training_registration_pending', 'Student registration', 'Admission'],
+    ['training_invoice_issued', 'Sale converted · invoice issued', 'Invoiced'],
+  ];
+  for (const [key, oldTitle, nextTitle] of legacyTitles) {
+    await connection.query(
+      'UPDATE pipeline_stages SET title = ? WHERE uid_hash = ? AND stage_key = ? AND title = ?',
+      [nextTitle, uidHash, key, oldTitle],
+    );
+  }
+
+  const [[proposal]] = await connection.query(
+    'SELECT stage_key FROM pipeline_stages WHERE uid_hash = ? AND stage_key = \'proposal\' FOR UPDATE',
+    [uidHash],
+  );
+  if (proposal) {
+    await connection.query(
+      `INSERT INTO pipeline_activity(uid_hash, lead_id, actor_type, actor_id, activity_type, summary, details)
+       SELECT uid_hash, id, 'system', NULL, 'stage_changed', 'Legacy Proposal stage mapped during Training funnel upgrade',
+         JSON_OBJECT('stageFrom', 'proposal', 'stageTo', CASE status WHEN 'won' THEN 'won' WHEN 'lost' THEN 'lost' ELSE 'qualified' END, 'migration', 'training_funnel_v1')
+       FROM pipeline_leads WHERE uid_hash = ? AND stage_key = 'proposal'`,
+      [uidHash],
+    );
+    await connection.query(
+      "UPDATE pipeline_leads SET stage_key = CASE status WHEN 'won' THEN 'won' WHEN 'lost' THEN 'lost' ELSE 'qualified' END WHERE uid_hash = ? AND stage_key = 'proposal'",
+      [uidHash],
+    );
+    await connection.query(
+      `UPDATE pipeline_settings SET qr_entry_stage = IF(qr_entry_stage = 'proposal', 'new', qr_entry_stage),
+        meta_entry_stage = IF(meta_entry_stage = 'proposal', 'new', meta_entry_stage),
+        interested_stage = IF(interested_stage = 'proposal', 'interested', interested_stage)
+       WHERE uid_hash = ?`,
+      [uidHash],
+    );
+    await connection.query("DELETE FROM pipeline_stages WHERE uid_hash = ? AND stage_key = 'proposal'", [uidHash]);
+  }
+
+  await connection.query(
+    `UPDATE pipeline_settings SET qr_entry_stage = 'new', meta_entry_stage = 'new',
+       interested_stage = 'interested', training_funnel_version = ? WHERE uid_hash = ?`,
+    [TRAINING_FUNNEL_VERSION, uidHash],
+  );
+
+  const [stages] = await connection.query(
+    'SELECT stage_key FROM pipeline_stages WHERE uid_hash = ? ORDER BY position, id',
+    [uidHash],
+  );
+  const existing = new Set(stages.map((stage) => stage.stage_key));
+  const ordered = [
+    ...TRAINING_FUNNEL_STAGES.filter((key) => existing.has(key)),
+    ...stages.map((stage) => stage.stage_key).filter((key) => !TRAINING_FUNNEL_STAGES.includes(key)),
+  ];
+  for (const [index, stageKey] of ordered.entries()) {
+    await connection.query(
+      'UPDATE pipeline_stages SET position = ? WHERE uid_hash = ? AND stage_key = ?',
+      [(index + 1) * 10, uidHash, stageKey],
+    );
+  }
+  return true;
+}
+
+async function ensureTrainingPipeline({ uid, categoryKey, pool: sourcePool }) {
+  if (!categoryKeyMatches(categoryKey, 'training_center') || !uid) return false;
+  const uidHash = sha(uid);
+  if (trainingPipelineReady.has(uidHash)) return true;
+  await inTransaction(async (connection) => {
+    await ensureWorkspace(connection, String(uid));
+    await configureTrainingPipeline(connection, String(uid), uidHash);
+  }, sourcePool);
+  trainingPipelineReady.add(uidHash);
+  return true;
+}
+
+async function moveTrainingLeadToFollowUp(connection, { uidHash, leadId, categoryKey, taskId = null, source = 'scheduled_follow_up' }) {
+  if (!categoryKeyMatches(categoryKey, 'training_center')) return false;
+  const [[lead]] = await connection.query(
+    'SELECT stage_key, status, automation_paused FROM pipeline_leads WHERE uid_hash = ? AND id = ? FOR UPDATE',
+    [uidHash, leadId],
+  );
+  if (!lead || lead.status !== 'open' || Number(lead.automation_paused)) return false;
+  if (lead.stage_key === 'training_registration_pending') return false;
+  const target = await stageExists(connection, uidHash, 'contacted');
+  if (!target || target.stage_type !== 'open' || target.stage_key === lead.stage_key) return false;
+  const now = dbDate(new Date());
+  await connection.query(
+    `UPDATE pipeline_leads SET stage_key = 'contacted', stage_entered_at = ?, last_activity_at = ?, updated_at = ?
+     WHERE uid_hash = ? AND id = ? AND status = 'open'`,
+    [now, now, now, uidHash, leadId],
+  );
+  await addActivity(connection, uidHash, leadId, 'automation_stage_move', 'Scheduled training follow-up moved lead to Follow-up', {
+    rule: source, stageFrom: lead.stage_key, stageTo: 'contacted', ...(taskId ? { taskId } : {}),
+  });
+  return true;
+}
+
 async function stageExists(connection, uidHash, stageKey) {
   const [rows] = await connection.query(
     "SELECT stage_key, position, stage_type FROM pipeline_stages WHERE uid_hash = ? AND stage_key = ? LIMIT 1",
@@ -294,7 +433,7 @@ function parseKeywords(raw) {
 }
 
 async function maybeApplyIntentRule(connection, { uidHash, lead, stage, settings, messageBody, now }) {
-  if (lead.automation_paused || !messageBody) return lead.stage_key;
+  if (lead.automation_paused || lead.status === 'won' || lead.status === 'lost' || !messageBody) return lead.stage_key;
   const keywords = parseKeywords(settings.interest_keywords);
   const match = keywords.find((keyword) => messageBody.includes(keyword));
   if (!match) return lead.stage_key;
@@ -310,6 +449,33 @@ async function maybeApplyIntentRule(connection, { uidHash, lead, stage, settings
     [targetKey, now, now, lead.id, uidHash],
   );
   await addActivity(connection, uidHash, lead.id, "automation_stage_move", `Automation moved lead to ${targetKey}`, { rule: "configured_intent_keyword", matchedKeyword: match, stageFrom: lead.stage_key, stageTo: targetKey });
+  return targetKey;
+}
+
+async function maybeApplyTrainingEngagementRule(connection, { uidHash, lead, settings, now }) {
+  if (!Number(settings.training_funnel_version || 0) || lead.automation_paused || lead.status !== 'open') return lead.stage_key;
+  const [previousReplies] = await connection.query(
+    `SELECT 1 AS replied FROM pipeline_events
+     WHERE uid_hash = ? AND lead_id = ? AND status = 'processed' LIMIT 1`,
+    [uidHash, lead.id],
+  );
+  if (!previousReplies.length) return lead.stage_key;
+
+  const targetKey = text(settings.interested_stage, 64) || 'interested';
+  const target = await stageExists(connection, uidHash, targetKey);
+  const [[source]] = await connection.query(
+    'SELECT position FROM pipeline_stages WHERE uid_hash = ? AND stage_key = ? LIMIT 1',
+    [uidHash, lead.stage_key],
+  );
+  const returningFromFollowUp = lead.stage_key === 'contacted';
+  if (!target || target.stage_type !== 'open' || !source || (Number(target.position) <= Number(source.position) && !returningFromFollowUp)) return lead.stage_key;
+  await connection.query(
+    'UPDATE pipeline_leads SET stage_key = ?, stage_entered_at = ?, last_activity_at = ? WHERE id = ? AND uid_hash = ? AND status = \'open\'',
+    [targetKey, now, now, lead.id, uidHash],
+  );
+  await addActivity(connection, uidHash, lead.id, 'automation_stage_move', `Customer replied more than once; lead moved to ${targetKey}`, {
+    rule: 'training_customer_engagement', minimumReplies: 2, stageFrom: lead.stage_key, stageTo: targetKey,
+  });
   return targetKey;
 }
 
@@ -412,7 +578,7 @@ async function captureInbound({ uid, origin, chatId, senderMobile, senderName, m
         "UPDATE pipeline_identity_locks SET current_lead_id = ? WHERE uid_hash = ? AND identity_key = ?",
         [id, uidHash, identityKey],
       );
-      lead = { id, contact_id: contactId, stage_key: initialStage, automation_paused: 0 };
+      lead = { id, contact_id: contactId, stage_key: initialStage, status: 'open', automation_paused: 0 };
       created = true;
       await addActivity(connection, uidHash, id, "lead_created", "Lead created from inbound WhatsApp conversation", { origin, sourceType, receivedAt: now });
     } else if (!lead.contact_id) {
@@ -464,6 +630,7 @@ async function captureInbound({ uid, origin, chatId, senderMobile, senderName, m
     }
 
     lead.stage_key = await maybeApplyIntentRule(connection, { uidHash, lead, stage: lead.stage_key, settings, messageBody, now });
+    lead.stage_key = await maybeApplyTrainingEngagementRule(connection, { uidHash, lead, settings, now });
     await connection.query(
       `INSERT INTO pipeline_conversations
         (uid_hash, lead_id, conversation_key, chat_id, origin, first_inbound_at, last_inbound_at)
@@ -614,6 +781,8 @@ async function getBoard({ uid, role, agentId, scopeAgentIds, categoryKey, timezo
         l.source_id, l.source_url, l.source_headline, l.stage_key, l.stage_entered_at,
         l.owner_agent_id, a.name AS owner_name, l.status, l.priority, l.expected_value,
         l.currency, l.next_follow_up_at, l.first_inbound_at, l.last_activity_at, l.created_at, l.updated_at${includeQualificationData ? ', l.qualification_data' : ''},
+        ${categoryKeyMatches(categoryKey, 'training_center') ? `(SELECT COUNT(*) FROM pipeline_events pe WHERE pe.uid_hash = l.uid_hash AND pe.lead_id = l.id AND pe.status = 'processed' AND pe.received_at >= DATE_SUB(UTC_TIMESTAMP(3), INTERVAL 7 DAY))` : '0'} AS customer_replies_7d,
+        ${categoryKeyMatches(categoryKey, 'training_center') ? `(SELECT MAX(pe.received_at) FROM pipeline_events pe WHERE pe.uid_hash = l.uid_hash AND pe.lead_id = l.id AND pe.status = 'processed')` : 'NULL'} AS last_customer_reply_at,
         (SELECT pc.origin FROM pipeline_conversations pc WHERE pc.uid_hash = l.uid_hash AND pc.lead_id = l.id ORDER BY pc.last_inbound_at DESC LIMIT 1) AS latest_origin,
         (SELECT pc.chat_id FROM pipeline_conversations pc WHERE pc.uid_hash = l.uid_hash AND pc.lead_id = l.id ORDER BY pc.last_inbound_at DESC LIMIT 1) AS latest_chat_id,
         (SELECT i.number FROM pipeline_conversations pc JOIN beta_chats bc ON bc.uid=l.uid COLLATE utf8mb4_unicode_ci AND bc.chat_id=pc.chat_id COLLATE utf8mb4_unicode_ci AND bc.origin='qr' JOIN instance i ON i.uid=bc.uid AND i.uniqueId=bc.origin_instance_unique_id WHERE pc.uid_hash=l.uid_hash AND pc.lead_id=l.id ORDER BY pc.last_inbound_at DESC LIMIT 1) AS source_instance_number,
@@ -625,6 +794,14 @@ async function getBoard({ uid, role, agentId, scopeAgentIds, categoryKey, timezo
        ORDER BY l.last_activity_at DESC, l.created_at DESC LIMIT ? OFFSET ?`,
       [...values, limit, offset],
     );
+    if (categoryKeyMatches(categoryKey, 'training_center')) {
+      for (const lead of leads) {
+        lead.isHotLead = lead.status === 'open' && engagementSignals({
+          repliesIn7Days: lead.customer_replies_7d,
+          lastReplyAt: lead.last_customer_reply_at,
+        }).hot;
+      }
+    }
     if(categoryKeyMatches(categoryKey,'7network_sales')&&leads.length){
       const [suppressed]=await connection.query(`SELECT DISTINCT lead_id AS leadId FROM pipeline_activity
         WHERE uid_hash=? AND lead_id IN (?) AND activity_type='contact_outcome' AND summary='Contact outcome: do_not_call'`,
@@ -819,7 +996,7 @@ async function deleteStage(uid, stageKey, targetStage) {
   });
 }
 
-async function createManualLead({ uid, actorType, actorId, agentId, scopeAgentIds, role, input, connection:existingConnection, pool:sourcePool, captureFieldContract }) {
+async function createManualLead({ uid, actorType, actorId, agentId, scopeAgentIds, role, categoryKey, input, connection:existingConnection, pool:sourcePool, captureFieldContract }) {
   const work=async (connection) => {
     const { uidHash } = await ensureWorkspace(connection, uid);
     const title = text(input.title, 180);
@@ -892,6 +1069,7 @@ async function createManualLead({ uid, actorType, actorId, agentId, scopeAgentId
         input.nextFollowUpAt ? dbDate(input.nextFollowUpAt) : null, Object.keys(qualification).length ? JSON.stringify(qualification) : null, now],
     );
     await addActivity(connection, uidHash, id, "lead_created", "Opportunity added manually", { title, contactId }, actorType, actorId);
+    if (input.nextFollowUpAt) await moveTrainingLeadToFollowUp(connection, { uidHash, leadId: id, categoryKey, source: 'lead_follow_up_scheduled' });
     if (owner !== null) {
       const [assignedAgent] = await connection.query("SELECT name FROM agents WHERE id = ? AND owner_uid COLLATE utf8mb4_general_ci = ? COLLATE utf8mb4_general_ci LIMIT 1", [owner, uid]);
       await addActivity(connection, uidHash, id, "lead_assigned", `Assigned to ${assignedAgent[0]?.name || "agent"}`, { toAgentId: owner, toAgentName: assignedAgent[0]?.name || null, initialAssignment: true }, actorType, actorId);
@@ -1072,7 +1250,7 @@ async function getFollowUps({ uid, role, agentId, scopeAgentIds, period = "all",
     summary: { total: Number(summary.total || 0), overdue: Number(summary.overdue || 0), upcoming: Number(summary.upcoming || 0) }, period, role };
 }
 
-async function resolveFollowUp({ uid, id, action, at, expectedDueAt, actorType, actorId, role, agentId, scopeAgentIds, pool: sourcePool }) {
+async function resolveFollowUp({ uid, id, action, at, expectedDueAt, actorType, actorId, role, agentId, scopeAgentIds, categoryKey, pool: sourcePool }) {
   if (!['complete', 'reschedule'].includes(action)) { const error = new Error("Choose complete or reschedule."); error.status = 400; throw error; }
   if (typeof expectedDueAt !== 'string' || !/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}\.\d{6}$/.test(expectedDueAt)) {
     const error = new Error("Refresh this follow-up and try again."); error.status = 400; throw error;
@@ -1092,6 +1270,7 @@ async function resolveFollowUp({ uid, id, action, at, expectedDueAt, actorType, 
     const now = dbDate(new Date());
     await connection.query("UPDATE pipeline_leads SET next_follow_up_at = ?, last_activity_at = ? WHERE uid_hash = ? AND id = ?", [nextAt, now, uidHash, id]);
     await addActivity(connection, uidHash, id, action === 'complete' ? 'follow_up_completed' : 'follow_up_rescheduled', action === 'complete' ? 'Follow-up completed' : 'Follow-up rescheduled', { previousDueAt: lead.next_follow_up_at, nextDueAt: nextAt }, actorType, actorId);
+    if (action === 'reschedule') await moveTrainingLeadToFollowUp(connection, { uidHash, leadId: id, categoryKey, source: 'follow_up_rescheduled' });
     return { leadId: id, action, nextFollowUpAt: nextAt };
   }, sourcePool);
 }
@@ -1292,12 +1471,24 @@ async function updateLead({ uid, id, input, actorType, actorId, role, agentId, s
       await connection.query("UPDATE pipeline_leads SET automation_paused = ?, last_activity_at = ? WHERE uid_hash = ? AND id = ?", [input.automationPaused ? 1 : 0, dbDate(new Date()), uidHash, id]);
       await addActivity(connection, uidHash, id, "automation_setting", input.automationPaused ? "Lead automation paused" : "Lead automation resumed", { paused: Boolean(input.automationPaused) }, actorType, actorId);
     }
+    const followUpDateChanged = requestedFollowUp && (!existingFollowUp || requestedFollowUp !== inputDbDate(existingFollowUp));
+    const followUpOutcome = ['follow_up_scheduled', 'requested_call'].includes(contactOutcome) && Boolean(providedFollowUp);
+    const followUpCreatedByAssignment = Boolean(assignmentChange?.toAgentId && assignmentChange.followUpAt);
+    if (followUpDateChanged || followUpOutcome || followUpCreatedByAssignment) {
+      await moveTrainingLeadToFollowUp(connection, {
+        uidHash, leadId: id, categoryKey,
+        source: followUpCreatedByAssignment ? 'lead_assignment_follow_up' : followUpOutcome ? 'contact_outcome_follow_up' : 'lead_follow_up_scheduled',
+      });
+    }
     return { id, ...(assignmentChange ? { assignment: { ...assignmentChange, ...(assignmentEffects || {}) } } : {}) };
   },sourcePool);
 }
 
 module.exports = {
   prepareWorkspace: ensureWorkspace,
+  ensureTrainingPipeline,
+  moveTrainingLeadToFollowUp,
+  engagementSignals,
   captureInbound,
   captureBotInbound: input => captureInbound({ ...input, botCapture: true }),
   DEFAULT_STAGES,
