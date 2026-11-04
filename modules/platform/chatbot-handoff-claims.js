@@ -28,15 +28,16 @@ async function expireDue(pool, { tenantId = null, channelKind = null, channelRef
   if (conversationId) { clauses.push('conversation_id=?'); args.push(conversationId); }
   limit = Math.max(1, Math.min(500, Math.trunc(Number(limit) || 100)));
   const db = await pool.getConnection();
-  const totals = { expired: 0, controlsReset: 0, tasksCanceled: 0, deliveriesSuppressed: 0 };
+  const totals = { expired: 0, controlsReset: 0, guidedSessionsReset: 0, flowSessionsReset: 0, tasksCanceled: 0, deliveriesSuppressed: 0 };
   try {
     await db.beginTransaction();
-    const [rows] = await db.query(`SELECT id,tenant_id AS tenantId,channel_kind AS channelKind,channel_ref AS channelRef,
+    const [rows] = await db.query(`SELECT id,tenant_id AS tenantId,profile_id AS profileId,channel_kind AS channelKind,channel_ref AS channelRef,
         conversation_id AS conversationId,owner_uid_hash AS ownerUidHash,handoff_task_id AS handoffTaskId,
         notification_event_key AS notificationEventKey
       FROM sx_chatbot_handoff_claims WHERE ${clauses.join(' AND ')}
       ORDER BY expires_at,id LIMIT ? FOR UPDATE SKIP LOCKED`, [...args, limit]);
     for (const claim of rows) {
+      let flowSessionResetCount = 0;
       const [expired] = await db.query(`UPDATE sx_chatbot_handoff_claims SET status='expired'
         WHERE tenant_id=? AND id=? AND status='open' AND COALESCE(expires_at,DATE_ADD(created_at,INTERVAL 24 HOUR))<=UTC_TIMESTAMP(3)`, [claim.tenantId, claim.id]);
       if (!expired.affectedRows) continue;
@@ -47,6 +48,28 @@ async function expireDue(pool, { tenantId = null, channelKind = null, channelRef
           AND updated_by_kind='system' AND (pause_until IS NULL OR pause_until<=UTC_TIMESTAMP(3))`,
       [claim.tenantId, claim.channelKind, claim.channelRef, claim.conversationId]);
       totals.controlsReset += Number(control.affectedRows || 0);
+      const [guidedSession] = await db.query(`DELETE FROM sx_chatbot_guided_sessions
+        WHERE tenant_id=? AND profile_id=? AND channel_kind=? AND channel_ref=? AND conversation_id=?`,
+      [claim.tenantId, claim.profileId, claim.channelKind, claim.channelRef, claim.conversationId]);
+      totals.guidedSessionsReset += Number(guidedSession.affectedRows || 0);
+      const [[profile]] = await db.query(`SELECT engine,config FROM sx_chatbot_profiles WHERE tenant_id=? AND id=? LIMIT 1`,
+        [claim.tenantId, claim.profileId]);
+      const [[chat]] = await db.query(`SELECT uid,sender_mobile AS senderMobile,origin FROM beta_chats
+        WHERE BINARY chat_id=BINARY ? AND BINARY SHA2(uid,256)=BINARY ? LIMIT 1`, [claim.conversationId, claim.ownerUidHash]);
+      let profileConfig = profile?.config;
+      try { if (typeof profileConfig === 'string') profileConfig = JSON.parse(profileConfig); } catch { profileConfig = null; }
+      if (profile?.engine === 'guided' && profileConfig?.flowId && chat?.uid && chat?.senderMobile) {
+        const flowId = require('./chatbot-profile-utils').executionFlowId({
+          id: claim.profileId, channelRef: claim.channelRef,
+        });
+        const flowOrigin = chat.origin === 'qr' ? 'qr' : 'meta';
+        const flowOriginId = flowOrigin === 'qr' ? claim.channelRef : 'META';
+        const [flowSession] = await db.query(`DELETE FROM flow_session
+          WHERE uid=? AND origin=? AND origin_id=? AND flow_id=? AND sender_mobile=?`,
+        [chat.uid, flowOrigin, flowOriginId, flowId, chat.senderMobile]);
+        flowSessionResetCount = Number(flowSession.affectedRows || 0);
+        totals.flowSessionsReset += flowSessionResetCount;
+      }
       if (claim.handoffTaskId) {
         const [[task]] = await db.query(`SELECT status,revision FROM sx_tasks WHERE tenant_id=? AND id=?
           AND uid_hash=? AND task_type='chatbot_handoff' AND deleted_at IS NULL FOR UPDATE`,
@@ -78,7 +101,8 @@ async function expireDue(pool, { tenantId = null, channelKind = null, channelRef
       await db.query(`INSERT INTO sx_audit_events(id,tenant_id,actor_identity_id,actor_kind,action,resource_type,resource_id,changes,correlation_id)
         VALUES (?,?,NULL,'system','chatbot.handoff-expired','chatbot-handoff',?,?,?)`,
       [crypto.randomUUID(), claim.tenantId, claim.id,
-        JSON.stringify({ channelKind: claim.channelKind, result: 'expired-after-24-hours', controlReset: Number(control.affectedRows || 0) === 1 }),
+        JSON.stringify({ channelKind: claim.channelKind, result: 'expired-after-24-hours', controlReset: Number(control.affectedRows || 0) === 1,
+          guidedSessionReset: Number(guidedSession.affectedRows || 0) === 1, flowSessionsReset: flowSessionResetCount }),
         crypto.randomUUID()]);
     }
     await db.commit();
