@@ -8,10 +8,15 @@ module.exports = async function chatbotApiIntegration(connection, pool, { t1, t2
   const provider = require('../modules/platform/chatbot-provider');
   const originalGenerate = provider.generate;
   let providerCalls = 0;
+  let connectionTestCalls = 0;
   let previewInput = '';
   let failNextProvider = false;
   let invalidNextOverviewSource = false;
   provider.generate = async request => {
+    if (request.connectionTest) {
+      connectionTestCalls++;
+      return { canAnswer: true, confidence: 1, reply: 'Connection successful', inputTokens: 4, outputTokens: 3 };
+    }
     providerCalls++;
     previewInput = request.user;
     if (failNextProvider) {
@@ -170,10 +175,18 @@ module.exports = async function chatbotApiIntegration(connection, pool, { t1, t2
     assert.equal(providerConfig.data.maskedKey, '••••••••');
     const providerRead = await call('/settings/provider');
     assert.equal(providerRead.data.configured, true);
+    assert.equal(providerRead.data.providers.find(item => item.provider === 'openai')?.configured, true);
+    assert.equal(providerRead.data.providers.find(item => item.provider === 'openai')?.active, true);
+    assert.equal(providerRead.data.providers.find(item => item.provider === 'deepseek')?.configured, false);
     assert.equal(JSON.stringify(providerRead).includes('synthetic-provider-key'), false);
     const [[storedKey]] = await connection.query('SELECT key_ciphertext,key_iv,key_auth_tag FROM sx_chatbot_provider_configs WHERE tenant_id=?', [t1]);
     assert.ok(Buffer.from(storedKey.key_ciphertext).length > 0);
     assert.notEqual(Buffer.from(storedKey.key_ciphertext).toString(), 'synthetic-provider-key-0123456789');
+    const [[storedProfileKey]] = await connection.query('SELECT key_ciphertext,key_iv,key_auth_tag FROM sx_chatbot_provider_profiles WHERE tenant_id=? AND provider=?', [t1, 'openai']);
+    assert.notEqual(Buffer.from(storedProfileKey.key_ciphertext).toString(), 'synthetic-provider-key-0123456789');
+    const otherTenantProviderRead = await call('/settings/provider', 'GET', undefined, { 'X-Test-Tenant': t2 });
+    assert.equal(otherTenantProviderRead.data.configured, false);
+    assert.equal(otherTenantProviderRead.data.providers.some(item => item.configured), false, 'provider profiles stay tenant-scoped');
 
     const preview = await call(`/${botId}/preview`, 'POST', { message: 'When are classes?', expectedRevision: 1 });
     assert.equal(preview.status, 200);
@@ -255,12 +268,61 @@ module.exports = async function chatbotApiIntegration(connection, pool, { t1, t2
     assert.equal(editedBot.revision, 4);
     assert.equal(editedBot.config.instructions, 'Use the latest approved Training Center facts.');
     assert.deepEqual(editedBot.channels.map(channel => channel.reference), [channelRef], 'a live profile edit preserves its connected-number assignment');
-    const liveProviderChange = await call('/settings/provider', 'PUT', {
-      provider: 'openai', model: 'gpt-next', expectedRevision: 1, dailyTokenLimit: 10000,
+    const savedDeepSeek = await call('/settings/provider', 'PUT', {
+      action: 'save-provider', provider: 'deepseek', model: 'deepseek-chat', apiKey: 'synthetic-deepseek-key-012345', expectedProviderRevision: 0,
     });
-    assert.equal(liveProviderChange.status, 409);
-    assert.equal(liveProviderChange.code, 'LIVE_BOT_MUST_BE_PAUSED');
-    assert.equal((await call('/settings/provider')).data.model, 'gpt-test', 'a live AI bot protects its shared provider config');
+    assert.equal(savedDeepSeek.status, 200, 'an inactive provider can be saved while an AI bot is live');
+    assert.equal(savedDeepSeek.data.provider, 'openai', 'saving an inactive provider does not change the active provider');
+    assert.equal(savedDeepSeek.data.providers.find(item => item.provider === 'deepseek')?.configured, true);
+    const testedDeepSeek = await call('/settings/provider/test', 'POST', { provider: 'deepseek', model: 'deepseek-chat' });
+    assert.equal(testedDeepSeek.status, 200);
+    assert.equal(testedDeepSeek.data.connected, true);
+    assert.equal(connectionTestCalls, 1, 'provider test uses the stored encrypted key and a synthetic prompt');
+
+    const switchedDeepSeek = await call('/settings/provider', 'PUT', {
+      action: 'activate-provider', provider: 'deepseek', expectedRevision: savedDeepSeek.data.revision,
+      expectedProviderRevision: savedDeepSeek.data.providers.find(item => item.provider === 'deepseek').revision,
+    });
+    assert.equal(switchedDeepSeek.status, 200, 'a live AI bot does not prevent switching to a saved provider');
+    assert.equal(switchedDeepSeek.data.provider, 'deepseek');
+    assert.equal(switchedDeepSeek.data.model, 'deepseek-chat');
+    let activeRuntimeProvider = await require('../modules/platform/tenant-ai-settings').forRuntime(connection, t1);
+    assert.equal(activeRuntimeProvider.provider, 'deepseek');
+    assert.equal(activeRuntimeProvider.apiKey, 'synthetic-deepseek-key-012345');
+
+    const switchedOpenAi = await call('/settings/provider', 'PUT', {
+      action: 'activate-provider', provider: 'openai', expectedRevision: switchedDeepSeek.data.revision,
+      expectedProviderRevision: switchedDeepSeek.data.providers.find(item => item.provider === 'openai').revision,
+    });
+    assert.equal(switchedOpenAi.status, 200, 'the owner can switch back without entering the OpenAI key again');
+    assert.equal(switchedOpenAi.data.provider, 'openai');
+    assert.equal(switchedOpenAi.data.model, 'gpt-test');
+
+    const updatedLiveProvider = await call('/settings/provider', 'PUT', {
+      action: 'save-provider', provider: 'openai', model: 'gpt-next', apiKey: 'synthetic-openai-rotated-key-012345',
+      expectedRevision: switchedOpenAi.data.revision,
+      expectedProviderRevision: switchedOpenAi.data.providers.find(item => item.provider === 'openai').revision,
+      dailyTokenLimit: 12000,
+    });
+    assert.equal(updatedLiveProvider.status, 200, 'active model and key can be changed while bots are live');
+    assert.equal(updatedLiveProvider.data.model, 'gpt-next');
+    assert.equal(updatedLiveProvider.data.dailyTokenLimit, 12000);
+    activeRuntimeProvider = await require('../modules/platform/tenant-ai-settings').forRuntime(connection, t1);
+    assert.equal(activeRuntimeProvider.apiKey, 'synthetic-openai-rotated-key-012345');
+    assert.equal(activeRuntimeProvider.daily_token_limit, 12000);
+
+    const concurrentStart = updatedLiveProvider.data;
+    const openAiRevision = concurrentStart.providers.find(item => item.provider === 'openai').revision;
+    const concurrentEdits = await Promise.all(['gpt-race-a', 'gpt-race-b'].map(model => call('/settings/provider', 'PUT', {
+      action: 'save-provider', provider: 'openai', model,
+      expectedRevision: concurrentStart.revision, expectedProviderRevision: openAiRevision,
+    })));
+    assert.equal(concurrentEdits.filter(result => result.status === 200).length, 1, 'the tenant lock lets exactly one concurrent provider edit win');
+    assert.equal(concurrentEdits.filter(result => result.status === 409 && result.code === 'STALE_REVISION').length, 1, 'the losing provider edit receives a safe stale-revision response');
+    const afterConcurrentEdit = await call('/settings/provider');
+    assert.ok(['gpt-race-a', 'gpt-race-b'].includes(afterConcurrentEdit.data.model));
+    activeRuntimeProvider = await require('../modules/platform/tenant-ai-settings').forRuntime(connection, t1);
+    assert.equal(activeRuntimeProvider.model, afterConcurrentEdit.data.model, 'runtime reads the committed winner atomically');
 
     // Exercise the actual inbound dispatcher and persistence path with a fake
     // channel transport. The synthetic DB and provider are real; no WhatsApp

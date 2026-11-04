@@ -71,14 +71,22 @@ Keep role-specific differences in the policy/service contract and preserve
 compatibility aliases for cached clients.
 
 Shared AI provider settings are configured in the existing Business Profile.
-They are tenant-wide, owner-managed, encrypted at rest, revisioned and audited;
-the API never returns the provider key. AI-enabled features load the same
-tenant configuration through `modules/platform/tenant-ai-settings.js` rather
-than keeping per-feature provider credentials. The existing chatbot provider
-URL is a compatibility alias. The current provider consumer remains the
-chatbot runtime; adding AI behavior to another feature requires that feature's
-own evaluated workflow and permission checks, while reusing this provider and
-the tenant's shared token budget.
+Owners can store encrypted credentials and a model for each supported provider,
+then choose one active provider for the tenant. Switching or updating the active
+provider applies atomically to new AI calls from live bots; in-flight calls keep
+the settings they started with. The API never returns a provider key. Saved
+profiles and active selection are revisioned and audited. The tenant's daily
+token cap and usage counter remain shared across bots and providers. The
+`/api/workspace/ai/settings` routes support reading provider summaries, saving a
+provider for later, saving and activating in one operation, activating a saved
+profile, updating the shared limit, and testing a provider with a short generic
+prompt that contains no customer data. The existing chatbot provider URL remains
+a compatibility alias. AI-enabled features load the same active tenant
+configuration through `modules/platform/tenant-ai-settings.js` rather than
+keeping per-feature provider credentials. The current provider consumer remains
+the chatbot runtime; adding AI behavior to another feature requires that
+feature's own evaluated workflow and permission checks, while reusing this
+provider and the tenant's shared token budget.
 
 Regression gates: `tests/unified-feature-api.test.js`,
 `tests/workspace-api-client.test.js`, and

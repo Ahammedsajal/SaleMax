@@ -19,6 +19,9 @@ test('actual discovery excludes destructive rollback', () => {
   assert.match(recruitmentScreenings.statements.join('\n'),/consented_at DATETIME\(3\) NOT NULL/);
   const qrShares = migrations.find(m => m.file === '20261207_qr_channel_shares.sql');
   assert.ok(qrShares?.statements.some(sql => /idx_beta_chats_qr_channel\s*\(uid\(191\),\s*origin_instance_unique_id\(191\)\)/i.test(sql)), 'QR channel index uses bounded prefixes for the legacy wide UID column');
+  const providerProfiles = migrations.find(m => m.file === '20270120_chatbot_provider_profiles.sql');
+  assert.ok(providerProfiles?.statements.some(sql => /CREATE TABLE sx_chatbot_provider_profiles/i.test(sql)));
+  assert.ok(providerProfiles?.statements.some(sql => /INSERT IGNORE INTO sx_chatbot_provider_profiles[\s\S]*FROM sx_chatbot_provider_configs/i.test(sql)), 'the current encrypted provider config is backfilled without decrypting or overwriting saved profiles');
   const teamRoles=migrations.findIndex(m=>m.file==='20261113_team_role_profiles.sql');
   const salesOrg=migrations.findIndex(m=>m.file==='20261114_sales_organization.sql');
   const salesFinance=migrations.findIndex(m=>m.file==='20261115_sales_commissions.sql');

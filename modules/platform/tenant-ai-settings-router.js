@@ -29,11 +29,22 @@ function createTenantAiSettingsRouter({ pool, origin, authenticate }) {
     try { res.json({ success: true, data: await settings.save(db, ctx, req.body) }); }
     finally { db.release(); }
   }));
+  router.post('/test', wrap(async (req, res) => {
+    const ctx = ownerContext(req), db = await pool.getConnection();
+    try { res.json({ success: true, data: await settings.test(db, ctx, req.body) }); }
+    finally { db.release(); }
+  }));
   router.use((error, req, res, next) => {
     if (res.headersSent) return next(error);
     const code = error.code || 'AI_SETTINGS_UNAVAILABLE';
-    const status = Number.isInteger(error.status) ? error.status : code === 'STALE_REVISION' || code === 'LIVE_BOT_MUST_BE_PAUSED' ? 409 : code.startsWith('INVALID_') || code === 'PROVIDER_KEY_REQUIRED' ? 400 : 503;
-    res.status(status).json({ success: false, code: status >= 500 ? 'AI_SETTINGS_UNAVAILABLE' : code });
+    const conflicts = ['STALE_REVISION','LIVE_BOT_MUST_BE_PAUSED','PROVIDER_NOT_CONFIGURED','AI_PROVIDER_NOT_CONFIGURED'];
+    const clientErrors = ['PROVIDER_KEY_REQUIRED','INVALID_PROVIDER_CONFIG','INVALID_PROVIDER_KEY','INVALID_PROVIDER_REVISION','INVALID_PROVIDER_ACTION','INVALID_DAILY_TOKEN_LIMIT'];
+    const status = Number.isInteger(error.status) ? error.status
+      : conflicts.includes(code) ? 409
+        : clientErrors.includes(code) || code.startsWith('INVALID_') ? 400
+          : code === 'PROVIDER_CONNECTION_FAILED' ? 502 : 503;
+    const safeCodes = new Set([...conflicts, ...clientErrors, 'PERMISSION_DENIED', 'PROVIDER_CONNECTION_FAILED']);
+    res.status(status).json({ success: false, code: safeCodes.has(code) ? code : 'AI_SETTINGS_UNAVAILABLE' });
   });
   return router;
 }

@@ -12,6 +12,11 @@ const indexPath = path.join(__dirname, '..', 'client/public/index.html');
 const index = fs.existsSync(indexPath) ? fs.readFileSync(indexPath, 'utf8') : '';
 const chatbotRouter = read('modules/platform/chatbot-router.js');
 const runtime = read('modules/platform/chatbot-runtime.js');
+const businessProfile = read('client/public/tenant-crm-appearance.js');
+const workspaceLocale = read('client/public/workspace-locale.js');
+const aiSettingsService = read('modules/platform/tenant-ai-settings.js');
+const aiSettingsRouter = read('modules/platform/tenant-ai-settings-router.js');
+const aiSettingsUi = read('client/public/tenant-ai-settings.js');
 
 test('existing Automation Flows canvas remains the first pill tab', () => {
   const definitions = admin.match(/const definitions = \[([\s\S]*?)\];/)?.[1] || '';
@@ -127,19 +132,38 @@ test('AI provider, model, usage limit, and confidence use curated dropdown choic
   assert.match(admin, /Prices are estimates in USD per 1 million text tokens/);
 });
 
-test('active bot profiles stay editable while provider credentials and sensitive AI settings stay locked', () => {
+test('active bots can switch shared providers while profile and channel safeguards remain enforced', () => {
   assert.match(admin, /data-edit="\$\{esc\(bot\.id\)\}"/);
   assert.doesNotMatch(admin, /data-edit="\$\{esc\(bot\.id\)\}"\s+\$\{bot\.status==='live'\?'disabled/);
-  assert.match(admin, /Saved changes take effect on the next incoming message/);
-  assert.match(admin, /Provider credentials and usage limits are locked while this bot is active/);
+  assert.match(admin, /Profile changes take effect on the next incoming message/);
+  assert.doesNotMatch(admin, /Provider credentials and usage limits are locked while this bot is active/);
+  assert.match(admin, /Shared provider changes apply to new AI requests across all live AI\/Hybrid bots/);
+  assert.match(admin, /AI provider settings are shared by this business\. Changes apply to new requests from all live AI\/Hybrid bots/);
+  assert.match(admin, /Manage all providers in Business Profile/);
+  assert.match(admin, /action:'save-and-activate'/);
+  assert.doesNotMatch(aiSettingsService, /LIVE_BOT_MUST_BE_PAUSED|status='live'/);
+  assert.match(aiSettingsService, /sx_chatbot_provider_profiles/);
+  assert.match(aiSettingsService, /'save-provider', 'save-and-activate', 'activate-provider', 'update-limits'/);
+  assert.match(aiSettingsRouter, /router\.post\('\/test'/);
+  assert.match(aiSettingsRouter, /'PERMISSION_DENIED'/);
+  assert.match(aiSettingsUi, /aria-pressed="\$\{selected === id\}"/);
+  assert.match(aiSettingsUi, /data-ai-save-activate/);
+  assert.match(aiSettingsUi, /data-ai-activate/);
+  assert.match(aiSettingsUi, /data-ai-test/);
+  assert.match(aiSettingsUi, /const drafts = new Map\(\)/);
+  assert.match(businessProfile, /tenant-ai-settings\.js\?v=/, 'the provider manager mounts inside the existing Business Profile screen');
   assert.match(admin, /Pause this bot before changing its AI privacy confirmation/);
   assert.match(admin, /aiDataProcessingConfirmed:liveEdit\?config\.aiDataProcessingConfirmed===true/);
   assert.match(admin, /assign its number from the Chatbot page/);
   assert.match(chatbotRouter, /if \(row\.status === 'live'\) await assertLiveProfileReady/);
   assert.match(chatbotRouter, /appliedImmediately: row\.status === 'live'/);
-  assert.match(chatbotRouter, /status='live' AND \(engine='ai' OR \(engine='hybrid'/);
-  assert.match(chatbotRouter, /if \(liveAiBot\) fail\('LIVE_BOT_MUST_BE_PAUSED'\)/);
+  assert.match(chatbotRouter, /if \(bot\.status === 'live'\) fail\('LIVE_BOT_MUST_BE_PAUSED'\)/);
   assert.match(chatbotRouter, /async function assertLiveProfileReady/);
+});
+
+test('AI provider settings use the workspace English default and honor explicit Arabic selection', () => {
+  assert.match(workspaceLocale, /localStorage\.getItem\('language'\) \|\| 'english'/);
+  assert.match(aiSettingsUi, /window\.SaleMaxLocale\?\.isArabic\?\.\(\) \?\?[^\n]*\|\| 'en'/);
 });
 
 test('bot assignments display connected channel labels instead of internal IDs', () => {
