@@ -12,11 +12,6 @@ const indexPath = path.join(__dirname, '..', 'client/public/index.html');
 const index = fs.existsSync(indexPath) ? fs.readFileSync(indexPath, 'utf8') : '';
 const chatbotRouter = read('modules/platform/chatbot-router.js');
 const runtime = read('modules/platform/chatbot-runtime.js');
-const businessProfile = read('client/public/tenant-crm-appearance.js');
-const workspaceLocale = read('client/public/workspace-locale.js');
-const aiSettingsService = read('modules/platform/tenant-ai-settings.js');
-const aiSettingsRouter = read('modules/platform/tenant-ai-settings-router.js');
-const aiSettingsUi = read('client/public/tenant-ai-settings.js');
 
 test('existing Automation Flows canvas remains the first pill tab', () => {
   const definitions = admin.match(/const definitions = \[([\s\S]*?)\];/)?.[1] || '';
@@ -118,52 +113,26 @@ test('Hybrid bot test recipients are entered as validated removable phone chips'
   assert.match(admin, /\$\{audienceNotice\}\$\{testSettings\}\$\{flowField\}/);
 });
 
-test('AI provider, model, usage limit, and confidence use curated dropdown choices', () => {
-  assert.match(admin, /<select name="provider"/);
-  assert.match(admin, /value="openai"/);
-  assert.match(admin, /name="model"[^>]*>\$\{modelChoices\(/);
-  assert.doesNotMatch(admin, /<input name="model"/);
-  assert.match(admin, /id: 'gpt-6-luna'.*Recommended/);
-  assert.match(admin, /id: 'gemini-3\.1-flash-lite'.*Recommended/);
-  assert.match(admin, /id: 'deepseek-flash'.*Recommended/);
-  assert.match(admin, /name="dailyTokenLimit"[^>]*>\$\{presetChoices\(/);
+test('bot provider setup links to the central AI Integrations page', () => {
+  assert.match(admin, /Open AI Integrations/);
+  assert.match(admin, /href="\/user\?page=ai-integrations"/);
+  assert.doesNotMatch(admin, /<select name="provider"|name="apiKey"|providerBody/);
   assert.match(admin, /<select name="confidenceThreshold"/);
-  assert.match(admin, /Saved model:/);
-  assert.match(admin, /Prices are estimates in USD per 1 million text tokens/);
 });
 
-test('active bots can switch shared providers while profile and channel safeguards remain enforced', () => {
+test('active bot profiles stay editable while provider credentials and sensitive AI settings stay locked', () => {
   assert.match(admin, /data-edit="\$\{esc\(bot\.id\)\}"/);
   assert.doesNotMatch(admin, /data-edit="\$\{esc\(bot\.id\)\}"\s+\$\{bot\.status==='live'\?'disabled/);
-  assert.match(admin, /Profile changes take effect on the next incoming message/);
-  assert.doesNotMatch(admin, /Provider credentials and usage limits are locked while this bot is active/);
-  assert.match(admin, /Shared provider changes apply to new AI requests across all live AI\/Hybrid bots/);
-  assert.match(admin, /AI provider settings are shared by this business\. Changes apply to new requests from all live AI\/Hybrid bots/);
-  assert.match(admin, /Manage all providers in Business Profile/);
-  assert.match(admin, /action:'save-and-activate'/);
-  assert.doesNotMatch(aiSettingsService, /LIVE_BOT_MUST_BE_PAUSED|status='live'/);
-  assert.match(aiSettingsService, /sx_chatbot_provider_profiles/);
-  assert.match(aiSettingsService, /'save-provider', 'save-and-activate', 'activate-provider', 'update-limits'/);
-  assert.match(aiSettingsRouter, /router\.post\('\/test'/);
-  assert.match(aiSettingsRouter, /'PERMISSION_DENIED'/);
-  assert.match(aiSettingsUi, /aria-pressed="\$\{selected === id\}"/);
-  assert.match(aiSettingsUi, /data-ai-save-activate/);
-  assert.match(aiSettingsUi, /data-ai-activate/);
-  assert.match(aiSettingsUi, /data-ai-test/);
-  assert.match(aiSettingsUi, /const drafts = new Map\(\)/);
-  assert.match(businessProfile, /tenant-ai-settings\.js\?v=/, 'the provider manager mounts inside the existing Business Profile screen');
+  assert.match(admin, /Saved changes take effect on the next incoming message/);
+  assert.match(admin, /Provider, model, encrypted API key, prompt caching and monthly usage are managed in AI Integrations/);
   assert.match(admin, /Pause this bot before changing its AI privacy confirmation/);
   assert.match(admin, /aiDataProcessingConfirmed:liveEdit\?config\.aiDataProcessingConfirmed===true/);
   assert.match(admin, /assign its number from the Chatbot page/);
   assert.match(chatbotRouter, /if \(row\.status === 'live'\) await assertLiveProfileReady/);
   assert.match(chatbotRouter, /appliedImmediately: row\.status === 'live'/);
-  assert.match(chatbotRouter, /if \(bot\.status === 'live'\) fail\('LIVE_BOT_MUST_BE_PAUSED'\)/);
+  assert.match(chatbotRouter, /if \(status === 'live'\) \{[\s\S]*?await assertLiveProfileReady/);
+  assert.match(chatbotRouter, /if \(requirements\.requiresAi\) \{[\s\S]*?AI_PROVIDER_NOT_CONFIGURED/);
   assert.match(chatbotRouter, /async function assertLiveProfileReady/);
-});
-
-test('AI provider settings use the workspace English default and honor explicit Arabic selection', () => {
-  assert.match(workspaceLocale, /localStorage\.getItem\('language'\) \|\| 'english'/);
-  assert.match(aiSettingsUi, /window\.SaleMaxLocale\?\.isArabic\?\.\(\) \?\?[^\n]*\|\| 'en'/);
 });
 
 test('bot assignments display connected channel labels instead of internal IDs', () => {
@@ -197,7 +166,7 @@ test('Inbox bot control requires explicit number selection when channel scope is
   assert.match(admin, /manuallySelectedChatChannels\.set\(id, selectedScope\)/);
   assert.match(admin, /manuallySelectedChatChannels\.get\(id\)/);
   assert.match(admin, /manuallySelectedChatChannels\.delete\(id\)/);
-  assert.match(admin, /header\.insertBefore\(control, actions\)/);
+  assert.match(admin, /actions\.insertBefore\(control, infoButton\)/);
   assert.match(admin, /matchMedia\('\(max-width: 767px\)'\)/);
   assert.match(admin, /data-sx-chatbot-mobile-toggle/);
   assert.match(admin, /let lastActiveConversation = null/);
@@ -214,11 +183,25 @@ test('HTML and sidebar loader each expose a cache-busted chatbot script URL', { 
   assert.ok(botKey);
 });
 
-test('7Network Sales built-in guide can run a saved opening Flow once then continue guided chat',()=>{
+test('built-in guide supports a saved opening Flow and leaves other first messages to guided chat',()=>{
   assert.match(admin,/name="introFlowId"/);
-  assert.match(admin,/Runs once when a new WhatsApp conversation starts/);
+  assert.match(admin,/Runs once for a new conversation when the customer starts with a greeting/);
   assert.match(admin,/introFlowId:usesDomainGuide\?String\(data\.get\('introFlowId'\)/);
   assert.match(chatbotRouter,/if \(config\.introFlowId\)/);
   assert.match(chatbotRouter,/GUIDED_FLOW_UNAVAILABLE/);
   assert.match(runtime,/claimOpeningFlow/);
+  assert.match(runtime,/isOpeningGreeting\(textOf\(message\)\)/);
+});
+
+test('bot editor assigns handoffs to an active tenant manager and routes them through Inbox',()=>{
+  assert.match(admin,/name="handoffAssigneeIdentityId"/);
+  assert.match(admin,/name="assignHandoffsToInbox"/);
+  assert.match(admin,/handoffAssigneeIdentityId:String\(data\.get\('handoffAssigneeIdentityId'\)/);
+  assert.match(admin,/Assign handed-off conversations to this member in Inbox/);
+  assert.match(chatbotRouter,/handoffAssignees: handoffAssignees\.map/);
+  assert.match(chatbotRouter,/m\.tenant_id=\? AND m\.identity_id=\? AND m\.status='active' AND i\.status='active'[\s\S]*m\.role IN \('owner','manager','team_leader'\)/);
+  assert.match(chatbotRouter,/validateHandoffAssignee\(db,ctx,input\.config\.handoffAssigneeIdentityId\)/);
+  assert.match(runtime,/config\?\.assignHandoffsToInbox === true/);
+  assert.match(runtime,/sharedInboxRouting === true/);
+  assert.match(read('deploy/compose.procatalyst-handoff.override.yml'),/chatbot-runtime\.js:\/app\/modules\/platform\/chatbot-runtime\.js:ro/);
 });

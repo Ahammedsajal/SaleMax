@@ -2,14 +2,17 @@
 const crypto=require('node:crypto');
 const phone=(value,{countryCode}={})=>{let s=String(value||'').replace(/[\s().-]/g,'');if(/^\d{8}$/.test(s)){if(countryCode)s=countryCode+s;else return null;}s=s.replace(/^00/,'');return /^\+?[1-9]\d{7,14}$/.test(s)?s.replace(/^\+/,''):null;};
 const hash=value=>crypto.createHash('sha256').update(String(value)).digest('hex');
-async function staff(db,tenantId,{ownerOnly=false}={}){
+async function staff(db,tenantId,{ownerOnly=false,roles=null}={}){
+ const allowed=new Set(['owner','manager','team_leader','agent','accountant','viewer']);
+ const selected=ownerOnly?['owner']:Array.isArray(roles)?[...new Set(roles.filter(role=>allowed.has(role)))]:['owner','manager'];
+ if(!selected.length)return [];
  const [rows]=await db.query(`SELECT m.identity_id,m.role,t.timezone,COALESCE(NULLIF(u.mobile_with_country_code,''),a.mobile) AS phone
  FROM sx_memberships m JOIN sx_identities i ON i.id=m.identity_id AND i.status='active'
  JOIN sx_tenants t ON t.id=m.tenant_id AND t.status='active'
  JOIN sx_legacy_ownership o ON o.tenant_id=m.tenant_id AND o.membership_id=m.id
  LEFT JOIN user u ON o.source_table='user' AND o.source_id=CAST(u.id AS CHAR)
  LEFT JOIN agents a ON o.source_table='agents' AND o.source_id=CAST(a.id AS CHAR) AND a.is_active=1
- WHERE m.tenant_id=? AND m.status='active' AND m.role IN (${ownerOnly?"'owner'":"'owner','manager'"})`,[tenantId]);
+ WHERE m.tenant_id=? AND m.status='active' AND m.role IN (${selected.map(()=>'?').join(',')})`,[tenantId,...selected]);
  return rows.map(r=>({kind:'identity',id:r.identity_id,role:r.role,phone:phone(r.phone,{countryCode:r.timezone==='Asia/Qatar'?'974':undefined})}));
 }
 async function sender(db,tenantId){

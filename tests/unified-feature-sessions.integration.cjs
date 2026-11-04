@@ -14,7 +14,15 @@ const uuid=()=>crypto.randomUUID(),sha=v=>crypto.createHash('sha256').update(v).
  if(!columns.length)continue;
  await pool.query('CREATE TABLE `'+table+'` ('+columns.map(c=>'`'+c.columnName+'` '+c.columnType+' '+(c.nullable==='NO'?'NOT NULL':'')+' '+(c.columnKey==='PRI'?'PRIMARY KEY':'')+' '+(c.extra==='auto_increment'?'AUTO_INCREMENT':'')+' '+(c.columnName==='createdAt'?'DEFAULT CURRENT_TIMESTAMP':'')).join(',')+')');
  }
- const db=await pool.getConnection();try{await require('../database/migration-runner').applyMigrations(db,require('../database/migration-runner').discover(path.join(__dirname,'../database/migrations')));}catch(error){const [failed]=await db.query("SELECT migration_name,error_code,statements_completed FROM salemax_schema_migrations WHERE status<>'applied'");console.error(JSON.stringify({syntheticMigrationFailure:failed}));throw error;}finally{db.release();}
+ const db=await pool.getConnection();try{const migrations=require('../database/migration-runner').discover(path.join(__dirname,'../database/migrations'));
+ // Historical notification default ALTER predates its table-creation filename.
+ // Rehearse that SQL after its dependency only in this bounded AI fixture;
+ // production history and the generic fresh-bootstrap gate are unchanged.
+ if(process.env.AI_INTEGRATIONS_ONLY==='true'){
+  const i=migrations.findIndex(m=>m.file==='20261024_business_daily_report_default_time.sql');
+  if(i>=0){const [alter]=migrations.splice(i,1);migrations.splice(migrations.findIndex(m=>m.file==='20261225_business_whatsapp_notifications.sql')+1,0,alter);}
+ }
+ await require('../database/migration-runner').applyMigrations(db,migrations);}catch(error){const [failed]=await db.query("SELECT migration_name,error_code,statements_completed FROM salemax_schema_migrations WHERE status<>'applied'");console.error(JSON.stringify({syntheticMigrationFailure:failed}));throw error;}finally{db.release();}
 
  process.env.DBNAME=name;process.env.JWTKEY='synthetic-unified-jwt-key';process.env.LOCAL_ONLY_MODE='true';
  const express=require('express'),app=express(),origin='http://127.0.0.1';
@@ -28,7 +36,7 @@ const uuid=()=>crypto.randomUUID(),sha=v=>crypto.createHash('sha256').update(v).
  for(const role of ['owner','manager','accountant','agent']){
   const identity=uuid(),membership=uuid(),uid='synthetic-unified-'+role,password='synthetic-'+role,email=role+'@example.invalid';
   await pool.query("INSERT INTO sx_identities(id,email_normalized,display_name,password_hash,status) VALUES (?,?,?,'synthetic','active')",[identity,email,role]);
-  await pool.query("INSERT INTO sx_memberships(id,tenant_id,identity_id,role,status,assigned_navigation) VALUES (?,?,?,?,'active',?)",[membership,tenant,identity,role,JSON.stringify(role==='agent'?['inbox','contacts']:role==='owner'?['dashboard','inbox','invoices','contacts','courses','reports']:['inbox','invoices','contacts','courses','reports'])]);
+  await pool.query("INSERT INTO sx_memberships(id,tenant_id,identity_id,role,status,assigned_navigation) VALUES (?,?,?,?,'active',?)",[membership,tenant,identity,role,JSON.stringify(role==='agent'?['inbox','contacts']:role==='owner'?['dashboard','inbox','invoices','contacts','courses','reports','ai-integrations']:['inbox','invoices','contacts','courses','reports'])]);
   let result;if(role==='agent')([result]=await pool.query("INSERT INTO agents(uid,name,email,password,owner_uid,role,is_active) VALUES (?,?,?,?,?,'agent',1)",[uid,role,email,password,'synthetic-unified-owner']));
   else ([result]=await pool.query("INSERT INTO user(uid,name,email,password,role) VALUES (?,?,?,?,'user')",[uid,role,email,password]));
   const id=result.insertId;await pool.query("INSERT INTO sx_legacy_ownership(source_table,source_id,tenant_id,membership_id,legacy_uid_hash,verified_at) VALUES (?,?,?,?,?,UTC_TIMESTAMP(3))",[role==='agent'?'agents':'user',String(id),tenant,membership,sha(uid)]);
@@ -50,6 +58,7 @@ const uuid=()=>crypto.randomUUID(),sha=v=>crypto.createHash('sha256').update(v).
  const guard=require('../modules/platform/business-feature-session').createBusinessFeatureSession({pool,origin,userGuard:require('../middlewares/user'),agentGuard:require('../middlewares/agent'),canonicalGuard:auth.guard,resolveBusinessContext:auth.resolveContext});legacyPool=require('../database/config');
  app.use('/api/user/business-auth',auth.router);
  const sessionRouter=express.Router();sessionRouter.use(guard.guard);sessionRouter.get('/',(req,res,next)=>require('../modules/platform/feature-contract').describeWithNavigation(pool,req.featureSession).then(data=>res.json({success:true,data})).catch(next));app.use('/api/workspace/session',sessionRouter);
+ app.use('/api/workspace/ai/settings',require('../modules/platform/tenant-ai-settings-router').createTenantAiSettingsRouter({pool,origin,authenticate:guard.guard}));
  const customization=require('../modules/platform/tenant-customization-router').createTenantCustomizationRouter({pool,origin,authenticate:guard.guard});app.use(['/api/workspace/customization','/api/crm/customization'],customization);
  app.use('/api/pipeline',express.json({limit:'96kb'}),require('../routes/pipeline'));
  const formRouters=require('../modules/platform/training-form-router');app.use(['/api/workspace/forms','/api/user/training/forms'],formRouters.createTrainingFormRouter({pool,origin,sessionGuard:guard.guard}));app.use('/api/public/training/forms',formRouters.createPublicTrainingFormRouter({app,pool,origin,rateKey:crypto.randomBytes(32),turnstile:{enabled:false,publicConfig:null}}));
@@ -68,6 +77,32 @@ const uuid=()=>crypto.randomUUID(),sha=v=>crypto.createHash('sha256').update(v).
   else{headers.Cookie='salemax_dev_session='+person.token;if(csrf&&method!=='GET'){const me=await fetch(base+'/api/user/business-auth/me',{headers:{Cookie:headers.Cookie}});const session=await me.json();headers['X-CSRF-Token']=session.csrfToken;}}
   const response=await fetch(base+url,{method,headers,body:body===undefined?undefined:JSON.stringify(body)});const data=await response.json();return {status:response.status,...data};
  }
+ // Shared AI integrations: real bearer/cookie credentials and a disposable ledger.
+ process.env.SALEMAX_PLATFORM_KEY_BASE64=crypto.randomBytes(32).toString('base64');
+ const aiSettings=require('../modules/platform/tenant-ai-settings');
+ for(const kind of ['bearer','cookie']){
+  const config=await request('owner',kind,'/api/workspace/ai/settings');assert.equal(config.status,200,JSON.stringify(config));assert.equal(config.data.providers.length,3);
+  for(const role of ['manager','accountant','agent'])for(const url of ['/api/workspace/ai/settings','/api/workspace/ai/settings/usage'])assert.equal((await request(role,kind,url)).status,403);
+ }
+ const aiBody={provider:'openai',model:'gpt-6-luna',apiKey:'synthetic-ai-key-not-real-12345',expectedRevision:0};
+ assert.equal((await request('owner','cookie','/api/workspace/ai/settings','PUT',aiBody,{csrf:false})).status,403);
+ assert.equal((await request('owner','bearer','/api/workspace/ai/settings','PUT',aiBody,{foreign:true})).status,403);
+ assert.equal((await request('owner','cookie','/api/workspace/ai/settings','PUT',aiBody)).status,200);
+ const [[cipher]]=await pool.query('SELECT key_ciphertext FROM sx_chatbot_provider_configs WHERE tenant_id=?',[tenant]);assert.notEqual(Buffer.from(cipher.key_ciphertext).toString(),aiBody.apiKey);
+ const updates=await Promise.all(['cookie','bearer'].map(kind=>request('owner',kind,'/api/workspace/ai/settings','PUT',{provider:'openai',model:'gpt-6-luna',expectedRevision:1})));
+ assert.deepEqual(updates.map(item=>item.status).sort(),[200,409]);
+ assert.equal((await aiSettings.forRuntime(pool,tenant)).apiKey,aiBody.apiKey);
+ await Promise.all(Array.from({length:20},async()=>{
+  const reservation=await aiSettings.reserveTokens(pool,tenant,1,1100);
+  await aiSettings.settleTokens(pool,tenant,reservation,1100,{provider:'openai',model:'gpt-6-luna',inputTokens:1000,outputTokens:100,cachedInputTokens:600,cacheWriteTokens:200});
+ }));
+ const aiUsage=await request('owner','cookie','/api/workspace/ai/settings/usage');assert.equal(aiUsage.status,200,JSON.stringify(aiUsage));
+ assert.equal(aiUsage.data.cachedInputTokens,12000);assert.equal(aiUsage.data.cacheWriteTokens,4000);assert.equal(aiUsage.data.providerRequests,20);assert.equal(aiUsage.data.cacheReadRequests,20);assert.ok(Math.abs(aiUsage.data.estimatedUsd-0.00202)<1e-9);assert.equal(aiUsage.data.replyCap,false);
+ assert.equal((await aiSettings.usage(pool,foreignTenant)).inputTokens,0);
+ const safeConfig=await request('owner','bearer','/api/workspace/ai/settings');assert.equal(safeConfig.data.apiKey,undefined);assert.equal(safeConfig.data.key_ciphertext,undefined);
+ const ownerSession=await request('owner','cookie','/api/workspace/session');assert.ok(ownerSession.data.roleNavigation.includes('ai-integrations'));
+ const [[counters]]=await pool.query('SELECT SUM(reserved_tokens) AS reserved,SUM(consumed_tokens) AS consumed FROM sx_chatbot_usage_daily WHERE tenant_id=?',[tenant]);assert.equal(Number(counters.reserved),0);assert.equal(Number(counters.consumed),22000);
+ if(process.env.AI_INTEGRATIONS_ONLY==='true'){console.log(JSON.stringify({passed:true,checks:['forward migration SQL with historical notification dependency order','real owner bearer and cookie','staff denied','CSRF and origin','encrypted key retained','concurrent revision conflict','20 concurrent cache settlements','tenant isolation','uncapped usage']}));return;}
  for(const role of Object.keys(people))for(const kind of ['bearer','cookie']){
   const session=await request(role,kind,'/api/workspace/session');assert.equal(session.status,200,JSON.stringify(session));assert.equal(session.data.role,role);
   for(const url of ['/api/workspace/finance/generator/settings','/api/user/training/finance-policies/accountant/generator/settings','/api/workspace/finance/receipts']){const response=await request(role,kind,url);assert.equal(response.status,role==='agent'?403:200,JSON.stringify(response));}

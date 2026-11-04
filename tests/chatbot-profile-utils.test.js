@@ -62,6 +62,7 @@ test('training-center bot validation produces a bounded reusable category profil
   const bot = botInput({ name: ' Admissions ', engine: 'hybrid', config: {
     flowId: 'admissions_1', aiFallback: true, confidenceThreshold: 0.8,
     instructions: 'Use the approved course facts.', aiDataProcessingConfirmed: true,
+    handoffAssigneeIdentityId: '11111111-1111-4111-8111-111111111111', assignHandoffsToInbox: true,
     knowledgeEntries: [{ questionEn: 'Fees?', answerEn: 'Check current course offers.', questionAr: 'الرسوم؟', answerAr: 'تحقق من العروض.' }],
     untrustedProviderKey: 'must-not-be-stored-in-profile'
   } }, 'training_center');
@@ -71,8 +72,12 @@ test('training-center bot validation produces a bounded reusable category profil
   assert.deepEqual(bot.config.collect, ['name', 'course_interest', 'preferred_schedule', 'phone', 'consent']);
   assert.equal(bot.config.flowId, 'admissions_1');
   assert.equal(bot.config.aiFallback, true);
+  assert.equal(bot.config.handoffAssigneeIdentityId, '11111111-1111-4111-8111-111111111111');
+  assert.equal(bot.config.assignHandoffsToInbox, true);
   assert.equal(Object.hasOwn(bot.config, 'untrustedProviderKey'), false);
   assert.throws(() => botInput({ name: 'Bad', engine: 'ai', config: { confidenceThreshold: 0.1 } }, 'training_center'), { code: 'INVALID_CONFIDENCE_THRESHOLD' });
+  assert.throws(() => botInput({ name: 'Bad', engine: 'hybrid', config: { handoffAssigneeIdentityId: 'not-a-uuid' } }, 'training_center'), { code: 'INVALID_HANDOFF_ASSIGNEE' });
+  assert.throws(() => botInput({ name: 'Bad', engine: 'hybrid', config: { assignHandoffsToInbox: true } }, 'training_center'), { code: 'HANDOFF_ASSIGNEE_REQUIRED' });
   assert.throws(() => botInput({ name: 'Bad', engine: 'guided', config: { flowId: '../unsafe' } }, 'training_center'), { code: 'INVALID_FLOW_ID' });
   assert.deepEqual(botRequirements('guided'), { requiresGuidedFlow: true, requiresAi: false });
   assert.deepEqual(botRequirements('hybrid', { aiFallback: true }), { requiresGuidedFlow: true, requiresAi: true });
@@ -80,13 +85,14 @@ test('training-center bot validation produces a bounded reusable category profil
   assert.deepEqual(botRequirements('ai'), { requiresGuidedFlow: false, requiresAi: true });
 });
 
-test('7Network Sales built-in guide can run a validated Automation Flow once before continuing guided chat',()=>{
+test('built-in category guides can run a validated Automation Flow once before continuing guided chat',()=>{
   const bot=botInput({name:'7Network recruitment',engine:'guided',config:{guidedMode:'domain_default',introFlowId:'recruitment_intro'}},'7network_sales');
   assert.equal(bot.config.guidedMode,'domain_default');
   assert.equal(bot.config.flowId,null);
   assert.equal(bot.config.introFlowId,'recruitment_intro');
   assert.throws(()=>botInput({name:'Bad',engine:'guided',config:{guidedMode:'domain_default',introFlowId:'../bad'}},'7network_sales'),{code:'INVALID_FLOW_ID'});
-  assert.equal(botInput({name:'Guide',engine:'guided',config:{guidedMode:'domain_default',introFlowId:'flow-1'}},'training_center').config.introFlowId,undefined);
+  assert.equal(botInput({name:'Guide',engine:'guided',config:{guidedMode:'domain_default',introFlowId:'flow-1'}},'training_center').config.introFlowId,'flow-1');
+  assert.equal(botInput({name:'Hybrid',engine:'hybrid',config:{guidedMode:'domain_default',introFlowId:'flow-2',aiFallback:true}},'training_center').config.introFlowId,'flow-2');
 });
 
 test('guided bot validation retains bilingual approved FAQs', () => {
@@ -124,7 +130,7 @@ test('legacy chatbot authentication resolves tenant category and rejects unpubli
   } finally { platformPlans.loadEntitlements = previousLoadEntitlements; }
 });
 
-test('hybrid routing keeps new chats and menu choices guided, then permits AI only when enabled', () => {
+test('hybrid routing starts new chats guided, then sends free-text to AI and keeps menu choices guided', () => {
   assert.equal(isGuidedChoice(' 2 '), true);
   assert.equal(isGuidedChoice('القائمة'), true);
   assert.equal(isGuidedChoice('I need course details'), false);

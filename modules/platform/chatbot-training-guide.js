@@ -41,17 +41,15 @@ function languageFor(message, state, config) {
 function menuText(facts = [], settings = {}, language = 'en', { includeGreeting = true } = {}) {
   const defaults = require('./chatbot-domain-packs').getDomainPack('training_center', 1).guidedContentDefaults || {};
   settings = mergeDefaults(defaults, settings);
-  const form = facts.find(item => item?.kind === 'published_enquiry_form' && typeof item.url === 'string');
   const lines = [];
   if (includeGreeting) lines.push(copy(settings, 'greeting', language, language === 'ar' ? 'أهلاً بك!' : 'Welcome!'));
-  lines.push(`[1] *${copy(settings, 'coursesLabel', language, language === 'ar' ? 'عرض الدورات' : 'View courses')}*`);
-  if (form && settings.display?.showEnquiryForm !== false) {
-    const label = form.purpose === 'registration' ? copy(settings, 'applicationLabel', language) : copy(settings, 'enquiryLabel', language);
-    lines.push(`[2] ${label}`);
-  }
-  lines.push(`[3] ${copy(settings, 'admissionsLabel', language)}` + ` · [0] ${copy(settings, 'mainMenuLabel', language, 'Menu')}`);
-  lines[lines.length - 1] += ` · ${copy(settings, 'menuPrompt', language)}`;
-  return lines.join('\n');
+  const configured = copy(settings, 'menuPrompt', language);
+  const legacyNumericPrompt = /\b(?:reply|type|send)\b.{0,35}\b(?:number|option|[0-3])\b|\b[0-3]\s*(?:for|to)\b|أرسل\s*رقم|ارسل\s*رقم|الخيار\s*رقم/iu.test(configured);
+  const followUp = legacyNumericPrompt
+    ? (language === 'ar' ? 'ما الدورة التي تهمك، وما الذي ترغب في معرفته عنها؟' : 'Which course are you interested in, and what would you like to know about it?')
+    : configured;
+  lines.push(followUp || (language === 'ar' ? 'ما الدورة التي تهمك، وما الذي ترغب في معرفته عنها؟' : 'Which course are you interested in, and what would you like to know about it?'));
+  return lines.join('\n\n');
 }
 
 function courseLimit(settings) {
@@ -105,16 +103,18 @@ function localizedBatchDate(value, language) {
 function formatCourseList(courses, settings = {}, language = 'en') {
   const visible = courses.slice(0, courseLimit(settings));
   if (!visible.length) {
-    return copy(settings, 'courseListEmpty', language, language === 'ar' ? 'لا توجد دورات منشورة متاحة حالياً. أرسل 0 للقائمة الرئيسية.' : 'There are no published courses available right now. Reply 0 for the main menu.');
+    return language === 'ar' ? 'لا توجد دورات منشورة متاحة حالياً. ما الدورة أو المجال الذي تبحث عنه؟' : 'There are no published courses available right now. What course or subject are you looking for?';
   }
   const lines = [`*${copy(settings, 'courseListHeading', language, language === 'ar' ? 'الدورات المتاحة' : 'Available courses')}*`];
   visible.forEach((course, index) => {
     const name = clean(language === 'ar' ? (course.nameAr || course.nameEn || course.code) : (course.nameEn || course.nameAr || course.code), 100);
-    let line = `${index + 1}. ${name}`;
+    let line = `• ${name}`;
     if (settings.display?.showFees !== false && course.offer?.priceAmount != null && course.offer?.currency) line += ` — ${course.offer.priceAmount} ${course.offer.currency}`;
     lines.push(line);
   });
-  lines.push(copy(settings, 'courseListPrompt', language));
+  const configuredPrompt = copy(settings, 'courseListPrompt', language);
+  const legacyNumericPrompt = /\b(?:reply|type|send)\b.{0,35}\b(?:number|option|[0-9])\b|\b0\s*(?:for|to)\b|أرسل\s*رقم|ارسل\s*رقم|رقم\s*الدورة/iu.test(configuredPrompt);
+  lines.push(legacyNumericPrompt ? (language === 'ar' ? 'أرسل اسم الدورة التي تهمك، وأخبرني بما تريد معرفته.' : 'Tell me the course name and what you’d like to know about it.') : configuredPrompt);
   return lines.join('\n');
 }
 
@@ -228,13 +228,20 @@ function trainingCenterGuidedReplyTurn({ message, state, facts, config, defaults
     const code = Array.isArray(state.courseCodes) ? state.courseCodes[index] : null;
     const course = courses.find(item => item.code === code);
     if (course) return { reply: formatCourseDetails(course, formUrl, settings, language, !!registrationFormUrl), state: nextState('course_detail', { courseCodes: state.courseCodes.slice(0, courseLimit(settings)), selectedCourseCode: course.code }) };
-    return { reply: `${copy(settings, 'invalidSelection', language)} ${formatCourseList(courses, settings, language)}`, state: nextState('course_list', { courseCodes: courses.slice(0, courseLimit(settings)).map(course => course.code) }) };
+    const configuredInvalid = copy(settings, 'invalidSelection', language);
+    const invalidNumericPrompt = /\b(?:choose|select|pick)\b.{0,35}\b(?:number|option|[0-9])\b|أرسل\s*رقم|ارسل\s*رقم|رقم\s*الدورة/iu.test(configuredInvalid);
+    const invalidReply = invalidNumericPrompt ? (language === 'ar' ? 'أخبرني باسم الدورة التي تهمك.' : 'Tell me the course name you’re interested in.') : configuredInvalid;
+    return { reply: `${invalidReply} ${formatCourseList(courses, settings, language)}`, state: nextState('course_list', { courseCodes: courses.slice(0, courseLimit(settings)).map(course => course.code) }) };
   }
   if (step === 'course_list') return { reply: formatCourseList(courses, settings, language), state: nextState('course_list', { courseCodes: courses.slice(0, courseLimit(settings)).map(course => course.code) }) };
 
   const greeting = /^(?:hi|hello|hey|good morning|good afternoon|good evening|مرحبا|أهلا|السلام عليكم|صباح الخير|مساء الخير)$/i.test(text);
   if (!step || greeting) return { reply: menuText(facts, settings, language, { includeGreeting: !state?.greeted }), state: nextState('menu') };
-  const fallback = copy(settings, 'fallbackMessage', language, language === 'ar' ? 'أعتذر، لم أفهم الاختيار.' : 'I did not understand that selection.');
+  const configuredFallback = copy(settings, 'fallbackMessage', language);
+  const fallbackHasNumericMenu = /\b(?:choose|select|pick|reply|type|send)\b.{0,35}\b(?:number|option|[0-3])\b|\b[0-3]\s*(?:for|to)\b|أرسل\s*رقم|ارسل\s*رقم|أحد الخيارات|احد الخيارات/iu.test(configuredFallback);
+  const fallback = fallbackHasNumericMenu
+    ? (language === 'ar' ? 'لم أفهم سؤالك تماماً. أخبرني باسم الدورة أو بما تريد معرفته عنها.' : 'I’m not sure I understood. Tell me the course name or what you’d like to know about it.')
+    : configuredFallback;
   return { reply: `${fallback}\n${menuText(facts, settings, language, { includeGreeting: false })}`, state: nextState('menu') };
 }
 
@@ -246,7 +253,8 @@ function trainingCenterGuidedReply({ message, state, facts, config, defaults }) 
   if (!state?.greeted && !result.handoff && !result.reply.startsWith(greeting)) {
     result.reply = `${greeting} ${result.reply}`;
   }
-  if (!state?.greeted && !result.handoff && !result.reply.includes('[1]')) result.reply += `\n\n${menuText(facts, settings, language, { includeGreeting: false })}`;
+  const configuredPrompt = copy(settings, 'menuPrompt', language);
+  if (!state?.greeted && !result.handoff && !/[?؟]/u.test(result.reply) && !result.reply.includes(configuredPrompt)) result.reply += `\n\n${menuText(facts, settings, language, { includeGreeting: false })}`;
   result.state = { ...(result.state || {}), greeted: true };
   const selected = facts.find(course => course.code === result.state.selectedCourseCode);
   if (!result.handoff && !result.customReply && result.state.step === 'course_detail' && selected && (state?.selectedCourseCode !== selected.code || /brochure|catalog(?:ue)?|pdf|photo|image|بروشور|كتالوج|صورة/i.test(message))) {

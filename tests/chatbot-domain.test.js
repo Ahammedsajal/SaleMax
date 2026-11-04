@@ -89,8 +89,8 @@ test('training guide localizes the welcome/menu and conditionally lists the publ
   const facts = [...courseFacts, { kind: 'published_enquiry_form', url: 'https://crm.example/forms/enquiry' }];
   const result = trainingCenterGuidedReply({ message: 'السلام عليكم', state: null, facts, defaults: pack.guidedContentDefaults });
   assert.match(result.reply, /مرحباً بك في مركز برو كاتاليست/);
-  assert.match(result.reply, /عرض الدورات/);
-  assert.match(result.reply, /نموذج الاستفسار/);
+  assert.match(result.reply, /ما الدورة التي تهمك/);
+  assert.doesNotMatch(result.reply, /\[1\]|\[2\]|\[3\]|\[0\]|أرسل رقم/);
   assert.equal(result.state.language, 'ar');
 });
 
@@ -99,13 +99,14 @@ test('guided training conversation greets once, keeps menu navigation concise, a
     messages: {
       greeting: { en: 'Welcome to Northstar Academy.' },
       coursesLabel: { en: 'Explore programs' },
-      menuPrompt: { en: 'Reply 1 for programs or 0 to return.' },
+      menuPrompt: { en: 'Tell me what you would like to explore.' },
       courseListHeading: { en: 'Programs open for enrolment' },
     },
   };
   const first = trainingCenterGuidedReply({ message: 'hello', state: null, facts: courseFacts, config: settings, defaults: pack.guidedContentDefaults });
   assert.match(first.reply, /^Welcome to Northstar Academy\./);
-  assert.match(first.reply, /Explore programs/);
+  assert.match(first.reply, /Tell me what you would like to explore/);
+  assert.doesNotMatch(first.reply, /\b[0-3]\b|\[1\]|\[2\]|\[3\]/);
   const mainMenu = trainingCenterGuidedReply({ message: '0', state: first.state, facts: courseFacts, config: settings, defaults: pack.guidedContentDefaults });
   assert.doesNotMatch(mainMenu.reply, /Welcome to Northstar Academy/);
   const list = trainingCenterGuidedReply({ message: '1', state: mainMenu.state, facts: courseFacts, config: settings, defaults: pack.guidedContentDefaults });
@@ -127,7 +128,7 @@ test('the first specific course question includes the editable greeting only onc
 test('course list honors course limits and never invents unpublished fees', () => {
   const settings = { display: { maxCourses: 1, showFees: true, showRegistrationFee: true } };
   const list = trainingCenterGuidedReply({ message: 'courses', state: { step: 'menu' }, facts: courseFacts, config: settings, defaults: pack.guidedContentDefaults });
-  assert.match(list.reply, /1\. Excel Essentials — 350\.00 QAR/);
+  assert.match(list.reply, /• Excel Essentials — 350\.00 QAR/);
   assert.doesNotMatch(list.reply, /IT Support/);
   const detail = trainingCenterGuidedReply({ message: '1', state: list.state, facts: courseFacts, config: settings, defaults: pack.guidedContentDefaults });
   assert.match(detail.reply, /Registration fee: 25\.00 QAR/);

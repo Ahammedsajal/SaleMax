@@ -1199,7 +1199,7 @@ function processSocketEvent({
         case "translate_message":
           const { text, targetLanguage, provider, apiKey } = payload;
 
-          if (!text || !targetLanguage || !provider || !apiKey) {
+          if (!text || !targetLanguage || (!inboxScope.canonical && (!provider || !apiKey))) {
             return socket.emit("error", {
               msg: "Missing required parameters for translation",
             });
@@ -1208,29 +1208,23 @@ function processSocketEvent({
           try {
             let translatedText = "";
 
-            // Call the appropriate translation function based on provider
-            if (provider === "openai") {
-              translatedText = await translateWithOpenAI(
+            if (inboxScope.canonical) {
+              if (!inboxScope.ctx?.tenant?.id) throw Object.assign(new Error('AI_TENANT_CONTEXT_REQUIRED'), { code: 'AI_TENANT_CONTEXT_REQUIRED' });
+              const result = await require('../../modules/platform/tenant-ai-text').generate({
+                pool: require('../../database/config').promise(),
+                tenantId: inboxScope.ctx.tenant.id,
+                mode: 'translation',
                 text,
                 targetLanguage,
-                apiKey,
-              );
-            } else if (provider === "gemini") {
-              translatedText = await translateWithGemini(
-                text,
-                targetLanguage,
-                apiKey,
-              );
-            } else if (provider === "deepseek") {
-              translatedText = await translateWithDeepseek(
-                text,
-                targetLanguage,
-                apiKey,
-              );
-            } else {
-              return socket.emit("error", {
-                msg: "Unsupported AI provider",
               });
+              translatedText = result.text;
+            } else {
+              // Preserve the legacy credential contract only for accounts that
+              // have not moved to the shared tenant AI settings.
+              if (provider === "openai") translatedText = await translateWithOpenAI(text, targetLanguage, apiKey);
+              else if (provider === "gemini") translatedText = await translateWithGemini(text, targetLanguage, apiKey);
+              else if (provider === "deepseek") translatedText = await translateWithDeepseek(text, targetLanguage, apiKey);
+              else return socket.emit("error", { msg: "Unsupported AI provider" });
             }
 
             socket.emit("translation_result", {
@@ -1238,9 +1232,9 @@ function processSocketEvent({
               translatedText,
             });
           } catch (error) {
-            console.error("Translation error:", error);
+            console.error("Translation error:", inboxScope.canonical ? (error.code || 'AI_PROVIDER_REQUEST_FAILED') : error.code || error.message);
             socket.emit("error", {
-              msg: error.message || "Translation failed",
+              msg: inboxScope.canonical ? (error.code || 'AI_PROVIDER_REQUEST_FAILED') : (error.code || error.message || "Translation failed"),
             });
           }
           break;
@@ -1253,7 +1247,7 @@ function processSocketEvent({
             apiKey: aiKey,
           } = payload;
 
-          if (!chatIddd || !aiProvider || !aiKey) {
+          if (!chatIddd || (!inboxScope.canonical && (!aiProvider || !aiKey))) {
             return socket.emit("error", {
               msg: "Missing required parameters for suggestion",
             });
@@ -1269,29 +1263,24 @@ function processSocketEvent({
 
             let suggestion = "";
 
-            // Call the appropriate suggestion function based on provider
-            if (aiProvider === "openai") {
-              suggestion = await suggestReplyWithOpenAI(
-                recentMessages,
-                lastMsg,
-                aiKey,
-              );
-            } else if (aiProvider === "gemini") {
-              suggestion = await suggestReplyWithGemini(
-                recentMessages,
-                lastMsg,
-                aiKey,
-              );
-            } else if (aiProvider === "deepseek") {
-              suggestion = await suggestReplyWithDeepseek(
-                recentMessages,
-                lastMsg,
-                aiKey,
-              );
-            } else {
-              return socket.emit("error", {
-                msg: "Unsupported AI provider",
+            if (inboxScope.canonical) {
+              if (!inboxScope.ctx?.tenant?.id) throw Object.assign(new Error('AI_TENANT_CONTEXT_REQUIRED'), { code: 'AI_TENANT_CONTEXT_REQUIRED' });
+              const latestInbound = [...recentMessages].reverse().find(item => item.route === 'INCOMING' && item.text?.trim());
+              const result = await require('../../modules/platform/tenant-ai-text').generate({
+                pool: require('../../database/config').promise(),
+                tenantId: inboxScope.ctx.tenant.id,
+                mode: 'suggestion',
+                text: latestInbound?.text || lastMsg,
+                history: recentMessages,
               });
+              suggestion = result.text;
+            } else {
+              // Legacy accounts retain their prior provider choice until they
+              // adopt a tenant-owned configuration in Business Profile.
+              if (aiProvider === "openai") suggestion = await suggestReplyWithOpenAI(recentMessages, lastMsg, aiKey);
+              else if (aiProvider === "gemini") suggestion = await suggestReplyWithGemini(recentMessages, lastMsg, aiKey);
+              else if (aiProvider === "deepseek") suggestion = await suggestReplyWithDeepseek(recentMessages, lastMsg, aiKey);
+              else return socket.emit("error", { msg: "Unsupported AI provider" });
             }
 
             socket.emit("suggestion_result", {
@@ -1299,9 +1288,9 @@ function processSocketEvent({
               suggestion,
             });
           } catch (error) {
-            console.error("Suggestion error:", error);
+            console.error("Suggestion error:", inboxScope.canonical ? (error.code || 'AI_PROVIDER_REQUEST_FAILED') : error.code || error.message);
             socket.emit("error", {
-              msg: error.message || "Failed to generate suggestion",
+              msg: inboxScope.canonical ? (error.code || 'AI_PROVIDER_REQUEST_FAILED') : (error.code || error.message || "Failed to generate suggestion"),
             });
           }
           break;

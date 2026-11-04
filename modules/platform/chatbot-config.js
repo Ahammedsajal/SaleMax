@@ -135,12 +135,17 @@ function botInput(input, categoryKey, categoryVersion = 1) {
     if (typeof source.handoffAssigneeIdentityId !== 'string' || !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(source.handoffAssigneeIdentityId)) throw Object.assign(new Error('INVALID_HANDOFF_ASSIGNEE'), { code: 'INVALID_HANDOFF_ASSIGNEE' });
     config.handoffAssigneeIdentityId = source.handoffAssigneeIdentityId;
   }
+  if (source.assignHandoffsToInbox != null) {
+    if (typeof source.assignHandoffsToInbox !== 'boolean') throw Object.assign(new Error('INVALID_HANDOFF_ROUTING'), { code: 'INVALID_HANDOFF_ROUTING' });
+    config.assignHandoffsToInbox = source.assignHandoffsToInbox;
+  }
+  if (config.assignHandoffsToInbox === true && !config.handoffAssigneeIdentityId) throw Object.assign(new Error('HANDOFF_ASSIGNEE_REQUIRED'), { code: 'HANDOFF_ASSIGNEE_REQUIRED' });
   if (input.engine === 'guided') {
     if (source.flowId != null && (typeof source.flowId !== 'string' || !/^[A-Za-z0-9_-]{1,80}$/.test(source.flowId))) throw Object.assign(new Error('INVALID_FLOW_ID'), { code: 'INVALID_FLOW_ID' });
     config.flowId = source.flowId || null;
     config.guidedMode = config.flowId ? 'automation_flow' : (source.guidedMode === 'domain_default' ? 'domain_default' : null);
     if (source.introFlowId != null && (typeof source.introFlowId !== 'string' || !/^[A-Za-z0-9_-]{1,80}$/.test(source.introFlowId))) throw Object.assign(new Error('INVALID_FLOW_ID'), { code: 'INVALID_FLOW_ID' });
-    if (config.guidedMode === 'domain_default' && categoryKey === '7network_sales') config.introFlowId = source.introFlowId || null;
+    if (config.guidedMode === 'domain_default') config.introFlowId = source.introFlowId || null;
     config.welcomeMessage = cleanText(source.welcomeMessage, 1200, 'INVALID_WELCOME_MESSAGE');
     config.fallbackMessage = cleanText(source.fallbackMessage, 1200, 'INVALID_FALLBACK_MESSAGE');
     if (!Array.isArray(source.knowledgeEntries ?? []) || (source.knowledgeEntries ?? []).length > 60) throw Object.assign(new Error('INVALID_KNOWLEDGE_ENTRIES'), { code: 'INVALID_KNOWLEDGE_ENTRIES' });
@@ -159,7 +164,7 @@ function botInput(input, categoryKey, categoryVersion = 1) {
       config.flowId = source.flowId || null;
       config.guidedMode = config.flowId ? 'automation_flow' : (source.guidedMode === 'domain_default' ? 'domain_default' : null);
       if (source.introFlowId != null && (typeof source.introFlowId !== 'string' || !/^[A-Za-z0-9_-]{1,80}$/.test(source.introFlowId))) throw Object.assign(new Error('INVALID_FLOW_ID'), { code: 'INVALID_FLOW_ID' });
-      if (config.guidedMode === 'domain_default' && categoryKey === '7network_sales') config.introFlowId = source.introFlowId || null;
+      if (config.guidedMode === 'domain_default') config.introFlowId = source.introFlowId || null;
       config.aiFallback = source.aiFallback !== false;
     }
   }

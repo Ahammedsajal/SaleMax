@@ -12,7 +12,9 @@ function genericCaptureEnabled(ctx) {
 function customerName(text, waitingForName = false) {
   const explicit = String(text || '').match(/(?:^|[.!?،]\s*)(?:my name is|my name's|call me|اسمي|انا اسمي)\s+([^.!?؟،\n]+)/iu);
   let value = explicit?.[1]?.split(/\s+(?:and\b|(?:و?اريد|و?أريد|و?مهتم)(?=\s|$)|interested\b|looking\b|i want\b)/iu)[0]?.trim();
-  if (!value && waitingForName && /^[\p{L}\p{M} .'-]{2,80}$/u.test(String(text || '').trim())) value = String(text).trim();
+  const candidate = String(text || '').trim();
+  const questionOrCourseQuery = /[?؟]|^(?:which|what|how|when|where|why|who|can|could|will|would|is|are|do|does|did|should)\b|^(?:ما|ماذا|هل|كيف|متى|اين|أين|ايش)|\b(?:certificate|certification|accredited|accreditation|syllabus|curriculum|module|topic|duration|fee|price|cost|schedule|timing|location|online|class|course|training)\b|(?:شهاد|اعتماد|منهج|مدة|رسوم|سعر|مواعيد|جدول|موقع|دورة|تدريب)/iu.test(candidate);
+  if (!value && waitingForName && !questionOrCourseQuery && /^[\p{L}\p{M} .'-]{2,80}$/u.test(candidate)) value = candidate;
   if (/^(?:i |i'm |can |do |is |the |انا |أنا |هل |عندي |ممكن )/iu.test(value || '')) return null;
   if (!value || value.length > 80 || value.split(/\s+/).length > 6 || /\b(?:hi|hello|hey|good|morning|evening|yes|no|thanks|thank|okay|ok|more|detail|details|again|other|another|great|fine|sure|course|courses|excel|office|price|fee|agent|human|reset|how|what|when|where|want|need|please|class|classes|schedule|timing|location|center|centre|admission|enrol|register|online|weekend|evening|today|tomorrow|help|form|application|send|share)\b|مرحبا|شكرا|دورة|رسوم|موظف|كيف|متى|ماذا|اريد|أريد/iu.test(value)) return null;
   return value;
@@ -46,7 +48,7 @@ async function captureLead(pool, { ctx, profile, uid, chatId, origin, message, f
     const inboundKey = context.fingerprint([profile.channelKind, profile.channelRef, chatId, message.metaChatId]).slice(0, 24);
     const previousKeys = Array.isArray(prior.inboundKeys) ? prior.inboundKeys : [];
     const alreadyCaptured = previousKeys.includes(inboundKey);
-    const retrieval = context.retrieveContext({ facts, message: text });
+    const retrieval = context.retrieveContext({ facts, message: text, referral: message?.msgContext?.referral || null });
     let courses = retrieval.explicitCourses ? retrieval.evidence.filter(item => item.kind === 'course') : [];
     let guidedState = {};
     if (profile.channelKind && profile.channelRef) {
@@ -60,7 +62,7 @@ async function captureLead(pool, { ctx, profile, uid, chatId, origin, message, f
       const selected = facts.find(item => item.code === code);
       if (selected) courses = [{ kind: 'course', code: selected.code, name: retrieval.language === 'ar' ? selected.nameAr || selected.nameEn : selected.nameEn || selected.nameAr }];
     }
-    const name = customerName(text, (prior.waitingFor === 'name' || guidedState.greeted === true) && !courses.length);
+    const name = customerName(text, prior.waitingFor === 'name' && !courses.length);
     const details = qualificationFromText(text);
     if (!alreadyCaptured && courses.length) qualification.courseInterest = courses.map(item => item.name).join('; ').slice(0, 180);
     else if (!alreadyCaptured && details.courseInterest) qualification.courseInterest = details.courseInterest;

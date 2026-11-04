@@ -21,6 +21,12 @@ replaceOne(indexFile,
 replaceOne(indexFile,
   '/tenant-crm-appearance.js?v=20261103-ai-integrations1',
   '/tenant-crm-appearance.js?v=20261104-ai-provider-profiles1');
+replaceOne(indexFile,
+  '/ai-integrations.css?v=20261103-ai-integrations3',
+  '/ai-integrations.css?v=20261104-ai-provider-profiles1');
+replaceOne(indexFile,
+  '/ai-integrations.js?v=20261103-ai-integrations3',
+  '/ai-integrations.js?v=20261104-ai-provider-profiles1');
 replaceOne(sidebarFile,
   '/chatbot-admin.js?v=20261103-ai-integrations1',
   '/chatbot-admin.js?v=20261104-ai-provider-profiles1');

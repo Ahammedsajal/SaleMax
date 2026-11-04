@@ -19,7 +19,7 @@ const DEFAULT_STAGES = [
   { key: "lost", title: "Lost", position: 70, color: "#be5260", type: "lost", probability: 0, system: 1 },
 ];
 
-const TRAINING_FUNNEL_VERSION = 1;
+const TRAINING_FUNNEL_VERSION = 2;
 const TRAINING_FUNNEL_STAGES = [
   'new', 'interested', 'contacted', 'qualified', 'training_registration_pending',
   'training_invoice_issued', 'training_payment_received', 'training_course_started',
@@ -27,6 +27,7 @@ const TRAINING_FUNNEL_STAGES = [
   'won', 'lost',
 ];
 const trainingPipelineReady = new Set();
+const trainingPipelineInFlight = new Map();
 
 const text = (value, limit = 255) => String(value || "").trim().slice(0, limit);
 const sha = (value) => crypto.createHash("sha256").update(String(value)).digest("hex");
@@ -193,7 +194,13 @@ async function ensureWorkspace(connection, uid) {
     "INSERT IGNORE INTO pipeline_settings (uid_hash, uid) VALUES (?, ?)",
     [uidHash, uid],
   );
+  const [settings] = await connection.query(
+    "SELECT * FROM pipeline_settings WHERE uid_hash = ? LIMIT 1",
+    [uidHash],
+  );
+  const trainingFunnelConfigured = Number(settings[0]?.training_funnel_version || 0) >= 1;
   for (const stage of DEFAULT_STAGES) {
+    if (trainingFunnelConfigured && stage.key === 'proposal') continue;
     await connection.query(
       `INSERT IGNORE INTO pipeline_stages
         (uid_hash, uid, stage_key, title, position, color, stage_type, probability, is_system)
@@ -201,22 +208,10 @@ async function ensureWorkspace(connection, uid) {
       [uidHash, uid, stage.key, stage.title, stage.position, stage.color, stage.type, stage.probability, stage.system || 0],
     );
   }
-  const [settings] = await connection.query(
-    "SELECT * FROM pipeline_settings WHERE uid_hash = ? LIMIT 1",
-    [uidHash],
-  );
   return { uidHash, settings: settings[0] };
 }
 
-async function configureTrainingPipeline(connection, uid, uidHash) {
-  await connection.query(
-    'INSERT IGNORE INTO pipeline_settings (uid_hash, uid) VALUES (?, ?)',
-    [uidHash, uid],
-  );
-  const [[settings]] = await connection.query(
-    'SELECT training_funnel_version FROM pipeline_settings WHERE uid_hash = ? FOR UPDATE',
-    [uidHash],
-  );
+async function configureTrainingPipeline(connection, uid, uidHash, settings) {
   if (Number(settings?.training_funnel_version || 0) >= TRAINING_FUNNEL_VERSION) return false;
 
   await require('../../modules/platform/training-lead-journey').ensureStages(connection, uidHash, uid);
@@ -270,6 +265,30 @@ async function configureTrainingPipeline(connection, uid, uidHash) {
   }
 
   await connection.query(
+    `INSERT INTO pipeline_activity(uid_hash, lead_id, actor_type, actor_id, activity_type, summary, details)
+     SELECT l.uid_hash, l.id, 'system', NULL, 'automation_stage_move',
+       'Historical customer replies moved lead to Interested',
+       JSON_OBJECT('rule', 'historical_reply_engagement', 'stageFrom', l.stage_key, 'stageTo', 'interested', 'replyCount', replies.reply_count)
+     FROM pipeline_leads l JOIN (
+       SELECT uid_hash, lead_id, COUNT(*) AS reply_count FROM pipeline_events
+       WHERE uid_hash = ? AND status = 'processed' GROUP BY uid_hash, lead_id HAVING COUNT(*) >= 2
+     ) replies ON replies.uid_hash = l.uid_hash AND replies.lead_id = l.id
+     WHERE l.uid_hash = ? AND l.status = 'open' AND COALESCE(l.automation_paused, 0) = 0
+       AND l.stage_key IN ('new', 'contacted')`,
+    [uidHash, uidHash],
+  );
+  await connection.query(
+    `UPDATE pipeline_leads l JOIN (
+       SELECT uid_hash, lead_id FROM pipeline_events
+       WHERE uid_hash = ? AND status = 'processed' GROUP BY uid_hash, lead_id HAVING COUNT(*) >= 2
+     ) replies ON replies.uid_hash = l.uid_hash AND replies.lead_id = l.id
+     SET l.stage_key = 'interested', l.stage_entered_at = UTC_TIMESTAMP(3), l.last_activity_at = UTC_TIMESTAMP(3)
+     WHERE l.uid_hash = ? AND l.status = 'open' AND COALESCE(l.automation_paused, 0) = 0
+       AND l.stage_key IN ('new', 'contacted')`,
+    [uidHash, uidHash],
+  );
+
+  await connection.query(
     `UPDATE pipeline_settings SET qr_entry_stage = 'new', meta_entry_stage = 'new',
        interested_stage = 'interested', training_funnel_version = ? WHERE uid_hash = ?`,
     [TRAINING_FUNNEL_VERSION, uidHash],
@@ -297,12 +316,30 @@ async function ensureTrainingPipeline({ uid, categoryKey, pool: sourcePool }) {
   if (!categoryKeyMatches(categoryKey, 'training_center') || !uid) return false;
   const uidHash = sha(uid);
   if (trainingPipelineReady.has(uidHash)) return true;
-  await inTransaction(async (connection) => {
+  const active = trainingPipelineInFlight.get(uidHash);
+  if (active) return active;
+  let pending;
+  pending = inTransaction(async (connection) => {
+    await connection.query(
+      'INSERT IGNORE INTO pipeline_settings (uid_hash, uid) VALUES (?, ?)',
+      [uidHash, String(uid)],
+    );
+    const [[settings]] = await connection.query(
+      'SELECT training_funnel_version FROM pipeline_settings WHERE uid_hash = ? FOR UPDATE',
+      [uidHash],
+    );
+    // Lock the workspace settings row before inserting any default stage rows.
+    // This serializes setup across both concurrent routes and app processes.
     await ensureWorkspace(connection, String(uid));
-    await configureTrainingPipeline(connection, String(uid), uidHash);
-  }, sourcePool);
-  trainingPipelineReady.add(uidHash);
-  return true;
+    await configureTrainingPipeline(connection, String(uid), uidHash, settings);
+  }, sourcePool).then(() => {
+    trainingPipelineReady.add(uidHash);
+    return true;
+  }).finally(() => {
+    if (trainingPipelineInFlight.get(uidHash) === pending) trainingPipelineInFlight.delete(uidHash);
+  });
+  trainingPipelineInFlight.set(uidHash, pending);
+  return pending;
 }
 
 async function moveTrainingLeadToFollowUp(connection, { uidHash, leadId, categoryKey, taskId = null, source = 'scheduled_follow_up' }) {

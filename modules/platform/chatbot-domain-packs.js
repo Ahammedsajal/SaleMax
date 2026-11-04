@@ -78,7 +78,7 @@ const TRAINING_CENTER_GUIDED_DEFAULTS = {
   version: 1,
   messages: {
     greeting: { en: 'Hi! 👋 Welcome to Pro Catalyst Training Center. I’m happy to help you find a course that fits what you’re looking for.', ar: 'مرحباً بك في مركز برو كاتاليست للتدريب 👋 يسعدني مساعدتك في اختيار الدورة المناسبة لك.' },
-    menuPrompt: { en: 'Reply with a number, or simply tell me what you have in mind.', ar: 'أرسل رقم الخيار أو أخبرني ببساطة بما تبحث عنه.' },
+    menuPrompt: { en: 'Which course are you interested in, and what would you like to know about it?', ar: 'ما الدورة التي تهمك، وما الذي ترغب في معرفته عنها؟' },
     admissionsLabel: { en: 'Chat with our team', ar: 'التواصل مع فريقنا' },
     coursesLabel: { en: 'View courses', ar: 'عرض الدورات' },
     enquiryLabel: { en: 'Enquiry form', ar: 'نموذج الاستفسار' },
@@ -86,7 +86,7 @@ const TRAINING_CENTER_GUIDED_DEFAULTS = {
     mainMenuLabel: { en: 'Main menu', ar: 'القائمة الرئيسية' },
     courseListHeading: { en: 'Available courses', ar: 'الدورات المتاحة' },
     courseListEmpty: { en: 'Our course list is being updated. Type agent and our team will help you.', ar: 'نعمل على تحديث قائمة الدورات. اكتب موظف وسيساعدك فريقنا.' },
-    courseListPrompt: { en: 'Reply with a course number to see details, or send 0 for the menu.', ar: 'أرسل رقم الدورة لعرض التفاصيل، أو أرسل 0 للقائمة.' },
+    courseListPrompt: { en: 'Tell me the course name and what you’d like to know about it.', ar: 'أرسل اسم الدورة التي تهمك، وأخبرني بما تريد معرفته عنها.' },
     feeUnavailable: { en: 'Our team can confirm the fee for you.', ar: 'يمكن لفريقنا تأكيد الرسوم لك.' },
     durationLabel: { en: 'Duration', ar: 'المدة' },
     deliveryLabel: { en: 'Delivery', ar: 'طريقة الدراسة' },
@@ -100,7 +100,7 @@ const TRAINING_CENTER_GUIDED_DEFAULTS = {
     courseDetailsPrompt: { en: 'Would you like to know anything else about this course?', ar: 'هل تود معرفة شيء آخر عن هذه الدورة؟' },
     applicationOfferMessage: { en: 'If it feels right, I can send the application form whenever you’re ready.', ar: 'إذا كانت الدورة مناسبة لك، يمكنني إرسال نموذج التقديم عندما تكون مستعداً.' },
     applicationLinkIntro: { en: 'Of course — here’s the application form. Take your time, and message me here if you’d like help with any part:', ar: 'بكل سرور — إليك نموذج التقديم. خذ وقتك، وأرسل لي هنا إذا رغبت بالمساعدة في أي جزء:' },
-    invalidSelection: { en: 'Please choose a course number from this list.', ar: 'يرجى اختيار رقم دورة من هذه القائمة.' },
+    invalidSelection: { en: 'Tell me the course name you’re interested in.', ar: 'أخبرني باسم الدورة التي تهمك.' },
     handoffMessage: { en: 'I’ll leave this with our team so they can help you personally.', ar: 'سأترك المحادثة لفريقنا ليتمكن من مساعدتك مباشرة.' },
     simpleDurationMessage: { en: '{course} takes {duration}.', ar: 'مدة {course} هي {duration}.' },
     durationUnavailable: { en: 'The duration for {course} isn’t published yet. Our team can confirm it for you.', ar: 'مدة {course} غير منشورة حالياً. يمكن لفريقنا تأكيدها لك.' },
@@ -110,7 +110,7 @@ const TRAINING_CENTER_GUIDED_DEFAULTS = {
     nameCollectedMessage: { en: 'Thanks! What would you like to know about the course?', ar: 'شكراً! ما الذي تود معرفته عن الدورة؟' },
     clarificationMessage: { en: 'Happy to help — which course are you interested in? If you’d prefer our team, just type agent.', ar: 'حتى أساعدك بشكل أدق، أي دورة تهمك؟ وإذا أردت التحدث مع فريقنا، اكتب موظف.' },
     unavailableMessage: { en: 'I can’t confirm that from our published details yet. Type agent if you’d like our team to check it for you.', ar: 'لا أستطيع تأكيد ذلك من معلوماتنا المنشورة حالياً. اكتب موظف إذا أردت أن يتحقق فريقنا لك.' },
-    fallbackMessage: { en: 'Could you try one of these options? Type agent if you’d like our team’s help.', ar: 'هل يمكنك اختيار أحد الخيارات؟ اكتب موظف إذا أردت مساعدة فريقنا.' },
+    fallbackMessage: { en: 'Tell me what you’d like to know about the course, or type agent to speak with our team.', ar: 'أخبرني بما تود معرفته عن الدورة، أو اكتب موظفاً للتواصل مع فريقنا.' },
   },
   display: { maxCourses: 9, showFees: true, showDescription: true, showDuration: true, showDelivery: true, showRegistrationFee: true, showUpcomingBatches: true, showEnquiryForm: true },
 };
@@ -242,7 +242,7 @@ function normalizeOffer(raw) {
 async function trainingCenterFacts({ db, tenantId, platformOrigin, config = {} }) {
   const today = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Qatar', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date());
   const [courses] = await db.query(`SELECT c.id,c.code,c.name_en AS nameEn,c.name_ar AS nameAr,c.description_en AS descriptionEn,c.description_ar AS descriptionAr,
-      c.outcomes_en AS outcomesEn,c.outcomes_ar AS outcomesAr,c.revision AS revision,c.updated_at AS updatedAt,c.duration_value AS durationValue,c.duration_unit AS durationUnit,c.delivery_mode AS deliveryMode,
+      c.outcomes_en AS outcomesEn,c.outcomes_ar AS outcomesAr,c.difficulty_level AS difficultyLevel,c.prerequisites_en AS prerequisitesEn,c.prerequisites_ar AS prerequisitesAr,c.certificate_details_en AS certificateDetailsEn,c.certificate_details_ar AS certificateDetailsAr,c.revision AS revision,c.updated_at AS updatedAt,c.duration_value AS durationValue,c.duration_unit AS durationUnit,c.delivery_mode AS deliveryMode,
       (SELECT JSON_OBJECT('currency',o.currency,'priceMinor',o.price_minor,'registrationFeeMinor',o.registration_fee_minor)
         FROM sx_training_offers o WHERE o.tenant_id=c.tenant_id AND o.course_id=c.id AND o.status='active' AND (o.valid_from IS NULL OR o.valid_from<=?) AND (o.valid_until IS NULL OR o.valid_until>=?) ORDER BY o.version DESC LIMIT 1) AS offer
     FROM sx_training_courses c WHERE c.tenant_id=? AND c.status='active' ORDER BY c.updated_at DESC LIMIT 500`, [today,today,tenantId]);

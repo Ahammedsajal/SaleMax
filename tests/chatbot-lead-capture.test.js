@@ -32,3 +32,10 @@ test('only the selected course PDF is shared once, with explicit requests allowi
  assert.equal(coursePdfs(facts,'EXCEL','Please send PDF',['pdf-a'])[0].courseId,'course-a');
  assert.equal(coursePdfs(facts,null,'details').length,0);
 });
+
+test('a certificate follow-up is not captured as a customer name after the bot greeting', () => {
+  assert.equal(customerName('which certificate i will get', true), null);
+});
+test('Arabic certificate questions are not captured as customer names', () => {
+  assert.equal(customerName('ما الشهادة التي سأحصل عليها', true), null);
+});

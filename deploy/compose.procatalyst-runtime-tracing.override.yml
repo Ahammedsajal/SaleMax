@@ -1,0 +1,4 @@
+services:
+  app:
+    volumes:
+      - ${SALEMAX_PROCATALYST_RUNTIME_TRACING_RELEASE:?SALEMAX_PROCATALYST_RUNTIME_TRACING_RELEASE is required}/runtime/chatbot-runtime.js:/app/modules/platform/chatbot-runtime.js:ro

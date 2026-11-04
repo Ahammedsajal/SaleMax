@@ -1,0 +1,15 @@
+services:
+  app:
+    volumes:
+      - /opt/salemax/releases/procatalyst-natural-chat-20261102/runtime/chatbot-runtime.js:/app/modules/platform/chatbot-runtime.js:ro
+      - /opt/salemax/releases/procatalyst-natural-chat-20261102/runtime/chatbot-business-context.js:/app/modules/platform/chatbot-business-context.js:ro
+      - /opt/salemax/releases/procatalyst-natural-chat-20261102/runtime/chatbot-domain-packs.js:/app/modules/platform/chatbot-domain-packs.js:ro
+      - /opt/salemax/releases/procatalyst-natural-chat-20261102/runtime/chatbot-training-guide.js:/app/modules/platform/chatbot-training-guide.js:ro
+      - /opt/salemax/releases/procatalyst-natural-chat-20261102/runtime/training-courses.js:/app/modules/platform/training-courses.js:ro
+      - /opt/salemax/releases/procatalyst-natural-chat-20261102/runtime/training-courses-client.js:/app/client/public/training-courses.js:ro
+      - /opt/salemax/releases/procatalyst-natural-chat-20261102/runtime/index.html:/app/client/public/index.html:ro
+      - /opt/salemax/releases/procatalyst-natural-chat-20261102/runtime/20261102_training_course_certificate_details.sql:/app/database/migrations/20261102_training_course_certificate_details.sql:ro
+      - /opt/salemax/releases/procatalyst-natural-chat-20261102/runtime/migration-history/20261208_team_role_sidebar_navigation.sql:/app/database/migrations/20261208_team_role_sidebar_navigation.sql:ro
+      - /opt/salemax/releases/procatalyst-natural-chat-20261102/runtime/migration-history/20270104_chatbot_no_reply_pause.sql:/app/database/migrations/20270104_chatbot_no_reply_pause.sql:ro
+      - /opt/salemax/releases/procatalyst-natural-chat-20261102/runtime/migration-history/20270105_tenant_white_label_storefront.sql:/app/database/migrations/20270105_tenant_white_label_storefront.sql:ro
+      - /opt/salemax/releases/procatalyst-natural-chat-20261102/runtime/migration-history/20261102_chatgpt_mcp_oauth.sql:/app/database/migrations/20261102_chatgpt_mcp_oauth.sql:ro

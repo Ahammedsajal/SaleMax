@@ -1,0 +1,7 @@
+services:
+  app:
+    volumes:
+      - ${SALEMAX_PROCATALYST_HANDOFF_EXPIRATION_RELEASE}/runtime/modules/platform/chatbot-runtime.js:/app/modules/platform/chatbot-runtime.js:ro
+      - ${SALEMAX_PROCATALYST_HANDOFF_EXPIRATION_RELEASE}/runtime/modules/platform/chatbot-handoff-claims.js:/app/modules/platform/chatbot-handoff-claims.js:ro
+      - ${SALEMAX_PROCATALYST_HANDOFF_EXPIRATION_RELEASE}/runtime/modules/platform/business-notifications.js:/app/modules/platform/business-notifications.js:ro
+      - ${SALEMAX_PROCATALYST_HANDOFF_EXPIRATION_RELEASE}/runtime/database/migrations/20270124_chatbot_handoff_expiration.sql:/app/database/migrations/20270124_chatbot_handoff_expiration.sql:ro

@@ -14,7 +14,7 @@ test('production shell cache patch updates both screen loaders and is repeatable
   try {
     const index = path.join(dir, 'index.html');
     const sidebar = path.join(dir, 'training-sidebar.js');
-    fs.writeFileSync(index, '<script src="/training-sidebar.js?v=20261103-ai-integrations1"></script><script src="/tenant-crm-appearance.js?v=20261103-ai-integrations1"></script>');
+    fs.writeFileSync(index, '<script src="/training-sidebar.js?v=20261103-ai-integrations1"></script><script src="/tenant-crm-appearance.js?v=20261103-ai-integrations1"></script><link href="/ai-integrations.css?v=20261103-ai-integrations3"><script src="/ai-integrations.js?v=20261103-ai-integrations3"></script>');
     fs.writeFileSync(sidebar, "chatbotScript.src = '/chatbot-admin.js?v=20261103-ai-integrations1';");
     for (let i = 0; i < 2; i++) {
       const result = spawnSync(process.execPath, [patcher, index, sidebar], { encoding: 'utf8' });
@@ -22,6 +22,8 @@ test('production shell cache patch updates both screen loaders and is repeatable
     }
     assert.match(fs.readFileSync(index, 'utf8'), /training-sidebar\.js\?v=20261104-ai-provider-profiles1/);
     assert.match(fs.readFileSync(index, 'utf8'), /tenant-crm-appearance\.js\?v=20261104-ai-provider-profiles1/);
+    assert.match(fs.readFileSync(index, 'utf8'), /ai-integrations\.css\?v=20261104-ai-provider-profiles1/);
+    assert.match(fs.readFileSync(index, 'utf8'), /ai-integrations\.js\?v=20261104-ai-provider-profiles1/);
     assert.match(fs.readFileSync(sidebar, 'utf8'), /chatbot-admin\.js\?v=20261104-ai-provider-profiles1/);
   } finally {
     fs.rmSync(dir, { recursive: true, force: true });

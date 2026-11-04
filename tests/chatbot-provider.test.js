@@ -1,7 +1,7 @@
 'use strict';
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { generate } = require('../modules/platform/chatbot-provider');
+const { generate, generateConversation } = require('../modules/platform/chatbot-provider');
 
 function response(payload, { status = 200, contentLength } = {}) {
   const text = typeof payload === 'string' ? payload : JSON.stringify(payload);
@@ -58,6 +58,26 @@ test('provider errors, oversized responses and invalid confidence fail closed', 
   await assert.rejects(generate({ provider: 'deepseek', model: 'deepseek-chat', apiKey: 'secret-provider-key-012345', system: 's', user: 'u', fetchImpl: async () => response({ error: 'private details' }, { status: 429 }) }), { code: 'AI_PROVIDER_REQUEST_FAILED' });
   await assert.rejects(generate({ provider: 'openai', model: 'gpt-test', apiKey: 'secret-provider-key-012345', system: 's', user: 'u', fetchImpl: async () => response('{}', { contentLength: '70000' }) }), { code: 'AI_PROVIDER_INVALID_OUTPUT' });
   await assert.rejects(generate({ provider: 'openai', model: 'gpt-test', apiKey: 'secret-provider-key-012345', system: 's', user: 'u', fetchImpl: async () => response({ choices: [{ message: { content: JSON.stringify({ can_answer: true, confidence: 1.1, reply: 'Unsafe' }) } }] }) }), { code: 'AI_PROVIDER_INVALID_OUTPUT' });
+});
+
+test('shared OpenAI conversation provider supports bounded function calls without client credentials', async () => {
+  let captured;
+  const result = await generateConversation({ provider:'openai', model:'gpt-6-luna', apiKey:'secret-provider-key-012345', messages:[{role:'system',content:'Rules'},{role:'user',content:'Please continue'}], functions:[{name:'task-1',description:'Open the application form'}], fetchImpl:async(url,options)=>{captured={url,options};return response({choices:[{message:{content:null,tool_calls:[{function:{name:'task-1',arguments:'{}'}}]}}],usage:{prompt_tokens:22,completion_tokens:4}});} });
+  const body=JSON.parse(captured.options.body);
+  assert.equal(captured.url,'https://api.openai.com/v1/chat/completions');
+  assert.equal(captured.url.includes('secret-provider-key'),false);
+  assert.equal(captured.options.headers.Authorization,'Bearer secret-provider-key-012345');
+  assert.equal(body.tools[0].function.name,'task-1');
+  assert.deepEqual(result,{success:true,msg:'',function:'task-1',functionArguments:{},inputTokens:22,outputTokens:4,usage:{inputTokens:22,outputTokens:4}});
+});
+
+test('shared Gemini conversation provider maps function schemas and returns only declared calls', async () => {
+  let body;
+  const result=await generateConversation({provider:'gemini',model:'gemini-test',apiKey:'secret-provider-key-012345',messages:[{role:'system',content:'Rules'},{role:'user',content:'Continue'}],functions:[{name:'task-2',description:'Continue'}],fetchImpl:async(_url,options)=>{body=JSON.parse(options.body);return response({candidates:[{content:{parts:[{functionCall:{name:'task-2',args:{}}}]}}],usageMetadata:{promptTokenCount:14,candidatesTokenCount:3}});}});
+  assert.equal(body.tools[0].functionDeclarations[0].parameters.type,'OBJECT');
+  assert.equal(result.function,'task-2');
+  assert.equal(result.inputTokens,14);
+  await assert.rejects(generateConversation({provider:'gemini',model:'gemini-test',apiKey:'secret-provider-key-012345',messages:[{role:'user',content:'Continue'}],functions:[{name:'task-2',description:'Continue'}],fetchImpl:async()=>response({candidates:[{content:{parts:[{functionCall:{name:'undeclared',args:{}}}]}}]})}),{code:'AI_PROVIDER_INVALID_OUTPUT'});
 });
 
  test('grounded OpenAI requests require strict source schema and account for truncated output', async () => {

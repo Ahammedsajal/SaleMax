@@ -1,0 +1,4 @@
+services:
+  app:
+    volumes:
+      - ${SALEMAX_PROCATALYST_DISCOVERY_PROMPT_RELEASE:?SALEMAX_PROCATALYST_DISCOVERY_PROMPT_RELEASE is required}/runtime/chatbot-business-context.js:/app/modules/platform/chatbot-business-context.js:ro

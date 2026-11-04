@@ -71,22 +71,32 @@ Keep role-specific differences in the policy/service contract and preserve
 compatibility aliases for cached clients.
 
 Shared AI provider settings are configured in the existing Business Profile.
-Owners can store encrypted credentials and a model for each supported provider,
-then choose one active provider for the tenant. Switching or updating the active
-provider applies atomically to new AI calls from live bots; in-flight calls keep
-the settings they started with. The API never returns a provider key. Saved
-profiles and active selection are revisioned and audited. The tenant's daily
-token cap and usage counter remain shared across bots and providers. The
-`/api/workspace/ai/settings` routes support reading provider summaries, saving a
-provider for later, saving and activating in one operation, activating a saved
-profile, updating the shared limit, and testing a provider with a short generic
-prompt that contains no customer data. The existing chatbot provider URL remains
-a compatibility alias. AI-enabled features load the same active tenant
-configuration through `modules/platform/tenant-ai-settings.js` rather than
-keeping per-feature provider credentials. The current provider consumer remains
-the chatbot runtime; adding AI behavior to another feature requires that
-feature's own evaluated workflow and permission checks, while reusing this
-provider and the tenant's shared token budget.
+They are tenant-wide, owner-managed, encrypted at rest, revisioned and audited;
+the API never returns the provider key. AI-enabled features load the same tenant
+configuration through `modules/platform/tenant-ai-settings.js` and reserve
+against the same tenant daily token budget. Source integrations cover chatbot
+replies, Inbox reply suggestions and translation, legacy AI_BOT flow nodes, and
+text-based AI_TRANSFER flow nodes. Canonical Inbox requests ignore client-supplied
+provider credentials. Compatibility paths for unmapped legacy accounts retain
+their previous provider behavior until migrated. AI_TRANSFER media understanding
+remains a separate integration gate and is not globally wired. Each AI feature
+still requires its own workflow, role checks, source/permission validation and
+evaluation before activation. The chatbot provider URL remains a compatibility
+alias.
+
+`GET /api/workspace/ai/settings` returns the active provider and metadata-only
+status for each saved OpenAI, Gemini and DeepSeek profile. Owners use
+`PUT /api/workspace/ai/settings` with `action: "save-provider"` to store or
+replace one profile without switching, `action: "save-and-activate"` to save and
+select it, or `action: "activate-provider"` to select a saved profile without
+resending its key. The legacy default action still saves and activates. Active
+provider changes apply to new AI requests; requests already in progress retain
+their loaded configuration. Switching does not query live-bot state or require
+pausing bots. Profile keys remain encrypted and are never returned. Expected
+active/profile revisions prevent stale writes, and owner actions are audited.
+`POST /api/workspace/ai/settings/test` tests a provider using an unsaved key or
+the saved profile; it does not activate or persist settings. Usage and prompt
+cache accounting remain shared across providers.
 
 Regression gates: `tests/unified-feature-api.test.js`,
 `tests/workspace-api-client.test.js`, and

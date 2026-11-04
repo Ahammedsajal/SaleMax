@@ -23,6 +23,16 @@ test('team screen preferences follow the existing shell language, direction, and
   assert.equal(prefs.isDark(),false);
 });
 
+test('saved theme mode stays authoritative when responsive headers hide the theme control',()=>{
+  let mode='dark';
+  const storage={getItem:key=>key==='theme_mode'?mode:null};
+  const document={documentElement:{lang:'en',dir:'ltr'},body:{dir:'ltr'},querySelectorAll:()=>[{textContent:'Dark Mode',getAttribute:()=>null}]};
+  const prefs=uiPreferences.create({storage,document,getComputedStyle:()=>({backgroundColor:'rgb(250, 250, 250)'})});
+  assert.equal(prefs.isDark(),true);
+  mode='light';
+  assert.equal(prefs.isDark(),false);
+});
+
 test('team invitation inputs are bounded to tenant staff roles',()=>{
   assert.equal(team.email('  Agent@Example.QA '),'agent@example.qa');
   for(const value of ['',null,'bad','a'.repeat(250)+'@example.qa'])assert.throws(()=>team.email(value),{code:'INVALID_EMAIL'});
