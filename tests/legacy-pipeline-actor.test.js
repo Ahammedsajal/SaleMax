@@ -79,9 +79,10 @@ test('pipeline actor fails closed on stale links, invalid tenant access and inac
   }
 });
 
-test('owner and unmapped legacy accounts keep the existing pipeline auth path',async()=>{
+test('Training Center owners keep legacy permissions while exposing the verified category to Pipeline',async()=>{
   const owner=fixture('owner');
-  assert.equal(await resolve(owner.pool,owner.staff),null);
+  const actor=await resolve(owner.pool,owner.staff,{loadEntitlements:async()=>{throw new Error('legacy owner path must not load canonical entitlements');}});
+  assert.deepEqual(actor,{uid:'staff-uid-42',role:'owner',actorType:'user',actorId:'staff-uid-42',tenantId:'tenant-1',categoryKey:'training_center',categoryVersion:1,legacyUserId:42,legacyUid:'staff-uid-42',timezone:'Asia/Qatar'});
   const db={async query(){return [[],[]];},release(){}};
   assert.equal(await resolve({async getConnection(){return db;}},owner.staff),null);
 });

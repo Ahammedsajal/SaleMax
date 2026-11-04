@@ -1,0 +1,4 @@
+services:
+  app:
+    volumes:
+      - ${SALEMAX_TRAINING_PIPELINE_OWNER_RUNTIME:?set Training Pipeline owner context runtime directory}/modules/platform/legacy-pipeline-actor.js:/app/modules/platform/legacy-pipeline-actor.js:ro
