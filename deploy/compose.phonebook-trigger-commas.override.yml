@@ -1,0 +1,6 @@
+services:
+  app:
+    volumes:
+      - /opt/salemax/releases/phonebook-trigger-commas-f1b8b43b-20261104/modules/platform/phonebook-workspace.js:/app/modules/platform/phonebook-workspace.js:ro
+      - /opt/salemax/releases/phonebook-trigger-commas-f1b8b43b-20261104/client/public/phonebook-workspace.js:/app/client/public/phonebook-workspace.js:ro
+      - /opt/salemax/releases/phonebook-trigger-commas-f1b8b43b-20261104/client/public/index.html:/app/client/public/index.html:ro
