@@ -113,6 +113,12 @@ router.use(async(req,res,next)=>{
   next();
  }catch(error){res.status(error.status||403).json({success:false,code:error.code||'PERMISSION_DENIED'});}
 });
+router.use(async(req,res,next)=>{
+ try{
+  await pipeline.ensureTrainingPipeline({uid:req.pipelineActor.uid,categoryKey:req.pipelineActor.categoryKey,pool:require('../database/config.js').promise()});
+  next();
+ }catch(error){fail(res,error);}
+});
 const openingRouting=require('../helper/pipeline/openingRouting');
 const openingPool=require('../database/config').promise();
 async function openingDb(work){const db=await openingPool.getConnection();try{return await work(db);}finally{db.release();}}
@@ -410,6 +416,7 @@ router.post("/leads", async (req, res) => {
       agentId: req.pipelineActor.agentId,
       scopeAgentIds:req.pipelineActor.scopeAgentIds,
       role: req.pipelineActor.role,
+      categoryKey: req.pipelineActor.categoryKey,
       input: {...(req.body || {}),sourceType:'manual'},
     });
     res.status(201).json({ success: true, data });
@@ -455,6 +462,7 @@ router.post("/leads/:id/follow-up/:action", authorizeLead, async (req, res) => {
       actorType: req.pipelineActor.actorType, actorId: req.pipelineActor.actorId,
       role: req.pipelineActor.role, agentId: req.pipelineActor.agentId,
       scopeAgentIds:req.pipelineActor.scopeAgentIds,
+      categoryKey:req.pipelineActor.categoryKey,
     });
     res.json({ success: true, data });
   } catch (error) { fail(res, error); }

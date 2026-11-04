@@ -4,7 +4,7 @@ const crypto=require('node:crypto');
 const {canonicalCategoryKey}=require('./categories');
 
 const STAGES=[
-  {key:'training_invoice_issued',title:'Sale converted · invoice issued',color:'#12806a'},
+  {key:'training_invoice_issued',title:'Invoiced',color:'#12806a'},
   {key:'training_payment_received',title:'Payment received',color:'#2878b8'},
   {key:'training_course_started',title:'Course started',color:'#7055b7'},
   {key:'training_fully_paid',title:'Paid in full',color:'#13835f'},
@@ -14,14 +14,15 @@ const STAGES=[
 const stageIndex=key=>STAGES.findIndex(stage=>stage.key===key);
 
 async function ensureStages(db,uidHash,uid){
-  const [[existing]]=await db.query('SELECT stage_key FROM pipeline_stages WHERE uid_hash=? AND uid=? AND stage_key=? FOR UPDATE',[uidHash,uid,STAGES[0].key]);
-  if(existing)return;
+  const [existingRows]=await db.query('SELECT stage_key FROM pipeline_stages WHERE uid_hash=? AND uid=? AND stage_key IN (?) FOR UPDATE',[uidHash,uid,STAGES.map(stage=>stage.key)]);
+  const existing=new Set(existingRows.map(row=>row.stage_key));
+  if(STAGES.every(stage=>existing.has(stage.key)))return;
   const [[won]]=await db.query("SELECT position FROM pipeline_stages WHERE uid_hash=? AND uid=? AND stage_key='won' AND stage_type='won' FOR UPDATE",[uidHash,uid]);
   if(!won)throw Object.assign(new Error('WON_STAGE_NOT_CONFIGURED'),{code:'WON_STAGE_NOT_CONFIGURED'});
-  const shift=STAGES.length;
-  await db.query('UPDATE pipeline_stages SET position=position+? WHERE uid_hash=? AND uid=? AND position>?',[shift,uidHash,uid,Number(won.position)]);
+  if(!existing.has(STAGES[0].key))await db.query('UPDATE pipeline_stages SET position=position+? WHERE uid_hash=? AND uid=? AND position>?',[STAGES.length,uidHash,uid,Number(won.position)]);
   for(let i=0;i<STAGES.length;i++){
     const stage=STAGES[i];
+    if(existing.has(stage.key))continue;
     await db.query(`INSERT IGNORE INTO pipeline_stages(uid_hash,uid,stage_key,title,position,color,stage_type,probability,is_system)
       VALUES (?,?,?,?,?,?,'won',100,1)`,[uidHash,uid,stage.key,stage.title,Number(won.position)+i+1,stage.color]);
   }

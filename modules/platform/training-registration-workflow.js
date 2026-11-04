@@ -44,8 +44,9 @@ async function createCourse(db,{tenantId,uid,submissionId,leadId,data,actor,refe
  const uidHash=sha(uid),[[lead]]=await db.query('SELECT status,qualification_data,stage_key FROM pipeline_leads WHERE uid_hash=? AND uid=? AND id=? FOR UPDATE',[uidHash,uid,leadId]);if(!lead||lead.status!=='open')fail('LEAD_NOT_OPEN');
  let qualification=typeof lead.qualification_data==='string'?JSON.parse(lead.qualification_data):lead.qualification_data||{};
  for(const key of profileKeys)if(data[key])qualification[key]=data[key];
- await db.query("INSERT IGNORE INTO pipeline_stages(uid_hash,uid,stage_key,title,position,color,stage_type,probability,is_system) SELECT ?,?,'training_registration_pending','Student registration · pending approval',COALESCE(MAX(position),0)+1,'#a66c16','open',70,1 FROM pipeline_stages WHERE uid_hash=?",[uidHash,uid,uidHash]);
- await db.query("UPDATE pipeline_leads SET qualification_data=?,stage_key='training_registration_pending',stage_entered_at=UTC_TIMESTAMP(3),updated_at=UTC_TIMESTAMP(3) WHERE uid_hash=? AND id=?",[JSON.stringify(qualification),uidHash,leadId]);
+ await db.query("INSERT IGNORE INTO pipeline_stages(uid_hash,uid,stage_key,title,position,color,stage_type,probability,is_system) SELECT ?,?,'training_registration_pending','Admission',COALESCE(MAX(position),0)+1,'#a66c16','open',70,1 FROM pipeline_stages WHERE uid_hash=?",[uidHash,uid,uidHash]);
+ await db.query("UPDATE pipeline_stages SET title='Admission' WHERE uid_hash=? AND stage_key='training_registration_pending' AND title IN ('Student registration · pending approval','Student registration')",[uidHash]);
+ await db.query("UPDATE pipeline_leads SET qualification_data=?,stage_key='training_registration_pending',stage_entered_at=UTC_TIMESTAMP(3),last_activity_at=UTC_TIMESTAMP(3),updated_at=UTC_TIMESTAMP(3) WHERE uid_hash=? AND id=?",[JSON.stringify(qualification),uidHash,leadId]);
  const [[revision]]=await db.query('SELECT updated_at FROM pipeline_leads WHERE uid_hash=? AND id=?',[uidHash,leadId]);
  const prefix=course.studentIdPrefix,year=Number(today.slice(0,4)),sequencePrefix=prefix;
  await db.query('INSERT INTO sx_training_student_sequences(tenant_id,prefix,period_year,last_value) VALUES (?,?,?,1) ON DUPLICATE KEY UPDATE last_value=last_value+1',[tenantId,sequencePrefix,year]);
