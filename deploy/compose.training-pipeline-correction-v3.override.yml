@@ -1,0 +1,9 @@
+services:
+  app:
+    volumes:
+      - ${SALEMAX_TRAINING_PIPELINE_CORRECTION_RUNTIME:?set Training Pipeline correction runtime directory}/helper/pipeline/leadPipeline.js:/app/helper/pipeline/leadPipeline.js:ro
+      - ${SALEMAX_TRAINING_PIPELINE_CORRECTION_RUNTIME:?set Training Pipeline correction runtime directory}/helper/inbox/inbox.js:/app/helper/inbox/inbox.js:ro
+      - ${SALEMAX_TRAINING_PIPELINE_CORRECTION_RUNTIME:?set Training Pipeline correction runtime directory}/modules/platform/training-lead-journey.js:/app/modules/platform/training-lead-journey.js:ro
+      - ${SALEMAX_TRAINING_PIPELINE_CORRECTION_RUNTIME:?set Training Pipeline correction runtime directory}/client/public/pipeline/index.html:/app/client/public/pipeline/index.html:ro
+      - ${SALEMAX_TRAINING_PIPELINE_CORRECTION_RUNTIME:?set Training Pipeline correction runtime directory}/client/public/pipeline/pipeline.js:/app/client/public/pipeline/pipeline.js:ro
+      - ${SALEMAX_TRAINING_PIPELINE_CORRECTION_RUNTIME:?set Training Pipeline correction runtime directory}/client/public/pipeline/pipeline-theme.css:/app/client/public/pipeline/pipeline-theme.css:ro

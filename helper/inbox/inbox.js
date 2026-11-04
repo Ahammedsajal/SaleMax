@@ -330,6 +330,26 @@ async function processMessage({
       // Group traffic stays in Inbox and never enters lead/contact/bot paths.
       if (require('../../modules/platform/qr-inbox-groups').isGroup({ ...msg, chatId: latestConversation?.chatId })) return;
 
+      // Meta messages are captured by the webhook path. QR messages enter the
+      // same lead pipeline here after the Inbox has persisted the message.
+      if (origin === 'qr' && msg?.route === 'INCOMING' && latestConversation?.chatId) {
+        try {
+          await require('../pipeline/leadPipeline').captureInbound({
+            uid,
+            origin,
+            chatId: latestConversation.chatId,
+            senderMobile: msg.senderMobile,
+            senderName: msg.senderName,
+            message: msg,
+            normalizedMessage: msg,
+            providerMessageId: msg.metaChatId,
+            timestamp: msg.timestamp,
+          });
+        } catch (error) {
+          console.warn('Training lead capture failed; Inbox processing continues.', error.code || error.name || 'PIPELINE_CAPTURE_ERROR');
+        }
+      }
+
       if (["qr", "meta"].includes(origin) && ["INCOMING", "OUTGOING"].includes(msg?.route)) {
         const crmPush = await sendIncomingToCrm({
           user: userData,

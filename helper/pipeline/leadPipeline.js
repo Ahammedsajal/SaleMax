@@ -19,7 +19,8 @@ const DEFAULT_STAGES = [
   { key: "lost", title: "Lost", position: 70, color: "#be5260", type: "lost", probability: 0, system: 1 },
 ];
 
-const TRAINING_FUNNEL_VERSION = 2;
+const TRAINING_FUNNEL_VERSION = 3;
+const TRAINING_INTEREST_MIN_REPLIES = 4;
 const TRAINING_FUNNEL_STAGES = [
   'new', 'interested', 'contacted', 'qualified', 'training_registration_pending',
   'training_invoice_issued', 'training_payment_received', 'training_course_started',
@@ -38,9 +39,92 @@ function engagementSignals({ totalReplies = 0, repliesIn7Days = 0, lastReplyAt =
   const lastReply = lastReplyAt instanceof Date ? lastReplyAt.getTime() : Date.parse(rawLastReply ? `${rawLastReply}${hasZone ? '' : 'Z'}` : '');
   const current = now instanceof Date ? now.getTime() : Number(now);
   return {
-    interested: Number(totalReplies) >= 2,
+    interested: Number(totalReplies) >= TRAINING_INTEREST_MIN_REPLIES,
     hot: Number(repliesIn7Days) >= 3 && Number.isFinite(lastReply) && current - lastReply >= 0 && current - lastReply <= 48 * 60 * 60 * 1000,
   };
+}
+
+function trainingHistoryTimestamp(value) {
+  if (value === null || value === undefined || value === '') return null;
+  const numeric = Number(value);
+  const date = Number.isFinite(numeric) && numeric > 0
+    ? new Date(numeric < 100000000000 ? numeric * 1000 : numeric)
+    : new Date(value);
+  return Number.isNaN(date.getTime()) ? null : date.toISOString().slice(0, 23).replace('T', ' ');
+}
+
+function trainingHistoryEvent({ uidHash, leadId, origin, chatId, inboxMessageId, providerMessageId, senderMobile, timestamp, uid }, processedAt = dbDate()) {
+  const safeOrigin = text(origin, 16).toLowerCase();
+  const safeChatId = text(chatId, 999);
+  const providerId = text(providerMessageId, 191) || null;
+  const phone = normalizePhone(senderMobile);
+  const rawTimestamp = timestamp === null || timestamp === undefined || timestamp === '' ? 'unknown' : String(timestamp);
+  const eventKey = sha(providerId
+    ? `${safeOrigin}:${providerId}`
+    : phone
+      ? `${safeOrigin}:${safeChatId}:${phone}:${rawTimestamp}`
+      : `inbox-history:${uidHash}:${safeOrigin}:${safeChatId}:${inboxMessageId}`);
+  const eventAt = trainingHistoryTimestamp(timestamp);
+  return [
+    uidHash, uid, eventKey, safeOrigin, leadId, sha(`${safeOrigin}:${safeChatId}`), safeChatId,
+    providerId, eventAt, 'processed', processedAt, eventAt || '2000-01-01 00:00:00.000',
+  ];
+}
+
+async function backfillTrainingReplyEvents(connection, { uid, uidHash }) {
+  let cursor = 0;
+  let inboxRows = 0;
+  let insertedRows = 0;
+  const processedAt = dbDate();
+  while (true) {
+    const [messages] = await connection.query(
+      `SELECT pc.lead_id, pc.origin, pc.chat_id, b.id AS inbox_message_id,
+          b.metaChatId AS provider_message_id, b.senderMobile AS sender_mobile, b.timestamp
+       FROM pipeline_conversations pc
+       JOIN pipeline_leads l ON l.uid_hash = pc.uid_hash AND l.id = pc.lead_id
+       JOIN beta_conversation b ON b.uid = l.uid COLLATE utf8mb4_unicode_ci
+         AND b.chat_id = pc.chat_id COLLATE utf8mb4_unicode_ci
+         AND BINARY b.origin = BINARY pc.origin AND b.route = 'INCOMING'
+       WHERE pc.uid_hash = ? AND pc.origin IN ('qr','meta') AND b.id > ?
+       ORDER BY b.id ASC LIMIT 500`,
+      [uidHash, cursor],
+    );
+    if (!messages.length) break;
+    inboxRows += messages.length;
+    cursor = Math.max(...messages.map((message) => Number(message.inbox_message_id) || 0));
+    const rows = messages.map((message) => trainingHistoryEvent({
+      uidHash, uid, leadId: message.lead_id, origin: message.origin, chatId: message.chat_id,
+      inboxMessageId: message.inbox_message_id, providerMessageId: message.provider_message_id,
+      senderMobile: message.sender_mobile, timestamp: message.timestamp,
+    }, processedAt));
+    for (let offset = 0; offset < rows.length; offset += 250) {
+      const batch = rows.slice(offset, offset + 250);
+      const [result] = await connection.query(
+        `INSERT IGNORE INTO pipeline_events
+          (uid_hash, uid, event_key, origin, lead_id, conversation_key, chat_id, provider_message_id,
+           event_at, status, processed_at, received_at)
+         VALUES ?`,
+        [batch],
+      );
+      insertedRows += Number(result.affectedRows || 0);
+    }
+  }
+  await connection.query(
+    `UPDATE pipeline_events pe
+     JOIN pipeline_conversations pc ON pc.uid_hash = pe.uid_hash
+       AND pc.conversation_key = pe.conversation_key AND pc.chat_id = pe.chat_id AND pc.origin = pe.origin
+     SET pe.lead_id = pc.lead_id
+     WHERE pe.uid_hash = ? AND pe.status = 'processed' AND pe.lead_id <> pc.lead_id`,
+    [uidHash],
+  );
+  return { inboxRows, insertedRows };
+}
+
+function trainingEngagementStage({ stageKey, status = 'open', automationPaused = false, totalReplies = 0, hasActiveFollowUp = false } = {}) {
+  if (status !== 'open' || automationPaused) return stageKey;
+  if (hasActiveFollowUp && ['new', 'interested', 'contacted', 'qualified'].includes(stageKey)) return 'contacted';
+  if (Number(totalReplies) >= TRAINING_INTEREST_MIN_REPLIES && ['new', 'interested', 'contacted'].includes(stageKey)) return 'interested';
+  return stageKey;
 }
 
 function normalizePhone(value) {
@@ -264,27 +348,117 @@ async function configureTrainingPipeline(connection, uid, uidHash, settings) {
     await connection.query("DELETE FROM pipeline_stages WHERE uid_hash = ? AND stage_key = 'proposal'", [uidHash]);
   }
 
+  await backfillTrainingReplyEvents(connection, { uid, uidHash });
+
+  const applicationExists = `EXISTS (
+    SELECT 1 FROM sx_training_registrations r
+    JOIN sx_training_form_submissions s ON s.tenant_id = r.tenant_id AND s.id = r.submission_id
+    JOIN sx_legacy_ownership o ON o.tenant_id = r.tenant_id AND o.source_table = 'user'
+      AND BINARY o.legacy_uid_hash = BINARY l.uid_hash
+    JOIN sx_tenants t ON t.id = r.tenant_id AND t.category_key = 'training_center' AND t.status = 'active'
+    WHERE s.lead_id = l.id
+  )`;
+  const activeFollowUpExists = `EXISTS (
+    SELECT 1 FROM sx_tasks t WHERE BINARY t.uid_hash = BINARY l.uid_hash AND t.lead_id = l.id
+      AND t.task_type = 'lead_follow_up' AND t.deleted_at IS NULL
+      AND t.status IN ('open','in_progress','blocked')
+  )`;
+
   await connection.query(
     `INSERT INTO pipeline_activity(uid_hash, lead_id, actor_type, actor_id, activity_type, summary, details)
      SELECT l.uid_hash, l.id, 'system', NULL, 'automation_stage_move',
-       'Historical customer replies moved lead to Interested',
-       JSON_OBJECT('rule', 'historical_reply_engagement', 'stageFrom', l.stage_key, 'stageTo', 'interested', 'replyCount', replies.reply_count)
+       'Existing student application moved lead to Admission',
+       JSON_OBJECT('rule', 'historical_training_application', 'stageFrom', l.stage_key,
+         'stageTo', 'training_registration_pending', 'migration', 'training_funnel_v3')
+     FROM pipeline_leads l
+     WHERE l.uid_hash = ? AND l.status = 'open' AND COALESCE(l.automation_paused, 0) = 0
+       AND l.stage_key IN ('new','interested','contacted','qualified') AND ${applicationExists}`,
+    [uidHash],
+  );
+  await connection.query(
+    `UPDATE pipeline_leads l SET l.stage_key = 'training_registration_pending',
+       l.stage_entered_at = UTC_TIMESTAMP(3), l.last_activity_at = UTC_TIMESTAMP(3)
+     WHERE l.uid_hash = ? AND l.status = 'open' AND COALESCE(l.automation_paused, 0) = 0
+       AND l.stage_key IN ('new','interested','contacted','qualified') AND ${applicationExists}`,
+    [uidHash],
+  );
+
+  await connection.query(
+    `INSERT INTO pipeline_activity(uid_hash, lead_id, actor_type, actor_id, activity_type, summary, details)
+     SELECT l.uid_hash, l.id, 'system', NULL, 'automation_stage_move',
+       'Active staff follow-up task moved lead to Follow-up',
+       JSON_OBJECT('rule', 'active_lead_follow_up_task', 'stageFrom', l.stage_key,
+         'stageTo', 'contacted', 'migration', 'training_funnel_v3')
+     FROM pipeline_leads l
+     WHERE l.uid_hash = ? AND l.status = 'open' AND COALESCE(l.automation_paused, 0) = 0
+       AND l.stage_key IN ('new','interested','qualified') AND ${activeFollowUpExists}
+       AND NOT ${applicationExists}`,
+    [uidHash],
+  );
+  await connection.query(
+    `UPDATE pipeline_leads l SET l.stage_key = 'contacted',
+       l.stage_entered_at = UTC_TIMESTAMP(3), l.last_activity_at = UTC_TIMESTAMP(3)
+     WHERE l.uid_hash = ? AND l.status = 'open' AND COALESCE(l.automation_paused, 0) = 0
+       AND l.stage_key IN ('new','interested','qualified') AND ${activeFollowUpExists}
+       AND NOT ${applicationExists}`,
+    [uidHash],
+  );
+
+  await connection.query(
+    `INSERT INTO pipeline_activity(uid_hash, lead_id, actor_type, actor_id, activity_type, summary, details)
+     SELECT l.uid_hash, l.id, 'system', NULL, 'automation_stage_move',
+       'Four or more historical customer replies moved lead to Interested',
+       JSON_OBJECT('rule', 'historical_reply_threshold', 'minimumReplies', ${TRAINING_INTEREST_MIN_REPLIES},
+         'stageFrom', l.stage_key, 'stageTo', 'interested', 'replyCount', replies.reply_count,
+         'migration', 'training_funnel_v3')
      FROM pipeline_leads l JOIN (
        SELECT uid_hash, lead_id, COUNT(*) AS reply_count FROM pipeline_events
-       WHERE uid_hash = ? AND status = 'processed' GROUP BY uid_hash, lead_id HAVING COUNT(*) >= 2
+       WHERE uid_hash = ? AND status = 'processed' GROUP BY uid_hash, lead_id
+       HAVING COUNT(*) >= ${TRAINING_INTEREST_MIN_REPLIES}
      ) replies ON replies.uid_hash = l.uid_hash AND replies.lead_id = l.id
      WHERE l.uid_hash = ? AND l.status = 'open' AND COALESCE(l.automation_paused, 0) = 0
-       AND l.stage_key IN ('new', 'contacted')`,
+       AND l.stage_key IN ('new','contacted') AND NOT ${activeFollowUpExists} AND NOT ${applicationExists}`,
     [uidHash, uidHash],
   );
   await connection.query(
     `UPDATE pipeline_leads l JOIN (
        SELECT uid_hash, lead_id FROM pipeline_events
-       WHERE uid_hash = ? AND status = 'processed' GROUP BY uid_hash, lead_id HAVING COUNT(*) >= 2
+       WHERE uid_hash = ? AND status = 'processed' GROUP BY uid_hash, lead_id
+       HAVING COUNT(*) >= ${TRAINING_INTEREST_MIN_REPLIES}
      ) replies ON replies.uid_hash = l.uid_hash AND replies.lead_id = l.id
      SET l.stage_key = 'interested', l.stage_entered_at = UTC_TIMESTAMP(3), l.last_activity_at = UTC_TIMESTAMP(3)
      WHERE l.uid_hash = ? AND l.status = 'open' AND COALESCE(l.automation_paused, 0) = 0
-       AND l.stage_key IN ('new', 'contacted')`,
+       AND l.stage_key IN ('new','contacted') AND NOT ${activeFollowUpExists} AND NOT ${applicationExists}`,
+    [uidHash, uidHash],
+  );
+
+  await connection.query(
+    `INSERT INTO pipeline_activity(uid_hash, lead_id, actor_type, actor_id, activity_type, summary, details)
+     SELECT l.uid_hash, l.id, 'system', NULL, 'automation_stage_move',
+       'Reply history below the Interested threshold returned lead to New',
+       JSON_OBJECT('rule', 'historical_reply_threshold', 'minimumReplies', ${TRAINING_INTEREST_MIN_REPLIES},
+         'stageFrom', l.stage_key, 'stageTo', 'new', 'replyCount', COALESCE(replies.reply_count, 0),
+         'migration', 'training_funnel_v3')
+     FROM pipeline_leads l LEFT JOIN (
+       SELECT uid_hash, lead_id, COUNT(*) AS reply_count FROM pipeline_events
+       WHERE uid_hash = ? AND status = 'processed' GROUP BY uid_hash, lead_id
+     ) replies ON replies.uid_hash = l.uid_hash AND replies.lead_id = l.id
+     WHERE l.uid_hash = ? AND l.status = 'open' AND COALESCE(l.automation_paused, 0) = 0
+       AND l.stage_key IN ('interested','contacted')
+       AND COALESCE(replies.reply_count, 0) < ${TRAINING_INTEREST_MIN_REPLIES}
+       AND NOT ${activeFollowUpExists} AND NOT ${applicationExists}`,
+    [uidHash, uidHash],
+  );
+  await connection.query(
+    `UPDATE pipeline_leads l LEFT JOIN (
+       SELECT uid_hash, lead_id, COUNT(*) AS reply_count FROM pipeline_events
+       WHERE uid_hash = ? AND status = 'processed' GROUP BY uid_hash, lead_id
+     ) replies ON replies.uid_hash = l.uid_hash AND replies.lead_id = l.id
+     SET l.stage_key = 'new', l.stage_entered_at = UTC_TIMESTAMP(3), l.last_activity_at = UTC_TIMESTAMP(3)
+     WHERE l.uid_hash = ? AND l.status = 'open' AND COALESCE(l.automation_paused, 0) = 0
+       AND l.stage_key IN ('interested','contacted')
+       AND COALESCE(replies.reply_count, 0) < ${TRAINING_INTEREST_MIN_REPLIES}
+       AND NOT ${activeFollowUpExists} AND NOT ${applicationExists}`,
     [uidHash, uidHash],
   );
 
@@ -471,6 +645,9 @@ function parseKeywords(raw) {
 
 async function maybeApplyIntentRule(connection, { uidHash, lead, stage, settings, messageBody, now }) {
   if (lead.automation_paused || lead.status === 'won' || lead.status === 'lost' || !messageBody) return lead.stage_key;
+  // Training Center interest is driven by the full linked-conversation reply
+  // count below. A message keyword must not bypass that threshold.
+  if (Number(settings.training_funnel_version || 0) >= TRAINING_FUNNEL_VERSION) return lead.stage_key;
   const keywords = parseKeywords(settings.interest_keywords);
   const match = keywords.find((keyword) => messageBody.includes(keyword));
   if (!match) return lead.stage_key;
@@ -489,29 +666,40 @@ async function maybeApplyIntentRule(connection, { uidHash, lead, stage, settings
   return targetKey;
 }
 
-async function maybeApplyTrainingEngagementRule(connection, { uidHash, lead, settings, now }) {
+async function maybeApplyTrainingEngagementRule(connection, { uidHash, lead, settings, now, eventKey }) {
   if (!Number(settings.training_funnel_version || 0) || lead.automation_paused || lead.status !== 'open') return lead.stage_key;
-  const [previousReplies] = await connection.query(
-    `SELECT 1 AS replied FROM pipeline_events
-     WHERE uid_hash = ? AND lead_id = ? AND status = 'processed' LIMIT 1`,
+  const [activeFollowUpTasks] = await connection.query(
+    `SELECT 1 FROM sx_tasks WHERE BINARY uid_hash = BINARY ? AND lead_id = ? AND task_type = 'lead_follow_up'
+       AND deleted_at IS NULL AND status IN ('open','in_progress','blocked') LIMIT 1`,
     [uidHash, lead.id],
   );
-  if (!previousReplies.length) return lead.stage_key;
-
+  if (activeFollowUpTasks.length) {
+    await moveTrainingLeadToFollowUp(connection, {
+      uidHash, leadId: lead.id, categoryKey: 'training_center', source: 'active_lead_follow_up_task',
+    });
+    return ['training_registration_pending'].includes(lead.stage_key) ? lead.stage_key : 'contacted';
+  }
+  const [[replyCount]] = await connection.query(
+    `SELECT COUNT(*) AS total_replies FROM pipeline_events
+     WHERE uid_hash = ? AND status = 'processed' AND (lead_id = ? OR event_key = ?)`,
+    [uidHash, lead.id, eventKey],
+  );
+  const totalReplies = Number(replyCount?.total_replies || 0);
+  const nextStage = trainingEngagementStage({
+    stageKey: lead.stage_key, status: lead.status, automationPaused: lead.automation_paused,
+    totalReplies, hasActiveFollowUp: false,
+  });
+  if (nextStage === lead.stage_key) return lead.stage_key;
   const targetKey = text(settings.interested_stage, 64) || 'interested';
   const target = await stageExists(connection, uidHash, targetKey);
-  const [[source]] = await connection.query(
-    'SELECT position FROM pipeline_stages WHERE uid_hash = ? AND stage_key = ? LIMIT 1',
-    [uidHash, lead.stage_key],
-  );
-  const returningFromFollowUp = lead.stage_key === 'contacted';
-  if (!target || target.stage_type !== 'open' || !source || (Number(target.position) <= Number(source.position) && !returningFromFollowUp)) return lead.stage_key;
+  if (nextStage !== 'interested' || !target || target.stage_type !== 'open') return lead.stage_key;
   await connection.query(
     'UPDATE pipeline_leads SET stage_key = ?, stage_entered_at = ?, last_activity_at = ? WHERE id = ? AND uid_hash = ? AND status = \'open\'',
     [targetKey, now, now, lead.id, uidHash],
   );
-  await addActivity(connection, uidHash, lead.id, 'automation_stage_move', `Customer replied more than once; lead moved to ${targetKey}`, {
-    rule: 'training_customer_engagement', minimumReplies: 2, stageFrom: lead.stage_key, stageTo: targetKey,
+  await addActivity(connection, uidHash, lead.id, 'automation_stage_move', `Customer replied at least ${TRAINING_INTEREST_MIN_REPLIES} times; lead moved to ${targetKey}`, {
+    rule: 'training_customer_engagement', minimumReplies: TRAINING_INTEREST_MIN_REPLIES,
+    totalReplies, stageFrom: lead.stage_key, stageTo: targetKey,
   });
   return targetKey;
 }
@@ -667,7 +855,7 @@ async function captureInbound({ uid, origin, chatId, senderMobile, senderName, m
     }
 
     lead.stage_key = await maybeApplyIntentRule(connection, { uidHash, lead, stage: lead.stage_key, settings, messageBody, now });
-    lead.stage_key = await maybeApplyTrainingEngagementRule(connection, { uidHash, lead, settings, now });
+    lead.stage_key = await maybeApplyTrainingEngagementRule(connection, { uidHash, lead, settings, now, eventKey });
     await connection.query(
       `INSERT INTO pipeline_conversations
         (uid_hash, lead_id, conversation_key, chat_id, origin, first_inbound_at, last_inbound_at)
@@ -850,20 +1038,55 @@ async function getBoard({ uid, role, agentId, scopeAgentIds, categoryKey, timezo
     const today = moment.tz(zone);
     const todayStart = today.clone().startOf("day").utc().format("YYYY-MM-DD HH:mm:ss.SSS");
     const todayEnd = today.clone().add(1, "day").startOf("day").utc().format("YYYY-MM-DD HH:mm:ss.SSS");
-    const [countRows] = await connection.query(
-      `SELECT COUNT(*) AS total, COALESCE(SUM(l.created_at >= ? AND l.created_at < ?),0) AS today_new_leads FROM pipeline_leads l FORCE INDEX (idx_pipeline_board)
+    const [aggregateRows] = await connection.query(
+      `SELECT l.stage_key, COUNT(*) AS stage_total,
+          COALESCE(SUM(l.status = 'open'),0) AS open_leads,
+          COALESCE(SUM(l.created_at >= ? AND l.created_at < ?),0) AS today_new_leads,
+          COALESCE(SUM(l.expected_value),0) AS pipeline_value,
+          COALESCE(SUM(l.source_type = 'meta_ads_whatsapp' OR EXISTS (
+            SELECT 1 FROM pipeline_attributions pa
+            WHERE pa.uid_hash = l.uid_hash AND pa.lead_id = l.id AND pa.is_verified_ad = 1
+          )),0) AS meta_ads_leads
+       FROM pipeline_leads l FORCE INDEX (idx_pipeline_board)
        LEFT JOIN pipeline_contacts c ON c.uid_hash = l.uid_hash AND c.id = l.contact_id
-       WHERE ${conditions.join(" AND ")}`,
+       WHERE ${conditions.join(" AND ")}
+       GROUP BY l.stage_key WITH ROLLUP`,
       [todayStart, todayEnd, ...values],
     );
+    const stageTotals = new Map();
+    let overall = { total: 0, openLeads: 0, todayNewLeads: 0, metaAdsLeads: 0, pipelineValue: '0' };
+    for (const row of aggregateRows) {
+      if (row.stage_key === null) {
+        overall = {
+          total: Number(row.stage_total || 0),
+          openLeads: Number(row.open_leads || 0),
+          todayNewLeads: Number(row.today_new_leads || 0),
+          metaAdsLeads: Number(row.meta_ads_leads || 0),
+          pipelineValue: String(row.pipeline_value || '0'),
+        };
+      } else {
+        stageTotals.set(row.stage_key, {
+          total: Number(row.stage_total || 0),
+          pipelineValue: String(row.pipeline_value || '0'),
+        });
+      }
+    }
     const agentConditions=['owner_uid = ?','is_active = 1'],agentValues=[uid];
     if(['manager','team_leader'].includes(role)&&Array.isArray(scopeAgentIds)){
       if(scopeAgentIds.length){agentConditions.push('id IN (?)');agentValues.push(scopeAgentIds);}
       else agentConditions.push('1=0');
     }
     const [agents] = await connection.query(`SELECT id, name, email, is_active FROM agents WHERE ${agentConditions.join(' AND ')} ORDER BY name ASC`,agentValues);
-    const grouped = stages.map((stage) => ({ ...stage, leads: leads.filter((lead) => lead.stage_key === stage.stage_key) }));
-    return { stages: grouped, leads, agents, total: Number(countRows[0]?.total || 0), summary: { todayNewLeads: Number(countRows[0]?.today_new_leads || 0) }, page, limit };
+    const grouped = stages.map((stage) => ({
+      ...stage,
+      total: stageTotals.get(stage.stage_key)?.total || 0,
+      pipelineValue: stageTotals.get(stage.stage_key)?.pipelineValue || '0',
+      leads: leads.filter((lead) => lead.stage_key === stage.stage_key),
+    }));
+    return {
+      stages: grouped, leads, agents, total: overall.total,
+      summary: overall, page, limit, hasMore: page * limit < overall.total,
+    };
   },sourcePool);
 }
 
@@ -1526,6 +1749,9 @@ module.exports = {
   ensureTrainingPipeline,
   moveTrainingLeadToFollowUp,
   engagementSignals,
+  trainingHistoryEvent,
+  trainingEngagementStage,
+  backfillTrainingReplyEvents,
   captureInbound,
   captureBotInbound: input => captureInbound({ ...input, botCapture: true }),
   DEFAULT_STAGES,
