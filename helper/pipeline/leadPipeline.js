@@ -27,6 +27,7 @@ const TRAINING_FUNNEL_STAGES = [
   'won', 'lost',
 ];
 const trainingPipelineReady = new Set();
+const trainingPipelineInFlight = new Map();
 
 const text = (value, limit = 255) => String(value || "").trim().slice(0, limit);
 const sha = (value) => crypto.createHash("sha256").update(String(value)).digest("hex");
@@ -208,15 +209,7 @@ async function ensureWorkspace(connection, uid) {
   return { uidHash, settings: settings[0] };
 }
 
-async function configureTrainingPipeline(connection, uid, uidHash) {
-  await connection.query(
-    'INSERT IGNORE INTO pipeline_settings (uid_hash, uid) VALUES (?, ?)',
-    [uidHash, uid],
-  );
-  const [[settings]] = await connection.query(
-    'SELECT training_funnel_version FROM pipeline_settings WHERE uid_hash = ? FOR UPDATE',
-    [uidHash],
-  );
+async function configureTrainingPipeline(connection, uid, uidHash, settings) {
   if (Number(settings?.training_funnel_version || 0) >= TRAINING_FUNNEL_VERSION) return false;
 
   await require('../../modules/platform/training-lead-journey').ensureStages(connection, uidHash, uid);
@@ -297,12 +290,30 @@ async function ensureTrainingPipeline({ uid, categoryKey, pool: sourcePool }) {
   if (!categoryKeyMatches(categoryKey, 'training_center') || !uid) return false;
   const uidHash = sha(uid);
   if (trainingPipelineReady.has(uidHash)) return true;
-  await inTransaction(async (connection) => {
+  const active = trainingPipelineInFlight.get(uidHash);
+  if (active) return active;
+  let pending;
+  pending = inTransaction(async (connection) => {
+    await connection.query(
+      'INSERT IGNORE INTO pipeline_settings (uid_hash, uid) VALUES (?, ?)',
+      [uidHash, String(uid)],
+    );
+    const [[settings]] = await connection.query(
+      'SELECT training_funnel_version FROM pipeline_settings WHERE uid_hash = ? FOR UPDATE',
+      [uidHash],
+    );
+    // Lock the workspace settings row before inserting any default stage rows.
+    // This serializes setup across both concurrent routes and app processes.
     await ensureWorkspace(connection, String(uid));
-    await configureTrainingPipeline(connection, String(uid), uidHash);
-  }, sourcePool);
-  trainingPipelineReady.add(uidHash);
-  return true;
+    await configureTrainingPipeline(connection, String(uid), uidHash, settings);
+  }, sourcePool).then(() => {
+    trainingPipelineReady.add(uidHash);
+    return true;
+  }).finally(() => {
+    if (trainingPipelineInFlight.get(uidHash) === pending) trainingPipelineInFlight.delete(uidHash);
+  });
+  trainingPipelineInFlight.set(uidHash, pending);
+  return pending;
 }
 
 async function moveTrainingLeadToFollowUp(connection, { uidHash, leadId, categoryKey, taskId = null, source = 'scheduled_follow_up' }) {
