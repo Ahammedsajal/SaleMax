@@ -1,0 +1,4 @@
+services:
+  app:
+    volumes:
+      - ${SALEMAX_TRAINING_PIPELINE_FUNNEL_V2_RUNTIME:?set Training Pipeline funnel v2 runtime directory}/helper/pipeline/leadPipeline.js:/app/helper/pipeline/leadPipeline.js:ro

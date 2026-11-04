@@ -20,7 +20,16 @@ test('training funnel setup is category scoped, preserves lead IDs, maps Proposa
   const uidHash=require('node:crypto').createHash('sha256').update(uid).digest('hex');
   const settings={uid_hash:uidHash,uid,enabled:1,auto_capture_qr:1,auto_capture_meta:1,qr_entry_stage:'proposal',meta_entry_stage:'new',interested_stage:'proposal',training_funnel_version:0};
   const stages=[];
-  const leads=[{id:'synthetic-lead',uid_hash:uidHash,stage_key:'proposal',status:'open'},{id:'synthetic-won',uid_hash:uidHash,stage_key:'proposal',status:'won'},{id:'synthetic-lost',uid_hash:uidHash,stage_key:'proposal',status:'lost'}];
+  const leads=[
+    {id:'synthetic-lead',uid_hash:uidHash,stage_key:'proposal',status:'open'},
+    {id:'synthetic-won',uid_hash:uidHash,stage_key:'proposal',status:'won'},
+    {id:'synthetic-lost',uid_hash:uidHash,stage_key:'proposal',status:'lost'},
+    {id:'engaged-new',uid_hash:uidHash,stage_key:'new',status:'open',automation_paused:0},
+    {id:'engaged-follow-up',uid_hash:uidHash,stage_key:'contacted',status:'open',automation_paused:0},
+    {id:'already-qualified',uid_hash:uidHash,stage_key:'qualified',status:'open',automation_paused:0},
+    {id:'paused-new',uid_hash:uidHash,stage_key:'new',status:'open',automation_paused:1},
+  ];
+  const replyCounts={'engaged-new':2,'engaged-follow-up':3,'already-qualified':5,'paused-new':4};
   const activities=[];
   const queryOrder=[];
   let versionReads=0;
@@ -40,6 +49,8 @@ test('training funnel setup is category scoped, preserves lead IDs, maps Proposa
     if(sql.includes("stage_key='won'"))return [[{position:stages.find(stage=>stage.stage_key==='won')?.position}].filter(row=>row.position!==undefined)];
     if(sql.startsWith('UPDATE pipeline_stages SET title = ?')){const stage=stages.find(item=>item.stage_key===params[2]);if(stage&&stage.title===params[3])stage.title=params[0];return [{affectedRows:1}];}
     if(sql.includes("stage_key = 'proposal' FOR UPDATE"))return [stages.filter(stage=>stage.stage_key==='proposal').map(stage=>({stage_key:stage.stage_key}))];
+    if(sql.includes('Historical customer replies moved lead to Interested')){for(const lead of leads)if(['new','contacted'].includes(lead.stage_key)&&lead.status==='open'&&!lead.automation_paused&&(replyCounts[lead.id]||0)>=2)activities.push({type:'historical_engagement',id:lead.id});return [{affectedRows:1}];}
+    if(sql.startsWith('UPDATE pipeline_leads l JOIN (')){for(const lead of leads)if(['new','contacted'].includes(lead.stage_key)&&lead.status==='open'&&!lead.automation_paused&&(replyCounts[lead.id]||0)>=2)lead.stage_key='interested';return [{affectedRows:1}];}
     if(sql.startsWith('INSERT INTO pipeline_activity')){activities.push({type:'proposal_mapping'});return [{affectedRows:1}];}
     if(sql.startsWith('UPDATE pipeline_leads SET stage_key = CASE status')){for(const lead of leads)if(lead.uid_hash===params[0]&&lead.stage_key==='proposal')lead.stage_key=lead.status==='won'?'won':lead.status==='lost'?'lost':'qualified';return [{affectedRows:1}];}
     if(sql.startsWith('UPDATE pipeline_settings SET qr_entry_stage = IF')){settings.qr_entry_stage='new';settings.interested_stage='interested';return [{affectedRows:1}];}
@@ -70,12 +81,36 @@ test('training funnel setup is category scoped, preserves lead IDs, maps Proposa
   assert.equal(leads[0].stage_key,'qualified');
   assert.equal(leads[1].stage_key,'won');
   assert.equal(leads[2].stage_key,'lost');
-  assert.equal(activities.length,1);
+  assert.equal(activities.length,3);
   assert.equal(settings.qr_entry_stage,'new');
   assert.equal(settings.interested_stage,'interested');
-  assert.equal(settings.training_funnel_version,1);
+  assert.equal(settings.training_funnel_version,2);
+  assert.equal(leads.find(lead=>lead.id==='engaged-new').stage_key,'interested');
+  assert.equal(leads.find(lead=>lead.id==='engaged-follow-up').stage_key,'interested');
+  assert.equal(leads.find(lead=>lead.id==='already-qualified').stage_key,'qualified');
+  assert.equal(leads.find(lead=>lead.id==='paused-new').stage_key,'new');
+  assert.deepEqual(activities.filter(item=>item.type==='historical_engagement').map(item=>item.id),['engaged-new','engaged-follow-up']);
   assert.equal(await pipeline.ensureTrainingPipeline({uid,categoryKey:'training_center',pool}),true);
   assert.equal(versionReads,1);
+});
+
+test('configured Training workspaces do not recreate the retired Proposal stage',async()=>{
+  const uid='synthetic-training-owner-funnel-v2-test';
+  const settings={training_funnel_version:2};
+  const stages=[];
+  const pool={async getConnection(){return {
+    async beginTransaction(){},async commit(){},async rollback(){},release(){},
+    async query(sql,params=[]){
+      if(sql.includes('INSERT IGNORE INTO pipeline_settings'))return [{affectedRows:1}];
+      if(sql.includes('SELECT training_funnel_version'))return [[{training_funnel_version:settings.training_funnel_version}]];
+      if(sql.includes('SELECT * FROM pipeline_settings'))return [[settings]];
+      if(sql.includes('INSERT IGNORE INTO pipeline_stages')){const key=params[2];stages.push(key);return [{affectedRows:1}];}
+      throw new Error(`Unexpected configured workspace query: ${sql}`);
+    },
+  };}};
+  assert.equal(await pipeline.ensureTrainingPipeline({uid,categoryKey:'training_center',pool}),true);
+  assert.ok(stages.includes('new'));
+  assert.equal(stages.includes('proposal'),false);
 });
 
 test('training follow-up stage automation is tenant/category safe and respects paused, closed, and admission leads',async()=>{
