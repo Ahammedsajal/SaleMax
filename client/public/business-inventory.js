@@ -2,7 +2,10 @@
   if (location.pathname.replace(/\/$/, '') !== '/user') return;
   const href = '/user?page=business-inventory';
   const active = () => new URLSearchParams(location.search).get('page') === 'business-inventory';
-  const ar = () => document.documentElement.lang.startsWith('ar') || document.documentElement.dir === 'rtl';
+  const ar = () => {
+    const language = (localStorage.getItem('language') || document.documentElement.lang).toLowerCase();
+    return language.startsWith('ar') || language.includes('arabic');
+  };
   const tr = (en, arabic) => ar() ? arabic : en;
   const make = (tag, value, parent) => {
     const node = document.createElement(tag);
