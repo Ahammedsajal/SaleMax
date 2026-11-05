@@ -1,3 +1,7 @@
+## Lead detail card spacing — deployed, 5 November 2026
+
+The Next task, Sales progression and Application submissions cards now use one 20px desktop inset; mobile retains 16px. Source commit `42afdfdd259cc4e4b23ff7eb62f98773da3e9a13` and overlay commit `d9056cd0224d60f889d9d252275ad6a181522a89` are live. The app image, 101 mounts and support services are preserved. Public health and cache-busted asset checks pass; the signed-in visual check remains open because a fresh browser tab redirected to `/user/login`. No migration or automated test suite ran. See `DEPLOYMENT.md` for release hashes and rollback.
+
 ## Lead detail follow-up and admissions progress — deployed, 5 November 2026
 
 The existing lead detail now puts the latest authorized conversation action at the top, shows an active next-task card with its assignee and due state, and presents Application → Sale review → Enrollment → Invoice as a progress strip. The chat shortcut opens the authorized conversation in a new tab. Inbox supplies only an unread count through a separate tenant/assignment-scoped endpoint; no transcript text is copied into a lead response or stored in the lead.
