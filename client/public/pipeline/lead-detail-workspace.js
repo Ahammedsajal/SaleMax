@@ -36,7 +36,13 @@
     if (text) node.textContent = text;
     return node;
   };
-  const appHome = () => localStorage.getItem('wacrm_agent') ? '/agent' : '/user';
+  function inboxHref(chatId) {
+    const params = new URLSearchParams();
+    if (localStorage.getItem('wacrm_agent')) params.set('actor', 'agent');
+    params.set('page', 'inbox');
+    params.set('chatId', String(chatId || ''));
+    return '/user?' + params.toString();
+  }
   const dateText = value => {
     const date = new Date(value);
     return Number.isNaN(date.getTime()) ? '' : new Intl.DateTimeFormat(ar() ? 'ar-QA' : 'en-QA', {
@@ -56,7 +62,7 @@
       const conversation = lead.conversations?.[0];
       if (conversation?.chat_id) {
         const open = el('a', 'primary lead-open-chat', word('openLatestChat'));
-        open.href = appHome() + '?page=chat';
+        open.href = inboxHref(conversation.chat_id);
         open.target = '_blank';
         open.rel = 'noopener noreferrer';
         open.setAttribute('aria-disabled', 'true');
@@ -256,5 +262,5 @@
     container.replaceChildren(renderProgress(lead, reviews));
   }
 
-  window.SaleMaxLeadDetailWorkspace = Object.freeze({ mount, updateProgress });
+  window.SaleMaxLeadDetailWorkspace = Object.freeze({ mount, updateProgress, inboxHref });
 })();

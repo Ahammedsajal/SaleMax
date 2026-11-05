@@ -3,6 +3,7 @@ const test=require('node:test');
 const assert=require('node:assert/strict');
 const fs=require('node:fs');
 const path=require('node:path');
+const vm=require('node:vm');
 const root=path.join(__dirname,'..');
 const client=fs.readFileSync(path.join(root,'client/public/pipeline/lead-detail-workspace.js'),'utf8');
 const pipeline=fs.readFileSync(path.join(root,'client/public/pipeline/pipeline.js'),'utf8');
@@ -12,10 +13,22 @@ const workspaceApi=fs.readFileSync(path.join(root,'client/public/workspace-api.j
 
 test('lead detail opens the latest linked chat in a new tab and primes the shared Inbox selection',()=>{
   assert.match(client,/lead\.conversations\?\.\[0\]/);
+  assert.match(client,/open\.href = inboxHref\(conversation\.chat_id\)/);
   assert.match(client,/open\.target = '_blank'/);
   assert.match(client,/localStorage\.setItem\('currentChat'/);
   assert.match(client,/window\.SaleMaxWorkspace\.request\('inbox', '\/lead-status\?chatId='/);
+  assert.match(pipeline,/SaleMaxLeadDetailWorkspace\?\.inboxHref\(c\.chat_id\)/);
+  assert.doesNotMatch(pipeline,/appHome\(\)\?page=chat/);
   assert.match(workspaceApi,/inbox:'\/api\/workspace\/inbox'/);
+});
+
+test('lead chat links route users and agents to the selected shared Inbox conversation',()=>{
+  const values=new Map();
+  const context={window:{},URLSearchParams,localStorage:{getItem:key=>values.get(key)||null}};
+  vm.runInNewContext(client,context);
+  assert.equal(context.window.SaleMaxLeadDetailWorkspace.inboxHref('qr:chat/7'),'/user?page=inbox&chatId=qr%3Achat%2F7');
+  values.set('wacrm_agent','agent-session');
+  assert.equal(context.window.SaleMaxLeadDetailWorkspace.inboxHref('qr:chat/7'),'/user?actor=agent&page=inbox&chatId=qr%3Achat%2F7');
 });
 
 test('lead detail summarizes one authorized next task and the linked sale milestones',()=>{
