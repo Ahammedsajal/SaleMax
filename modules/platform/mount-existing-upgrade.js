@@ -72,6 +72,7 @@ function mountExistingUpgrade(app,{pool,key,origin,insecureLoopback=false,legacy
   const workspaceTeam=createTeamInvitationRouters({pool,origin,userGuard,ownerGuard:workspaceTeamGuard,insecureLoopback});
   app.use('/api/workspace/team',workspaceTeam.owner);
   app.use('/api/agent/invitations',team.accept);
+  app.use('/api/workspace/business-inventory',require('./business-inventory-router')({pool,authenticate:featureSession.guard}));
   app.use('/api/workspace/products-services',createTrainingCourseRouter({pool,origin,userGuard,canonicalGuard:businessBoundary.guard,sessionGuard:featureSession.guard,products:true}));
   app.use('/api/workspace/properties',require('./real-estate-properties-router').createRouter({pool,authenticate:featureSession.guard}));
   app.use('/api/public/real-estate/agents',require('./real-estate-agents').publicProfileRouter({pool,key}));

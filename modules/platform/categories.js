@@ -34,7 +34,19 @@ const realEstate = Object.freeze({ key:'real_estate',version:1,catalogue:null,ch
 const baseCrm = Object.freeze({ key:'base_crm', version:1, catalogue:null, chatbotLeadCapture:'generic', title:Object.freeze({en:'Base CRM',ar:'إدارة علاقات العملاء الأساسية'}), public:false, planable:true, seatRoles:Object.freeze(['owner','accountant','manager','agent']), capabilities:sharedCapabilities, migration:'20261001_platform_identity.sql' });
 // Contract fixture only; never offered for production tenant onboarding.
 const restaurantFixture = Object.freeze({ key: 'restaurant_fixture', version: 1, title: Object.freeze({ en: 'Restaurant fixture', ar: 'نموذج مطعم للاختبار' }), public: false, seatRoles: Object.freeze(['owner', 'accountant', 'manager', 'agent']), capabilities: Object.freeze(['messaging.inbox', 'crm.contacts', 'team.tasks', 'tenant.settings']), migration: '20261001_platform_identity.sql' });
-const registry = require('./category-registry').createCategoryRegistry([trainingCenter, sevenNetworkSales, realEstate, baseCrm, restaurantFixture], capabilities);
+const retail = Object.freeze({
+  key: 'retail_boutique',
+  version: 1,
+  catalogue: 'products',
+  chatbotLeadCapture: 'generic',
+  title: {en: 'Retail & Inventory', ar: 'التجزئة والمخزون'},
+  public: false,
+  planable: true,
+  seatRoles: ['owner', 'accountant', 'manager', 'agent'],
+  capabilities: [...sharedCapabilities, 'products.catalog', 'retail.inventory'],
+  migration: '20270125_private_business_inventory.sql'
+});
+const registry = require('./category-registry').createCategoryRegistry([trainingCenter, retail, sevenNetworkSales, realEstate, baseCrm, restaurantFixture], capabilities);
 const legacyCategoryAliases = Object.freeze({ salemax_sales: sevenNetworkSales.key });
 function canonicalCategoryKey(key) { return legacyCategoryAliases[key] || key; }
 function categoryKeyMatches(left, right) { return typeof left === 'string' && typeof right === 'string' && canonicalCategoryKey(left) === canonicalCategoryKey(right); }
