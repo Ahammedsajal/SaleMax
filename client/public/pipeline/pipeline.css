@@ -87,7 +87,7 @@
 .lead-detail-page .lead-actions{display:flex;flex-wrap:wrap;gap:9px;margin:0 0 18px}
 .lead-detail-page .lead-actions .soft{min-height:40px;font-size:13px;text-decoration:none;display:inline-flex;align-items:center;justify-content:center}
 .lead-detail-page .lead-actions #createLeadTask{border-color:#1768d4;background:#1768d4;color:#fff;box-shadow:0 5px 14px #1768d430}
-.lead-detail-page .application-chain{margin:0 0 18px;padding:20px 22px;border:1px solid #e2eaf1;border-radius:16px;background:#fff;box-shadow:0 5px 18px #17375408}
+.lead-detail-page .application-chain{margin:0 0 18px;padding:20px;border:1px solid #e2eaf1;border-radius:16px;background:#fff;box-shadow:0 5px 18px #17375408}
 .lead-detail-page .application-chain-heading{display:flex;align-items:center;justify-content:space-between;gap:18px;margin-bottom:14px}
 .lead-detail-page .application-chain-heading .section-title{margin:0;font-size:16px;color:#192b3b}
 .lead-detail-page .application-chain-heading p{margin:5px 0 0;color:#718096;font-size:13px;line-height:1.5}
@@ -145,7 +145,7 @@
 .lead-detail-page .lead-open-chat[hidden]{display:none}
 .lead-detail-page .lead-inbox-unread{max-width:190px;color:#5b6c7e;font-size:12px;line-height:1.4}
 .lead-detail-page .lead-inbox-unread[data-state=unread]{color:#8c3d00;font-weight:700}
-.lead-detail-page .lead-next-task,.lead-detail-page .lead-journey-progress{margin:0 0 16px;padding:18px 20px;border:1px solid #e2eaf1;border-radius:16px;background:#fff;box-shadow:0 5px 18px #17375408}
+.lead-detail-page .lead-next-task,.lead-detail-page .lead-journey-progress{margin:0 0 16px;padding:20px;border:1px solid #e2eaf1;border-radius:16px;background:#fff;box-shadow:0 5px 18px #17375408}
 .lead-detail-page .lead-next-task-heading{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:10px}
 .lead-detail-page .lead-next-task-heading h3,.lead-detail-page .lead-journey-strip h3{margin:0;color:#192b3b;font-size:15px}
 .lead-detail-page .lead-task-state{display:inline-flex;align-items:center;min-height:28px;padding:4px 10px;border-radius:999px;background:#eef4fb;color:#385675;font-size:12px;font-weight:700}
