@@ -1,0 +1,7 @@
+services:
+  app:
+    image: "${SALEMAX_LEAD_DETAIL_CHAT_ROUTE_BASE_IMAGE:?Set the exact current app image}"
+    volumes:
+      - "${SALEMAX_LEAD_DETAIL_CHAT_ROUTE_RUNTIME:?Set the lead detail chat route runtime directory}/client/public/pipeline/index.html:/app/client/public/pipeline/index.html:ro"
+      - "${SALEMAX_LEAD_DETAIL_CHAT_ROUTE_RUNTIME:?Set the lead detail chat route runtime directory}/client/public/pipeline/pipeline.js:/app/client/public/pipeline/pipeline.js:ro"
+      - "${SALEMAX_LEAD_DETAIL_CHAT_ROUTE_RUNTIME:?Set the lead detail chat route runtime directory}/client/public/pipeline/lead-detail-workspace.js:/app/client/public/pipeline/lead-detail-workspace.js:ro"
