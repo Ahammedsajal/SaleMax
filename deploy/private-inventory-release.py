@@ -131,8 +131,19 @@ def main(stage, commit):
         + 'env = dict(os.environ, **' + repr(overrides) + ')\n'
         + 'subprocess.run(' + repr(common + ['up', '-d', '--no-deps', '--no-build', '--force-recreate', 'app']) + ', env=env, check=True)\n'
     )
-    if before != after or before_app != after_app or actual_mounts != expected_mounts:
-        raise RuntimeError('Unexpected Compose changes')
+    def mount_identity(row):
+        return row['type'], row.get('source'), row['target'], row.get('read_only', False)
+
+    old_mounts = {row['target']: row for row in json.loads(run(*common, 'config', '--format', 'json', env=env))['services']['app']['volumes']}
+    replacements = {row['target'] for row in mounts}
+    config_keys = [key for key in before.keys() | after.keys() if before.get(key) != after.get(key)]
+    app_keys = [key for key in before_app.keys() | after_app.keys() if before_app.get(key) != after_app.get(key)]
+    different = [target for target in expected_mounts.keys() | actual_mounts.keys()
+                 if target not in expected_mounts or target not in actual_mounts
+                 or mount_identity(expected_mounts[target]) != mount_identity(actual_mounts[target])
+                 or (target not in replacements and actual_mounts[target] != old_mounts[target])]
+    if config_keys or app_keys or different:
+        raise RuntimeError(f'Unexpected Compose changes: config keys {config_keys}, app keys {app_keys}, targets {different}')
     services = {name: inspect(name)['Id'] for name in (
         'salemax-db-1', 'salemax-report-worker-1', 'salemax-libretranslate-1',
         'salemax-recruitment-founder-notification-worker-1')}
