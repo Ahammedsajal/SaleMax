@@ -158,22 +158,32 @@ def main(stage, commit):
     if inspect(APP)['Id'] != app['Id']:
         raise RuntimeError('Running application changed after preparation')
 
-    database_env = backup / 'database.env'
-    keys = {'DBHOST', 'DBPORT', 'DBUSER', 'DBPASS', 'DBNAME'}
-    values = [item for item in app['Config']['Env'] if item.split('=', 1)[0] in keys]
-    if not {'DBHOST', 'DBUSER', 'DBNAME'}.issubset(item.split('=', 1)[0] for item in values):
-        raise RuntimeError('Database connection configuration is incomplete')
-    if any('\n' in item or '\r' in item for item in values):
-        raise RuntimeError('Invalid database connection configuration')
-    database_env.write_text('\n'.join(values) + '\n')
-    try:
-        output = run('docker', 'run', '--rm', '--network', 'container:' + APP, '--env-file',
-                     str(database_env), '-v', str(runtime / 'database/migrations' / MIGRATION) +
-                     ':/app/database/migrations/' + MIGRATION + ':ro', '--entrypoint',
-                     'node', app['Image'], '/app/database/migrate-pipeline.js', '--apply', '--only', MIGRATION)
-        (backup / 'migration-result.json').write_text(output)
-    finally:
-        database_env.unlink(missing_ok=True)
+    migration_program = '''
+const fs = require('node:fs');
+const crypto = require('node:crypto');
+const mysql = require('/app/node_modules/mysql2/promise');
+const runner = require('/app/database/migration-runner');
+(async () => {
+  const file = process.argv[1];
+  const source = fs.readFileSync(0, 'utf8');
+  const migrations = runner.discover('/app/database/migrations');
+  migrations.push({file, checksum: crypto.createHash('sha256').update(source).digest('hex'), statements: runner.splitSql(source)});
+  const db = await mysql.createConnection({
+    host: process.env.DBHOST, port: Number(process.env.DBPORT || 3306),
+    user: process.env.DBUSER, password: process.env.DBPASS, database: process.env.DBNAME
+  });
+  try { console.log(JSON.stringify(await runner.applyMigrations(db, migrations, {only: file}))); }
+  finally { await db.end(); }
+})().catch(error => { console.error('Migration stopped:', error.code || 'MIGRATION_FAILED'); process.exitCode = 1; });
+'''
+    output = subprocess.run(
+        ['docker', 'exec', '-i', APP, 'node', '-e', migration_program, MIGRATION],
+        input=(runtime / 'database/migrations' / MIGRATION).read_text(),
+        capture_output=True, text=True)
+    if output.returncode:
+        code = re.search(r'Migration stopped: ([A-Z0-9_]+)', output.stderr)
+        raise RuntimeError('Inventory migration failed: ' + (code[1] if code else 'details withheld'))
+    (backup / 'migration-result.json').write_text(output.stdout)
 
     def wait_healthy():
         for _ in range(40):
