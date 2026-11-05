@@ -1,8 +1,8 @@
-## Private Retail & Inventory category — source implementation
+## Private Retail & Inventory category — deployed, 5 November 2026
 
 Added the planable, private `retail_boutique@1` category and an Inventory screen in the existing business panel. Products reuse the maintained Products & Services catalog. Inventory lists the tenant's catalog records, records received stock and corrected counts, and retains movement history. Stock writes serialize on the product row, require a current revision and accept idempotent retries. Catalog and stock access are independent of storefront publication. The first slice tracks one count per product. Category-specific product metadata, SKU variants, location stock, reservations and storefront integration remain separate implementation work.
 
-Migration `20270125_private_business_inventory.sql` adds the stock movement ledger. Deploy only after migration and authenticated owner and staff screen acceptance. Preserve existing plan assignments and use the current Manage Plans and Manage Users workflow to create and assign the new contract.
+Migration `20270125_private_business_inventory.sql` adds the stock movement ledger. The migration and app overlay are live. Synthetic browser and database checks passed. Real signed-in owner and staff acceptance remains open until a pilot contract is published and assigned through the current Manage Plans and Manage Users workflow. See the private inventory entry in DEPLOYMENT.md.
 
 ## Exact lead chat selection in same-window Inbox/PWA — deployed, 5 November 2026
 
