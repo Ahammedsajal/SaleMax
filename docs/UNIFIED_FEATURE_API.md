@@ -8,7 +8,9 @@ business feature. Add future changes to that implementation once.
 | Current role and permitted actions | `/api/workspace/session` | None |
 | ChatGPT MCP account connections and OAuth consent | `/api/workspace/chatgpt` | None; MCP protocol at `/mcp` |
 | Inbox course replies | `/api/workspace/inbox/course-replies` | `/api/inbox/course-replies`, `/api/agent/course-replies` |
+| Lead-linked Inbox unread state | `/api/workspace/inbox/lead-status?chatId=…` | `/api/inbox/lead-status?chatId=…` |
 | QR Inbox groups | `/api/workspace/inbox/groups` | `/api/inbox/groups`, `/api/agent/inbox/groups` |
+| Next active task for a lead | `/api/workspace/tasks/lead/:leadId/next` | `/api/pipeline/tasks/lead/:leadId/next`, `/api/user/training/tasks/lead/:leadId/next` |
 | Phonebook | `/api/workspace/phonebook` | `/api/phonebook/workspace`, `/api/agent/phonebook` |
 | Finance, invoices, payments and receipts | `/api/workspace/finance` | `/api/user/training/finance-policies`; its `/accountant` and `/canonical` prefixes are stripped before routing |
 | Course catalogue | `/api/workspace/courses` | `/api/user/training/courses` |
@@ -64,6 +66,15 @@ permission can select the business's published course information without
 catalogue-edit access. Assigned-chat and explicitly shared QR-channel limits,
 tenant filters, ordered sends, idempotent jobs and per-part session/permission
 refreshes remain enforced. Shared Phonebooks remain read-only for recipients.
+
+Lead detail may request `GET /api/workspace/inbox/lead-status?chatId=…` for one
+conversation already linked to that lead. It requires `conversations.read` and
+the current Inbox assignment or shared-channel scope. The response contains
+only `{ available, unreadCount }`; it does not return message text or transcript
+content. The lead API continues to expose conversation identifiers and inbound
+timestamps only. The next-task endpoint rechecks `tasks.read`, lead access,
+tenant, task participation and team scope before returning one active task,
+its assignee labels, status and due date.
 
 Compatibility URLs mount the same router instances; Finance actions register
 once. Do not add separate owner/accountant/agent handlers for future features.

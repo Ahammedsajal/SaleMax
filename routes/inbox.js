@@ -613,6 +613,32 @@ async function handleMessages(change, uid, body) {
   });
 }
 
+// A lead detail may request only the unread state for one linked conversation.
+// Keep this behind the same Inbox permission and assignment/channel scope as chat lists.
+router.get("/lead-status", validateUser, async (req, res) => {
+  const chatId = typeof req.query?.chatId === "string" ? req.query.chatId : "";
+  if (!chatId || chatId.length > 191 || /[\u0000-\u001f\u007f]/u.test(chatId)) {
+    return res.status(400).json({ success: false, code: "INVALID_CHAT_ID" });
+  }
+  res.setHeader('Cache-Control', 'no-store');
+  try {
+    const inboxAccess = require('../modules/platform/team-inbox-scope');
+    const scope = await inboxAccess.resolveInboxScope(query, req.decode.userData, 'get_lead_status');
+    const rows = await query(
+      `SELECT chat_id,unread_count,origin,origin_instance_unique_id,assigned_agent
+       FROM beta_chats WHERE uid=? AND chat_id=? LIMIT 1`,
+      [scope.uid, chatId],
+    );
+    if (rows.length !== 1 || !inboxAccess.filterAssignedChats(rows, scope).length) {
+      return res.status(404).json({ success: true, data: { available: false, unreadCount: null } });
+    }
+    return res.json({ success: true, data: { available: true, unreadCount: Math.max(0, Number(rows[0].unread_count) || 0) } });
+  } catch (error) {
+    const denied = error?.code === 'TEAM_INBOX_PERMISSION_DENIED';
+    return res.status(denied ? 403 : 503).json({ success: false, code: denied ? 'PERMISSION_DENIED' : 'INBOX_STATUS_UNAVAILABLE' });
+  }
+});
+
 // getting chat lists
 router.get("/get_chats", validateUser, async (req, res) => {
   try {

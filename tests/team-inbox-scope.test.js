@@ -15,7 +15,7 @@ test('real Agent-seat source uses the agents ownership link and rejects foreign 
 });
 
 test('manager reads and replies through the verified owner Inbox scope', async () => {
-  for (const event of ['get_chat_list','load_conversation','send_chat_message']) assert.equal(await resolveInboxUid(query(member), user, event), 'synthetic-owner');
+  for (const event of ['get_chat_list','get_lead_status','load_conversation','send_chat_message']) assert.equal(await resolveInboxUid(query(member), user, event), 'synthetic-owner');
   assert.equal(await resolveInboxUid(async () => [], user, 'get_chat_list'), user.uid);
 });
 

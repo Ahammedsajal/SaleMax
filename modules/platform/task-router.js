@@ -21,6 +21,7 @@ function createTaskRouter({pool,contextFor}){
     res.status(status).json({success:false,code:status>=500?'TASK_UNAVAILABLE':code});
   });
   router.get('/',run('tasks.read',(db,ctx,req)=>tasks.list(db,ctx,{status:req.query.status||'all',scope:req.query.scope||'mine',page:req.query.page,limit:req.query.limit,taskType:req.query.taskType||null})));
+  router.get('/lead/:leadId/next',run('tasks.read',(db,ctx,req)=>tasks.nextForLead(db,ctx,req.params.leadId)));
   router.get('/participants',run('tasks.read',(db,ctx)=>tasks.listParticipants(db,ctx)));
   router.get('/source',run('tasks.manage',(db,ctx,req)=>tasks.sourceDetail(db,ctx,req.query.type,req.query.id)));
   router.post('/inbox-follow-up',run('tasks.manage',(db,ctx,req)=>tasks.createInboxFollowUp(db,ctx,req.body||{}),201));

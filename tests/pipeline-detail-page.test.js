@@ -20,3 +20,7 @@ test('full-page lead edits refresh the same lead and the existing back control r
   assert.match(script,/if\(state\.detailPage\)\{await load\(\);await openLead\(id\);\}/);
   assert.match(script,/if\(state\.detailPage\)\{const target=new URL\(location\.href\);target\.searchParams\.delete\('lead'\);target\.searchParams\.delete\('view'\)/);
 });
+
+test('lead detail uses the Arabic UI for regional Arabic locale codes',()=>{
+  assert.match(script,/language === 'ar' \|\| language\.startsWith\('ar-'\) \|\| language\.includes\('arabic'\)/);
+});

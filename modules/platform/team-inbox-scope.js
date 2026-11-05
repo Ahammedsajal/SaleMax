@@ -2,7 +2,7 @@
 const crypto = require('node:crypto');
 const { scopeFor } = require('./policy');
 const EVENT_PERMISSIONS = Object.freeze({
-  get_chat_list: 'conversations.read', load_conversation: 'conversations.read', export_chats: 'conversations.read', export_conversation: 'conversations.read',
+  get_chat_list: 'conversations.read', get_lead_status: 'conversations.read', load_conversation: 'conversations.read', export_chats: 'conversations.read', export_conversation: 'conversations.read',
   send_chat_message: 'conversations.reply', course_quick_reply: 'conversations.read', send_new_message: 'conversations.reply', save_chat_note: 'conversations.reply', delete_chat_note: 'conversations.reply',
   update_spend_time: 'conversations.read', translate_message: 'conversations.reply', suggest_reply: 'conversations.reply',
   add_label: 'contacts.manage', on_label_delete: 'contacts.manage', set_chat_label: 'contacts.manage', remove_chat_label: 'contacts.manage', save_as_context: 'contacts.manage',

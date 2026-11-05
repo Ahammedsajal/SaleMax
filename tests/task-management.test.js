@@ -238,6 +238,30 @@ test('canonical business sessions map to the workspace owner data scope for Task
   assert.equal(result.tenantId,ctx.tenantId);assert.equal(result.uid,uid);assert.equal(result.uidHash,uidHash);assert.equal(result.actorType,'identity');assert.equal(result.actorId,ctx.actorId);assert.equal(calls.length,1);assert.match(calls[0].sql,/m\.role='owner'/);
 });
 
+test('next lead task returns one active scoped task with assignee labels and no task description',async()=>{
+  const leadId='33333333-3333-4333-8333-333333333333',taskId='66666666-6666-4666-8666-666666666666',calls=[];
+  const db={query:async(sql,args=[])=>{
+    calls.push({sql,args});
+    if(sql.startsWith('SELECT id,title,contact_name'))return [[{id:leadId,owner_agent_id:7}],[]];
+    if(sql.startsWith('SELECT t.id,t.title,t.task_type AS taskType'))return [[{id:taskId,title:'Call about enrollment',taskType:'lead_follow_up',status:'open',priority:'high',dueAt:new Date('2026-11-06T09:00:00Z')}],[]];
+    if(sql.includes('FROM sx_task_participants p LEFT JOIN agents'))return [[{actorType:'agent',actorId:'7',label:'Synthetic agent'}],[]];
+    throw Error('Unexpected query: '+sql);
+  }};
+  const agent={...ctx,role:'agent',actorType:'agent',actorId:'7',agentId:7};
+  const result=await tasks.nextForLead(db,agent,leadId);
+  assert.equal(result.task.id,taskId);assert.equal(result.task.title,'Call about enrollment');assert.deepEqual(result.task.assignees,[{actorType:'agent',actorId:'7',label:'Synthetic agent'}]);assert.equal(result.task.description,undefined);
+  const taskQuery=calls.find(call=>call.sql.startsWith('SELECT t.id,t.title,t.task_type AS taskType'));
+  assert.match(taskQuery.sql,/t\.tenant_id=\?/);assert.match(taskQuery.sql,/t\.uid_hash=\?/);assert.match(taskQuery.sql,/t\.lead_id=\?/);assert.match(taskQuery.sql,/t\.status IN \('open','in_progress','blocked'\)/);assert.match(taskQuery.sql,/EXISTS\(SELECT 1 FROM sx_task_participants mine/);
+  assert.deepEqual(taskQuery.args,[ctx.tenantId,ctx.uidHash,leadId,'agent','7']);
+});
+
+test('next lead task denies an agent when the lead is assigned to someone else',async()=>{
+  let taskQuery=false;const leadId='33333333-3333-4333-8333-333333333333';
+  const db={query:async(sql)=>{if(sql.startsWith('SELECT id,title,contact_name'))return [[{id:leadId,owner_agent_id:8}],[]];if(sql.startsWith('SELECT t.id,t.title,t.task_type AS taskType'))taskQuery=true;return [[],[]];}};
+  await assert.rejects(tasks.nextForLead(db,{...ctx,role:'agent',actorType:'agent',actorId:'7',agentId:7},leadId),{code:'PERMISSION_DENIED',status:403});
+  assert.equal(taskQuery,false);
+});
+
 test('Tasks stays in the existing business shell and supports legacy and canonical business sessions',()=>{
   const root=path.join(__dirname,'..');const sidebar=fs.readFileSync(path.join(root,'client/public/training-sidebar.js'),'utf8');const entry=fs.readFileSync(path.join(root,'client/public/pipeline-entry.js'),'utf8');const router=fs.readFileSync(path.join(root,'routes/pipeline.js'),'utf8');const taskRouter=fs.readFileSync(path.join(root,'modules/platform/task-router.js'),'utf8');const mount=fs.readFileSync(path.join(root,'modules/platform/mount-existing-upgrade.js'),'utf8');const session=fs.readFileSync(path.join(root,'client/public/tasks/tasks-session.js'),'utf8');const html=fs.readFileSync(path.join(root,'client/public/tasks/index.html'),'utf8');
   assert.match(sidebar,/\['Team & Tasks'.*'Tasks'/);assert.match(sidebar,/user\?page=tasks/);assert.match(entry,/salemax-tasks-workspace/);assert.match(entry,/drawerRect\?\.right\|\|0/);assert.match(router,/router\.use\('\/tasks',createTaskRouter/);for(const route of ['messages','events','notifications','read','status','preferences'])assert.ok(taskRouter.includes(route));assert.match(mount,/api\/user\/training\/tasks/);assert.match(mount,/featureSession\.guard,createTaskRouter/);assert.match(session,/SaleMaxWorkspace\.headers/);assert.match(session,/X-CSRF-Token/);assert.match(html,/whatsappOptIn/);assert.match(html,/previousPage/);assert.match(html,/nextPage/);assert.match(html,/tasks\.js/);

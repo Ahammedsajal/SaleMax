@@ -74,3 +74,22 @@ html[data-sx-theme=dark] .toast { color: #effff9; background: #145b4a; }
 .pipeline-pagination.hidden{display:none}
 html[data-sx-theme=dark] .hot-lead{background:#49291f;color:#ffd0b5;border-color:#754630}
 html[data-sx-theme=dark] .engagement-hint{background:#30251f;color:#f2c5a9;border-color:#5a4033}
+html[data-sx-theme=dark] .lead-detail-page .lead-next-task,
+html[data-sx-theme=dark] .lead-detail-page .lead-journey-progress{background:#1a222d;border-color:#354252;color:#e7edf5}
+html[data-sx-theme=dark] .lead-detail-page .lead-next-task-heading h3,
+html[data-sx-theme=dark] .lead-detail-page .lead-journey-strip h3,
+html[data-sx-theme=dark] .lead-detail-page .lead-task-title{color:#e7edf5}
+html[data-sx-theme=dark] .lead-detail-page .lead-task-owner,
+html[data-sx-theme=dark] .lead-detail-page .lead-task-due,
+html[data-sx-theme=dark] .lead-detail-page .lead-task-message,
+html[data-sx-theme=dark] .lead-detail-page .lead-task-loading,
+html[data-sx-theme=dark] .lead-detail-page .lead-inbox-unread,
+html[data-sx-theme=dark] .lead-detail-page .lead-journey-copy small{color:#aebaca}
+html[data-sx-theme=dark] .lead-detail-page .lead-task-state{background:#263241;color:#d5deea}
+html[data-sx-theme=dark] .lead-detail-page .lead-task-due-state.is-overdue{color:#ff9ca9}
+html[data-sx-theme=dark] .lead-detail-page .lead-inbox-unread[data-state=unread]{color:#ffc08b}
+html[data-sx-theme=dark] .lead-detail-page .lead-journey-index{background:#202a37;border-color:#536176;color:#c4cfdd}
+html[data-sx-theme=dark] .lead-detail-page .lead-journey-copy strong{color:#c9d5e3}
+html[data-sx-theme=dark] .lead-detail-page .lead-journey-step[data-state=complete] .lead-journey-index{background:#173c38;border-color:#43866e;color:#92e7d2}
+html[data-sx-theme=dark] .lead-detail-page .lead-journey-step[data-state=current] .lead-journey-index{background:#16375d;border-color:#3979bd;color:#a8d3ff}
+html[data-sx-theme=dark] .lead-detail-page .lead-journey-step[data-state=blocked] .lead-journey-index{background:#48262e;border-color:#8d4652;color:#ffc2c9}

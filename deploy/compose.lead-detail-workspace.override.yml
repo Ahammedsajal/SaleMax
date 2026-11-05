@@ -1,0 +1,13 @@
+services:
+  app:
+    image: "${SALEMAX_LEAD_DETAIL_WORKSPACE_BASE_IMAGE:?Set the exact current app image}"
+    volumes:
+      - "${SALEMAX_LEAD_DETAIL_WORKSPACE_RUNTIME:?Set the lead detail runtime directory}/routes/inbox.js:/app/routes/inbox.js:ro"
+      - "${SALEMAX_LEAD_DETAIL_WORKSPACE_RUNTIME:?Set the lead detail runtime directory}/modules/platform/team-inbox-scope.js:/app/modules/platform/team-inbox-scope.js:ro"
+      - "${SALEMAX_LEAD_DETAIL_WORKSPACE_RUNTIME:?Set the lead detail runtime directory}/modules/platform/task-management.js:/app/modules/platform/task-management.js:ro"
+      - "${SALEMAX_LEAD_DETAIL_WORKSPACE_RUNTIME:?Set the lead detail runtime directory}/modules/platform/task-router.js:/app/modules/platform/task-router.js:ro"
+      - "${SALEMAX_LEAD_DETAIL_WORKSPACE_RUNTIME:?Set the lead detail runtime directory}/client/public/pipeline/index.html:/app/client/public/pipeline/index.html:ro"
+      - "${SALEMAX_LEAD_DETAIL_WORKSPACE_RUNTIME:?Set the lead detail runtime directory}/client/public/pipeline/pipeline.js:/app/client/public/pipeline/pipeline.js:ro"
+      - "${SALEMAX_LEAD_DETAIL_WORKSPACE_RUNTIME:?Set the lead detail runtime directory}/client/public/pipeline/lead-detail-workspace.js:/app/client/public/pipeline/lead-detail-workspace.js:ro"
+      - "${SALEMAX_LEAD_DETAIL_WORKSPACE_RUNTIME:?Set the lead detail runtime directory}/client/public/pipeline/pipeline.css:/app/client/public/pipeline/pipeline.css:ro"
+      - "${SALEMAX_LEAD_DETAIL_WORKSPACE_RUNTIME:?Set the lead detail runtime directory}/client/public/pipeline/pipeline-theme.css:/app/client/public/pipeline/pipeline-theme.css:ro"
