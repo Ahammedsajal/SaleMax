@@ -24,7 +24,10 @@ test('Manage Plans context offers internal Sales features only to platform categ
   const staff=await serverFor({...base,membership:{...base.membership,role:'staff'}});
   try{
     const adminContext=await (await fetch(admin.base+'/context')).json();
-    assert.deepEqual(adminContext.categories.map(item=>item.key),['training_center','7network_sales','base_crm']);
+    assert.deepEqual(adminContext.categories.map(item=>item.key),['training_center','retail_boutique','7network_sales','real_estate','base_crm']);
+    const retail=adminContext.categories.find(item=>item.key==='retail_boutique');
+    assert.ok(retail.features.some(item=>item.key==='retail.inventory'));
+    assert.ok(retail.features.some(item=>item.key==='products.catalog'));
     const sales=adminContext.categories.find(item=>item.key==='7network_sales');
     assert.deepEqual(sales.seatRoles,['owner','accountant','manager','team_leader','agent']);
     assert.ok(sales.features.some(item=>item.key==='sales.deals'));
