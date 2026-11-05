@@ -43,6 +43,49 @@
     params.set('chatId', String(chatId || ''));
     return '/user?' + params.toString();
   }
+  function prepareChatOpen(conversation, lead) {
+    const chatId = String(conversation?.chat_id || '');
+    if (!chatId) return;
+    let previousFilters = {};
+    try { previousFilters = JSON.parse(localStorage.getItem('chatFilters') || 'null'); } catch (_) { previousFilters = null; }
+    try {
+      sessionStorage.setItem('7networkLeadChatFocus', JSON.stringify({ chatId, previousFilters, startedAt: Date.now() }));
+      sessionStorage.removeItem('7networkLeadChatCompleted');
+      sessionStorage.removeItem('7networkLeadChatFailed');
+    } catch (_) { /* localStorage and the URL still provide a best-effort fallback */ }
+    localStorage.setItem('currentChat', JSON.stringify({
+      id: chatId,
+      chat_id: chatId,
+      origin: conversation.origin,
+      sender_mobile: lead?.mobile,
+      sender_name: lead?.relationship_name || lead?.contact_name || lead?.title
+    }));
+    localStorage.setItem('chatInfo', 'null');
+    localStorage.setItem('chatFilters', JSON.stringify({
+      search: chatId, origin: '', unreadOnly: false, assignedOnly: false,
+      instanceFilter: '', instance: '', dateRange: { start: null, end: null },
+      limit: 20, offset: 0, filterType: 'all', hasNote: false,
+      statusFilter: 'all', agentFilter: '', conversationKind: 'all'
+    }));
+  }
+  function installConversationLinkRouting() {
+    if (typeof document === 'undefined' || typeof MutationObserver === 'undefined') return;
+    document.addEventListener('click', event => {
+      const link = event.target?.closest?.('a.conversation-open');
+      if (!link) return;
+      const conversation = { chat_id: link.dataset.conversation, origin: link.dataset.origin };
+      if (!conversation.chat_id) return;
+      link.target = '_top';
+      prepareChatOpen(conversation, {});
+    }, true);
+    const setSameWindowTarget = () => {
+      document.querySelectorAll('a.conversation-open').forEach(link => {
+        if (link.target !== '_top') link.target = '_top';
+      });
+    };
+    new MutationObserver(setSameWindowTarget).observe(document.documentElement, { childList: true, subtree: true });
+    setSameWindowTarget();
+  }
   const dateText = value => {
     const date = new Date(value);
     return Number.isNaN(date.getTime()) ? '' : new Intl.DateTimeFormat(ar() ? 'ar-QA' : 'en-QA', {
@@ -63,8 +106,7 @@
       if (conversation?.chat_id) {
         const open = el('a', 'primary lead-open-chat', word('openLatestChat'));
         open.href = inboxHref(conversation.chat_id);
-        open.target = '_blank';
-        open.rel = 'noopener noreferrer';
+        open.target = '_top';
         open.setAttribute('aria-disabled', 'true');
         open.tabIndex = -1;
         open.addEventListener('click', event => {
@@ -72,13 +114,7 @@
             event.preventDefault();
             return;
           }
-          localStorage.setItem('currentChat', JSON.stringify({
-            id: conversation.chat_id,
-            chat_id: conversation.chat_id,
-            origin: conversation.origin,
-            sender_mobile: lead.mobile,
-            sender_name: lead.relationship_name || lead.contact_name || lead.title
-          }));
+          prepareChatOpen(conversation, lead);
         });
         actions.append(open);
         const unread = el('span', 'lead-inbox-unread', word('inboxChecking'));
@@ -262,5 +298,6 @@
     container.replaceChildren(renderProgress(lead, reviews));
   }
 
-  window.SaleMaxLeadDetailWorkspace = Object.freeze({ mount, updateProgress, inboxHref });
+  installConversationLinkRouting();
+  window.SaleMaxLeadDetailWorkspace = Object.freeze({ mount, updateProgress, inboxHref, prepareChatOpen });
 })();

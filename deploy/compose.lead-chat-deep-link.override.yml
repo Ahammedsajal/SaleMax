@@ -1,0 +1,10 @@
+services:
+  app:
+    image: "${SALEMAX_LEAD_CHAT_DEEP_LINK_BASE_IMAGE:?Set the exact current app image}"
+    volumes:
+      - "${SALEMAX_LEAD_CHAT_DEEP_LINK_RUNTIME:?Set the lead chat deep-link runtime directory}/client/public/index.html:/app/client/public/index.html:ro"
+      - "${SALEMAX_LEAD_CHAT_DEEP_LINK_RUNTIME:?Set the lead chat deep-link runtime directory}/client/public/inbox-deep-link.js:/app/client/public/inbox-deep-link.js:ro"
+      - "${SALEMAX_LEAD_CHAT_DEEP_LINK_RUNTIME:?Set the lead chat deep-link runtime directory}/client/public/pipeline/index.html:/app/client/public/pipeline/index.html:ro"
+      - "${SALEMAX_LEAD_CHAT_DEEP_LINK_RUNTIME:?Set the lead chat deep-link runtime directory}/client/public/pipeline/lead-detail-workspace.js:/app/client/public/pipeline/lead-detail-workspace.js:ro"
+      - "${SALEMAX_LEAD_CHAT_DEEP_LINK_RUNTIME:?Set the lead chat deep-link runtime directory}/helper/socket/index.js:/app/helper/socket/index.js:ro"
+      - "${SALEMAX_LEAD_CHAT_DEEP_LINK_RUNTIME:?Set the lead chat deep-link runtime directory}/helper/inbox/chatData.js:/app/helper/inbox/chatData.js:ro"

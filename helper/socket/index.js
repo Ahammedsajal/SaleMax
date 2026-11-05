@@ -28,6 +28,7 @@ const {
   mergeChatLists,
   mergeConversationLists,
   sortGroupChatsByActivity,
+  prioritizeExactChat,
   sanitizeMergedRows,
 } = require("../inbox/chatData.js");
 const {
@@ -89,12 +90,14 @@ function processSocketEvent({
 
             if (search) {
               queryStr += ` AND (
+                chat_id = ? OR
                 sender_name LIKE ? OR 
                 sender_mobile LIKE ? OR 
                 last_message LIKE ? OR
                 chat_label LIKE ?
               )`;
               queryParams.push(
+                search,
                 `%${search}%`,
                 `%${search}%`,
                 `%${search}%`,
@@ -185,6 +188,7 @@ function processSocketEvent({
 
           chats = inboxAccess.filterAssignedChats(chats, inboxScope);
           chats = sortGroupChatsByActivity(chats);
+          chats = prioritizeExactChat(chats, search);
           const total = chats.length;
           chats = chats.slice(offset, offset + limit);
 

@@ -92,6 +92,18 @@ function sortGroupChatsByActivity(chats = []) {
   });
 }
 
+function prioritizeExactChat(chats = [], search = '') {
+  const exactId = String(search || '').trim().toLowerCase();
+  if (!exactId) return chats;
+  const exact = [];
+  const remaining = [];
+  for (const chat of chats) {
+    if (String(chat?.chat_id || '').trim().toLowerCase() === exactId) exact.push(chat);
+    else remaining.push(chat);
+  }
+  return exact.length ? exact.concat(remaining) : chats;
+}
+
 function normalizeChat(chat, source = "beta") {
   const normalized = {
     ...chat,
@@ -393,6 +405,7 @@ module.exports = {
   filterChats,
   mergeChatLists,
   sortGroupChatsByActivity,
+  prioritizeExactChat,
   mergeConversationLists,
   normalizeOriginFilter,
   sanitizeMergedRows,
