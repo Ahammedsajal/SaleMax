@@ -6,29 +6,34 @@ const mysql = require('mysql2/promise');
 const express = require('express');
 
 async function main() {
+  const priorPlatformKey=process.env.SALEMAX_PLATFORM_KEY_BASE64;
+  process.env.SALEMAX_PLATFORM_KEY_BASE64=Buffer.alloc(32,7).toString('base64');
   const socketPath = process.env.INVENTORY_TEST_SOCKET;
   assert.match(socketPath || '', /^\/(?:private\/)?tmp\//);
   const database = 'inventory_test_' + randomUUID().replaceAll('-', '');
   const admin = await mysql.createConnection({socketPath, user: 'root'});
   await admin.query('CREATE DATABASE ' + database);
   const pool = mysql.createPool({socketPath, user: 'root', database});
-  const tenant = randomUUID(), other = randomUUID(), item = randomUUID(), foreign = randomUUID(), variantProduct = randomUUID();
+  const tenant = randomUUID(), other = randomUUID(), secondTenant = randomUUID(), item = randomUUID(), foreign = randomUUID(), variantProduct = randomUUID(), secondItem = randomUUID();
   const category = require('../modules/platform/categories').getCategory('retail_boutique', 1);
   assert.equal(category.public, false);
   const app = express();
   const driverId=randomUUID(), secondDriver=randomUUID();
+  process.env.LOCAL_ONLY_MODE='true';
   const routes=require('../modules/platform/retail-commerce-router');
   function authenticate(req,res,next) {
     const role = req.get('x-test-role');
     if (!role) return res.sendStatus(401);
-    req.businessContext = {audience: 'tenant', category, identity: {id: tenant},
-      tenant: {id: tenant, status: 'active', categoryKey: category.key, categoryVersion: 1},
-      membership: {id:req.get('x-test-driver')||driverId,tenantId: tenant, status: 'active', role},
+    const actorTenant=req.get('x-test-tenant')===secondTenant?secondTenant:tenant;
+    req.businessContext = {audience: 'tenant', category, identity: {id: actorTenant},
+      tenant: {id: actorTenant, status: 'active', categoryKey: category.key, categoryVersion: 1},
+      membership: {id:req.get('x-test-driver')||(actorTenant===tenant?driverId:secondDriver),tenantId: actorTenant, status: 'active', role},
       subscription: {status: 'active', capabilities: category.capabilities}};
     next();
   }
-  process.env.LOCAL_ONLY_MODE='true';
+  app.use((req,res,next)=>{if(req.get('host')==='shop-two.synthetic.test')req.crmTenantDomain={tenantId:secondTenant};next();});
   app.use('/business/:storeSlug/shop',routes.publicRouter({pool,origin:'http://127.0.0.1'}));
+  app.use('/',routes.publicRouter({pool,origin:'http://127.0.0.1'}));
   app.use('/workspace/retail',routes.workspaceRouter({pool,authenticate}));
   app.get(['/user','/agent'],(req,res)=>{
     const role=['owner','manager','accountant','agent'].includes(req.query.role)?req.query.role:'owner';
@@ -45,8 +50,8 @@ async function main() {
   app.use(require('../modules/platform/business-inventory-router')({pool,authenticate}));
   let server;
   try {
-    await pool.query('CREATE TABLE sx_tenants (id CHAR(36) PRIMARY KEY,status VARCHAR(15),category_key VARCHAR(40),category_version INT) ENGINE=InnoDB');
-    await pool.query("INSERT INTO sx_tenants VALUES (?,'active','retail_boutique',1),(?,'active','training_center',1)",[tenant,other]);
+    await pool.query('CREATE TABLE sx_tenants (id CHAR(36) PRIMARY KEY,status VARCHAR(15),category_key VARCHAR(40),category_version INT,timezone VARCHAR(100)) ENGINE=InnoDB');
+    await pool.query("INSERT INTO sx_tenants VALUES (?,'active','retail_boutique',1,'Asia/Qatar'),(?,'active','training_center',1,'Asia/Qatar'),(?,'active','retail_boutique',1,'Asia/Qatar')",[tenant,other,secondTenant]);
     await pool.query('CREATE TABLE sx_product_catalog (id CHAR(36) PRIMARY KEY, tenant_id CHAR(36), code VARCHAR(40), name_en VARCHAR(200), name_ar VARCHAR(200), deleted_at DATETIME NULL, status VARCHAR(20)) ENGINE=InnoDB');
     const {splitSql}=require('../database/migration-runner');
     const applyMigration=async name=>{for(const statement of splitSql(readFileSync(require.resolve('../database/migrations/'+name),'utf8')))await pool.query(statement);};
@@ -54,7 +59,7 @@ async function main() {
     await applyMigration('20270125_private_business_inventory.sql');
     await applyMigration('20270126_retail_commerce.sql');
     await applyMigration('20270127_retail_cash_and_returns.sql');
-    await pool.query("INSERT INTO sx_product_catalog VALUES (?,?,'TEST','Test item','عنصر تجريبي',NULL,'active'),(?,?,'OTHER','Other','آخر',NULL,'active')", [item, tenant, foreign, other]);
+    await pool.query("INSERT INTO sx_product_catalog VALUES (?,?,'TEST','Test item','عنصر تجريبي',NULL,'active'),(?,?,'OTHER','Other','آخر',NULL,'active'),(?,?,'SECOND','Second tenant item','منتج المستأجر الثاني',NULL,'active')", [item, tenant, foreign, other, secondItem, secondTenant]);
     server = app.listen(0, '127.0.0.1');
     await new Promise((resolve, reject) => server.once('listening', resolve).once('error', reject));
     const send = (path, role, body) => fetch('http://127.0.0.1:' + server.address().port + path, {
@@ -62,6 +67,9 @@ async function main() {
       headers: {'content-type': 'application/json', ...(role && {'x-test-role': role})},
       body: body && JSON.stringify(body)
     });
+    const base='http://127.0.0.1:'+server.address().port;
+    const workspace=(path,role,method='GET',body,driver=driverId,actorTenant=tenant)=>fetch(base+'/workspace/retail'+path,{method,
+      headers:{'Content-Type':'application/json','x-test-role':role,'x-test-driver':driver,'x-test-tenant':actorTenant},body:body&&JSON.stringify(body)});
     const payload = {requestId: randomUUID(), expectedRevision: '0', quantity: 12, reason: 'Opening stock'};
     const path = '/' + item + '/count';
     assert.equal((await send('/')).status, 401);
@@ -83,14 +91,26 @@ async function main() {
     const plan=randomUUID();
     await pool.query("INSERT INTO sx_plan_versions VALUES (?,'published','retail_boutique',1,?)",[plan,JSON.stringify(category.capabilities)]);
     await pool.query("INSERT INTO sx_plan_assignments VALUES (?,?,?,'active',UTC_TIMESTAMP()-INTERVAL 1 DAY,UTC_TIMESTAMP()+INTERVAL 1 DAY)",[tenant,plan,tenant]);
+    await pool.query("INSERT INTO sx_plan_assignments VALUES (?,?,?,'active',UTC_TIMESTAMP()-INTERVAL 1 DAY,UTC_TIMESTAMP()+INTERVAL 1 DAY)",[secondTenant,plan,secondTenant]);
     await pool.query("INSERT INTO sx_product_offers VALUES (?,?,?,2500,1,'active','QAR',NULL,NULL)",[randomUUID(),tenant,item]);
+    await pool.query("INSERT INTO sx_product_offers VALUES (?,?,?,1900,1,'active','QAR',NULL,NULL)",[randomUUID(),secondTenant,secondItem]);
     await pool.query("INSERT INTO sx_product_catalog VALUES (?,?,'TEST-LARGE','Test item large','عنصر تجريبي كبير',NULL,'active')",[variantProduct,tenant]);
     await pool.query("INSERT INTO sx_product_offers VALUES (?,?,?,3500,1,'active','QAR',NULL,NULL)",[randomUUID(),tenant,variantProduct]);
     await pool.query("INSERT INTO sx_retail_store (tenant_id,slug,title,about,contact,enabled,delivery_fee,delivery_zones) VALUES (?,'test-retail','Synthetic','About','Contact',1,800,?)",[tenant,JSON.stringify([{name:'Central',feeMinor:800}])]);
+    await pool.query("INSERT INTO sx_retail_store (tenant_id,slug,title,about,contact,enabled,delivery_fee,delivery_zones) VALUES (?,'test-retail-two','Synthetic second shop','About','Contact',1,0,'[]')",[secondTenant]);
     await pool.query("INSERT INTO sx_retail_listings (tenant_id,product_id,category,published) VALUES (?,?,'Fixtures',1),(?,?,'Fixtures',1)",[tenant,item,tenant,variantProduct]);
+    await pool.query("INSERT INTO sx_retail_listings (tenant_id,product_id,category,published) VALUES (?,?,'Fixtures',1)",[secondTenant,secondItem]);
     await applyMigration('20270128_retail_delivery_retries_and_proof.sql');
     await applyMigration('20270129_retail_locations_and_variants.sql');
     await applyMigration('20270130_retail_notifications.sql');
+    await applyMigration('20270131_retail_customer_notice_consent.sql');
+    const [[secondLocation]]=await pool.query('SELECT id FROM sx_retail_locations WHERE tenant_id=? AND is_default=1',[secondTenant]);
+    await pool.query(`INSERT INTO sx_business_stock_movements (tenant_id,product_id,request_id,actor_id,previous_revision,previous_quantity,quantity,reason,location_id)
+      VALUES (?,?,?,?,'0',0,5,'Synthetic opening stock',?)`,[secondTenant,secondItem,randomUUID(),secondTenant,secondLocation.id]);
+    await pool.query('CREATE TABLE sx_identities (id CHAR(36) PRIMARY KEY,display_name VARCHAR(100),status VARCHAR(12))');
+    await pool.query('CREATE TABLE sx_memberships (id CHAR(36) PRIMARY KEY,tenant_id CHAR(36),identity_id CHAR(36),role VARCHAR(15),status VARCHAR(15))');
+    await pool.query("INSERT INTO sx_identities VALUES (?,'Synthetic driver','active')",[driverId]);
+    await pool.query("INSERT INTO sx_memberships VALUES (?,?,?,'agent','active')",[driverId,tenant,driverId]);
     const locationRows=await (await send('/locations','owner')).json();
     assert.equal(locationRows.data.length,1);
     const mainLocation=locationRows.data[0];
@@ -105,6 +125,21 @@ async function main() {
     assert.equal(shop.selectedLocationId,mainLocation.id);
     assert.equal((await retail.browse(pool,'test-retail',branch.id)).items.every(row=>!row.available),true);
     assert.equal(shop.store.tenantId,undefined);
+    const secondShop=await retail.browse(pool,'test-retail-two');
+    assert.deepEqual(secondShop.items.map(row=>row.id),[secondItem]);
+    assert.equal((await retail.browse(pool,'test-retail')).items.some(row=>row.id===secondItem),false);
+    await assert.rejects(retail.checkout(pool,'test-retail',{requestId:randomUUID(),name:'Synthetic buyer',phone:'55555555',fulfillment:'pickup',lines:[{id:secondItem,quantity:1}],expectedTotal:1900}),{code:'PRODUCT_UNAVAILABLE'});
+    const secondTenantOrder=await retail.checkout(pool,'test-retail-two',{requestId:randomUUID(),name:'Synthetic buyer',phone:'+97450000002',orderUpdatesWhatsapp:true,
+      fulfillment:'pickup',locationId:secondLocation.id,lines:[{id:secondItem,quantity:1}],expectedTotal:1900});
+    const customDomainCatalog=await fetch(base+'/catalog',{headers:{Host:'shop-two.synthetic.test'}});
+    assert.equal(customDomainCatalog.status,200);
+    assert.deepEqual((await customDomainCatalog.json()).data.items.map(row=>row.id),[secondItem]);
+    const firstTenantOrders=(await (await workspace('/orders','owner')).json()).data;
+    assert.equal(firstTenantOrders.some(row=>row.id===secondTenantOrder.reference),false);
+    const secondTenantOrders=(await (await workspace('/orders','owner','GET',undefined,undefined,secondTenant)).json()).data;
+    assert.equal(secondTenantOrders.some(row=>row.id===secondTenantOrder.reference),true);
+    await assert.rejects(retail.revokeCustomerNotificationConsent(pool,null,tenant,{orderId:secondTenantOrder.reference,token:secondTenantOrder.consentRevocationToken}),{code:'CONSENT_NOT_FOUND'});
+    assert.deepEqual(await retail.revokeCustomerNotificationConsent(pool,null,secondTenant,{orderId:secondTenantOrder.reference,token:secondTenantOrder.consentRevocationToken}),{withdrawn:true,replayed:false});
     const cart={requestId:randomUUID(),name:'Synthetic buyer',phone:'55555555',fulfillment:'pickup',lines:[{id:item,quantity:12}],expectedTotal:30000};
     await assert.rejects(retail.checkout(pool,'test-retail',{...cart,expectedTotal:1}),{code:'PRICE_CHANGED'});
     const attempts=await Promise.allSettled([retail.checkout(pool,'test-retail',cart),retail.checkout(pool,'test-retail',{...cart,requestId:randomUUID()})]);
@@ -128,23 +163,44 @@ async function main() {
     const fulfilled=await (await send('/','owner')).json();
     assert.equal(fulfilled.data.items[0].quantity,10);
     assert.equal(Number(fulfilled.data.items[0].reserved),0);
-    await pool.query('CREATE TABLE sx_identities (id CHAR(36) PRIMARY KEY,display_name VARCHAR(100),status VARCHAR(12))');
-    await pool.query('CREATE TABLE sx_memberships (id CHAR(36) PRIMARY KEY,tenant_id CHAR(36),identity_id CHAR(36),role VARCHAR(15),status VARCHAR(15))');
-    await pool.query("INSERT INTO sx_identities VALUES (?,'Synthetic driver','active')",[driverId]);
-    await pool.query("INSERT INTO sx_memberships VALUES (?,?,?,'agent','active')",[driverId,tenant,driverId]);
-    const base='http://127.0.0.1:'+server.address().port;
     const orderPath='/business/test-retail/shop';
     assert.match(await (await fetch(base+orderPath)).text(),/id="shop"/);
     assert.equal((await fetch(base+orderPath+'/catalog')).status,200);
+    const englishManifest=await (await fetch(base+orderPath+'/manifest.webmanifest?lang=en')).json();
+    const arabicManifest=await (await fetch(base+orderPath+'/manifest.webmanifest?lang=ar')).json();
+    assert.equal(englishManifest.lang,'en');assert.equal(englishManifest.dir,'ltr');
+    assert.equal(arabicManifest.lang,'ar');assert.equal(arabicManifest.dir,'rtl');
+    assert.equal(englishManifest.scope,orderPath+'/');
+    const customDomainManifest=await fetch(base+'/manifest.webmanifest?lang=ar',{headers:{Host:'shop-two.synthetic.test'}});
+    assert.equal(customDomainManifest.status,200);
+    const domainManifest=await customDomainManifest.json();assert.equal(domainManifest.scope,'/');assert.equal(domainManifest.dir,'rtl');
     const publicPost=(path,body,origin='http://127.0.0.1')=>fetch(base+orderPath+path,{method:'POST',headers:{Origin:origin,'Content-Type':'application/json'},body:JSON.stringify(body)});
+    const defaultNotifications=(await (await workspace('/store','owner')).json()).data.notifications;
+    assert.equal(defaultNotifications.retailCustomerUpdatesEnabled,false,'merchant customer updates default off');
+    const optedIn=await retail.checkout(pool,'test-retail',{requestId:randomUUID(),name:'Synthetic buyer',phone:'55555555',orderUpdatesWhatsapp:true,
+      fulfillment:'pickup',locationId:mainLocation.id,lines:[{id:item,quantity:1}],expectedTotal:2500});
+    assert.match(optedIn.consentRevocationToken,/^[A-Za-z0-9_-]{43}$/);
+    const [[consentRow]]=await pool.query('SELECT status,channel,purpose FROM sx_retail_customer_notification_consents WHERE tenant_id=? AND order_id=?',[tenant,optedIn.reference]);
+    assert.deepEqual(consentRow,{status:'granted',channel:'whatsapp',purpose:'transactional_order_updates'});
+    await retail.notifyRetail(pool,tenant,optedIn.reference,'placed','new_order');
+    let [[consentEvents]]=await pool.query("SELECT COUNT(*) AS count FROM sx_business_notification_events WHERE tenant_id=? AND kind='retail_customer_order_event'",[tenant]);
+    assert.equal(Number(consentEvents.count),0,'customer consent alone does not turn on merchant sending');
+    assert.equal((await workspace('/notifications','owner','PUT',{retailOrdersEnabled:false,retailCustomerUpdatesEnabled:true})).status,200);
+    await retail.notifyRetail(pool,tenant,optedIn.reference,'ready','status_ready');
+    let [[consentEventsAfterEnable]]=await pool.query("SELECT COUNT(*) AS count FROM sx_business_notification_events WHERE tenant_id=? AND kind='retail_customer_order_event'",[tenant]);
+    assert.equal(Number(consentEventsAfterEnable.count),1,'business setting and order-specific consent queue one customer update');
+    assert.equal((await workspace('/notifications','owner','PUT',{retailOrdersEnabled:false,retailCustomerUpdatesEnabled:false})).status,200);
+    const [[disabledEvent]]=await pool.query("SELECT status,last_error_code AS errorCode FROM sx_business_notification_events WHERE tenant_id=? AND kind='retail_customer_order_event' AND source_id=?",[tenant,optedIn.reference]);
+    assert.deepEqual(disabledEvent,{status:'failed',errorCode:'BUSINESS_CUSTOMER_UPDATES_DISABLED'},'turning the business switch off cancels unsent customer updates');
+    const revoke=await publicPost('/notifications/consent/revoke',{orderId:optedIn.reference,token:optedIn.consentRevocationToken});
+    assert.equal(revoke.status,200);
+    assert.equal((await (await pool.query('SELECT status FROM sx_retail_customer_notification_consents WHERE tenant_id=? AND order_id=?',[tenant,optedIn.reference]))[0][0].status),'withdrawn');
     const deliveryInput={...cart,requestId:randomUUID(),fulfillment:'delivery',address:'Synthetic delivery point',zone:'Central',lines:[{id:item,quantity:2}],expectedTotal:5800};
     assert.equal((await publicPost('/checkout',deliveryInput,'https://foreign.invalid')).status,403);
     const delivery=await (await publicPost('/checkout',deliveryInput)).json();
     assert.ok(delivery.success);
     const orderId=delivery.data.reference;
     assert.deepEqual((await (await publicPost('/track',{reference:orderId})).json()).data,{status:'placed'});
-    const workspace=(path,role,method='GET',body,driver=driverId)=>fetch(base+'/workspace/retail'+path,{method,
-      headers:{'Content-Type':'application/json','x-test-role':role,'x-test-driver':driver},body:body&&JSON.stringify(body)});
     const variantPayload={titleEn:'Size',titleAr:'المقاس',optionLabelEn:'Size',optionLabelAr:'المقاس',products:[
       {id:item,valueEn:'Small',valueAr:'صغير'},{id:variantProduct,valueEn:'Large',valueAr:'كبير'}]};
     assert.equal((await workspace('/variants','manager','POST',variantPayload)).status,403);
@@ -263,6 +319,7 @@ async function main() {
     await pool.end();
     await admin.query('DROP DATABASE ' + database);
     await admin.end();
+    if(priorPlatformKey===undefined)delete process.env.SALEMAX_PLATFORM_KEY_BASE64;else process.env.SALEMAX_PLATFORM_KEY_BASE64=priorPlatformKey;
   }
 }
 main().catch(error => {console.error(error); process.exitCode = 1;});

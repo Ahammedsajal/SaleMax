@@ -53,6 +53,7 @@ test('retail order alerts are queued only when the owner switch and notification
  const calls=[];let enabled=0;
  const db={query:async(sql,args)=>{
   if(sql.includes('FROM sx_business_notification_settings'))return [[{enabled:1,alertsEnabled:enabled}]];
+  if(sql.includes('FROM sx_retail_customer_notification_consents'))return [[]];
   if(sql.startsWith('INSERT INTO sx_business_notification_events')){calls.push(args);return [{affectedRows:1}];}
   throw new Error('Unexpected query');
  }};
@@ -62,6 +63,22 @@ test('retail order alerts are queued only when the owner switch and notification
  assert.deepEqual(await retailCommerce.notifyRetail(db,tenant,id,'placed','new_order'),{queued:true});
  assert.equal(calls[0][3],'retail_order_event');
  assert.deepEqual(JSON.parse(calls[0][6]),{event:'new_order'});
+});
+test('customer updates require both an active merchant setting and order-specific WhatsApp consent',async()=>{
+ const calls=[];let enabled=0;
+ const db={query:async(sql,args)=>{
+  if(sql.includes('FROM sx_business_notification_settings'))return [[{enabled:1,alertsEnabled:0,customerUpdatesEnabled:enabled}]];
+  if(sql.includes('FROM sx_retail_customer_notification_consents'))return [[{status:'granted'}]];
+  if(sql.startsWith('INSERT INTO sx_business_notification_events')){calls.push(args);return [{affectedRows:1}];}
+  throw new Error('Unexpected query');
+ }};
+ assert.deepEqual(await retailCommerce.notifyRetail(db,tenant,id,'ready','status_ready'),{queued:false});
+ assert.equal(calls.length,0,'consent cannot enable sending when the business switch is off');
+ enabled=1;
+ assert.deepEqual(await retailCommerce.notifyRetail(db,tenant,id,'ready','status_ready'),{queued:false});
+ assert.equal(calls.length,1);
+ assert.equal(calls[0][3],'retail_customer_order_event');
+ assert.deepEqual(JSON.parse(calls[0][6]),{event:'status_ready'});
 });
 test('retail alerts include only a short order reference and current status for internal staff',async()=>{
  const staff=qr.staff,sends=[];qr.staff=async()=>[{id:'owner-id',phone:'97450000001',role:'owner'}];

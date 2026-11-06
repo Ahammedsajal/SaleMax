@@ -1,11 +1,15 @@
 'use strict';
 
-const CACHE='7network-storefront-shell-ec05';
 const scope=new URL(self.registration.scope);
+// Hosted storefronts share one origin but have distinct scopes. Keep each
+// merchant's shell cache separate so activating one tenant's worker cannot
+// evict another tenant's offline shell.
+const CACHE_PREFIX='7network-storefront-shell-'+encodeURIComponent(scope.pathname)+'-';
+const CACHE=CACHE_PREFIX+'ec07';
 const shell=[
   scope.href,
-  new URL('/retail-shop.css?v=ec05-retail-locations1',scope.origin).href,
-  new URL('/retail-shop.js?v=ec05-retail-locations1',scope.origin).href
+  new URL('/retail-shop.css?v=ec07-consented-notices1',scope.origin).href,
+  new URL('/retail-shop.js?v=ec07-consented-notices1',scope.origin).href
 ];
 
 self.addEventListener('install',event=>event.waitUntil((async()=>{
@@ -16,7 +20,7 @@ self.addEventListener('install',event=>event.waitUntil((async()=>{
 
 self.addEventListener('activate',event=>event.waitUntil((async()=>{
   const keys=await caches.keys();
-  await Promise.all(keys.filter(key=>key.startsWith('7network-storefront-shell-')&&key!==CACHE).map(key=>caches.delete(key)));
+  await Promise.all(keys.filter(key=>key.startsWith(CACHE_PREFIX)&&key!==CACHE).map(key=>caches.delete(key)));
   await self.clients.claim();
 })()));
 
@@ -28,7 +32,7 @@ self.addEventListener('fetch',event=>{
   const inScope=url.pathname.startsWith(scope.pathname);
   const isShellPage=inScope&&request.mode==='navigate'&&url.pathname===scope.pathname;
   const isStaticAsset=['/retail-shop.css','/retail-shop.js'].includes(url.pathname)&&
-    url.searchParams.get('v')==='ec05-retail-locations1';
+    url.searchParams.get('v')==='ec07-consented-notices1';
   if(!isShellPage&&!isStaticAsset)return;
   event.respondWith((async()=>{
     const cache=await caches.open(CACHE);

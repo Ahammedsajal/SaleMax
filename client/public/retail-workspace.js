@@ -67,7 +67,11 @@
     const orderAlerts=input(alertSettings,t('Send order alerts to owners and managers','إرسال إشعارات الطلبات إلى المالكين والمديرين'),'','checkbox');
     orderAlerts.checked=Boolean(notifications?.retailOrdersEnabled);
     add(alertSettings,'p',t('Uses the business WhatsApp sender already configured for 7Network. Alerts contain an order reference and status, not buyer contact or address.','يستخدم مرسل واتساب التجاري المُعدّ مسبقاً في 7Network. تتضمن الإشعارات مرجع الطلب وحالته دون بيانات اتصال المشتري أو عنوانه.'));
-    action(alertSettings,t('Save notification settings','حفظ إعدادات الإشعارات'),()=>api('/notifications','PUT',{retailOrdersEnabled:orderAlerts.checked}),status);
+    const customerUpdates=input(alertSettings,t('Customer WhatsApp updates (only customers who opt in; no marketing)','تحديثات واتساب للعملاء (لمن يوافق فقط؛ بلا تسويق)'),'','checkbox');
+    customerUpdates.checked=Boolean(notifications?.retailCustomerUpdatesEnabled);
+    add(alertSettings,'p',t('A customer update is sent only when this business switch and that customer’s separate order-only consent are both on.','لا يُرسل تحديث للعميل إلا عند تفعيل هذا الخيار وموافقة العميل المنفصلة على تحديثات الطلب فقط.'));
+    action(alertSettings,t('Save notification settings','حفظ إعدادات الإشعارات'),()=>api('/notifications','PUT',{
+      retailOrdersEnabled:orderAlerts.checked,retailCustomerUpdatesEnabled:customerUpdates.checked}),status);
     add(section,'h3',t('Products selected for the public store','المنتجات المختارة للمتجر العام'));
     for(const product of products){
       const row=add(section,'article');
@@ -237,6 +241,19 @@
       add(row,'strong',settlement.driverName+' · '+t(settlement.status==='matched'?'Matched':'Difference',settlement.status==='matched'?'مطابق':'فرق'));
       add(row,'p',t('Expected','المتوقع')+' '+money(settlement.expectedMinor)+' · '+t('Counted','المعدود')+' '+money(settlement.countedMinor));
     }
+    const exportSection=add(root,'section');add(exportSection,'h2',t('Accounting source export','تصدير بيانات المحاسبة'));
+    add(exportSection,'p',t('Download cash receipts and returned item values for a date range. This file contains operational source data; it does not post a journal, map tax or accounts, or represent refunds paid. Connect a provider only after its account and refund mappings are reviewed.','نزّل إيصالات النقد وقيم المنتجات المرتجعة ضمن فترة محددة. يحتوي الملف على بيانات تشغيلية ولا ينشئ قيوداً محاسبية أو يحدد الحسابات والضرائب ولا يمثل مبالغ مستردة مدفوعة. اربط مزوداً بعد مراجعة الحسابات والمرتجعات.'));
+    const from=input(exportSection,t('From (UTC)','من (UTC)'),new Date(Date.now()-new Date().getUTCDate()*86400000+86400000).toISOString().slice(0,10),'date');
+    const to=input(exportSection,t('To (UTC)','إلى (UTC)'),new Date().toISOString().slice(0,10),'date');
+    action(exportSection,t('Download CSV','تنزيل CSV'),async()=>{
+      const query=new URLSearchParams({from:from.value,to:to.value});
+      const headers=await window.SaleMaxWorkspace.headers(false,false);
+      const response=await fetch('/api/workspace/retail/finance/accounting-export.csv?'+query,{credentials:'same-origin',cache:'no-store',headers});
+      if(!response.ok)throw Error('ACCOUNTING_EXPORT_FAILED');
+      const blob=await response.blob(),url=URL.createObjectURL(blob),anchor=document.createElement('a');
+      anchor.href=url;anchor.download=`7network-retail-source-${from.value}-${to.value}.csv`;anchor.click();URL.revokeObjectURL(url);
+      return t('Operational CSV downloaded.','تم تنزيل ملف CSV التشغيلي.');
+    },status);
   }
   async function start(){
     const access=await window.SaleMaxWorkspace.session();
@@ -260,7 +277,7 @@
     root.className='sx-retail-workspace';
     root.dir=t('ltr','rtl');
     syncTheme();
-    if(!document.querySelector('[data-retail-workspace-css]')){const css=document.createElement('link');css.rel='stylesheet';css.href='/retail-workspace.css?v=ec04-delivery-proof1';css.dataset.retailWorkspaceCss='';document.head.append(css);}
+    if(!document.querySelector('[data-retail-workspace-css]')){const css=document.createElement('link');css.rel='stylesheet';css.href='/retail-workspace.css?v=ec06-consented-notices1';css.dataset.retailWorkspaceCss='';document.head.append(css);}
     new MutationObserver(syncTheme).observe(document.documentElement,{attributes:true,attributeFilter:['data-sx-theme']});
     window.addEventListener('storage',syncTheme);
     add(root,'h1',page[2]);

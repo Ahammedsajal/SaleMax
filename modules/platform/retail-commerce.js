@@ -2,6 +2,7 @@
 
 const {randomUUID, createHash} = require('node:crypto');
 const deliveryProof = require('./retail-delivery-proof');
+const customerConsent = require('./retail-notice-consent');
 const uuid = /^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i;
 const slugPattern = /^[a-z0-9](?:[a-z0-9-]{0,78}[a-z0-9])?$/;
 const fail = (code, status = 400) => { throw Object.assign(new Error(code), {code, status}); };
@@ -25,7 +26,7 @@ const productQuery = `SELECT p.id, p.name_en AS nameEn, p.name_ar AS nameAr, l.c
     AND currency='QAR' AND (valid_from IS NULL OR valid_from<=CURRENT_DATE)
     AND (valid_until IS NULL OR valid_until>=CURRENT_DATE) ORDER BY version DESC LIMIT 1)
   WHERE l.tenant_id=? AND l.published=1 AND p.deleted_at IS NULL AND p.status='active'`;
-const storeQuery = `SELECT s.tenant_id AS tenantId,s.slug,s.title,s.about,s.contact,s.delivery_fee AS deliveryFee,s.delivery_zones AS deliveryZones,
+const storeQuery = `SELECT s.tenant_id AS tenantId,s.slug,s.title,s.about,s.contact,s.delivery_fee AS deliveryFee,s.delivery_zones AS deliveryZones,t.timezone,
   (SELECT id FROM sx_retail_locations WHERE tenant_id=s.tenant_id AND status='active' AND is_default=1 LIMIT 1) AS defaultLocationId
   FROM sx_retail_store s JOIN sx_tenants t ON t.id=s.tenant_id AND t.status='active'
   WHERE s.slug=? AND s.enabled=1 AND t.category_key='retail_boutique'
@@ -34,7 +35,7 @@ const storeQuery = `SELECT s.tenant_id AS tenantId,s.slug,s.title,s.about,s.cont
     AND (a.expires_at IS NULL OR a.expires_at>UTC_TIMESTAMP()) AND v.status='published'
     AND v.category_key=t.category_key AND v.category_version=t.category_version
     AND JSON_CONTAINS(v.capabilities,JSON_QUOTE('retail.commerce')))`;
-const tenantStoreQuery = `SELECT s.tenant_id AS tenantId,s.slug,s.title,s.about,s.contact,s.delivery_fee AS deliveryFee,s.delivery_zones AS deliveryZones,
+const tenantStoreQuery = `SELECT s.tenant_id AS tenantId,s.slug,s.title,s.about,s.contact,s.delivery_fee AS deliveryFee,s.delivery_zones AS deliveryZones,t.timezone,
   (SELECT id FROM sx_retail_locations WHERE tenant_id=s.tenant_id AND status='active' AND is_default=1 LIMIT 1) AS defaultLocationId
   FROM sx_retail_store s JOIN sx_tenants t ON t.id=s.tenant_id AND t.status='active'
   WHERE s.tenant_id=? AND s.enabled=1 AND t.category_key='retail_boutique'
@@ -57,11 +58,18 @@ async function transaction(pool, fn) {
   } finally { db.release(); }
 }
 async function notifyRetail(db,tenantId,orderId,eventKey,event){
-  const [[settings]]=await db.query('SELECT enabled,retail_orders_enabled AS alertsEnabled FROM sx_business_notification_settings WHERE tenant_id=?',[tenantId]);
-  if(Number(settings?.enabled)!==1||Number(settings?.alertsEnabled)!==1)return {queued:false};
-  const result=await require('./business-notifications').enqueue(db,tenantId,{kind:'retail_order_event',sourceType:'retail_order',sourceId:orderId,
-    key:`retail:${orderId}:${eventKey}`,payload:{event}});
-  return {queued:!result.repeated};
+  const [[settings]]=await db.query('SELECT enabled,retail_orders_enabled AS alertsEnabled,retail_customer_updates_enabled AS customerUpdatesEnabled FROM sx_business_notification_settings WHERE tenant_id=?',[tenantId]);
+  const outbox=require('./business-notifications');let staffQueued=false,customerQueued=false;
+  if(Number(settings?.enabled)===1&&Number(settings?.alertsEnabled)===1){
+    const result=await outbox.enqueue(db,tenantId,{kind:'retail_order_event',sourceType:'retail_order',sourceId:orderId,
+      key:`retail:${orderId}:${eventKey}`,payload:{event}});staffQueued=!result.repeated;
+  }
+  const [[consent]]=await db.query("SELECT status FROM sx_retail_customer_notification_consents WHERE tenant_id=? AND order_id=? AND channel='whatsapp' AND purpose='transactional_order_updates'",[tenantId,orderId]);
+  if(consent?.status==='granted'&&Number(settings?.customerUpdatesEnabled)===1){
+    const result=await outbox.enqueue(db,tenantId,{kind:'retail_customer_order_event',sourceType:'retail_order',sourceId:orderId,
+      key:`retail-customer:${orderId}:${eventKey}`,payload:{event}});customerQueued=!result.repeated;
+  }
+  return {queued:staffQueued};
 }
 async function getStore(db, slug, lock = false) {
   if (!slugPattern.test(slug)) fail('STORE_NOT_FOUND', 404);
@@ -92,7 +100,8 @@ async function browseTenant(pool,tenantId,store,requestedLocationId=null){
 function checkoutInput(input) {
   if (!input || !uuid.test(input.requestId || '') || !Array.isArray(input.lines) || !input.lines.length || input.lines.length > 30 ||
       !['delivery', 'pickup'].includes(input.fulfillment) || !Number.isSafeInteger(input.expectedTotal) ||
-      (input.locationId!=null&&!uuid.test(input.locationId))) fail('INVALID_ORDER');
+      (input.locationId!=null&&!uuid.test(input.locationId)) ||
+      (input.orderUpdatesWhatsapp!==undefined&&typeof input.orderUpdatesWhatsapp!=='boolean')) fail('INVALID_ORDER');
   const name = string(input.name, 120);
   const phone = string(input.phone, 30);
   if (!/^\+?[0-9 ()-]{7,30}$/.test(phone) || phone.replace(/\D/g, '').length < 7) fail('INVALID_PHONE');
@@ -110,8 +119,12 @@ function checkoutInput(input) {
     return {id: line.id.toLowerCase(), quantity: line.quantity};
   }).sort((a,b) => a.id.localeCompare(b.id));
   if (new Set(lines.map(line => line.id)).size !== lines.length) fail('INVALID_ORDER');
-  return {name, phone, address, pin, zone, fulfillment: input.fulfillment, locationId:input.locationId?.toLowerCase()||null,
+  const order={name, phone, address, pin, zone, fulfillment: input.fulfillment, locationId:input.locationId?.toLowerCase()||null,
     lines, expectedTotal: input.expectedTotal, requestId: input.requestId.toLowerCase()};
+  // Omitting false preserves hashes for in-flight checkouts created before this
+  // optional consent field existed.
+  if(input.orderUpdatesWhatsapp===true)order.orderUpdatesWhatsapp=true;
+  return order;
 }
 async function lockProduct(db, tenant, product, active = true) {
   const [[row]] = await db.query('SELECT id FROM sx_product_catalog WHERE tenant_id=? AND id=?' +
@@ -250,7 +263,12 @@ async function checkout(pool, slug, input) {
         if(!proof)fail('RETAIL_PROOF_UNAVAILABLE',503);
         proofCode=deliveryProof.reveal(proof,store.tenantId,prior.id);
       }
-      return {reference: prior.id, totalMinor: Number(prior.total), deliveryProofCode: proofCode};
+      let consentRevocationToken=null;
+      if(order.orderUpdatesWhatsapp){
+        const [[consent]]=await db.query("SELECT status,token_hash,token_ciphertext,token_iv,token_auth_tag FROM sx_retail_customer_notification_consents WHERE tenant_id=? AND order_id=? AND channel='whatsapp' AND purpose='transactional_order_updates' FOR UPDATE",[store.tenantId,prior.id]);
+        if(consent?.status==='granted')consentRevocationToken=customerConsent.reveal(consent,store.tenantId,prior.id);
+      }
+      return {reference: prior.id, totalMinor: Number(prior.total), deliveryProofCode: proofCode,consentRevocationToken};
     }
     const zone=store.deliveryZones.find(item=>item.name===order.zone);
     if(order.fulfillment==='delivery'&&(store.deliveryZones.length?!zone:store.deliveryFee===null)) fail('DELIVERY_UNAVAILABLE',409);
@@ -284,11 +302,26 @@ async function checkout(pool, slug, input) {
       (id,tenant_id,request_id,request_hash,buyer_name,buyer_phone,delivery_address,delivery_pin,delivery_zone,fulfillment,order_lines,total_minor,delivery_fee,location_id,delivery_state,delivery_proof_required)
       VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
       [id, store.tenantId, order.requestId, hash, order.name, order.phone, order.address, order.pin, zone?.name||null, order.fulfillment, JSON.stringify(lines), total, fee,location.id,order.fulfillment==='delivery'?'unassigned':null,proof?1:0]);
+    let consentRevocationToken=null;
+    if(order.orderUpdatesWhatsapp){
+      const whatsapp=require('./business-whatsapp'),destination=whatsapp.phone(order.phone,{countryCode:store.timezone==='Asia/Qatar'?'974':undefined});
+      if(!destination)fail('INVALID_WHATSAPP_NUMBER',400);
+      const consent=customerConsent.create(store.tenantId,id);
+      await db.query(`INSERT INTO sx_retail_customer_notification_consents
+        (tenant_id,order_id,channel,purpose,consent_version,status,destination_hash,token_hash,token_ciphertext,token_iv,token_auth_tag)
+        VALUES (?,?,'whatsapp','transactional_order_updates','retail-order-updates-v1','granted',?,?,?,?,?)`,
+        [store.tenantId,id,whatsapp.hash(destination),consent.tokenHash,consent.ciphertext,consent.iv,consent.authTag]);
+      await db.query(`INSERT INTO sx_retail_customer_notification_consent_events
+        (id,tenant_id,order_id,action,channel,purpose,consent_version,destination_hash,source)
+        VALUES (?, ?, ?,'granted','whatsapp','transactional_order_updates','retail-order-updates-v1',?,'storefront_checkout')`,
+        [randomUUID(),store.tenantId,id,whatsapp.hash(destination)]);
+      consentRevocationToken=consent.token;
+    }
     if(proof)await db.query(`INSERT INTO sx_retail_delivery_proofs
       (tenant_id,order_id,code_hash,code_ciphertext,code_iv,code_auth_tag) VALUES (?,?,?,?,?,?)`,
       [store.tenantId,id,proof.hash,proof.ciphertext,proof.iv,proof.authTag]);
     await notifyRetail(db,store.tenantId,id,'placed','new_order');
-    return {reference: id, totalMinor: total, deliveryProofCode: proof?.code||null};
+    return {reference: id, totalMinor: total, deliveryProofCode: proof?.code||null,consentRevocationToken};
   });
 }
 
@@ -303,7 +336,88 @@ async function recoverCheckout(pool,slug,requestId){
     if(!proof)fail('RETAIL_PROOF_UNAVAILABLE',503);
     deliveryProofCode=deliveryProof.reveal(proof,store.tenantId,order.id);
   }
-  return {reference:order.id,totalMinor:Number(order.totalMinor),deliveryProofCode,recovered:true};
+  let consentRevocationToken=null;
+  const [[consent]]=await pool.query("SELECT status,token_hash,token_ciphertext,token_iv,token_auth_tag FROM sx_retail_customer_notification_consents WHERE tenant_id=? AND order_id=? AND channel='whatsapp' AND purpose='transactional_order_updates'",[store.tenantId,order.id]);
+  if(consent?.status==='granted')consentRevocationToken=customerConsent.reveal(consent,store.tenantId,order.id);
+  return {reference:order.id,totalMinor:Number(order.totalMinor),deliveryProofCode,consentRevocationToken,recovered:true};
+}
+
+async function revokeCustomerNotificationConsent(pool,slug,tenantId,input){
+  if(!input||Object.keys(input).some(key=>!['orderId','token'].includes(key))||!uuid.test(input.orderId||'')||typeof input.token!=='string')fail('INVALID_CONSENT_REVOCATION');
+  return transaction(pool,async db=>{
+    let businessTenantId=tenantId;
+    if(businessTenantId){if(!uuid.test(businessTenantId))fail('CONSENT_NOT_FOUND',404);const [[store]]=await db.query('SELECT tenant_id FROM sx_retail_store WHERE tenant_id=?',[businessTenantId]);if(!store)fail('CONSENT_NOT_FOUND',404);}
+    else{if(!slugPattern.test(slug||''))fail('CONSENT_NOT_FOUND',404);const [[store]]=await db.query('SELECT tenant_id AS tenantId FROM sx_retail_store WHERE slug=?',[slug]);businessTenantId=store?.tenantId;}
+    if(!businessTenantId)fail('CONSENT_NOT_FOUND',404);
+    const [[consent]]=await db.query("SELECT status,token_hash,destination_hash FROM sx_retail_customer_notification_consents WHERE tenant_id=? AND order_id=? AND channel='whatsapp' AND purpose='transactional_order_updates' FOR UPDATE",[businessTenantId,input.orderId.toLowerCase()]);
+    if(!consent||!customerConsent.matches(input.token,consent,businessTenantId,input.orderId.toLowerCase()))fail('CONSENT_NOT_FOUND',404);
+    if(consent.status==='withdrawn')return {withdrawn:true,replayed:true};
+    await db.query("UPDATE sx_retail_customer_notification_consents SET status='withdrawn',withdrawn_at=UTC_TIMESTAMP(3) WHERE tenant_id=? AND order_id=? AND status='granted'",[businessTenantId,input.orderId.toLowerCase()]);
+    await db.query(`INSERT INTO sx_retail_customer_notification_consent_events
+      (id,tenant_id,order_id,action,channel,purpose,consent_version,destination_hash,source)
+      VALUES (?, ?, ?,'withdrawn','whatsapp','transactional_order_updates','retail-order-updates-v1',?,'customer_revocation')`,
+      [randomUUID(),businessTenantId,input.orderId.toLowerCase(),consent.destination_hash]);
+    await db.query(`UPDATE sx_business_notification_deliveries d JOIN sx_business_notification_events e
+      ON e.tenant_id=d.tenant_id AND e.id=d.event_id
+      SET d.status='suppressed',d.error_code='CUSTOMER_CONSENT_WITHDRAWN',d.lease_token=NULL,d.lease_expires_at=NULL
+      WHERE d.tenant_id=? AND e.kind='retail_customer_order_event' AND e.source_id=? AND d.status IN ('queued','blocked')`,
+      [businessTenantId,input.orderId.toLowerCase()]);
+    return {withdrawn:true,replayed:false};
+  });
+}
+
+function csvCell(value){
+  let text=value==null?'':String(value);
+  if(typeof value==='string'&&/^[\u0000-\u0020]*[=+\-@]/.test(text))text="'"+text;
+  return /[",\r\n]/.test(text)?`"${text.replace(/"/g,'""')}"`:text;
+}
+function exportDate(value){
+  return typeof value==='string'&&/^\d{4}-\d{2}-\d{2}$/.test(value)&&!Number.isNaN(Date.parse(value+'T00:00:00Z'))&&new Date(value+'T00:00:00Z').toISOString().slice(0,10)===value;
+}
+async function accountingSourceCsv(pool,tenant,from,to){
+  if(!uuid.test(tenant||'')||!exportDate(from)||!exportDate(to)||from>to)fail('INVALID_ACCOUNTING_EXPORT_RANGE');
+  const days=(Date.parse(to+'T00:00:00Z')-Date.parse(from+'T00:00:00Z'))/86400000;
+  if(days>92)fail('ACCOUNTING_EXPORT_RANGE_TOO_LARGE',413);
+  const db=await pool.getConnection();
+  try{
+    await db.beginTransaction();
+    const [receipts]=await db.query(`SELECT r.id AS recordId,r.order_id AS orderId,r.amount_minor AS amountMinor,
+      DATE_FORMAT(r.received_at,'%Y-%m-%dT%H:%i:%s.%fZ') AS occurredAt,o.status,o.fulfillment,o.total_minor AS totalMinor,
+      o.delivery_fee AS deliveryFee,l.code AS locationCode,COALESCE(s.status,'unsettled') AS settlementStatus
+      FROM sx_retail_cash_receipts r JOIN sx_retail_orders o ON o.tenant_id=r.tenant_id AND o.id=r.order_id
+      LEFT JOIN sx_retail_locations l ON l.tenant_id=o.tenant_id AND l.id=o.location_id
+      LEFT JOIN sx_retail_cash_settlements s ON s.tenant_id=r.tenant_id AND s.id=r.settlement_id
+      WHERE r.tenant_id=? AND r.received_at>=? AND r.received_at<DATE_ADD(?,INTERVAL 1 DAY)
+      ORDER BY r.received_at,r.id LIMIT 20001`,[tenant,from,to]);
+    if(receipts.length>20000)fail('ACCOUNTING_EXPORT_TOO_LARGE',413);
+    const [returns]=await db.query(`SELECT r.id AS recordId,r.order_id AS orderId,
+      DATE_FORMAT(r.created_at,'%Y-%m-%dT%H:%i:%s.%fZ') AS occurredAt,o.status,o.fulfillment,o.total_minor AS totalMinor,
+      o.delivery_fee AS deliveryFee,o.order_lines AS orderLines,l.code AS locationCode,rl.product_id AS productId,SUM(rl.quantity) AS quantity
+      FROM sx_retail_returns r JOIN sx_retail_orders o ON o.tenant_id=r.tenant_id AND o.id=r.order_id
+      JOIN sx_retail_return_lines rl ON rl.tenant_id=r.tenant_id AND rl.return_id=r.id AND rl.order_id=r.order_id
+      LEFT JOIN sx_retail_locations l ON l.tenant_id=o.tenant_id AND l.id=o.location_id
+      WHERE r.tenant_id=? AND r.created_at>=? AND r.created_at<DATE_ADD(?,INTERVAL 1 DAY)
+      GROUP BY r.id,r.order_id,r.created_at,o.status,o.fulfillment,o.total_minor,o.delivery_fee,o.order_lines,l.code,rl.product_id
+      ORDER BY r.created_at,r.id,rl.product_id LIMIT 20001`,[tenant,from,to]);
+    if(returns.length+receipts.length>20000)fail('ACCOUNTING_EXPORT_TOO_LARGE',413);
+    const header=['record_type','record_id','occurred_at_utc','currency','order_reference','fulfillment','location_code','order_status','order_total_minor','cash_received_minor','delivery_fee_minor','settlement_status','returned_quantity','returned_sales_value_minor','refund_paid_minor'];
+    const rows=[];
+    for(const r of receipts)rows.push(['cash_receipt',r.recordId,r.occurredAt,'QAR',r.orderId,r.fulfillment,r.locationCode,r.status,Number(r.totalMinor),Number(r.amountMinor),Number(r.deliveryFee),r.settlementStatus,'','','']);
+    const grouped=new Map();
+    for(const r of returns){
+      if(!grouped.has(r.recordId))grouped.set(r.recordId,{...r,quantity:0,returnedValue:0});
+      const row=grouped.get(r.recordId),lines=typeof r.orderLines==='string'?JSON.parse(r.orderLines):r.orderLines;
+      const original=Array.isArray(lines)?lines.find(line=>line.id===r.productId):null;
+      const quantity=Number(r.quantity);row.quantity+=quantity;
+      const lineValue=quantity*Number(original?.priceMinor);
+      if(original&&Number.isSafeInteger(lineValue)&&Number.isSafeInteger(row.returnedValue+lineValue))row.returnedValue+=lineValue;
+      else if(original)fail('ACCOUNTING_EXPORT_AMOUNT_UNSAFE',413);
+    }
+    for(const r of grouped.values())rows.push(['return_items',r.recordId,r.occurredAt,'QAR',r.orderId,r.fulfillment,r.locationCode,r.status,Number(r.totalMinor),'',Number(r.deliveryFee),'',r.quantity,r.returnedValue,'']);
+    rows.sort((a,b)=>String(a[2]).localeCompare(String(b[2]))||String(a[1]).localeCompare(String(b[1])));
+    await db.commit();
+    return {csv:[header,...rows].map(row=>row.map(csvCell).join(',')).join('\r\n')+'\r\n',rowCount:rows.length,from,to};
+  }catch(error){await db.rollback();throw error;}finally{db.release();}
 }
 
 const deliveryReasons=new Set(['customer_unavailable','address_not_found','customer_rescheduled','access_blocked','other']);
@@ -456,4 +570,4 @@ async function transition(pool, tenant, actor, id, next, driver) {
     return {status: next};
   });
 }
-module.exports = {getStore, getStoreForTenant, browse, browseTenant, checkout, recoverCheckout, transition, returnItems, recordCashReceipt, recordSettlement, reportDeliveryFailure, retryDelivery, verifyDeliveryProof, assignDriver, transaction, lockProduct, fail, string, uuid, slugPattern, notifyRetail};
+module.exports = {getStore, getStoreForTenant, browse, browseTenant, checkout, recoverCheckout, revokeCustomerNotificationConsent, accountingSourceCsv, transition, returnItems, recordCashReceipt, recordSettlement, reportDeliveryFailure, retryDelivery, verifyDeliveryProof, assignDriver, transaction, lockProduct, fail, string, uuid, slugPattern, notifyRetail};

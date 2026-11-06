@@ -24,7 +24,7 @@
   document.documentElement.lang=t('en','ar');
   document.documentElement.dir=t('ltr','rtl');
   function setupInstallableStore(){
-    const manifest=document.createElement('link');manifest.rel='manifest';manifest.href=base+'/manifest.webmanifest';document.head.append(manifest);
+    const manifest=document.createElement('link');manifest.rel='manifest';manifest.href=base+'/manifest.webmanifest?lang='+(arabic?'ar':'en');document.head.append(manifest);
     if('serviceWorker' in navigator)navigator.serviceWorker.register(base+'/service-worker.js',{scope:base?base+'/':'/'}).catch(()=>{});
   }
   const add=(parent,tag,text)=>{
@@ -138,6 +138,8 @@
     const locationId=location?.id;
     const customer=field(form,t('Name','الاسم'));customer.maxLength=120;customer.autocomplete='name';
     const phone=field(form,t('Phone','الهاتف'),'tel');phone.maxLength=30;phone.autocomplete='tel';
+    const orderUpdates=field(form,t('Send WhatsApp updates for this order only (optional; no marketing)','أرسل تحديثات واتساب لهذا الطلب فقط (اختياري؛ بلا رسائل تسويقية)'),'checkbox');
+    orderUpdates.required=false;orderUpdates.checked=false;
     const mode=add(add(form,'label',t('Fulfillment','طريقة الاستلام')),'select');
     if(!location||Number(location.acceptsPickup))add(mode,'option',t('Pickup','استلام')).value='pickup';
     if((!location||Number(location.acceptsDelivery))&&(state.store.deliveryFee!==null||state.store.deliveryZones.length)) add(mode,'option',t('Delivery','توصيل')).value='delivery';
@@ -157,12 +159,12 @@
       total.textContent=t('Total: ','الإجمالي: ')+money(amount()+fee());
     };
     mode.onchange=zone.onchange=update;update();
-    add(form,'p',t('Pay in cash at pickup or delivery. Your contact details are shared with the seller to fulfill this order.','الدفع نقداً عند الاستلام أو التوصيل. تُشارك بيانات التواصل مع البائع لتنفيذ الطلب.'));
+    add(form,'p',t('Pay in cash at pickup or delivery. Your contact details are shared with the seller to fulfill this order. WhatsApp updates are sent only if you choose the separate option above.','الدفع نقداً عند الاستلام أو التوصيل. تُشارك بيانات التواصل مع البائع لتنفيذ الطلب. لا تُرسل تحديثات واتساب إلا عند اختيار الخيار المنفصل أعلاه.'));
     const submit=add(form,'button',t('Place order','إرسال الطلب'));
     const status=add(form,'p');status.setAttribute('role','status');
     form.onsubmit=async event=>{
       event.preventDefault();
-      const order={name:customer.value,phone:phone.value,fulfillment:mode.value,locationId,address:address.value,pin:pin.value,zone:zone.value,lines:lines(),
+      const order={name:customer.value,phone:phone.value,orderUpdatesWhatsapp:orderUpdates.checked,fulfillment:mode.value,locationId,address:address.value,pin:pin.value,zone:zone.value,lines:lines(),
         expectedTotal:amount()+fee()};
       const retry=checkoutRequestState();
       submit.disabled=true;
@@ -183,6 +185,8 @@
       } catch(error) {
         status.textContent=['STOCK_CHANGED','PRICE_CHANGED','PRODUCT_UNAVAILABLE'].includes(error.message)?
           t('Price or availability changed. Reload and review your cart.','تغير السعر أو المخزون. أعد تحميل الصفحة وراجع السلة.'):
+          error.message==='INVALID_WHATSAPP_NUMBER'?t('Enter a full international phone number for WhatsApp updates, or leave the optional box unchecked.','أدخل رقم هاتف دولياً كاملاً لتحديثات واتساب، أو أزل تحديد الخيار الاختياري.'):
+          error.message==='RETAIL_CONSENT_KEY_UNAVAILABLE'?t('WhatsApp consent is temporarily unavailable. You can uncheck the optional box and place the order.','الموافقة على واتساب غير متاحة مؤقتاً. يمكنك إلغاء تحديد الخيار الاختياري وإرسال الطلب.'):
           t('The order could not be confirmed. Retry with the same details.','تعذر تأكيد الطلب. حاول مرة أخرى بنفس البيانات.');
       } finally {submit.disabled=false;}
     };
@@ -240,6 +244,16 @@
       if(state.receipt.deliveryProofCode){
         add(body,'p',t('Show this one-time handoff code to the delivery person. Keep it private until your order arrives.','أظهر رمز الاستلام لمرة واحدة لمندوب التوصيل. احتفظ به سرياً حتى وصول طلبك.'));
         const proof=add(body,'strong',state.receipt.deliveryProofCode);proof.dir='ltr';proof.className='handoff-code';
+      }
+      if(state.receipt.consentRevocationToken){
+        const revokeStatus=add(body,'p');revokeStatus.setAttribute('role','status');
+        button(body,t('Stop WhatsApp updates for this order','إيقاف تحديثات واتساب لهذا الطلب'),async event=>{
+          const actionButton=event.currentTarget;actionButton.disabled=true;
+          try{
+            await request('/notifications/consent/revoke',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({orderId:state.receipt.reference,token:state.receipt.consentRevocationToken})});
+            state.receipt.consentRevocationToken=null;revokeStatus.textContent=t('WhatsApp updates for this order are stopped.','تم إيقاف تحديثات واتساب لهذا الطلب.');
+          }catch{actionButton.disabled=false;revokeStatus.textContent=t('Could not update the preference. Try again.','تعذر تحديث التفضيل. حاول مرة أخرى.');}
+        });
       }
       button(body,t('Track order','تتبع الطلب'),()=>show('track'));
     }

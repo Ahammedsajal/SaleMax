@@ -23,6 +23,7 @@ function fixture({proofRequired=false,code='123456'}={}){
     rollback:async()=>state.events.push('rollback'),release:()=>{},
     query:async(sql,args=[])=>{
       if(sql.includes('FROM sx_business_notification_settings'))return [[]];
+      if(sql.includes('FROM sx_retail_customer_notification_consents'))return [[]];
       if(sql.includes('FROM sx_retail_orders WHERE tenant_id=? AND id=? FOR UPDATE'))return [[{...state.order}]];
       if(sql.includes("FROM sx_memberships WHERE tenant_id=? AND id=? AND status='active' AND role='agent'"))return [[{id:args[1]}]];
       if(sql.includes('FROM sx_identities WHERE id=(SELECT identity_id FROM sx_memberships'))return [[{id:identity}]];
