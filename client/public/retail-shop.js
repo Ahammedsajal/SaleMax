@@ -4,7 +4,7 @@
   const base=location.pathname.replace(/\/$/,'');
   const storageKey='7network-cart:'+base;
   const checkoutStorageKey='7network-checkout-request:'+base;
-  const state={cart:new Map(),page:'home',request:null};
+  const state={cart:new Map(),page:'home',request:null,selectedLocationId:null,selected:null};
   function saveCart(){
     try {sessionStorage.setItem(storageKey,JSON.stringify([...state.cart]));}catch{}
   }
@@ -39,6 +39,8 @@
   };
   const money=minor=>new Intl.NumberFormat(t('en-QA','ar-QA'),{style:'currency',currency:'QAR'}).format(Number(minor)/100);
   const name=item=>(arabic?item.nameAr:item.nameEn)||item.nameEn;
+  const displayName=item=>item?.variantGroupId?((arabic?item.variantTitleAr:item.variantTitleEn)||item.variantTitleEn||name(item)):name(item);
+  const variantValue=item=>(arabic?item.variantValueAr:item.variantValueEn)||item.variantValueEn||'';
   const show=page=>{state.page=page;render();root.querySelector('h2')?.focus();};
   async function request(path,options) {
     const response=await fetch(base+path,options);
@@ -80,34 +82,65 @@
     const grid=add(body,'div');grid.className='items';
     function fill(){
       grid.replaceChildren();
-      const items=selected?[selected]:state.items.filter(item=>
-        (!category.value||item.category===category.value)&&name(item).toLowerCase().includes(search.value.toLowerCase()));
-      for(const item of items) {
+      let cards;
+      if(selected){
+        const variants=selected.variantGroupId?state.items.filter(item=>item.variantGroupId===selected.variantGroupId).sort((a,b)=>a.variantSortOrder-b.variantSortOrder):[selected];
+        cards=[{item:selected,variants}];
+      }else{
+        const filtered=state.items.filter(item=>(!category.value||item.category===category.value)&&
+          (displayName(item)+' '+name(item)).toLowerCase().includes(search.value.toLowerCase()));
+        const seen=new Set();cards=[];
+        for(const item of filtered){
+          const key=item.variantGroupId||item.id;if(seen.has(key))continue;seen.add(key);
+          const variants=item.variantGroupId?state.items.filter(row=>row.variantGroupId===item.variantGroupId).sort((a,b)=>a.variantSortOrder-b.variantSortOrder):[item];
+          cards.push({item:variants.find(row=>row.available)||variants[0],variants});
+        }
+      }
+      for(const entry of cards) {
+        const item=entry.item,variants=entry.variants;
         const card=add(grid,'article');
         if(item.photoId){
           const photo=add(card,'img');
           photo.src=base+'/image/'+encodeURIComponent(item.id)+'/'+encodeURIComponent(item.photoId);
           photo.alt=name(item);photo.loading='lazy';photo.width=800;photo.height=600;
         }
-        add(card,'h3',name(item));
-        add(card,'p',money(item.priceMinor));
-        if(selected) add(card,'p',(arabic?item.descriptionAr:item.descriptionEn)||'');
-        else button(card,t('View item','عرض المنتج'),()=>{state.selected=item;show('item');});
-        if(item.available) button(card,t('Add to cart','إضافة إلى السلة'),()=>change(item,(state.cart.get(item.id)||0)+1));
-        else add(card,'p',t('Sold out','نفد المخزون'));
+        add(card,'h3',displayName(item));
+        const current=selected?(variants.find(row=>row.id===state.selected?.id)||item):item;
+        if(selected&&variants.length>1){
+          const choice=add(add(card,'label',(arabic?current.optionLabelAr:current.optionLabelEn)||current.optionLabelEn||t('Choose option','اختر خياراً')+' '),'select');
+          for(const variant of variants){const opt=add(choice,'option',variantValue(variant)+' · '+money(variant.priceMinor)+(variant.available?'':' · '+t('Sold out','نفد المخزون')));opt.value=variant.id;}
+          choice.value=current.id;
+          choice.onchange=()=>{state.selected=variants.find(row=>row.id===choice.value)||item;fill();};
+        }
+        add(card,'p',selected?money(current.priceMinor):variants.length>1?
+          t('From ','ابتداءً من ')+money(Math.min(...variants.map(row=>Number(row.priceMinor)))):money(current.priceMinor));
+        if(selected){
+          add(card,'p',(arabic?current.descriptionAr:current.descriptionEn)||'');
+          if(current.available)button(card,t('Add to cart','إضافة إلى السلة'),()=>change(current,(state.cart.get(current.id)||0)+1));
+          else add(card,'p',t('Sold out','نفد المخزون'));
+        }else{
+          button(card,t('View item','عرض المنتج'),()=>{state.selected=item;show('item');});
+          if(variants.length===1){
+            if(item.available)button(card,t('Add to cart','إضافة إلى السلة'),()=>change(item,(state.cart.get(item.id)||0)+1));
+            else add(card,'p',t('Sold out','نفد المخزون'));
+          }else add(card,'p',t('Choose a variant','اختر خياراً'));
+        }
       }
-      if(!items.length) add(grid,'p',t('No products found.','لا توجد منتجات.'));
+      if(!cards.length) add(grid,'p',t('No products found.','لا توجد منتجات.'));
     }
     search.hidden=Boolean(selected);category.hidden=Boolean(selected);
     search.oninput=category.onchange=fill;fill();
   }
   function checkout(body){
     const form=add(body,'form');
+    const location=state.locations.find(row=>row.id===state.selectedLocationId);
+    if(location)add(form,'p',t('Fulfilled from: ','التنفيذ من: ')+((arabic?location.nameAr:location.nameEn)||location.nameEn)+(location.address?' · '+location.address:''));
+    const locationId=location?.id;
     const customer=field(form,t('Name','الاسم'));customer.maxLength=120;customer.autocomplete='name';
     const phone=field(form,t('Phone','الهاتف'),'tel');phone.maxLength=30;phone.autocomplete='tel';
     const mode=add(add(form,'label',t('Fulfillment','طريقة الاستلام')),'select');
-    add(mode,'option',t('Pickup','استلام')).value='pickup';
-    if(state.store.deliveryFee!==null||state.store.deliveryZones.length) add(mode,'option',t('Delivery','توصيل')).value='delivery';
+    if(!location||Number(location.acceptsPickup))add(mode,'option',t('Pickup','استلام')).value='pickup';
+    if((!location||Number(location.acceptsDelivery))&&(state.store.deliveryFee!==null||state.store.deliveryZones.length)) add(mode,'option',t('Delivery','توصيل')).value='delivery';
     const zone=add(add(form,'label',t('Delivery zone','منطقة التوصيل')),'select');
     add(zone,'option',t('Select a zone','اختر المنطقة')).value='';
     for(const entry of state.store.deliveryZones)add(zone,'option',entry.name).value=entry.name;
@@ -129,7 +162,7 @@
     const status=add(form,'p');status.setAttribute('role','status');
     form.onsubmit=async event=>{
       event.preventDefault();
-      const order={name:customer.value,phone:phone.value,fulfillment:mode.value,address:address.value,pin:pin.value,zone:zone.value,lines:lines(),
+      const order={name:customer.value,phone:phone.value,fulfillment:mode.value,locationId,address:address.value,pin:pin.value,zone:zone.value,lines:lines(),
         expectedTotal:amount()+fee()};
       const retry=checkoutRequestState();
       submit.disabled=true;
@@ -161,6 +194,21 @@
     for(const [page,title] of [['home',t('Home','الرئيسية')],['menu',t('Menu','المنتجات')],['cart',t('Cart','السلة')+' ('+lines().length+')'],
       ['track',t('Track order','تتبع الطلب')],['about',t('About','عن المتجر')],['contact',t('Contact','تواصل معنا')]]) button(nav,title,()=>show(page));
     const language=add(nav,'a',t('العربية','English'));language.href=arabic?'?lang=en':'?lang=ar';
+    if(state.locations.length>1){
+      const locationPicker=add(add(root,'label',t('Store location','موقع المتجر')+' '),'select');
+      for(const location of state.locations){
+        const title=(arabic?location.nameAr:location.nameEn)||location.nameEn;
+        const option=add(locationPicker,'option',title+(location.address?' · '+location.address:''));option.value=location.id;
+      }
+      locationPicker.value=state.selectedLocationId;
+      locationPicker.onchange=async()=>{
+        locationPicker.disabled=true;
+        try{
+          const data=await request('/catalog?locationId='+encodeURIComponent(locationPicker.value));
+          Object.assign(state,data);state.selected=state.selected?state.items.find(item=>item.id===state.selected.id)||null:null;render();
+        }catch{locationPicker.disabled=false;}
+      };
+    }
     const body=add(root,'section');
     const headings={home:t('Welcome','مرحباً'),menu:t('Products','المنتجات'),item:state.selected&&name(state.selected),
       cart:t('Cart','السلة'),checkout:t('Checkout','إتمام الطلب'),about:t('About','عن المتجر'),
@@ -177,12 +225,14 @@
       for(const line of lines()) {
         const item=state.items.find(p=>p.id===line.id);
         const row=add(body,'article');
-        add(row,'p',name(item)+' × '+line.quantity+' · '+money(line.quantity*Number(item.priceMinor)));
+        add(row,'p',name(item)+(item.variantGroupId?' · '+((arabic?item.optionLabelAr:item.optionLabelEn)||item.optionLabelEn)+' '+variantValue(item):'')+
+          ' × '+line.quantity+' · '+money(line.quantity*Number(item.priceMinor)));
+        if(!item.available)add(row,'p',t('This item is unavailable at the selected location. Remove it or choose another location.','هذا المنتج غير متوفر في الموقع المحدد. أزله أو اختر موقعاً آخر.'));
         button(row,t('Remove one','إزالة وحدة'),()=>change(item,line.quantity-1));
         button(row,t('Add one','إضافة وحدة'),()=>change(item,line.quantity+1));
       }
       add(body,'p',lines().length?money(amount()):t('Your cart is empty.','سلتك فارغة.'));
-      if(lines().length) button(body,t('Checkout','إتمام الطلب'),()=>show('checkout'));
+      if(lines().length&&lines().every(line=>state.items.find(item=>item.id===line.id)?.available)) button(body,t('Checkout','إتمام الطلب'),()=>show('checkout'));
     }
     if(state.page==='checkout') checkout(body);
     if(state.page==='confirmation'){
@@ -213,6 +263,6 @@
   }
   add(root,'p',t('Loading…','جار التحميل…'));
   setupInstallableStore();
-  request('/catalog').then(data=>{Object.assign(state,data);loadCart();render();})
+  request('/catalog').then(data=>{Object.assign(state,data);state.selectedLocationId=data.selectedLocationId||data.store.defaultLocationId;loadCart();render();})
     .catch(()=>{root.textContent=t('This shop is unavailable.','هذا المتجر غير متاح.');});
 })();

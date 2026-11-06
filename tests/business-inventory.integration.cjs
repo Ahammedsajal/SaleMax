@@ -12,7 +12,7 @@ async function main() {
   const admin = await mysql.createConnection({socketPath, user: 'root'});
   await admin.query('CREATE DATABASE ' + database);
   const pool = mysql.createPool({socketPath, user: 'root', database});
-  const tenant = randomUUID(), other = randomUUID(), item = randomUUID(), foreign = randomUUID();
+  const tenant = randomUUID(), other = randomUUID(), item = randomUUID(), foreign = randomUUID(), variantProduct = randomUUID();
   const category = require('../modules/platform/categories').getCategory('retail_boutique', 1);
   assert.equal(category.public, false);
   const app = express();
@@ -45,11 +45,15 @@ async function main() {
   app.use(require('../modules/platform/business-inventory-router')({pool,authenticate}));
   let server;
   try {
+    await pool.query('CREATE TABLE sx_tenants (id CHAR(36) PRIMARY KEY,status VARCHAR(15),category_key VARCHAR(40),category_version INT) ENGINE=InnoDB');
+    await pool.query("INSERT INTO sx_tenants VALUES (?,'active','retail_boutique',1),(?,'active','training_center',1)",[tenant,other]);
     await pool.query('CREATE TABLE sx_product_catalog (id CHAR(36) PRIMARY KEY, tenant_id CHAR(36), code VARCHAR(40), name_en VARCHAR(200), name_ar VARCHAR(200), deleted_at DATETIME NULL, status VARCHAR(20)) ENGINE=InnoDB');
-    await pool.query(readFileSync(require.resolve('../database/migrations/20270125_private_business_inventory.sql'), 'utf8'));
     const {splitSql}=require('../database/migration-runner');
-    for(const statement of splitSql(readFileSync(require.resolve('../database/migrations/20270126_retail_commerce.sql'),'utf8'))) await pool.query(statement);
-    for(const statement of splitSql(readFileSync(require.resolve('../database/migrations/20270127_retail_cash_and_returns.sql'),'utf8'))) await pool.query(statement);
+    const applyMigration=async name=>{for(const statement of splitSql(readFileSync(require.resolve('../database/migrations/'+name),'utf8')))await pool.query(statement);};
+    await applyMigration('20261225_business_whatsapp_notifications.sql');
+    await applyMigration('20270125_private_business_inventory.sql');
+    await applyMigration('20270126_retail_commerce.sql');
+    await applyMigration('20270127_retail_cash_and_returns.sql');
     await pool.query("INSERT INTO sx_product_catalog VALUES (?,?,'TEST','Test item','عنصر تجريبي',NULL,'active'),(?,?,'OTHER','Other','آخر',NULL,'active')", [item, tenant, foreign, other]);
     server = app.listen(0, '127.0.0.1');
     await new Promise((resolve, reject) => server.once('listening', resolve).once('error', reject));
@@ -74,19 +78,32 @@ async function main() {
     assert.equal(history.data.length, 1);
     await pool.query("ALTER TABLE sx_product_catalog ADD description_en TEXT, ADD description_ar TEXT");
     await pool.query("CREATE TABLE sx_product_offers (id CHAR(36) PRIMARY KEY,tenant_id CHAR(36),course_id CHAR(36),price_minor INT,version INT,status VARCHAR(15),currency CHAR(3),valid_from DATE,valid_until DATE)");
-    await pool.query("CREATE TABLE sx_tenants (id CHAR(36) PRIMARY KEY,status VARCHAR(15),category_key VARCHAR(40),category_version INT)");
     await pool.query("CREATE TABLE sx_plan_versions (id CHAR(36) PRIMARY KEY,status VARCHAR(15),category_key VARCHAR(40),category_version INT,capabilities JSON)");
     await pool.query("CREATE TABLE sx_plan_assignments (tenant_id CHAR(36),plan_version_id CHAR(36),current_tenant CHAR(36),status VARCHAR(15),effective_from DATETIME,expires_at DATETIME)");
     const plan=randomUUID();
-    await pool.query("INSERT INTO sx_tenants VALUES (?,'active','retail_boutique',1)",[tenant]);
     await pool.query("INSERT INTO sx_plan_versions VALUES (?,'published','retail_boutique',1,?)",[plan,JSON.stringify(category.capabilities)]);
     await pool.query("INSERT INTO sx_plan_assignments VALUES (?,?,?,'active',UTC_TIMESTAMP()-INTERVAL 1 DAY,UTC_TIMESTAMP()+INTERVAL 1 DAY)",[tenant,plan,tenant]);
     await pool.query("INSERT INTO sx_product_offers VALUES (?,?,?,2500,1,'active','QAR',NULL,NULL)",[randomUUID(),tenant,item]);
+    await pool.query("INSERT INTO sx_product_catalog VALUES (?,?,'TEST-LARGE','Test item large','عنصر تجريبي كبير',NULL,'active')",[variantProduct,tenant]);
+    await pool.query("INSERT INTO sx_product_offers VALUES (?,?,?,3500,1,'active','QAR',NULL,NULL)",[randomUUID(),tenant,variantProduct]);
     await pool.query("INSERT INTO sx_retail_store (tenant_id,slug,title,about,contact,enabled,delivery_fee,delivery_zones) VALUES (?,'test-retail','Synthetic','About','Contact',1,800,?)",[tenant,JSON.stringify([{name:'Central',feeMinor:800}])]);
-    await pool.query("INSERT INTO sx_retail_listings (tenant_id,product_id,category,published) VALUES (?,?,'Fixtures',1)",[tenant,item]);
+    await pool.query("INSERT INTO sx_retail_listings (tenant_id,product_id,category,published) VALUES (?,?,'Fixtures',1),(?,?,'Fixtures',1)",[tenant,item,tenant,variantProduct]);
+    await applyMigration('20270128_retail_delivery_retries_and_proof.sql');
+    await applyMigration('20270129_retail_locations_and_variants.sql');
+    await applyMigration('20270130_retail_notifications.sql');
+    const locationRows=await (await send('/locations','owner')).json();
+    assert.equal(locationRows.data.length,1);
+    const mainLocation=locationRows.data[0];
+    assert.equal(Number(mainLocation.isDefault),1);
+    const branchResponse=await send('/locations','owner',{code:'west',nameEn:'West Branch',nameAr:'الفرع الغربي',address:'Synthetic address',acceptsPickup:true,acceptsDelivery:true});
+    assert.equal(branchResponse.status,200);
+    const branch=(await branchResponse.json()).data;
     const retail=require('../modules/platform/retail-commerce');
     const shop=await retail.browse(pool,'test-retail');
-    assert.deepEqual(shop.items.map(row=>row.id),[item]);
+    assert.deepEqual(shop.items.map(row=>row.id),[item,variantProduct]);
+    assert.equal(shop.locations.length,2);
+    assert.equal(shop.selectedLocationId,mainLocation.id);
+    assert.equal((await retail.browse(pool,'test-retail',branch.id)).items.every(row=>!row.available),true);
     assert.equal(shop.store.tenantId,undefined);
     const cart={requestId:randomUUID(),name:'Synthetic buyer',phone:'55555555',fulfillment:'pickup',lines:[{id:item,quantity:12}],expectedTotal:30000};
     await assert.rejects(retail.checkout(pool,'test-retail',{...cart,expectedTotal:1}),{code:'PRICE_CHANGED'});
@@ -128,6 +145,22 @@ async function main() {
     assert.deepEqual((await (await publicPost('/track',{reference:orderId})).json()).data,{status:'placed'});
     const workspace=(path,role,method='GET',body,driver=driverId)=>fetch(base+'/workspace/retail'+path,{method,
       headers:{'Content-Type':'application/json','x-test-role':role,'x-test-driver':driver},body:body&&JSON.stringify(body)});
+    const variantPayload={titleEn:'Size',titleAr:'المقاس',optionLabelEn:'Size',optionLabelAr:'المقاس',products:[
+      {id:item,valueEn:'Small',valueAr:'صغير'},{id:variantProduct,valueEn:'Large',valueAr:'كبير'}]};
+    assert.equal((await workspace('/variants','manager','POST',variantPayload)).status,403);
+    assert.equal((await workspace('/variants','owner','POST',{...variantPayload,products:[{id:item,valueEn:'Small'},{id:foreign,valueEn:'Foreign'}]})).status,409);
+    assert.equal((await workspace('/variants','owner','POST',variantPayload)).status,200);
+    const grouped=(await retail.browse(pool,'test-retail')).items;
+    assert.deepEqual(grouped.map(row=>[row.id,row.variantTitleEn,row.variantValueEn]),[[item,'Size','Small'],[variantProduct,'Size','Large']]);
+    const variantStock={requestId:randomUUID(),expectedRevision:'0',quantity:2,reason:'Synthetic branch stock',locationId:branch.id};
+    assert.equal((await send('/'+variantProduct+'/count','owner',variantStock)).status,200);
+    const variantOrder=await retail.checkout(pool,'test-retail',{requestId:randomUUID(),name:'Synthetic buyer',phone:'55555555',fulfillment:'pickup',locationId:branch.id,lines:[{id:variantProduct,quantity:1}],expectedTotal:3500});
+    const [[variantSnapshot]]=await pool.query('SELECT order_lines AS lines,location_id AS locationId FROM sx_retail_orders WHERE tenant_id=? AND id=?',[tenant,variantOrder.reference]);
+    const [variantLines]=[typeof variantSnapshot.lines==='string'?JSON.parse(variantSnapshot.lines):variantSnapshot.lines];
+    assert.equal(variantSnapshot.locationId,branch.id);
+    assert.equal(variantLines[0].variantTitleEn,'Size');
+    assert.equal(variantLines[0].variantValueEn,'Large');
+    await retail.transition(pool,tenant,{identityId:tenant,membershipId:randomUUID()},variantOrder.reference,'cancelled',false);
     assert.equal((await workspace('/orders/'+orderId+'/driver','owner','PUT',{driverId})).status,200);
     assert.equal((await workspace('/orders/'+orderId+'/status','owner','POST',{status:'ready'})).status,200);
     assert.equal((await (await workspace('/deliveries','agent','GET',null,secondDriver)).json()).data.length,0);
@@ -196,6 +229,16 @@ async function main() {
     assert.equal((await workspace('/orders/'+orderId+'/status','owner','POST',{status:'returned'})).status,200);
     const afterReturn=await (await send('/','owner')).json();
     assert.equal(afterReturn.data.items[0].quantity,10);
+    const transfer={requestId:randomUUID(),productId:item,sourceLocationId:mainLocation.id,targetLocationId:branch.id,quantity:2,reason:'Synthetic branch replenishment'};
+    assert.equal((await send('/stock/transfers','owner',transfer)).status,200);
+    assert.equal((await send('/stock/transfers','owner',transfer)).status,200);
+    assert.equal((await send('/stock/transfers','owner',{...transfer,quantity:3})).status,409);
+    const mainBalance=await (await send('/?locationId='+mainLocation.id,'owner')).json();
+    const branchBalance=await (await send('/?locationId='+branch.id,'owner')).json();
+    assert.equal(mainBalance.data.items.find(row=>row.id===item).quantity,8);
+    assert.equal(branchBalance.data.items.find(row=>row.id===item).quantity,2);
+    const [[alerts]]=await pool.query('SELECT COUNT(*) AS count FROM sx_business_notification_events WHERE tenant_id=?',[tenant]);
+    assert.equal(Number(alerts.count),0);
     if(process.env.RETAIL_BROWSER==='true'){
       const browser=await require('playwright').chromium.launch({channel:'msedge',headless:true});
       try {
@@ -214,7 +257,7 @@ async function main() {
         }
       } finally {await browser.close();}
     }
-    console.log('Inventory and commerce migrations, tenant and role denial, stock race, price changes, reservations, cancellation and fulfillment passed');
+    console.log('Inventory, location, variant, notification and commerce migrations; tenant/role denial; stock transfer/idempotency; variant checkout snapshots; reservations and fulfillment passed');
   } finally {
     if (server) await new Promise(resolve => server.close(resolve));
     await pool.end();

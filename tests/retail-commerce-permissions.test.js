@@ -34,6 +34,10 @@ test('retail cash collection, order returns, and finance routes map to narrow ac
   assert.equal(route('/orders/abc/driver','PUT'),'retail.orders');
   assert.equal(route('/finance'),'retail.finance');
   assert.equal(route('/finance/settlements'),'retail.finance');
+  assert.equal(guard.routePermission({baseUrl:'/api/workspace/retail',path:'/notifications',method:'PUT'}),'retail.configure');
+  assert.equal(guard.routePermission({baseUrl:'/api/workspace/retail',path:'/variants',method:'POST'}),'retail.configure');
+  assert.equal(guard.routePermission({baseUrl:'/api/workspace/business-inventory',path:'/locations',method:'POST'}),'inventory.manage');
+  assert.equal(guard.routePermission({baseUrl:'/api/workspace/business-inventory',path:'/stock/transfers',method:'POST'}),'inventory.manage');
   assert.equal(policy.decision(context('agent'),{capability:'retail.commerce',permission:'retail.cash.collect'}).scope,'assigned');
   assert.equal(policy.decision(context('agent'),{capability:'retail.commerce',permission:'retail.returns'}).allowed,false);
 });

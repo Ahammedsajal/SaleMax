@@ -37,7 +37,7 @@
     };
   }
   async function configure(root,status){
-    const {store,products,photos}=await api('/store');
+    const {store,products,photos,variants,locations,notifications}=await api('/store');
     const section=add(root,'section');
     add(section,'h2',t('Storefront settings','إعدادات واجهة المتجر'));
     const slug=input(section,t('Store link name','اسم رابط المتجر'),store?.slug);
@@ -53,6 +53,8 @@
       const link=add(section,'a',t('Open storefront','افتح المتجر'));link.href='/business/'+encodeURIComponent(store.slug)+'/shop';
       action(section,t('Copy link','نسخ الرابط'),()=>navigator.clipboard.writeText(link.href),status);
     }
+    const locationHelp=add(section,'p',t('Products keep their own SKU, price and stock. Create and manage stock locations in Inventory.','يحتفظ كل منتج برمزه وسعره ومخزونه. أنشئ مواقع المخزون وأدرها من صفحة المخزون.' )+' ');
+    const inventoryLink=add(locationHelp,'a',t('Manage locations','إدارة المواقع'));inventoryLink.href='/user?page=business-inventory';
     action(section,t('Save storefront','حفظ المتجر'),()=>api('/store','PUT',{
       slug:slug.value,title:title.value,about:about.value,contact:contact.value,enabled:enabled.checked,
       deliveryFee:fee.value===''?null:Math.round(fee.valueAsNumber*100),
@@ -61,6 +63,11 @@
         return {name:name.trim(),feeMinor:amount?.trim()&&!extra.length?Math.round(Number(amount)*100):null};
       })
     }),status,()=>location.reload());
+    const alertSettings=add(section,'details');add(alertSettings,'summary',t('Order notifications','إشعارات الطلبات'));
+    const orderAlerts=input(alertSettings,t('Send order alerts to owners and managers','إرسال إشعارات الطلبات إلى المالكين والمديرين'),'','checkbox');
+    orderAlerts.checked=Boolean(notifications?.retailOrdersEnabled);
+    add(alertSettings,'p',t('Uses the business WhatsApp sender already configured for 7Network. Alerts contain an order reference and status, not buyer contact or address.','يستخدم مرسل واتساب التجاري المُعدّ مسبقاً في 7Network. تتضمن الإشعارات مرجع الطلب وحالته دون بيانات اتصال المشتري أو عنوانه.'));
+    action(alertSettings,t('Save notification settings','حفظ إعدادات الإشعارات'),()=>api('/notifications','PUT',{retailOrdersEnabled:orderAlerts.checked}),status);
     add(section,'h3',t('Products selected for the public store','المنتجات المختارة للمتجر العام'));
     for(const product of products){
       const row=add(section,'article');
@@ -73,6 +80,52 @@
       const publish=input(row,t('Publish this product','نشر هذا المنتج'),'','checkbox');publish.checked=Boolean(product.published);
       action(row,t('Save listing','حفظ عرض المنتج'),()=>api('/listings/'+product.id,'PUT',{category:category.value,published:publish.checked,photoId:image.value||null}),status);
     }
+    const variantSection=add(section,'details');add(variantSection,'summary',t('Product variants','خيارات المنتج'));
+    add(variantSection,'p',t('Each variant is an existing product with its own SKU, price, photo and stock. Group published products here to offer a selector in the public shop.','كل خيار هو منتج موجود له رمز وسعر وصورة ومخزون مستقل. اجمع المنتجات المنشورة هنا لعرض قائمة خيارات في المتجر العام.'));
+    const groupPicker=add(add(variantSection,'label',t('Variant group','مجموعة الخيارات')+' '),'select');
+    add(groupPicker,'option',t('Create a new group','إنشاء مجموعة جديدة')).value='';
+    for(const group of variants||[])add(groupPicker,t(group.titleEn,group.titleAr)||group.titleEn).value=group.id;
+    const titleEn=input(variantSection,t('Product name in English','اسم المنتج بالإنجليزية'));
+    const titleAr=input(variantSection,t('Product name in Arabic','اسم المنتج بالعربية'));titleAr.dir='auto';
+    const labelEn=input(variantSection,t('Option label in English','اسم الخيار بالإنجليزية'));
+    const labelAr=input(variantSection,t('Option label in Arabic','اسم الخيار بالعربية'));labelAr.dir='auto';
+    const picker=add(add(variantSection,'label',t('Published products (select at least two)','المنتجات المنشورة (اختر منتجين على الأقل)')+' '),'select');
+    picker.multiple=true;picker.size=8;
+    const valuesArea=add(variantSection,'div');
+    const valueFields=new Map();
+    function saveCurrentValues(){for(const [id,fields] of valueFields)valueFields.set(id,{valueEn:fields.en.value,valueAr:fields.ar.value});}
+    function populateProductOptions(group){
+      saveCurrentValues();picker.replaceChildren();valueFields.clear();
+      const occupied=new Set((variants||[]).filter(item=>item.id!==group?.id).flatMap(item=>item.products.map(value=>value.id)));
+      const available=products.filter(product=>product.status==='active'&&product.published&&!occupied.has(product.id));
+      for(const product of available){const option=add(picker,'option',(t(product.nameEn,product.nameAr)||product.nameEn)+' · '+product.code);option.value=product.id;}
+      const values=new Map((group?.products||[]).map(item=>[item.id,item]));
+      for(const option of picker.options)option.selected=values.has(option.value);
+      titleEn.value=group?.titleEn||'';titleAr.value=group?.titleAr||'';
+      labelEn.value=group?.optionLabelEn||'';labelAr.value=group?.optionLabelAr||'';
+      populateValueFields(values);
+    }
+    function populateValueFields(existing=new Map()){
+      saveCurrentValues();valuesArea.replaceChildren();valueFields.clear();
+      for(const option of picker.selectedOptions){
+        const product=products.find(item=>item.id===option.value),prior=existing.get(option.value)||valueFields.get(option.value)||{};
+        const row=add(valuesArea,'section');add(row,'strong',(t(product?.nameEn,product?.nameAr)||product?.nameEn||option.value)+' · '+(product?.code||''));
+        const en=input(row,t('Option value in English','قيمة الخيار بالإنجليزية'),prior.valueEn??prior.en?.value??'');en.required=true;en.maxLength=100;
+        const arInput=input(row,t('Option value in Arabic','قيمة الخيار بالعربية'),prior.valueAr??prior.ar?.value??'');arInput.dir='auto';arInput.maxLength=100;
+        valueFields.set(option.value,{en,ar:arInput});
+      }
+    }
+    groupPicker.onchange=()=>populateProductOptions((variants||[]).find(item=>item.id===groupPicker.value)||null);
+    picker.onchange=()=>populateValueFields(new Map(valueFields));
+    populateProductOptions(null);
+    action(variantSection,t('Save variant group','حفظ مجموعة الخيارات'),async()=>{
+      saveCurrentValues();
+      const chosen=[...picker.selectedOptions];if(chosen.length<2)throw Error('INVALID_VARIANTS');
+      const members=chosen.map(option=>{const fields=valueFields.get(option.value);return {id:option.value,valueEn:fields?.valueEn||fields?.en?.value||'',valueAr:fields?.valueAr||fields?.ar?.value||''};});
+      if(members.some(item=>!item.valueEn.trim())||new Set(members.map(item=>item.valueEn.trim().toLowerCase())).size!==members.length)throw Error('INVALID_VARIANTS');
+      return api('/variants','POST',{id:groupPicker.value||undefined,titleEn:titleEn.value,titleAr:titleAr.value,optionLabelEn:labelEn.value,optionLabelAr:labelAr.value,products:members});
+    },status,()=>location.reload());
+    for(const group of variants||[])action(variantSection,t('Remove group: ','إزالة المجموعة: ')+group.titleEn,()=>api('/variants/'+group.id,'DELETE'),status,()=>location.reload());
   }
   async function orders(root,status,driver,canLinkLead){
     const base=driver?'/deliveries':'/orders';
@@ -83,11 +136,12 @@
       const heading=add(card,'h3');add(heading,'bdi',order.id).dir='ltr';add(heading,'span',' · '+labels[order.status]);
       const buyer=add(card,'p');add(buyer,'span',order.buyerName+' · ');add(buyer,'bdi',order.buyerPhone).dir='ltr';
       add(card,'p',money(order.totalMinor)+' · '+(order.fulfillment==='delivery'?t('Delivery','توصيل'):t('Pickup','استلام')));
+      if(order.locationNameEn)add(card,'p',t('Location: ','الموقع: ')+(t(order.locationNameEn,order.locationNameAr)||order.locationNameEn));
       if(order.fulfillment==='delivery'){
         add(card,'p',t('Delivery status: ','حالة التوصيل: ')+(deliveryLabels[order.deliveryState]||deliveryLabels.unassigned));
         if(order.deliveryState==='failed')add(card,'p',t('Last issue: ','آخر مشكلة: ')+(failureLabels[order.lastDeliveryFailureReason]||t('Not specified','غير محدد'))+' · '+t('Attempts: ','المحاولات: ')+order.deliveryAttemptCount);
       }
-      for(const item of order.lines)add(card,'p',(t(item.nameEn,item.nameAr)||item.nameEn)+' × '+item.quantity);
+      for(const item of order.lines)add(card,'p',(t(item.nameEn,item.nameAr)||item.nameEn)+(item.variantValueEn?' · '+t(item.variantValueEn,item.variantValueAr):'')+' × '+item.quantity);
       if(order.cashReceived)add(card,'p',t('Cash collected','تم تحصيل النقد'));
       if(driver&&order.fulfillment==='delivery'&&order.status==='dispatched'&&order.deliveryState==='in_transit'&&order.deliveryProofRequired&&!order.proofVerified){
         const code=input(card,t('Buyer handoff code','رمز استلام العميل'));

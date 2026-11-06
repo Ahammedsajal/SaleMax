@@ -4,6 +4,7 @@ const finance=require('../modules/platform/business-finance-context');
 const qr=require('../modules/platform/business-whatsapp');
 const reports=require('../modules/platform/business-daily-report');
 const notifications=require('../modules/platform/business-notifications');
+const retailCommerce=require('../modules/platform/retail-commerce');
 const tenant='11111111-1111-4111-8111-111111111111',id='22222222-2222-4222-8222-222222222222';
 const sample={number:'INV-2026-0123',customer:'Sample learner',phone:'+97455550000',product:'Excel training',currency:'QAR',total:100000,balance:60000,received:40000,dueDate:'2026-10-25',receivedAt:'2026-10-22'};
 test('month-to-date window ends at report cutoff, not at the first day of the month',()=>{
@@ -47,6 +48,31 @@ test('invoice alerts target staff only, and event insertion is idempotent within
  const db={query:async(sql,args)=>{if(sql.startsWith('INSERT INTO sx_business_notification_deliveries')&&args[2]==='customer')customers++;return [[]];}};
  try{await notifications.prepare(db,{id,tenant_id:tenant,kind:'invoice_issued',source_type:'generated',source_id:id},{name:'Center'});assert.equal(customers,0);}finally{finance.load=load;qr.staff=staff;}
  const duplicate={query:async()=>{throw {code:'ER_DUP_ENTRY'};}};assert.deepEqual(await notifications.enqueue(duplicate,tenant,{kind:'invoice_issued',sourceType:'generated',sourceId:id,key:`invoice:${id}`}),{repeated:true});
+});
+test('retail order alerts are queued only when the owner switch and notification channel are enabled',async()=>{
+ const calls=[];let enabled=0;
+ const db={query:async(sql,args)=>{
+  if(sql.includes('FROM sx_business_notification_settings'))return [[{enabled:1,alertsEnabled:enabled}]];
+  if(sql.startsWith('INSERT INTO sx_business_notification_events')){calls.push(args);return [{affectedRows:1}];}
+  throw new Error('Unexpected query');
+ }};
+ assert.deepEqual(await retailCommerce.notifyRetail(db,tenant,id,'placed','new_order'),{queued:false});
+ assert.equal(calls.length,0);
+ enabled=1;
+ assert.deepEqual(await retailCommerce.notifyRetail(db,tenant,id,'placed','new_order'),{queued:true});
+ assert.equal(calls[0][3],'retail_order_event');
+ assert.deepEqual(JSON.parse(calls[0][6]),{event:'new_order'});
+});
+test('retail alerts include only a short order reference and current status for internal staff',async()=>{
+ const staff=qr.staff,sends=[];qr.staff=async()=>[{id:'owner-id',phone:'97450000001',role:'owner'}];
+ try{
+  const result=await notifications.dispatch({}, {id:1,event_id:'event-id',tenant_id:tenant,kind:'retail_order_event',source_type:'retail_order',source_id:id,
+   recipient_kind:'identity',recipient_id:'owner-id',destination_hash:qr.hash('97450000001'),payload_json:{business:'Center',snapshot:{event:'new_order',orderRef:'22222222',status:'placed',deliveryState:'unassigned'}}},
+   {authorize:async()=>true,send:async(_db,payload)=>{sends.push(payload);return {status:'accepted',providerMessageId:'retail-alert-synthetic'};}});
+  assert.equal(result.status,'accepted');assert.equal(sends.length,1);
+  assert.match(sends[0].text,/22222222/);assert.match(sends[0].text,/placed/);assert.match(sends[0].text,/طلب تجزئة/);
+  assert.doesNotMatch(sends[0].text,/Sample learner|9745555|address|buyer_phone/i);
+ }finally{qr.staff=staff;}
 });
 test('removed staff and changed phone numbers are rechecked before dispatch',async()=>{
  const load=finance.load,staff=qr.staff;finance.load=async()=>({...sample,invoiceId:id});qr.staff=async()=>[{id,phone:'97459999999'}];
