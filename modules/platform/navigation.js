@@ -23,6 +23,8 @@ const items = [
   ['icp', 'sales.icp', 'icp.read', 'ICP', 'ملف العميل المثالي', 'Sales', 'المبيعات'],
   ['sales-organization', 'team.members', 'team.read', 'Organization', 'الهيكل التنظيمي', 'Sales', 'المبيعات'],
   ['commission-policy', 'sales.commissions', 'commission.policy.manage', 'Commission Policy', 'سياسة العمولات', 'Administration', 'الإدارة'],
+  ['retail-orders', 'retail.commerce', 'retail.orders', 'Retail orders', 'طلبات التجزئة', 'Business Operations', 'عمليات الأعمال'],
+  ['retail-deliveries', 'retail.commerce', 'retail.deliver', 'My deliveries', 'عمليات التوصيل الخاصة بي', 'Business Operations', 'عمليات الأعمال'],
   ['business-inventory', 'retail.inventory', 'inventory.read', 'Inventory', 'المخزون', 'Business Operations', 'عمليات الأعمال'],
   ['products-services', 'products.catalog', 'products.read', 'Products & services', 'المنتجات والخدمات', 'Sales', 'المبيعات'],
   ['properties', 'realestate.listings', 'properties.read', 'Properties', 'العقارات', 'Real Estate', 'العقارات'],

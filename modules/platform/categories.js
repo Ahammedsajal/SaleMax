@@ -43,7 +43,7 @@ const retail = Object.freeze({
   public: false,
   planable: true,
   seatRoles: ['owner', 'accountant', 'manager', 'agent'],
-  capabilities: [...sharedCapabilities, 'products.catalog', 'retail.inventory'],
+  capabilities: [...sharedCapabilities, 'products.catalog', 'retail.inventory', 'retail.commerce'],
   migration: '20270125_private_business_inventory.sql'
 });
 const registry = require('./category-registry').createCategoryRegistry([trainingCenter, retail, sevenNetworkSales, realEstate, baseCrm, restaurantFixture], capabilities);

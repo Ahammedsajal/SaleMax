@@ -19,6 +19,7 @@ function routePermission(req){
   if(mount==='/api/workspace/inbox/course-replies')return 'conversations.read';
   if(mount==='/api/workspace/phonebook')return read||['/contacts','/values'].includes(path)?'contacts.read':'contacts.manage';
   if(mount==='/api/workspace/courses')return read?'courses.read':'courses.manage';
+  if(mount==='/api/workspace/retail')return path.startsWith('/deliveries')?'retail.deliver':path.startsWith('/orders')||path==='/drivers'?'retail.orders':'retail.configure';
   if(mount==='/api/workspace/business-inventory')return read?'inventory.read':'inventory.manage';
   if(mount==='/api/workspace/products-services')return read?'products.read':'products.manage';
   if(mount==='/api/workspace/properties')return read?'properties.read':'properties.manage';

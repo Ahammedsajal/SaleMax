@@ -32,7 +32,8 @@ module.exports = function createInventoryRouter({pool, authenticate}) {
     const search = typeof req.query.search === 'string' ? req.query.search.trim().slice(0, 100) : '';
     const [items] = await pool.query(
       `SELECT p.id, p.code, p.name_en AS nameEn, p.name_ar AS nameAr,
-         COALESCE(m.quantity, 0) AS quantity, CAST(COALESCE(m.id, 0) AS CHAR) AS revision
+         COALESCE(m.quantity, 0) AS quantity, CAST(COALESCE(m.id, 0) AS CHAR) AS revision,
+         COALESCE((SELECT SUM(r.quantity) FROM sx_retail_stock_reservations r WHERE r.tenant_id=p.tenant_id AND r.product_id=p.id),0) AS reserved
        FROM sx_product_catalog p
        LEFT JOIN sx_business_stock_movements m ON m.id = (
          SELECT id FROM sx_business_stock_movements WHERE tenant_id=p.tenant_id AND product_id=p.id ORDER BY id DESC LIMIT 1
@@ -82,6 +83,12 @@ module.exports = function createInventoryRouter({pool, authenticate}) {
       if ((latest?.revision ?? '0') !== expectedRevision) {
         await db.rollback();
         return res.status(409).json({success: false, code: 'STOCK_CHANGED'});
+      }
+      const [[reserved]]=await db.query(
+        'SELECT COALESCE(SUM(quantity),0) AS quantity FROM sx_retail_stock_reservations WHERE tenant_id=? AND product_id=?',key);
+      if (quantity < Number(reserved.quantity)) {
+        await db.rollback();
+        return res.status(409).json({success:false,code:'STOCK_RESERVED'});
       }
       await db.query(
         'INSERT INTO sx_business_stock_movements (tenant_id,product_id,request_id,actor_id,previous_revision,previous_quantity,quantity,reason) VALUES (?,?,?,?,?,?,?,?)',

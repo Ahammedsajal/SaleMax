@@ -80,6 +80,7 @@
           row.style.borderBlockEnd = '1px solid GrayText';
           make('h2', (ar() ? item.nameAr : item.nameEn) || item.nameEn || item.code, row);
           make('p', item.code + ' · ' + tr('On hand', 'المتوفر') + ' ' + item.quantity, row);
+          make('p', tr('Reserved', 'محجوز')+' '+Number(item.reserved||0)+' · '+tr('Available','متاح')+' '+(item.quantity-Number(item.reserved||0)),row);
           const details = make('details', '', row);
           make('summary', tr('Movement history', 'سجل الحركات'), details);
           details.addEventListener('toggle', async () => {
@@ -127,6 +128,8 @@
               if (error.message === 'STOCK_CHANGED') {
                 await load(offset);
                 message.textContent = tr('Stock changed. Review the current count and try again.', 'تغير المخزون. راجع الكمية الحالية وحاول مرة أخرى.');
+              } else if (error.message === 'STOCK_RESERVED') {
+                message.textContent = tr('The count cannot be lower than reserved stock.', 'لا يمكن أن تقل الكمية عن المخزون المحجوز.');
               } else {
                 message.textContent = tr('Could not save the count. Try again.', 'تعذر حفظ الكمية. حاول مرة أخرى.');
               }

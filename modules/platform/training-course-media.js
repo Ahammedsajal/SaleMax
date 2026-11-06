@@ -175,4 +175,4 @@ function verifyAccessToken(token) {
   return payload;
 }
 
-module.exports = { MEDIA_ROOT, MAX_FILE_BYTES, TENANT_QUOTA_BYTES, MAX_COURSE_FILES, ensureDirectories, tempDirectory, list, attach, remove, getFile, accessToken, verifyAccessToken };
+module.exports = { filePath, MEDIA_ROOT, MAX_FILE_BYTES, TENANT_QUOTA_BYTES, MAX_COURSE_FILES, ensureDirectories, tempDirectory, list, attach, remove, getFile, accessToken, verifyAccessToken };

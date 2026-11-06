@@ -24,6 +24,8 @@ function mountExistingUpgrade(app,{pool,key,origin,insecureLoopback=false,legacy
   const tenantCrmDomains=require('./tenant-crm-domains');
   app.use(tenantCrmDomains.middleware(pool));
   app.use(require('./tenant-business-profile-shell').createTenantBusinessProfileShell({pool}));
+  const retail = require('./retail-commerce-router');
+  app.use('/business/:storeSlug/shop',retail.publicRouter({pool,origin}));
   require('../web/public-website').mountPublicWebsite(app,{pool,key,origin});
   const boundary=createAuthRouter({pool,key,origin,insecureLoopback,allowedAudience:'platform'});
   const businessBoundary=createAuthRouter({pool,key,origin,insecureLoopback,allowedAudience:'tenant'});
@@ -72,6 +74,7 @@ function mountExistingUpgrade(app,{pool,key,origin,insecureLoopback=false,legacy
   const workspaceTeam=createTeamInvitationRouters({pool,origin,userGuard,ownerGuard:workspaceTeamGuard,insecureLoopback});
   app.use('/api/workspace/team',workspaceTeam.owner);
   app.use('/api/agent/invitations',team.accept);
+  app.use('/api/workspace/retail',retail.workspaceRouter({pool,authenticate:featureSession.guard}));
   app.use('/api/workspace/business-inventory',require('./business-inventory-router')({pool,authenticate:featureSession.guard}));
   app.use('/api/workspace/products-services',createTrainingCourseRouter({pool,origin,userGuard,canonicalGuard:businessBoundary.guard,sessionGuard:featureSession.guard,products:true}));
   app.use('/api/workspace/properties',require('./real-estate-properties-router').createRouter({pool,authenticate:featureSession.guard}));
