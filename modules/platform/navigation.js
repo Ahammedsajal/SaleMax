@@ -27,6 +27,7 @@ const items = [
   ['retail-deliveries', 'retail.commerce', 'retail.deliver', 'My deliveries', 'عمليات التوصيل الخاصة بي', 'Business Operations', 'عمليات الأعمال'],
   ['business-inventory', 'retail.inventory', 'inventory.read', 'Inventory', 'المخزون', 'Business Operations', 'عمليات الأعمال'],
   ['products-services', 'products.catalog', 'products.read', 'Products & services', 'المنتجات والخدمات', 'Sales', 'المبيعات'],
+  ['retail-finance', 'retail.finance', 'retail.finance', 'Retail cash reconciliation', 'تسوية النقد للتجزئة', 'Finance', 'المالية'],
   ['properties', 'realestate.listings', 'properties.read', 'Properties', 'العقارات', 'Real Estate', 'العقارات'],
   ['courses', 'training.courses', 'courses.read', 'Courses', 'الدورات', 'Training', 'التدريب'],
   ['batches', 'training.batches', 'courses.read', 'Batches', 'المجموعات', 'Training', 'التدريب'],

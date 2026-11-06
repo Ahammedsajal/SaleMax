@@ -9,7 +9,7 @@ const handle = fn => (req,res,next) => Promise.resolve(fn(req,res)).catch(next);
 const noStore = (req,res,next) => { res.set('Cache-Control','private, no-store'); next(); };
 function errors(error,req,res,next) {
   if (res.headersSent) return next(error);
-  if (error.code === 'ER_DUP_ENTRY') return res.status(409).json({success:false,code:'STORE_SLUG_TAKEN'});
+  if (error.code === 'ER_DUP_ENTRY') return res.status(409).json({success:false,code:'CONFLICT'});
   if (error.status >= 400 && error.status < 500) return res.status(error.status).json({success:false,code:error.code || 'INVALID_INPUT'});
   return next(error);
 }
@@ -69,9 +69,9 @@ function publicRouter({pool,origin}) {
 function workspaceRouter({pool,authenticate}) {
   const router=express.Router();
   router.use(noStore,authenticate,express.json({limit:'12kb'}));
-  const allow=(permission,fn)=>handle(async(req,res)=>{
+  const allow=(permission,fn,capability='retail.commerce')=>handle(async(req,res)=>{
     const context=req.businessContext;
-    if (!decision(context,{capability:'retail.commerce',permission}).allowed) return res.sendStatus(403);
+    if (!decision(context,{capability,permission}).allowed) return res.sendStatus(403);
     return fn(req,res,context);
   });
   router.get('/store',allow('retail.configure',async(req,res,c)=>{
@@ -127,7 +127,19 @@ function workspaceRouter({pool,authenticate}) {
       fulfillment,order_lines AS orderLines,total_minor AS totalMinor,status,lead_id AS leadId,cash_received_at AS cashReceivedAt,driver_id AS driverId,created_at AS createdAt
       FROM sx_retail_orders WHERE tenant_id=? ${driver ? "AND driver_id=? AND status IN ('ready','dispatched')" : ''} ORDER BY created_at DESC LIMIT 100`,
       driver?[c.tenant.id,c.membership.id]:[c.tenant.id]);
-    reply(res,rows.map(({orderLines,...row})=>({...row,lines:typeof orderLines==='string'?JSON.parse(orderLines):orderLines})));
+    const ids=rows.map(row=>row.id);
+    const returned=ids.length?(await pool.query('SELECT order_id AS orderId,product_id AS productId,SUM(quantity) AS quantity FROM sx_retail_return_lines WHERE tenant_id=? AND order_id IN (?) GROUP BY order_id,product_id',[c.tenant.id,ids]))[0]:[];
+    const receipts=ids.length?(await pool.query('SELECT order_id AS orderId FROM sx_retail_cash_receipts WHERE tenant_id=? AND order_id IN (?)',[c.tenant.id,ids]))[0]:[];
+    const returnedByOrder=new Map();
+    for(const line of returned){if(!returnedByOrder.has(line.orderId))returnedByOrder.set(line.orderId,new Map());returnedByOrder.get(line.orderId).set(line.productId,Number(line.quantity));}
+    const received=new Set(receipts.map(row=>row.orderId));
+    reply(res,rows.map(({orderLines,...row})=>{
+      const prior=returnedByOrder.get(row.id)||new Map();
+      const lines=(typeof orderLines==='string'?JSON.parse(orderLines):orderLines).map(line=>({
+        ...line,returnedQuantity:prior.get(line.id)||0,returnableQuantity:Number(line.quantity)-(prior.get(line.id)||0)
+      }));
+      return {...row,totalMinor:Number(row.totalMinor),cashReceived:Boolean(row.cashReceivedAt)||received.has(row.id),lines};
+    }));
   }
   router.get('/orders',allow('retail.orders',(req,res,c)=>list(res,c,false)));
   router.get('/deliveries',allow('retail.deliver',(req,res,c)=>list(res,c,true)));
@@ -136,6 +148,27 @@ function workspaceRouter({pool,authenticate}) {
       WHERE m.tenant_id=? AND m.status='active' AND m.role='agent' AND i.status='active' ORDER BY i.display_name LIMIT 200`,[c.tenant.id]);
     reply(res,rows);
   }));
+  router.get('/finance',allow('retail.finance',async(req,res,c)=>{
+    const [receipts]=await pool.query(`SELECT r.collector_membership_id AS driverId,i.display_name AS driverName,o.id AS orderId,r.amount_minor AS amountMinor,r.received_at AS receivedAt,
+      COUNT(*) OVER(PARTITION BY r.collector_membership_id) AS orderCount
+      FROM sx_retail_cash_receipts r JOIN sx_retail_orders o ON o.tenant_id=r.tenant_id AND o.id=r.order_id
+      JOIN sx_memberships m ON m.tenant_id=r.tenant_id AND m.id=r.collector_membership_id
+      JOIN sx_identities i ON i.id=m.identity_id WHERE r.tenant_id=? AND r.settlement_id IS NULL AND o.fulfillment='delivery'
+      ORDER BY i.display_name,r.received_at,o.id LIMIT 1000`,[c.tenant.id]);
+    const drivers=new Map();
+    for(const row of receipts){
+      if(!drivers.has(row.driverId))drivers.set(row.driverId,{id:row.driverId,name:row.driverName,orders:[],expectedMinor:0});
+      const driver=drivers.get(row.driverId);driver.orders.push({id:row.orderId,amountMinor:Number(row.amountMinor),receivedAt:row.receivedAt});driver.expectedMinor+=Number(row.amountMinor);driver.orderCount=Number(row.orderCount);
+    }
+    for(const driver of drivers.values())driver.hasMore=driver.orderCount>driver.orders.length;
+    const [settlements]=await pool.query(`SELECT s.id,s.driver_membership_id AS driverId,i.display_name AS driverName,s.expected_minor AS expectedMinor,
+      s.counted_minor AS countedMinor,s.status,s.created_at AS createdAt FROM sx_retail_cash_settlements s
+      JOIN sx_memberships m ON m.tenant_id=s.tenant_id AND m.id=s.driver_membership_id JOIN sx_identities i ON i.id=m.identity_id
+      WHERE s.tenant_id=? ORDER BY s.created_at DESC,s.id DESC LIMIT 30`,[c.tenant.id]);
+    reply(res,{drivers:[...drivers.values()],settlements:settlements.map(row=>({...row,expectedMinor:Number(row.expectedMinor),countedMinor:Number(row.countedMinor)}))});
+  },'retail.finance'));
+  router.post('/finance/settlements',allow('retail.finance',async(req,res,c)=>reply(res,
+    await commerce.recordSettlement(pool,c.tenant.id,{identityId:c.identity.id},req.body)), 'retail.finance'));
   router.put('/orders/:id/driver',allow('retail.orders',async(req,res,c)=>{
     const id=req.params.id, driver=req.body?.driverId;
     if (!commerce.uuid.test(id)||!commerce.uuid.test(driver || '')) commerce.fail('INVALID_ASSIGNMENT');
@@ -145,6 +178,12 @@ function workspaceRouter({pool,authenticate}) {
     if (!result.affectedRows) commerce.fail('ASSIGNMENT_UNAVAILABLE',409);
     reply(res,{driverId:driver});
   }));
+  router.post('/orders/:id/cash-received',allow('retail.cash.collect',async(req,res,c)=>reply(res,
+    await commerce.recordCashReceipt(pool,c.tenant.id,{identityId:c.identity.id,membershipId:c.membership.id,role:c.membership.role},req.params.id,req.body,false))));
+  router.post('/deliveries/:id/cash-received',allow('retail.deliver',async(req,res,c)=>reply(res,
+    await commerce.recordCashReceipt(pool,c.tenant.id,{identityId:c.identity.id,membershipId:c.membership.id,role:c.membership.role},req.params.id,req.body,true))));
+  router.post('/orders/:id/returns',allow('retail.returns',async(req,res,c)=>reply(res,
+    await commerce.returnItems(pool,c.tenant.id,{identityId:c.identity.id},req.params.id,req.body))));
   router.post('/orders/:id/lead',allow('retail.orders',async(req,res,c)=>{
     const id=req.params.id;
     const uid=req.featureSession?.ownerUid;
@@ -161,19 +200,6 @@ function workspaceRouter({pool,authenticate}) {
       return {id:result.id};
     });
     reply(res,lead);
-  }));
-  router.post('/orders/:id/cash-received',allow('retail.orders',async(req,res,c)=>{
-    const id=req.params.id;
-    if(!commerce.uuid.test(id))commerce.fail('ORDER_NOT_FOUND',404);
-    const [result]=await pool.query(`UPDATE sx_retail_orders SET cash_received_by=IF(cash_received_at IS NULL,?,cash_received_by),
-      cash_received_at=COALESCE(cash_received_at,UTC_TIMESTAMP(3)) WHERE tenant_id=? AND id=? AND status='completed'`,
-      [c.identity.id,c.tenant.id,id]);
-    if(!result.affectedRows){
-      const [[record]]=await pool.query("SELECT cash_received_at AS received FROM sx_retail_orders WHERE tenant_id=? AND id=? AND status='completed'",
-        [c.tenant.id,id]);
-      if(!record?.received)commerce.fail('CASH_RECORD_UNAVAILABLE',409);
-    }
-    reply(res,{received:true});
   }));
   for (const [url,permission,driver] of [['/orders','retail.orders',false],['/deliveries','retail.deliver',true]]) {
     router.post(url+'/:id/status',allow(permission,async(req,res,c)=>reply(res,

@@ -88,6 +88,107 @@ async function move(db, tenant, product, request, actor, delta, reason) {
     (tenant_id,product_id,request_id,actor_id,previous_revision,previous_quantity,quantity,reason) VALUES (?,?,?,?,?,?,?,?)`,
     [tenant, product, request, actor, last?.revision || '0', previous, next, reason]);
 }
+function returnInput(input) {
+  if(!input||!uuid.test(input.requestId||'')||typeof input.restock!=='boolean'||!Array.isArray(input.lines)||!input.lines.length||input.lines.length>30)fail('INVALID_RETURN');
+  const reason=string(input.reason,200);
+  const lines=input.lines.map(line=>{
+    if(!line||!uuid.test(line.id||'')||!Number.isInteger(line.quantity)||line.quantity<1||line.quantity>100)fail('INVALID_RETURN');
+    return {id:line.id.toLowerCase(),quantity:line.quantity};
+  }).sort((a,b)=>a.id.localeCompare(b.id));
+  if(new Set(lines.map(line=>line.id)).size!==lines.length)fail('INVALID_RETURN');
+  return {requestId:input.requestId.toLowerCase(),reason,restock:input.restock,lines};
+}
+async function returnItems(pool,tenant,actor,orderId,input) {
+  if(!uuid.test(orderId))fail('ORDER_NOT_FOUND',404);
+  const request=returnInput(input);
+  const hash=createHash('sha256').update(JSON.stringify({orderId,request})).digest('hex');
+  return transaction(pool,async db=>{
+    const [[business]]=await db.query('SELECT id FROM sx_tenants WHERE id=? FOR UPDATE',[tenant]);
+    if(!business)fail('ORDER_NOT_FOUND',404);
+    const [[prior]]=await db.query('SELECT id,request_hash AS hash,restocked FROM sx_retail_returns WHERE tenant_id=? AND request_id=? FOR UPDATE',[tenant,request.requestId]);
+    if(prior){if(prior.hash!==hash)fail('REQUEST_CONFLICT',409);return {id:prior.id,restocked:Boolean(prior.restocked),replayed:true};}
+    const [[order]]=await db.query('SELECT status,order_lines AS orderLines FROM sx_retail_orders WHERE tenant_id=? AND id=? FOR UPDATE',[tenant,orderId]);
+    if(!order||!['completed','partially_returned'].includes(order.status))fail('RETURN_UNAVAILABLE',409);
+    const purchased=typeof order.orderLines==='string'?JSON.parse(order.orderLines):order.orderLines;
+    const purchasedById=new Map(purchased.map(line=>[line.id,{quantity:Number(line.quantity),priceMinor:Number(line.priceMinor)}]));
+    const [priorLines]=await db.query('SELECT product_id AS productId,SUM(quantity) AS quantity FROM sx_retail_return_lines WHERE tenant_id=? AND order_id=? GROUP BY product_id',[tenant,orderId]);
+    const alreadyReturned=new Map(priorLines.map(line=>[line.productId,Number(line.quantity)]));
+    for(const line of request.lines){
+      const original=purchasedById.get(line.id);
+      if(!original||line.quantity>original.quantity-(alreadyReturned.get(line.id)||0))fail('RETURN_QUANTITY_EXCEEDED',409);
+    }
+    const id=randomUUID();
+    await db.query('INSERT INTO sx_retail_returns (id,tenant_id,order_id,request_id,request_hash,reason,restocked,created_by_identity_id) VALUES (?,?,?,?,?,?,?,?)',
+      [id,tenant,orderId,request.requestId,hash,request.reason,request.restock,actor.identityId]);
+    for(const line of request.lines){
+      await db.query('INSERT INTO sx_retail_return_lines (tenant_id,return_id,order_id,product_id,quantity) VALUES (?,?,?,?,?)',[tenant,id,orderId,line.id,line.quantity]);
+      if(request.restock){
+        await lockProduct(db,tenant,line.id,false);
+        await move(db,tenant,line.id,id,actor.identityId,line.quantity,'Retail return: '+request.reason);
+      }
+    }
+    const returnedTotal=[...alreadyReturned.values()].reduce((sum,value)=>sum+value,0)+request.lines.reduce((sum,line)=>sum+line.quantity,0);
+    const purchasedTotal=purchased.reduce((sum,line)=>sum+Number(line.quantity),0);
+    const status=returnedTotal===purchasedTotal?'returned':'partially_returned';
+    await db.query('UPDATE sx_retail_orders SET status=? WHERE tenant_id=? AND id=?',[status,tenant,orderId]);
+    return {id,status,restocked:request.restock,replayed:false};
+  });
+}
+async function recordCashReceipt(pool,tenant,actor,orderId,input,driver=false) {
+  if(!uuid.test(orderId)||!input||!uuid.test(input.requestId||'')||!Number.isSafeInteger(input.amountMinor)||input.amountMinor<0)fail('INVALID_CASH_RECEIPT');
+  const requestId=input.requestId.toLowerCase();
+  return transaction(pool,async db=>{
+    const [[order]]=await db.query('SELECT status,fulfillment,driver_id AS driver,total_minor AS total FROM sx_retail_orders WHERE tenant_id=? AND id=? FOR UPDATE',[tenant,orderId]);
+    if(!order)fail('ORDER_NOT_FOUND',404);
+    if((driver||actor.role==='agent')&&(!order.driver||order.driver!==actor.membershipId||order.fulfillment!=='delivery'))fail('ORDER_NOT_FOUND',404);
+    const collector=order.fulfillment==='delivery'?order.driver:actor.membershipId;
+    if(!collector)fail('CASH_RECORD_UNAVAILABLE',409);
+    const hash=createHash('sha256').update(JSON.stringify({orderId,amountMinor:input.amountMinor,collector,identityId:actor.identityId})).digest('hex');
+    const [[byRequest]]=await db.query('SELECT id,request_hash AS hash FROM sx_retail_cash_receipts WHERE tenant_id=? AND request_id=? FOR UPDATE',[tenant,requestId]);
+    if(byRequest){if(byRequest.hash!==hash)fail('REQUEST_CONFLICT',409);return {id:byRequest.id,received:true,replayed:true};}
+    const [[byOrder]]=await db.query('SELECT id,amount_minor AS amount FROM sx_retail_cash_receipts WHERE tenant_id=? AND order_id=? FOR UPDATE',[tenant,orderId]);
+    if(byOrder){if(Number(byOrder.amount)!==input.amountMinor)fail('CASH_ALREADY_RECORDED',409);return {id:byOrder.id,received:true,replayed:true};}
+    if(!((order.fulfillment==='delivery'&&order.status==='dispatched')||(order.fulfillment==='pickup'&&order.status==='ready')))fail('CASH_RECORD_UNAVAILABLE',409);
+    if(!Number.isSafeInteger(Number(order.total))||input.amountMinor!==Number(order.total))fail('CASH_AMOUNT_MISMATCH',409);
+    const id=randomUUID();
+    await db.query('INSERT INTO sx_retail_cash_receipts (id,tenant_id,order_id,request_id,request_hash,amount_minor,collector_membership_id,recorded_by_identity_id) VALUES (?,?,?,?,?,?,?,?)',
+      [id,tenant,orderId,requestId,hash,input.amountMinor,collector,actor.identityId]);
+    await db.query('UPDATE sx_retail_orders SET cash_received_by=?,cash_received_at=UTC_TIMESTAMP(3) WHERE tenant_id=? AND id=?',[actor.identityId,tenant,orderId]);
+    return {id,received:true,replayed:false};
+  });
+}
+async function recordSettlement(pool,tenant,actor,input) {
+  if(!input||!uuid.test(input.requestId||'')||!uuid.test(input.driverId||'')||!Array.isArray(input.orderIds)||!input.orderIds.length||input.orderIds.length>100||
+    !Number.isSafeInteger(input.countedMinor)||input.countedMinor<0)fail('INVALID_SETTLEMENT');
+  const orderIds=input.orderIds.map(id=>{if(!uuid.test(id))fail('INVALID_SETTLEMENT');return id.toLowerCase();}).sort();
+  if(new Set(orderIds).size!==orderIds.length)fail('INVALID_SETTLEMENT');
+  const requestId=input.requestId.toLowerCase(),driverId=input.driverId.toLowerCase();
+  const request={driverId,orderIds,countedMinor:input.countedMinor};
+  const hash=createHash('sha256').update(JSON.stringify(request)).digest('hex');
+  return transaction(pool,async db=>{
+    const [[business]]=await db.query('SELECT id FROM sx_tenants WHERE id=? FOR UPDATE',[tenant]);
+    if(!business)fail('SETTLEMENT_ORDERS_UNAVAILABLE',409);
+    const [[prior]]=await db.query('SELECT id,request_hash AS hash,expected_minor AS expected,counted_minor AS counted,status FROM sx_retail_cash_settlements WHERE tenant_id=? AND request_id=? FOR UPDATE',[tenant,requestId]);
+    if(prior){if(prior.hash!==hash)fail('REQUEST_CONFLICT',409);return {id:prior.id,expectedMinor:Number(prior.expected),countedMinor:Number(prior.counted),status:prior.status,replayed:true};}
+    const [[driverMember]]=await db.query("SELECT id FROM sx_memberships WHERE tenant_id=? AND id=? AND role='agent' FOR UPDATE",[tenant,driverId]);
+    if(!driverMember)fail('DRIVER_UNAVAILABLE',409);
+    const [rows]=await db.query(`SELECT o.id,o.status,o.fulfillment,o.driver_id AS driver,r.amount_minor AS amount,r.settlement_id AS settlement
+      FROM sx_retail_orders o JOIN sx_retail_cash_receipts r ON r.tenant_id=o.tenant_id AND r.order_id=o.id
+      WHERE o.tenant_id=? AND o.id IN (?) ORDER BY o.id FOR UPDATE`,[tenant,orderIds]);
+    if(rows.length!==orderIds.length||rows.some(row=>!['completed','partially_returned','returned'].includes(row.status)||row.fulfillment!=='delivery'||row.driver!==driverId||row.settlement))fail('SETTLEMENT_ORDERS_UNAVAILABLE',409);
+    const expectedBig=rows.reduce((sum,row)=>sum+BigInt(row.amount),0n);
+    if(expectedBig>BigInt(Number.MAX_SAFE_INTEGER))fail('SETTLEMENT_TOO_LARGE',409);
+    const expectedMinor=Number(expectedBig),status=input.countedMinor===expectedMinor?'matched':'variance',id=randomUUID();
+    await db.query('INSERT INTO sx_retail_cash_settlements (id,tenant_id,request_id,request_hash,driver_membership_id,expected_minor,counted_minor,status,recorded_by_identity_id) VALUES (?,?,?,?,?,?,?,?,?)',
+      [id,tenant,requestId,hash,driverId,expectedMinor,input.countedMinor,status,actor.identityId]);
+    for(const row of rows)await db.query('INSERT INTO sx_retail_cash_settlement_orders (tenant_id,settlement_id,order_id,amount_minor) VALUES (?,?,?,?)',[tenant,id,row.id,row.amount]);
+    if(status==='matched'){
+      const [updated]=await db.query('UPDATE sx_retail_cash_receipts SET settlement_id=?,settled_at=UTC_TIMESTAMP(3) WHERE tenant_id=? AND order_id IN (?) AND settlement_id IS NULL',[id,tenant,orderIds]);
+      if(updated.affectedRows!==orderIds.length)fail('SETTLEMENT_ORDERS_UNAVAILABLE',409);
+    }
+    return {id,expectedMinor,countedMinor:input.countedMinor,status,replayed:false};
+  });
+}
 async function checkout(pool, slug, input) {
   const order = checkoutInput(input);
   const hash = createHash('sha256').update(JSON.stringify(order)).digest('hex');
@@ -127,11 +228,19 @@ async function checkout(pool, slug, input) {
 async function transition(pool, tenant, actor, id, next, driver) {
   if (!uuid.test(id)) fail('ORDER_NOT_FOUND', 404);
   return transaction(pool, async db => {
-    const [[order]] = await db.query('SELECT status,fulfillment,driver_id AS driver,order_lines AS orderLines FROM sx_retail_orders WHERE tenant_id=? AND id=? FOR UPDATE', [tenant,id]);
+    const [[order]] = await db.query('SELECT status,fulfillment,driver_id AS driver,order_lines AS orderLines,total_minor AS total FROM sx_retail_orders WHERE tenant_id=? AND id=? FOR UPDATE', [tenant,id]);
     if (!order || (driver && order.driver !== actor.membershipId)) fail('ORDER_NOT_FOUND', 404);
     if (order.status === next) return {status: next};
-    const allowed = {placed: ['ready','cancelled'], ready: order.fulfillment === 'delivery' ? ['dispatched','cancelled'] : ['completed','cancelled'], dispatched: ['completed'], completed: ['returned']};
+    const allowed = {placed: ['ready','cancelled'], ready: order.fulfillment === 'delivery' ? ['dispatched','cancelled'] : ['completed','cancelled'], dispatched: ['completed'], completed: ['returned'], partially_returned:['returned']};
     if (!allowed[order.status]?.includes(next) || (driver && !['dispatched','completed'].includes(next)) || (next === 'dispatched' && !order.driver)) fail('INVALID_TRANSITION', 409);
+    if(next==='completed'){
+      const [[receipt]]=await db.query('SELECT amount_minor AS amount FROM sx_retail_cash_receipts WHERE tenant_id=? AND order_id=? FOR UPDATE',[tenant,id]);
+      if(!receipt||Number(receipt.amount)!==Number(order.total))fail('CASH_RECEIPT_REQUIRED',409);
+    }
+    if(next==='cancelled'){
+      const [[receipt]]=await db.query('SELECT id FROM sx_retail_cash_receipts WHERE tenant_id=? AND order_id=? FOR UPDATE',[tenant,id]);
+      if(receipt)fail('CASH_RECEIPT_RECORDED',409);
+    }
     if (next === 'cancelled' || next === 'completed') {
       const lines = typeof order.orderLines === 'string' ? JSON.parse(order.orderLines) : order.orderLines;
       for (const line of lines) {
@@ -144,14 +253,22 @@ async function transition(pool, tenant, actor, id, next, driver) {
     }
     if(next==='returned'){
       const lines=typeof order.orderLines==='string'?JSON.parse(order.orderLines):order.orderLines;
-      const request=randomUUID();
-      for(const line of lines){
-        await lockProduct(db,tenant,line.id,false);
-        await move(db,tenant,line.id,request,actor.identityId,line.quantity,'Retail order returned');
+      const [priorLines]=await db.query('SELECT product_id AS productId,SUM(quantity) AS quantity FROM sx_retail_return_lines WHERE tenant_id=? AND order_id=? GROUP BY product_id',[tenant,id]);
+      const alreadyReturned=new Map(priorLines.map(line=>[line.productId,Number(line.quantity)]));
+      const remaining=lines.map(line=>({id:line.id,quantity:Number(line.quantity)-(alreadyReturned.get(line.id)||0)})).filter(line=>line.quantity>0);
+      if(remaining.length){
+        const request=randomUUID(),returnId=randomUUID(),requestHash=createHash('sha256').update(JSON.stringify({orderId:id,returnId,remaining,restock:true})).digest('hex');
+        await db.query('INSERT INTO sx_retail_returns (id,tenant_id,order_id,request_id,request_hash,reason,restocked,created_by_identity_id) VALUES (?,?,?,?,?,?,?,?)',
+          [returnId,tenant,id,request,requestHash,'Full return',1,actor.identityId]);
+        for(const line of remaining){
+          await lockProduct(db,tenant,line.id,false);
+          await db.query('INSERT INTO sx_retail_return_lines (tenant_id,return_id,order_id,product_id,quantity) VALUES (?,?,?,?,?)',[tenant,returnId,id,line.id,line.quantity]);
+          await move(db,tenant,line.id,returnId,actor.identityId,line.quantity,'Retail order returned');
+        }
       }
     }
     await db.query('UPDATE sx_retail_orders SET status=? WHERE tenant_id=? AND id=?', [next,tenant,id]);
     return {status: next};
   });
 }
-module.exports = {getStore, browse, checkout, transition, transaction, lockProduct, fail, string, uuid, slugPattern};
+module.exports = {getStore, browse, checkout, transition, returnItems, recordCashReceipt, recordSettlement, transaction, lockProduct, fail, string, uuid, slugPattern};
