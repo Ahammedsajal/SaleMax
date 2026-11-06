@@ -24,6 +24,7 @@ const items = [
   ['sales-organization', 'team.members', 'team.read', 'Organization', 'الهيكل التنظيمي', 'Sales', 'المبيعات'],
   ['commission-policy', 'sales.commissions', 'commission.policy.manage', 'Commission Policy', 'سياسة العمولات', 'Administration', 'الإدارة'],
   ['retail-orders', 'retail.commerce', 'retail.orders', 'Retail orders', 'طلبات التجزئة', 'Business Operations', 'عمليات الأعمال'],
+  ['retail-connected-stores', 'retail.commerce', 'retail.connect', 'Connected Stores', 'المتاجر المتصلة', 'Business Operations', 'عمليات الأعمال'],
   ['retail-deliveries', 'retail.commerce', 'retail.deliver', 'My deliveries', 'عمليات التوصيل الخاصة بي', 'Business Operations', 'عمليات الأعمال'],
   ['business-inventory', 'retail.inventory', 'inventory.read', 'Inventory', 'المخزون', 'Business Operations', 'عمليات الأعمال'],
   ['products-services', 'products.catalog', 'products.read', 'Products & services', 'المنتجات والخدمات', 'Sales', 'المبيعات'],
@@ -48,7 +49,7 @@ const items = [
   ['team', 'team.members', 'team.read', 'Team access', 'إدارة وصول الفريق', 'Administration', 'الإدارة'],
   ['settings', 'tenant.settings', 'tenant.manage', 'Business Settings', 'إعدادات الأعمال', 'Administration', 'الإدارة'],
   ['ai-integrations', 'tenant.settings', 'tenant.manage', 'AI Integrations', 'تكاملات الذكاء الاصطناعي', 'Automation', 'الأتمتة'],
-].map(([key, capability, permission, en, ar, groupEn, groupAr]) => Object.freeze({ key, capability, permission, path: '/user/' + key, label: { en, ar }, group: { en: groupEn, ar: groupAr },ownerOnly:['recruitment','training-profile','ai-integrations'].includes(key),sidebar:!['batches','enrollments','installments','payments','receipts','credits','scheduled-reports'].includes(key) }));
+].map(([key, capability, permission, en, ar, groupEn, groupAr]) => Object.freeze({ key, capability, permission, path: '/user/' + key, label: { en, ar }, group: { en: groupEn, ar: groupAr },ownerOnly:['recruitment','training-profile','ai-integrations','retail-connected-stores'].includes(key),sidebar:!['batches','enrollments','installments','payments','receipts','credits','scheduled-reports'].includes(key) }));
 function navigationFor(context) {
   if (context?.audience !== 'tenant' || context.tenant?.status !== 'active' || context.membership?.status !== 'active' || context.membership?.tenantId !== context.tenant?.id) return [];
   // Internal Sales accountants work from finance and payout workspaces only.
