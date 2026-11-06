@@ -392,17 +392,32 @@ def main(stage, commit):
     required_prior = RETAIL_MIGRATIONS[:-1]
     if any(name not in before_ledger or before_ledger[name]['status'] != 'applied' for name in required_prior):
         raise RuntimeError('An earlier retail migration is missing or incomplete')
-    if set(schema_before['tables']) != PRIOR_TABLES:
-        raise RuntimeError('Retail schema differs from the reviewed pre-migration state')
-    if any(name in before_ledger for name in MIGRATIONS):
-        raise RuntimeError('Connected Stores migration already exists in the live database')
+    migration_hash = artifact_hashes['database/migrations/20270132_retail_connected_stores.sql']
+    existing_connected_migration = before_ledger.get(MIGRATIONS[0])
+    if existing_connected_migration:
+        if (existing_connected_migration['status'] != 'applied'
+                or existing_connected_migration['checksum'] != migration_hash
+                or existing_connected_migration['statement_count'] != 9
+                or existing_connected_migration['statements_completed'] != 9
+                or set(schema_before['tables']) != PRIOR_TABLES | NEW_TABLES):
+            raise RuntimeError('Existing Connected Stores migration differs from the reviewed additive schema')
+        migration_previously_applied = True
+    else:
+        if set(schema_before['tables']) != PRIOR_TABLES:
+            raise RuntimeError('Retail schema differs from the reviewed pre-migration state')
+        migration_previously_applied = False
     if schema_before['enabledStores'] or schema_before['entitledPlans'] or schema_before['activeCommerceAssignments']:
         raise RuntimeError('Commerce entitlement or storefront activation is not closed')
     (backup / 'database-schema-before.json').write_text(json.dumps(schema_before, indent=2) + '\n')
 
     migration_source = (runtime / 'database/migrations/20270132_retail_connected_stores.sql').read_text()
-    for migration in MIGRATIONS:
-        (backup / (migration + '.result.json')).write_text(db_call('apply', migration, migration_source))
+    if migration_previously_applied:
+        (backup / (MIGRATIONS[0] + '.result.json')).write_text(json.dumps(
+            {'status': 'already_applied', 'sourceCommit': 'previous guarded attempt',
+             'checksum': migration_hash, 'statementCount': 9}, indent=2) + '\n')
+    else:
+        for migration in MIGRATIONS:
+            (backup / (migration + '.result.json')).write_text(db_call('apply', migration, migration_source))
     schema_after = json.loads(db_call('verify'))
     after_ledger = {row['migration_name']: row for row in schema_after['ledger']}
     for migration in RETAIL_MIGRATIONS:
@@ -412,7 +427,8 @@ def main(stage, commit):
     expected_tables = PRIOR_TABLES | NEW_TABLES
     if set(schema_after['tables']) != expected_tables:
         raise RuntimeError('Connected Stores schema table set is incomplete')
-    if migration['checksum'] != artifact_hashes['database/migrations/20270132_retail_connected_stores.sql'] or migration['statements_completed'] != 9:
+    if (migration['checksum'] != migration_hash or migration['statement_count'] != 9
+            or migration['statements_completed'] != 9):
         raise RuntimeError('Connected Stores migration checksum or statement count differs')
     if schema_after['newTableRows'] != {name: 0 for name in sorted(NEW_TABLES)}:
         raise RuntimeError('New Connected Stores tables contain unexpected records')
@@ -433,7 +449,9 @@ def main(stage, commit):
         current_mounts = {row['Destination']: row['Source'] for row in current['Mounts']}
         if current['Image'] != app['Image'] or current_mounts != expected_mounts:
             raise RuntimeError('Application image or mounts differ from the reviewed app-only overlay')
-        if current['Config']['Env'] != app['Config']['Env']:
+        previous_env = dict(item.split('=', 1) for item in app['Config'].get('Env', []) if '=' in item)
+        current_env = dict(item.split('=', 1) for item in current['Config'].get('Env', []) if '=' in item)
+        if current_env != previous_env or len(current_env) != len(current['Config'].get('Env', [])):
             raise RuntimeError('Application environment changed during the release')
         if {name: inspect(name)['Id'] for name in SUPPORT} != support:
             raise RuntimeError('A supporting service identity changed during app release')
@@ -465,7 +483,8 @@ def main(stage, commit):
             'image': current['Image'], 'runtimeFiles': len(overlay_mounts), 'appMounts': len(current['Mounts']),
             'migration': {'file': MIGRATIONS[0], 'status': migration['status'],
                           'checksum': migration['checksum'], 'statementCount': migration['statement_count'],
-                          'statementsCompleted': migration['statements_completed']},
+                          'statementsCompleted': migration['statements_completed'],
+                          'alreadyAppliedBeforeAppRelease': migration_previously_applied},
             'databaseTables': len(schema_after['tables']), 'newTableRows': schema_after['newTableRows'],
             'enabledStores': schema_after['enabledStores'], 'entitledPlans': schema_after['entitledPlans'],
             'activeCommerceAssignments': schema_after['activeCommerceAssignments'],
