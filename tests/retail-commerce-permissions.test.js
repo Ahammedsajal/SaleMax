@@ -28,6 +28,10 @@ test('retail cash collection, order returns, and finance routes map to narrow ac
   assert.equal(route('/orders/abc/cash-received'),'retail.cash.collect');
   assert.equal(route('/deliveries/abc/cash-received'),'retail.deliver');
   assert.equal(route('/orders/abc/returns'),'retail.returns');
+  assert.equal(route('/deliveries/abc/failed'),'retail.deliver');
+  assert.equal(route('/deliveries/abc/retry'),'retail.deliver');
+  assert.equal(route('/deliveries/abc/proof'),'retail.deliver');
+  assert.equal(route('/orders/abc/driver','PUT'),'retail.orders');
   assert.equal(route('/finance'),'retail.finance');
   assert.equal(route('/finance/settlements'),'retail.finance');
   assert.equal(policy.decision(context('agent'),{capability:'retail.commerce',permission:'retail.cash.collect'}).scope,'assigned');

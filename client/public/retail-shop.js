@@ -3,6 +3,7 @@
   if (!root) return;
   const base=location.pathname.replace(/\/$/,'');
   const storageKey='7network-cart:'+base;
+  const checkoutStorageKey='7network-checkout-request:'+base;
   const state={cart:new Map(),page:'home',request:null};
   function saveCart(){
     try {sessionStorage.setItem(storageKey,JSON.stringify([...state.cart]));}catch{}
@@ -22,6 +23,10 @@
   const t=(en,ar)=>arabic?ar:en;
   document.documentElement.lang=t('en','ar');
   document.documentElement.dir=t('ltr','rtl');
+  function setupInstallableStore(){
+    const manifest=document.createElement('link');manifest.rel='manifest';manifest.href=base+'/manifest.webmanifest';document.head.append(manifest);
+    if('serviceWorker' in navigator)navigator.serviceWorker.register(base+'/service-worker.js',{scope:base?base+'/':'/'}).catch(()=>{});
+  }
   const add=(parent,tag,text)=>{
     const node=document.createElement(tag);
     if(text!==undefined) node.textContent=text;
@@ -43,6 +48,19 @@
   }
   function lines() {return [...state.cart].map(([id,quantity])=>({id,quantity}));}
   function amount() {return lines().reduce((sum,line)=>sum+Number(state.items.find(p=>p.id===line.id).priceMinor)*line.quantity,0);}
+  function checkoutRequestState(){
+    if(state.request&&Number(state.request.expiresAt)>Date.now()&&/^[0-9a-f-]{36}$/i.test(state.request.id))return state.request;
+    try{
+      const saved=JSON.parse(sessionStorage.getItem(checkoutStorageKey)||'null');
+      if(Number(saved?.expiresAt)>Date.now()&&/^[0-9a-f-]{36}$/i.test(saved.id)){state.request=saved;return saved;}
+      const id=crypto.randomUUID();
+      state.request={id,expiresAt:Date.now()+15*60*1000,pending:false};return state.request;
+    }catch{state.request={id:crypto.randomUUID(),expiresAt:Date.now()+15*60*1000,pending:false};return state.request;}
+  }
+  function saveCheckoutRequest(requestState){
+    state.request=requestState;
+    try{sessionStorage.setItem(checkoutStorageKey,JSON.stringify(requestState));}catch{}
+  }
   function change(item,count) {
     if(count>0) state.cart.set(item.id,Math.min(count,100));
     else state.cart.delete(item.id);
@@ -113,11 +131,21 @@
       event.preventDefault();
       const order={name:customer.value,phone:phone.value,fulfillment:mode.value,address:address.value,pin:pin.value,zone:zone.value,lines:lines(),
         expectedTotal:amount()+fee()};
-      const key=JSON.stringify(order);
-      if(state.request?.key!==key) state.request={key,id:crypto.randomUUID()};
+      const retry=checkoutRequestState();
       submit.disabled=true;
       try {
-        state.receipt=await request('/checkout',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({...order,requestId:state.request.id})});
+        if(retry.pending){
+          try{
+            state.receipt=await request('/checkout/recover',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({requestId:retry.id})});
+            state.request=null;
+            try{sessionStorage.removeItem(checkoutStorageKey);}catch{}
+            state.cart.clear();saveCart();show('confirmation');return;
+          }catch(error){if(error.message!=='CHECKOUT_NOT_FOUND')throw error;}
+        }
+        retry.pending=true;saveCheckoutRequest(retry);
+        state.receipt=await request('/checkout',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({...order,requestId:retry.id})});
+        state.request=null;
+        try{sessionStorage.removeItem(checkoutStorageKey);}catch{}
         state.cart.clear();saveCart();show('confirmation');
       } catch(error) {
         status.textContent=['STOCK_CHANGED','PRICE_CHANGED','PRODUCT_UNAVAILABLE'].includes(error.message)?
@@ -159,6 +187,10 @@
     if(state.page==='checkout') checkout(body);
     if(state.page==='confirmation'){
       add(body,'p',t('Order reference: ','مرجع الطلب: ')+state.receipt.reference);
+      if(state.receipt.deliveryProofCode){
+        add(body,'p',t('Show this one-time handoff code to the delivery person. Keep it private until your order arrives.','أظهر رمز الاستلام لمرة واحدة لمندوب التوصيل. احتفظ به سرياً حتى وصول طلبك.'));
+        const proof=add(body,'strong',state.receipt.deliveryProofCode);proof.dir='ltr';proof.className='handoff-code';
+      }
       button(body,t('Track order','تتبع الطلب'),()=>show('track'));
     }
     if(state.page==='track'){
@@ -173,13 +205,14 @@
         event.preventDefault();submit.disabled=true;
         try {
           const order=await request('/track',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({reference:reference.value.trim()})});
-          result.textContent=statuses[order.status]||'';
+          result.textContent=order.deliveryState==='failed'?t('The delivery attempt was unsuccessful. The store will arrange the next step.','تعذر إتمام محاولة التوصيل. سيقوم المتجر بترتيب الخطوة التالية.'):(statuses[order.status]||'');
         } catch {result.textContent=t('Order not found. Check the reference.','لم يتم العثور على الطلب. تحقق من المرجع.');}
         finally {submit.disabled=false;}
       };
     }
   }
   add(root,'p',t('Loading…','جار التحميل…'));
+  setupInstallableStore();
   request('/catalog').then(data=>{Object.assign(state,data);loadCart();render();})
     .catch(()=>{root.textContent=t('This shop is unavailable.','هذا المتجر غير متاح.');});
 })();

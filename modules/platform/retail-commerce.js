@@ -1,6 +1,7 @@
 'use strict';
 
 const {randomUUID, createHash} = require('node:crypto');
+const deliveryProof = require('./retail-delivery-proof');
 const uuid = /^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i;
 const slugPattern = /^[a-z0-9](?:[a-z0-9-]{0,78}[a-z0-9])?$/;
 const fail = (code, status = 400) => { throw Object.assign(new Error(code), {code, status}); };
@@ -27,6 +28,14 @@ const storeQuery = `SELECT s.tenant_id AS tenantId,s.slug,s.title,s.about,s.cont
     AND (a.expires_at IS NULL OR a.expires_at>UTC_TIMESTAMP()) AND v.status='published'
     AND v.category_key=t.category_key AND v.category_version=t.category_version
     AND JSON_CONTAINS(v.capabilities,JSON_QUOTE('retail.commerce')))`;
+const tenantStoreQuery = `SELECT s.tenant_id AS tenantId,s.slug,s.title,s.about,s.contact,s.delivery_fee AS deliveryFee,s.delivery_zones AS deliveryZones
+  FROM sx_retail_store s JOIN sx_tenants t ON t.id=s.tenant_id AND t.status='active'
+  WHERE s.tenant_id=? AND s.enabled=1 AND t.category_key='retail_boutique'
+  AND EXISTS (SELECT 1 FROM sx_plan_assignments a JOIN sx_plan_versions v ON v.id=a.plan_version_id
+    WHERE a.tenant_id=t.id AND a.current_tenant IS NOT NULL AND a.status IN ('active','trial','grace') AND a.effective_from<=UTC_TIMESTAMP()
+    AND (a.expires_at IS NULL OR a.expires_at>UTC_TIMESTAMP()) AND v.status='published'
+    AND v.category_key=t.category_key AND v.category_version=t.category_version
+    AND JSON_CONTAINS(v.capabilities,JSON_QUOTE('retail.commerce')))`;
 
 async function transaction(pool, fn) {
   const db = await pool.getConnection();
@@ -46,8 +55,17 @@ async function getStore(db, slug, lock = false) {
   if (!store) fail('STORE_NOT_FOUND', 404);
   return {...store,deliveryZones:typeof store.deliveryZones==='string'?JSON.parse(store.deliveryZones):store.deliveryZones||[]};
 }
+async function getStoreForTenant(db, tenantId) {
+  if(!uuid.test(tenantId||''))fail('STORE_NOT_FOUND',404);
+  const [[store]]=await db.query(tenantStoreQuery,[tenantId]);
+  if(!store)fail('STORE_NOT_FOUND',404);
+  return {...store,deliveryZones:typeof store.deliveryZones==='string'?JSON.parse(store.deliveryZones):store.deliveryZones||[]};
+}
 async function browse(pool, slug) {
   const {tenantId, ...store} = await getStore(pool, slug);
+  return browseTenant(pool,tenantId,store);
+}
+async function browseTenant(pool,tenantId,store){
   const [items] = await pool.query(productQuery + ' ORDER BY l.category,p.name_en,p.id LIMIT 500', [tenantId]);
   return {store, items: items.map(({quantity, ...item}) => ({...item, available: Number(quantity) > 0}))};
 }
@@ -138,7 +156,7 @@ async function recordCashReceipt(pool,tenant,actor,orderId,input,driver=false) {
   if(!uuid.test(orderId)||!input||!uuid.test(input.requestId||'')||!Number.isSafeInteger(input.amountMinor)||input.amountMinor<0)fail('INVALID_CASH_RECEIPT');
   const requestId=input.requestId.toLowerCase();
   return transaction(pool,async db=>{
-    const [[order]]=await db.query('SELECT status,fulfillment,driver_id AS driver,total_minor AS total FROM sx_retail_orders WHERE tenant_id=? AND id=? FOR UPDATE',[tenant,orderId]);
+    const [[order]]=await db.query('SELECT status,fulfillment,delivery_proof_required AS proofRequired,delivery_state AS deliveryState,driver_id AS driver,total_minor AS total FROM sx_retail_orders WHERE tenant_id=? AND id=? FOR UPDATE',[tenant,orderId]);
     if(!order)fail('ORDER_NOT_FOUND',404);
     if((driver||actor.role==='agent')&&(!order.driver||order.driver!==actor.membershipId||order.fulfillment!=='delivery'))fail('ORDER_NOT_FOUND',404);
     const collector=order.fulfillment==='delivery'?order.driver:actor.membershipId;
@@ -149,6 +167,10 @@ async function recordCashReceipt(pool,tenant,actor,orderId,input,driver=false) {
     const [[byOrder]]=await db.query('SELECT id,amount_minor AS amount FROM sx_retail_cash_receipts WHERE tenant_id=? AND order_id=? FOR UPDATE',[tenant,orderId]);
     if(byOrder){if(Number(byOrder.amount)!==input.amountMinor)fail('CASH_ALREADY_RECORDED',409);return {id:byOrder.id,received:true,replayed:true};}
     if(!((order.fulfillment==='delivery'&&order.status==='dispatched')||(order.fulfillment==='pickup'&&order.status==='ready')))fail('CASH_RECORD_UNAVAILABLE',409);
+    if(order.fulfillment==='delivery'&&Number(order.proofRequired)){
+      const [[proof]]=await db.query('SELECT verified_at AS verifiedAt FROM sx_retail_delivery_proofs WHERE tenant_id=? AND order_id=? FOR UPDATE',[tenant,orderId]);
+      if(!proof?.verifiedAt)fail('DELIVERY_PROOF_REQUIRED',409);
+    }
     if(!Number.isSafeInteger(Number(order.total))||input.amountMinor!==Number(order.total))fail('CASH_AMOUNT_MISMATCH',409);
     const id=randomUUID();
     await db.query('INSERT INTO sx_retail_cash_receipts (id,tenant_id,order_id,request_id,request_hash,amount_minor,collector_membership_id,recorded_by_identity_id) VALUES (?,?,?,?,?,?,?,?)',
@@ -194,10 +216,16 @@ async function checkout(pool, slug, input) {
   const hash = createHash('sha256').update(JSON.stringify(order)).digest('hex');
   return transaction(pool, async db => {
     const store = await getStore(db, slug, true);
-    const [[prior]] = await db.query('SELECT id,request_hash AS hash,total_minor AS total FROM sx_retail_orders WHERE tenant_id=? AND request_id=? FOR UPDATE', [store.tenantId, order.requestId]);
+    const [[prior]] = await db.query('SELECT id,request_hash AS hash,total_minor AS total,delivery_proof_required AS proofRequired FROM sx_retail_orders WHERE tenant_id=? AND request_id=? FOR UPDATE', [store.tenantId, order.requestId]);
     if (prior) {
       if (prior.hash !== hash) fail('REQUEST_CONFLICT', 409);
-      return {reference: prior.id, totalMinor: Number(prior.total)};
+      let proofCode=null;
+      if(Number(prior.proofRequired)){
+        const [[proof]]=await db.query('SELECT code_hash,code_ciphertext,code_iv,code_auth_tag FROM sx_retail_delivery_proofs WHERE tenant_id=? AND order_id=? FOR UPDATE',[store.tenantId,prior.id]);
+        if(!proof)fail('RETAIL_PROOF_UNAVAILABLE',503);
+        proofCode=deliveryProof.reveal(proof,store.tenantId,prior.id);
+      }
+      return {reference: prior.id, totalMinor: Number(prior.total), deliveryProofCode: proofCode};
     }
     const zone=store.deliveryZones.find(item=>item.name===order.zone);
     if(order.fulfillment==='delivery'&&(store.deliveryZones.length?!zone:store.deliveryFee===null)) fail('DELIVERY_UNAVAILABLE',409);
@@ -218,22 +246,139 @@ async function checkout(pool, slug, input) {
       await db.query('INSERT INTO sx_retail_stock_reservations (tenant_id,product_id,order_id,quantity) VALUES (?,?,?,?)',
         [store.tenantId,line.id,id,line.quantity]);
     }
+    const proof=order.fulfillment==='delivery'?deliveryProof.create(store.tenantId,id):null;
     await db.query(`INSERT INTO sx_retail_orders
-      (id,tenant_id,request_id,request_hash,buyer_name,buyer_phone,delivery_address,delivery_pin,delivery_zone,fulfillment,order_lines,total_minor,delivery_fee)
-      VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)`,
-      [id, store.tenantId, order.requestId, hash, order.name, order.phone, order.address, order.pin, zone?.name||null, order.fulfillment, JSON.stringify(lines), total, fee]);
-    return {reference: id, totalMinor: total};
+      (id,tenant_id,request_id,request_hash,buyer_name,buyer_phone,delivery_address,delivery_pin,delivery_zone,fulfillment,order_lines,total_minor,delivery_fee,delivery_state,delivery_proof_required)
+      VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+      [id, store.tenantId, order.requestId, hash, order.name, order.phone, order.address, order.pin, zone?.name||null, order.fulfillment, JSON.stringify(lines), total, fee,order.fulfillment==='delivery'?'unassigned':null,proof?1:0]);
+    if(proof)await db.query(`INSERT INTO sx_retail_delivery_proofs
+      (tenant_id,order_id,code_hash,code_ciphertext,code_iv,code_auth_tag) VALUES (?,?,?,?,?,?)`,
+      [store.tenantId,id,proof.hash,proof.ciphertext,proof.iv,proof.authTag]);
+    return {reference: id, totalMinor: total, deliveryProofCode: proof?.code||null};
+  });
+}
+
+async function recoverCheckout(pool,slug,requestId){
+  if(!uuid.test(requestId||''))fail('CHECKOUT_NOT_FOUND',404);
+  const store=await getStore(pool,slug);
+  const [[order]]=await pool.query('SELECT id,total_minor AS totalMinor,delivery_proof_required AS proofRequired FROM sx_retail_orders WHERE tenant_id=? AND request_id=?',[store.tenantId,requestId.toLowerCase()]);
+  if(!order)fail('CHECKOUT_NOT_FOUND',404);
+  let deliveryProofCode=null;
+  if(Number(order.proofRequired)){
+    const [[proof]]=await pool.query('SELECT code_hash,code_ciphertext,code_iv,code_auth_tag FROM sx_retail_delivery_proofs WHERE tenant_id=? AND order_id=?',[store.tenantId,order.id]);
+    if(!proof)fail('RETAIL_PROOF_UNAVAILABLE',503);
+    deliveryProofCode=deliveryProof.reveal(proof,store.tenantId,order.id);
+  }
+  return {reference:order.id,totalMinor:Number(order.totalMinor),deliveryProofCode,recovered:true};
+}
+
+const deliveryReasons=new Set(['customer_unavailable','address_not_found','customer_rescheduled','access_blocked','other']);
+function deliveryRequest(input,kind='proof'){
+  const fields=kind==='failed'?['requestId','reason']:kind==='retry'?['requestId']:['requestId','code'];
+  if(!input||typeof input!=='object'||Array.isArray(input)||Object.keys(input).some(key=>!fields.includes(key))||!uuid.test(input.requestId||''))fail('INVALID_DELIVERY_REQUEST');
+  const requestId=input.requestId.toLowerCase();
+  if(kind==='failed'&&!deliveryReasons.has(input.reason))fail('INVALID_DELIVERY_REASON');
+  if(kind==='proof'&&(typeof input.code!=='string'||!/^\d{6}$/.test(input.code)))fail('INVALID_DELIVERY_PROOF');
+  return {requestId,reason:kind==='failed'?input.reason:null,code:kind==='proof'?input.code:null};
+}
+async function deliveryAttempt(db,{tenant,orderId,requestId,requestHash,driverId,identityId,result,reason=null,attemptNumber=1}){
+  await db.query(`INSERT INTO sx_retail_delivery_attempts
+    (id,tenant_id,order_id,request_id,request_hash,driver_membership_id,actor_identity_id,attempt_number,result,reason)
+    VALUES (?,?,?,?,?,?,?,?,?,?)`,[randomUUID(),tenant,orderId,requestId,requestHash,driverId,identityId,attemptNumber,result,reason]);
+}
+async function reportDeliveryFailure(pool,tenant,actor,orderId,input){
+  if(!uuid.test(orderId))fail('ORDER_NOT_FOUND',404);
+  const request=deliveryRequest(input,'failed'),requestHash=createHash('sha256').update(JSON.stringify({orderId,reason:request.reason})).digest('hex');
+  return transaction(pool,async db=>{
+    const [[order]]=await db.query(`SELECT status,fulfillment,delivery_state AS deliveryState,delivery_proof_required AS proofRequired,
+      driver_id AS driver FROM sx_retail_orders WHERE tenant_id=? AND id=? FOR UPDATE`,[tenant,orderId]);
+    if(!order||order.fulfillment!=='delivery'||order.driver!==actor.membershipId)fail('ORDER_NOT_FOUND',404);
+    const [[prior]]=await db.query('SELECT request_hash AS hash,result FROM sx_retail_delivery_attempts WHERE tenant_id=? AND order_id=? AND request_id=? FOR UPDATE',[tenant,orderId,request.requestId]);
+    if(prior){if(prior.hash!==requestHash)fail('REQUEST_CONFLICT',409);return {status:prior.result,replayed:true};}
+    if(order.status!=='dispatched'||order.deliveryState!=='in_transit')fail('DELIVERY_FAILURE_UNAVAILABLE',409);
+    if(Number(order.proofRequired)){
+      const [[proof]]=await db.query('SELECT verified_at AS verifiedAt FROM sx_retail_delivery_proofs WHERE tenant_id=? AND order_id=? FOR UPDATE',[tenant,orderId]);
+      if(proof?.verifiedAt)fail('DELIVERY_ALREADY_VERIFIED',409);
+    }
+    const [[receipt]]=await db.query('SELECT id FROM sx_retail_cash_receipts WHERE tenant_id=? AND order_id=? FOR UPDATE',[tenant,orderId]);
+    if(receipt)fail('CASH_ALREADY_RECORDED',409);
+    const [[counter]]=await db.query("SELECT COUNT(*)+1 AS attemptNumber FROM sx_retail_delivery_attempts WHERE tenant_id=? AND order_id=? AND result='failed'",[tenant,orderId]);
+    await deliveryAttempt(db,{tenant,orderId,requestId:request.requestId,requestHash,driverId:actor.membershipId,identityId:actor.identityId,result:'failed',reason:request.reason,attemptNumber:Number(counter.attemptNumber)});
+    await db.query("UPDATE sx_retail_orders SET delivery_state='failed' WHERE tenant_id=? AND id=? AND delivery_state='in_transit'",[tenant,orderId]);
+    return {status:'failed',attemptNumber:Number(counter.attemptNumber),replayed:false};
+  });
+}
+async function retryDelivery(pool,tenant,actor,orderId,input){
+  if(!uuid.test(orderId))fail('ORDER_NOT_FOUND',404);
+  const request=deliveryRequest(input,'retry'),requestHash=createHash('sha256').update(JSON.stringify({orderId,action:'retry'})).digest('hex');
+  return transaction(pool,async db=>{
+    const [[order]]=await db.query("SELECT status,fulfillment,delivery_state AS deliveryState,driver_id AS driver FROM sx_retail_orders WHERE tenant_id=? AND id=? FOR UPDATE",[tenant,orderId]);
+    if(!order||order.fulfillment!=='delivery'||order.driver!==actor.membershipId)fail('ORDER_NOT_FOUND',404);
+    const [[prior]]=await db.query('SELECT request_hash AS hash,result FROM sx_retail_delivery_attempts WHERE tenant_id=? AND order_id=? AND request_id=? FOR UPDATE',[tenant,orderId,request.requestId]);
+    if(prior){if(prior.hash!==requestHash)fail('REQUEST_CONFLICT',409);return {status:prior.result,replayed:true};}
+    if(order.status!=='dispatched'||order.deliveryState!=='failed')fail('DELIVERY_RETRY_UNAVAILABLE',409);
+    const [[counter]]=await db.query("SELECT COUNT(*) AS attemptNumber FROM sx_retail_delivery_attempts WHERE tenant_id=? AND order_id=? AND result='failed'",[tenant,orderId]);
+    await deliveryAttempt(db,{tenant,orderId,requestId:request.requestId,requestHash,driverId:actor.membershipId,identityId:actor.identityId,result:'retry_started',attemptNumber:Number(counter.attemptNumber)});
+    await db.query("UPDATE sx_retail_orders SET delivery_state='in_transit' WHERE tenant_id=? AND id=? AND delivery_state='failed'",[tenant,orderId]);
+    return {status:'in_transit',replayed:false};
+  });
+}
+async function verifyDeliveryProof(pool,tenant,actor,orderId,input){
+  if(!uuid.test(orderId))fail('ORDER_NOT_FOUND',404);
+  const request=deliveryRequest(input),codeProofHash=deliveryProof.proofHash(request.code,tenant,orderId);
+  const requestHash=createHash('sha256').update(JSON.stringify({orderId,codeProofHash})).digest('hex');
+  return transaction(pool,async db=>{
+    const [[order]]=await db.query(`SELECT status,fulfillment,delivery_state AS deliveryState,delivery_proof_required AS proofRequired,
+      driver_id AS driver FROM sx_retail_orders WHERE tenant_id=? AND id=? FOR UPDATE`,[tenant,orderId]);
+    if(!order||order.fulfillment!=='delivery'||order.driver!==actor.membershipId)fail('ORDER_NOT_FOUND',404);
+    const [[prior]]=await db.query('SELECT request_hash AS hash,result FROM sx_retail_delivery_attempts WHERE tenant_id=? AND order_id=? AND request_id=? FOR UPDATE',[tenant,orderId,request.requestId]);
+    if(prior){if(prior.hash!==requestHash)fail('REQUEST_CONFLICT',409);return {verified:prior.result==='proof_verified',replayed:true};}
+    if(order.status!=='dispatched'||order.deliveryState!=='in_transit'||!Number(order.proofRequired))fail('DELIVERY_PROOF_UNAVAILABLE',409);
+    const [[proof]]=await db.query('SELECT code_hash AS codeHash,code_ciphertext AS codeCiphertext,code_iv AS codeIv,code_auth_tag AS codeAuthTag,verification_attempts AS attempts,verified_at AS verifiedAt FROM sx_retail_delivery_proofs WHERE tenant_id=? AND order_id=? FOR UPDATE',[tenant,orderId]);
+    if(!proof)fail('RETAIL_PROOF_UNAVAILABLE',503);
+    if(proof.verifiedAt)return {verified:true,replayed:false};
+    if(Number(proof.attempts)>=10)fail('DELIVERY_PROOF_ATTEMPTS_EXCEEDED',429);
+    const proofRow={code_hash:proof.codeHash,code_ciphertext:proof.codeCiphertext,code_iv:proof.codeIv,code_auth_tag:proof.codeAuthTag};
+    const valid=deliveryProof.matches(request.code,proofRow,tenant,orderId);
+    await deliveryAttempt(db,{tenant,orderId,requestId:request.requestId,requestHash,driverId:actor.membershipId,identityId:actor.identityId,
+      result:valid?'proof_verified':'proof_rejected',attemptNumber:Number(proof.attempts)+1});
+    await db.query('UPDATE sx_retail_delivery_proofs SET verification_attempts=verification_attempts+1,verified_at=IF(?=1,UTC_TIMESTAMP(3),verified_at),verified_by_membership_id=IF(?=1,?,verified_by_membership_id) WHERE tenant_id=? AND order_id=?',[valid?1:0,valid?1:0,actor.membershipId,tenant,orderId]);
+    return {verified:valid,replayed:false};
+  });
+}
+async function assignDriver(pool,tenant,actor,orderId,driverId){
+  if(!uuid.test(orderId)||!uuid.test(driverId||''))fail('INVALID_ASSIGNMENT');
+  return transaction(pool,async db=>{
+    const [[order]]=await db.query('SELECT status,fulfillment,delivery_state AS deliveryState,driver_id AS driver FROM sx_retail_orders WHERE tenant_id=? AND id=? FOR UPDATE',[tenant,orderId]);
+    if(!order||order.fulfillment!=='delivery'||!['placed','ready','dispatched'].includes(order.status)||
+      (order.status==='dispatched'&&order.deliveryState!=='failed'))fail('ASSIGNMENT_UNAVAILABLE',409);
+    const [[member]]=await db.query("SELECT id FROM sx_memberships WHERE tenant_id=? AND id=? AND status='active' AND role='agent' FOR UPDATE",[tenant,driverId]);
+    if(!member)fail('ASSIGNMENT_UNAVAILABLE',409);
+    const [[identity]]=await db.query("SELECT id FROM sx_identities WHERE id=(SELECT identity_id FROM sx_memberships WHERE tenant_id=? AND id=?) AND status='active'",[tenant,driverId]);
+    if(!identity)fail('ASSIGNMENT_UNAVAILABLE',409);
+    // A failed dispatched order is being handed to a replacement driver. Keep
+    // it actionable in the driver's in-transit queue after reassignment.
+    if(order.status==='dispatched')await db.query("UPDATE sx_retail_orders SET driver_id=?,delivery_state='in_transit' WHERE tenant_id=? AND id=?",[driverId,tenant,orderId]);
+    else await db.query("UPDATE sx_retail_orders SET driver_id=?,delivery_state='assigned' WHERE tenant_id=? AND id=?",[driverId,tenant,orderId]);
+    const requestId=randomUUID(),requestHash=createHash('sha256').update(JSON.stringify({orderId,driverId,actor:actor.identityId})).digest('hex');
+    const [[counter]]=await db.query("SELECT COUNT(*) AS attemptNumber FROM sx_retail_delivery_attempts WHERE tenant_id=? AND order_id=?",[tenant,orderId]);
+    await deliveryAttempt(db,{tenant,orderId,requestId,requestHash,driverId,identityId:actor.identityId,result:'assigned',attemptNumber:Number(counter.attemptNumber)});
+    return {driverId,status:'assigned'};
   });
 }
 async function transition(pool, tenant, actor, id, next, driver) {
   if (!uuid.test(id)) fail('ORDER_NOT_FOUND', 404);
   return transaction(pool, async db => {
-    const [[order]] = await db.query('SELECT status,fulfillment,driver_id AS driver,order_lines AS orderLines,total_minor AS total FROM sx_retail_orders WHERE tenant_id=? AND id=? FOR UPDATE', [tenant,id]);
+    const [[order]] = await db.query('SELECT status,fulfillment,delivery_state AS deliveryState,delivery_proof_required AS proofRequired,driver_id AS driver,order_lines AS orderLines,total_minor AS total FROM sx_retail_orders WHERE tenant_id=? AND id=? FOR UPDATE', [tenant,id]);
     if (!order || (driver && order.driver !== actor.membershipId)) fail('ORDER_NOT_FOUND', 404);
     if (order.status === next) return {status: next};
     const allowed = {placed: ['ready','cancelled'], ready: order.fulfillment === 'delivery' ? ['dispatched','cancelled'] : ['completed','cancelled'], dispatched: ['completed'], completed: ['returned'], partially_returned:['returned']};
     if (!allowed[order.status]?.includes(next) || (driver && !['dispatched','completed'].includes(next)) || (next === 'dispatched' && !order.driver)) fail('INVALID_TRANSITION', 409);
     if(next==='completed'){
+      if(order.fulfillment==='delivery'&&Number(order.proofRequired)){
+        const [[proof]]=await db.query('SELECT verified_at AS verifiedAt FROM sx_retail_delivery_proofs WHERE tenant_id=? AND order_id=? FOR UPDATE',[tenant,id]);
+        if(!proof?.verifiedAt)fail('DELIVERY_PROOF_REQUIRED',409);
+      }
       const [[receipt]]=await db.query('SELECT amount_minor AS amount FROM sx_retail_cash_receipts WHERE tenant_id=? AND order_id=? FOR UPDATE',[tenant,id]);
       if(!receipt||Number(receipt.amount)!==Number(order.total))fail('CASH_RECEIPT_REQUIRED',409);
     }
@@ -267,8 +412,10 @@ async function transition(pool, tenant, actor, id, next, driver) {
         }
       }
     }
-    await db.query('UPDATE sx_retail_orders SET status=? WHERE tenant_id=? AND id=?', [next,tenant,id]);
+    if(order.fulfillment==='delivery'&&next==='dispatched')await db.query("UPDATE sx_retail_orders SET status=?,delivery_state='in_transit' WHERE tenant_id=? AND id=?",[next,tenant,id]);
+    else if(order.fulfillment==='delivery'&&next==='completed')await db.query("UPDATE sx_retail_orders SET status=?,delivery_state='delivered' WHERE tenant_id=? AND id=?",[next,tenant,id]);
+    else await db.query('UPDATE sx_retail_orders SET status=? WHERE tenant_id=? AND id=?', [next,tenant,id]);
     return {status: next};
   });
 }
-module.exports = {getStore, browse, checkout, transition, returnItems, recordCashReceipt, recordSettlement, transaction, lockProduct, fail, string, uuid, slugPattern};
+module.exports = {getStore, getStoreForTenant, browse, browseTenant, checkout, recoverCheckout, transition, returnItems, recordCashReceipt, recordSettlement, reportDeliveryFailure, retryDelivery, verifyDeliveryProof, assignDriver, transaction, lockProduct, fail, string, uuid, slugPattern};

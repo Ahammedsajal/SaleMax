@@ -45,9 +45,9 @@ def main():
         stage.mkdir()
         (stage / 'manifest.txt').write_text(MANIFEST.read_text())
         (stage / 'source-commit.txt').write_text(commit + '\n')
-        runner = stage / 'deploy/retail-commerce-release.py'
+        runner = stage / 'deploy/retail-delivery-release.py'
         runner.parent.mkdir(parents=True)
-        runner.write_bytes(git('show', commit + ':deploy/retail-commerce-release.py'))
+        runner.write_bytes(git('show', commit + ':deploy/retail-delivery-release.py'))
         digest_map = {}
         for _, relative in rows:
             mode_line = git('ls-tree', commit, '--', relative).decode().strip()

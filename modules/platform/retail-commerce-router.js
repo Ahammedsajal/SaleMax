@@ -17,18 +17,60 @@ const reply = (res,data) => res.json({success:true,data});
 function publicRouter({pool,origin}) {
   const router = express.Router({mergeParams:true});
   const throttle = new Map();
-  router.use(noStore);
-  router.get('/',(req,res) => {
-    res.set('Content-Security-Policy',"default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self'; connect-src 'self'; base-uri 'none'; frame-ancestors 'none'; form-action 'self'");
-    res.sendFile(path.resolve(__dirname,'../../client/public/retail-shop.html'));
+  const storeForRequest=(db,req)=>req.crmTenantDomain?
+    commerce.getStoreForTenant(db,req.crmTenantDomain.tenantId):commerce.getStore(db,req.params.storeSlug);
+  const publicPostGuard=(req,res,next)=>{
+    if(!originCheck.matches(req,origin))return res.sendStatus(403);
+    const now=Date.now();
+    for(const [key,row] of throttle)if(row.until<=now)throttle.delete(key);
+    const key=req.ip;
+    if((!throttle.has(key)&&throttle.size>=5000)||(throttle.get(key)?.count||0)>=15)return res.sendStatus(429);
+    const row=throttle.get(key)||{count:0,until:now+60000};row.count++;throttle.set(key,row);next();
+  };
+  router.use((req,res,next)=>{
+    if(!req.crmTenantDomain&&!req.params.storeSlug)return next('router');
+    return noStore(req,res,next);
   });
-  router.get('/catalog',handle(async(req,res) => reply(res,await commerce.browse(pool,req.params.storeSlug))));
+  router.get('/',(req,res,next)=>{
+    storeForRequest(pool,req).then(()=>{
+      res.set('Content-Security-Policy',"default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self'; connect-src 'self'; base-uri 'none'; frame-ancestors 'none'; form-action 'self'");
+      if(!req.crmTenantDomain){
+        const requested=new URL(req.originalUrl,'https://7network.live');
+        if(!requested.pathname.endsWith('/')){
+          requested.pathname+='/';
+          return res.redirect(308,requested.pathname+requested.search);
+        }
+      }
+      res.sendFile(path.resolve(__dirname,'../../client/public/retail-shop.html'));
+    }).catch(error=>{
+      if(req.crmTenantDomain&&error.code==='STORE_NOT_FOUND')return next('router');
+      return next(error);
+    });
+  });
+  router.get('/manifest.webmanifest',handle(async(req,res)=>{
+    const store=await storeForRequest(pool,req),scope=req.crmTenantDomain?'/':`/business/${encodeURIComponent(store.slug)}/shop/`;
+    res.set('Cache-Control','private, no-store');
+    res.type('application/manifest+json').json({id:scope,start_url:scope,scope,display:'standalone',name:store.title,short_name:store.title.slice(0,24),
+      description:store.about||store.title,background_color:'#081630',theme_color:'#081630',lang:'en',dir:'auto',
+      icons:[{src:'/branding/7network/icon-192.png',sizes:'192x192',type:'image/png',purpose:'any'},{src:'/branding/7network/icon-512.png',sizes:'512x512',type:'image/png',purpose:'any'}]});
+  }));
+  router.get('/service-worker.js',handle(async(req,res)=>{
+    await storeForRequest(pool,req);
+    res.set('Cache-Control','no-store');
+    res.set('Service-Worker-Allowed',req.crmTenantDomain?'/':`/business/${encodeURIComponent(req.params.storeSlug)}/shop/`);
+    res.type('application/javascript').sendFile(path.resolve(__dirname,'../../client/public/retail-shop-sw.js'));
+  }));
+  router.get('/catalog',handle(async(req,res) => {
+    if(!req.crmTenantDomain)return reply(res,await commerce.browse(pool,req.params.storeSlug));
+    const {tenantId,...store}=await storeForRequest(pool,req);
+    reply(res,await commerce.browseTenant(pool,tenantId,store));
+  }));
   let imageJobs=0;
   router.get('/image/:productId/:photoId',handle(async(req,res)=>{
     const {productId,photoId}=req.params;
     if(!commerce.uuid.test(productId)||!commerce.uuid.test(photoId)) return res.sendStatus(404);
     if(imageJobs>=4) return res.sendStatus(503);
-    const store=await commerce.getStore(pool,req.params.storeSlug);
+    const store=await storeForRequest(pool,req);
     const [[photo]]=await pool.query(`SELECT m.storage_key AS storageKey FROM sx_product_media m
       JOIN sx_retail_listings l ON l.tenant_id=m.tenant_id AND l.product_id=m.course_id AND l.photo_id=m.id
       JOIN sx_product_catalog p ON p.tenant_id=l.tenant_id AND p.id=l.product_id
@@ -44,22 +86,24 @@ function publicRouter({pool,origin}) {
       res.set('X-Content-Type-Options','nosniff').type('image/webp').send(image);
     } catch {res.sendStatus(404);} finally {imageJobs--;}
   }));
-  router.post('/checkout',(req,res,next) => {
-    if (!originCheck.matches(req,origin)) return res.sendStatus(403);
-    const now=Date.now();
-    for (const [key,row] of throttle) if (row.until<=now) throttle.delete(key);
-    const key=req.ip;
-    if ((!throttle.has(key) && throttle.size>=5000) || (throttle.get(key)?.count || 0)>=15) return res.sendStatus(429);
-    const row=throttle.get(key) || {count:0,until:now+60000};
-    row.count++; throttle.set(key,row);
-    next();
-  },express.json({limit:'12kb'}),handle(async(req,res) => reply(res,await commerce.checkout(pool,req.params.storeSlug,req.body))));
-  router.post('/track',(req,res,next)=>originCheck.matches(req,origin)?next():res.sendStatus(403),
+  router.post('/checkout/recover',publicPostGuard,express.json({limit:'1kb'}),handle(async(req,res)=>{
+    const requestId=req.body?.requestId;
+    if(typeof requestId!=='string')commerce.fail('CHECKOUT_NOT_FOUND',404);
+    if(!req.crmTenantDomain)return reply(res,await commerce.recoverCheckout(pool,req.params.storeSlug,requestId));
+    const store=await storeForRequest(pool,req);
+    return reply(res,await commerce.recoverCheckout(pool,store.slug,requestId));
+  }));
+  router.post('/checkout',publicPostGuard,express.json({limit:'12kb'}),handle(async(req,res) => {
+    if(!req.crmTenantDomain)return reply(res,await commerce.checkout(pool,req.params.storeSlug,req.body));
+    const store=await storeForRequest(pool,req);
+    return reply(res,await commerce.checkout(pool,store.slug,req.body));
+  }));
+  router.post('/track',publicPostGuard,
     express.json({limit:'1kb'}),handle(async(req,res)=>{
       const reference=req.body?.reference;
       if(typeof reference!=='string'||!commerce.uuid.test(reference))return res.sendStatus(404);
-      const store=await commerce.getStore(pool,req.params.storeSlug);
-      const [[order]]=await pool.query('SELECT status FROM sx_retail_orders WHERE tenant_id=? AND id=?',[store.tenantId,reference]);
+      const store=await storeForRequest(pool,req);
+      const [[order]]=await pool.query('SELECT status,delivery_state AS deliveryState FROM sx_retail_orders WHERE tenant_id=? AND id=?',[store.tenantId,reference]);
       if(!order)return res.sendStatus(404);
       reply(res,order);
     }));
@@ -124,21 +168,33 @@ function workspaceRouter({pool,authenticate}) {
   }));
   async function list(res,c,driver) {
     const [rows]=await pool.query(`SELECT id,buyer_name AS buyerName,buyer_phone AS buyerPhone,delivery_address AS deliveryAddress,delivery_pin AS deliveryPin,delivery_zone AS deliveryZone,
-      fulfillment,order_lines AS orderLines,total_minor AS totalMinor,status,lead_id AS leadId,cash_received_at AS cashReceivedAt,driver_id AS driverId,created_at AS createdAt
+      fulfillment,order_lines AS orderLines,total_minor AS totalMinor,status,delivery_state AS deliveryState,delivery_proof_required AS proofRequired,lead_id AS leadId,cash_received_at AS cashReceivedAt,driver_id AS driverId,created_at AS createdAt
       FROM sx_retail_orders WHERE tenant_id=? ${driver ? "AND driver_id=? AND status IN ('ready','dispatched')" : ''} ORDER BY created_at DESC LIMIT 100`,
       driver?[c.tenant.id,c.membership.id]:[c.tenant.id]);
     const ids=rows.map(row=>row.id);
     const returned=ids.length?(await pool.query('SELECT order_id AS orderId,product_id AS productId,SUM(quantity) AS quantity FROM sx_retail_return_lines WHERE tenant_id=? AND order_id IN (?) GROUP BY order_id,product_id',[c.tenant.id,ids]))[0]:[];
     const receipts=ids.length?(await pool.query('SELECT order_id AS orderId FROM sx_retail_cash_receipts WHERE tenant_id=? AND order_id IN (?)',[c.tenant.id,ids]))[0]:[];
+    const proofs=ids.length?(await pool.query('SELECT order_id AS orderId,verified_at AS verifiedAt FROM sx_retail_delivery_proofs WHERE tenant_id=? AND order_id IN (?)',[c.tenant.id,ids]))[0]:[];
+    const attempts=ids.length?(await pool.query(`SELECT order_id AS orderId,result,reason,attempt_number AS attemptNumber,created_at AS createdAt
+      FROM sx_retail_delivery_attempts WHERE tenant_id=? AND order_id IN (?) ORDER BY created_at DESC,id DESC`,[c.tenant.id,ids]))[0]:[];
     const returnedByOrder=new Map();
     for(const line of returned){if(!returnedByOrder.has(line.orderId))returnedByOrder.set(line.orderId,new Map());returnedByOrder.get(line.orderId).set(line.productId,Number(line.quantity));}
     const received=new Set(receipts.map(row=>row.orderId));
-    reply(res,rows.map(({orderLines,...row})=>{
+    const proofByOrder=new Map(proofs.map(row=>[row.orderId,row]));
+    const attemptByOrder=new Map(),failureCountByOrder=new Map();
+    for(const attempt of attempts){
+      if(attempt.result==='failed')failureCountByOrder.set(attempt.orderId,(failureCountByOrder.get(attempt.orderId)||0)+1);
+      if(!attemptByOrder.has(attempt.orderId))attemptByOrder.set(attempt.orderId,attempt);
+    }
+    reply(res,rows.map(({orderLines,proofRequired,...row})=>{
       const prior=returnedByOrder.get(row.id)||new Map();
       const lines=(typeof orderLines==='string'?JSON.parse(orderLines):orderLines).map(line=>({
         ...line,returnedQuantity:prior.get(line.id)||0,returnableQuantity:Number(line.quantity)-(prior.get(line.id)||0)
       }));
-      return {...row,totalMinor:Number(row.totalMinor),cashReceived:Boolean(row.cashReceivedAt)||received.has(row.id),lines};
+      const proof=proofByOrder.get(row.id),latestAttempt=attemptByOrder.get(row.id);
+      return {...row,totalMinor:Number(row.totalMinor),cashReceived:Boolean(row.cashReceivedAt)||received.has(row.id),
+        deliveryProofRequired:Boolean(proofRequired),proofVerified:Boolean(proof?.verifiedAt),deliveryAttemptCount:failureCountByOrder.get(row.id)||0,
+        lastDeliveryResult:latestAttempt?.result||null,lastDeliveryFailureReason:latestAttempt?.result==='failed'?latestAttempt.reason:null,lines};
     }));
   }
   router.get('/orders',allow('retail.orders',(req,res,c)=>list(res,c,false)));
@@ -172,12 +228,14 @@ function workspaceRouter({pool,authenticate}) {
   router.put('/orders/:id/driver',allow('retail.orders',async(req,res,c)=>{
     const id=req.params.id, driver=req.body?.driverId;
     if (!commerce.uuid.test(id)||!commerce.uuid.test(driver || '')) commerce.fail('INVALID_ASSIGNMENT');
-    const [result]=await pool.query(`UPDATE sx_retail_orders o JOIN sx_memberships m ON m.tenant_id=o.tenant_id AND m.id=?
-      JOIN sx_identities i ON i.id=m.identity_id SET o.driver_id=m.id WHERE o.tenant_id=? AND o.id=? AND o.fulfillment='delivery'
-      AND o.status IN ('placed','ready') AND m.status='active' AND m.role='agent' AND i.status='active'`,[driver,c.tenant.id,id]);
-    if (!result.affectedRows) commerce.fail('ASSIGNMENT_UNAVAILABLE',409);
-    reply(res,{driverId:driver});
+    reply(res,await commerce.assignDriver(pool,c.tenant.id,{identityId:c.identity.id},id,driver));
   }));
+  router.post('/deliveries/:id/failed',allow('retail.deliver',async(req,res,c)=>reply(res,
+    await commerce.reportDeliveryFailure(pool,c.tenant.id,{identityId:c.identity.id,membershipId:c.membership.id},req.params.id,req.body))));
+  router.post('/deliveries/:id/retry',allow('retail.deliver',async(req,res,c)=>reply(res,
+    await commerce.retryDelivery(pool,c.tenant.id,{identityId:c.identity.id,membershipId:c.membership.id},req.params.id,req.body))));
+  router.post('/deliveries/:id/proof',allow('retail.deliver',async(req,res,c)=>reply(res,
+    await commerce.verifyDeliveryProof(pool,c.tenant.id,{identityId:c.identity.id,membershipId:c.membership.id},req.params.id,req.body))));
   router.post('/orders/:id/cash-received',allow('retail.cash.collect',async(req,res,c)=>reply(res,
     await commerce.recordCashReceipt(pool,c.tenant.id,{identityId:c.identity.id,membershipId:c.membership.id,role:c.membership.role},req.params.id,req.body,false))));
   router.post('/deliveries/:id/cash-received',allow('retail.deliver',async(req,res,c)=>reply(res,

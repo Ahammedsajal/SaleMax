@@ -23,9 +23,10 @@ const {createRecruitmentRouter,createPublicRecruitmentRouter,createRecruitmentPa
 function mountExistingUpgrade(app,{pool,key,origin,insecureLoopback=false,legacyGuard,userGuard=require('../../middlewares/user')}){
   const tenantCrmDomains=require('./tenant-crm-domains');
   app.use(tenantCrmDomains.middleware(pool));
-  app.use(require('./tenant-business-profile-shell').createTenantBusinessProfileShell({pool}));
   const retail = require('./retail-commerce-router');
   app.use('/business/:storeSlug/shop',retail.publicRouter({pool,origin}));
+  app.use('/',retail.publicRouter({pool,origin}));
+  app.use(require('./tenant-business-profile-shell').createTenantBusinessProfileShell({pool}));
   require('../web/public-website').mountPublicWebsite(app,{pool,key,origin});
   const boundary=createAuthRouter({pool,key,origin,insecureLoopback,allowedAudience:'platform'});
   const businessBoundary=createAuthRouter({pool,key,origin,insecureLoopback,allowedAudience:'tenant'});

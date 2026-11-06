@@ -24,12 +24,14 @@
   const api=async(path,method='GET',body)=>(await window.SaleMaxWorkspace.request('retail',path,{method,body})).data;
   const money=minor=>new Intl.NumberFormat(t('en-QA','ar-QA'),{style:'currency',currency:'QAR'}).format(Number(minor)/100);
   const labels={placed:t('Placed','جديد'),ready:t('Ready','جاهز'),dispatched:t('Dispatched','قيد التوصيل'),completed:t('Completed','مكتمل'),cancelled:t('Cancelled','ملغى'),returned:t('Returned','مرتجع'),partially_returned:t('Partially returned','مرتجع جزئياً')};
+  const deliveryLabels={unassigned:t('Not assigned','غير معيّن'),assigned:t('Assigned','تم التعيين'),in_transit:t('On the way','في الطريق'),failed:t('Delivery failed','تعذر التسليم'),delivered:t('Delivered','تم التسليم'),returned:t('Returned to store','أُعيد إلى المتجر')};
+  const failureLabels={customer_unavailable:t('Customer unavailable','العميل غير متاح'),address_not_found:t('Address not found','العنوان غير موجود'),customer_rescheduled:t('Customer asked to reschedule','طلب العميل إعادة الجدولة'),access_blocked:t('Access blocked','تعذر الوصول'),other:t('Other','سبب آخر')};
   function action(parent,title,operation,status,refresh){
     const button=add(parent,'button',title);
     button.type='button';
     button.onclick=async()=>{
       button.disabled=true;
-      try {const result=await operation();status.textContent=typeof result==='string'?result:t('Saved','تم الحفظ');if(refresh)await refresh();}
+      try {const result=await operation();status.textContent=typeof result==='string'?result:(result?.message||t('Saved','تم الحفظ'));if(refresh&&result?.refresh!==false)await refresh();}
       catch {status.textContent=t('Could not save. Refresh and try again.','تعذر الحفظ. حدّث الصفحة وحاول مرة أخرى.');}
       finally {button.disabled=false;}
     };
@@ -81,9 +83,31 @@
       const heading=add(card,'h3');add(heading,'bdi',order.id).dir='ltr';add(heading,'span',' · '+labels[order.status]);
       const buyer=add(card,'p');add(buyer,'span',order.buyerName+' · ');add(buyer,'bdi',order.buyerPhone).dir='ltr';
       add(card,'p',money(order.totalMinor)+' · '+(order.fulfillment==='delivery'?t('Delivery','توصيل'):t('Pickup','استلام')));
+      if(order.fulfillment==='delivery'){
+        add(card,'p',t('Delivery status: ','حالة التوصيل: ')+(deliveryLabels[order.deliveryState]||deliveryLabels.unassigned));
+        if(order.deliveryState==='failed')add(card,'p',t('Last issue: ','آخر مشكلة: ')+(failureLabels[order.lastDeliveryFailureReason]||t('Not specified','غير محدد'))+' · '+t('Attempts: ','المحاولات: ')+order.deliveryAttemptCount);
+      }
       for(const item of order.lines)add(card,'p',(t(item.nameEn,item.nameAr)||item.nameEn)+' × '+item.quantity);
       if(order.cashReceived)add(card,'p',t('Cash collected','تم تحصيل النقد'));
-      const canCollect=!order.cashReceived&&((order.fulfillment==='delivery'&&order.status==='dispatched')||(order.fulfillment==='pickup'&&order.status==='ready'));
+      if(driver&&order.fulfillment==='delivery'&&order.status==='dispatched'&&order.deliveryState==='in_transit'&&order.deliveryProofRequired&&!order.proofVerified){
+        const code=input(card,t('Buyer handoff code','رمز استلام العميل'));
+        code.inputMode='numeric';code.autocomplete='one-time-code';code.maxLength=6;code.pattern='[0-9]{6}';
+        action(card,t('Verify handoff','تحقق من رمز الاستلام'),async()=>{
+          if(!/^\d{6}$/.test(code.value))throw Error('INVALID_DELIVERY_PROOF');
+          const result=await api('/deliveries/'+order.id+'/proof','POST',{requestId:crypto.randomUUID(),code:code.value});
+          return {verified:result.verified,message:result.verified?t('Handoff verified. Cash collection is now available.','تم التحقق من الاستلام. أصبح تسجيل تحصيل النقد متاحاً.'):
+            t('Code did not match. Check with the customer and try again.','الرمز غير صحيح. تحقق مع العميل وحاول مرة أخرى.'),refresh:result.verified};
+        },status,()=>location.reload());
+      }
+      if(driver&&order.fulfillment==='delivery'&&order.status==='dispatched'&&order.deliveryState==='in_transit'){
+        const reason=add(add(card,'label',t('Delivery issue','مشكلة في التوصيل')+' '),'select');
+        for(const [value,label] of Object.entries(failureLabels))add(reason,label).value=value;
+        action(card,t('Report delivery failure','الإبلاغ عن تعذر التسليم'),()=>api('/deliveries/'+order.id+'/failed','POST',{requestId:crypto.randomUUID(),reason:reason.value}),status,()=>location.reload());
+      }
+      if(driver&&order.fulfillment==='delivery'&&order.status==='dispatched'&&order.deliveryState==='failed'){
+        action(card,t('Retry delivery','إعادة محاولة التوصيل'),()=>api('/deliveries/'+order.id+'/retry','POST',{requestId:crypto.randomUUID()}),status,()=>location.reload());
+      }
+      const canCollect=!order.cashReceived&&((order.fulfillment==='delivery'&&order.status==='dispatched'&&(!order.deliveryProofRequired||order.proofVerified))||(order.fulfillment==='pickup'&&order.status==='ready'));
       if(canCollect){
         action(card,t('Record full cash collected','تسجيل تحصيل المبلغ نقداً'),async()=>{
           if(!window.confirm(t('Confirm that the full amount was collected: ','تأكيد تحصيل كامل المبلغ: ')+money(order.totalMinor)))return;
@@ -119,7 +143,7 @@
         const waze=add(mapLinks,'a','Waze');waze.href='https://www.waze.com/ul?'+(order.deliveryPin?'ll='+encodeURIComponent(order.deliveryPin):'q='+encodeURIComponent(order.deliveryAddress))+'&navigate=yes';
         waze.target='_blank';waze.rel='noopener noreferrer';
       }
-      if(!driver&&order.fulfillment==='delivery'&&['placed','ready'].includes(order.status)){
+      if(!driver&&order.fulfillment==='delivery'&&(['placed','ready'].includes(order.status)||(order.status==='dispatched'&&order.deliveryState==='failed'))){
         const select=add(add(card,'label',t('Assigned driver','السائق المعيّن')+' '),'select');
         add(select,'option',t('Select a driver','اختر سائقاً')).value='';
         for(const member of drivers)add(select,'option',member.name).value=member.id;
@@ -182,7 +206,7 @@
     root.className='sx-retail-workspace';
     root.dir=t('ltr','rtl');
     syncTheme();
-    if(!document.querySelector('[data-retail-workspace-css]')){const css=document.createElement('link');css.rel='stylesheet';css.href='/retail-workspace.css?v=ec03-cash-returns1';css.dataset.retailWorkspaceCss='';document.head.append(css);}
+    if(!document.querySelector('[data-retail-workspace-css]')){const css=document.createElement('link');css.rel='stylesheet';css.href='/retail-workspace.css?v=ec04-delivery-proof1';css.dataset.retailWorkspaceCss='';document.head.append(css);}
     new MutationObserver(syncTheme).observe(document.documentElement,{attributes:true,attributeFilter:['data-sx-theme']});
     window.addEventListener('storage',syncTheme);
     add(root,'h1',page[2]);
