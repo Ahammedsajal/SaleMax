@@ -26,6 +26,10 @@
 #sx-retail-workspace .sx-retail-connector-actions{display:flex;flex-wrap:wrap;align-items:center;gap:6px;margin-block:12px}
 #sx-retail-workspace .sx-retail-one-time-secret{margin-block:14px;padding:14px;border:1px solid var(--retail-border);border-radius:10px;background:color-mix(in srgb,var(--retail-brand) 6%,var(--retail-card))}
 #sx-retail-workspace .sx-retail-one-time-secret textarea{width:min(100%,42rem);font-family:ui-monospace,monospace;overflow-wrap:anywhere}
+#sx-retail-workspace .sx-retail-sync-fields{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,220px),1fr));gap:6px 12px;margin-block:8px}
+#sx-retail-workspace .sx-retail-sync-fields label{display:flex;align-items:center;justify-content:space-between;gap:12px;max-width:none;min-height:44px;margin:0;padding:8px 10px;border:1px solid var(--retail-border);border-radius:9px;background:var(--retail-bg)}
+#sx-retail-workspace .sx-retail-sync-fields input[type=checkbox]{flex:0 0 auto;order:2}
+#sx-retail-workspace .sx-retail-sync-warning{padding:12px;border-inline-start:4px solid var(--retail-brand);background:color-mix(in srgb,var(--retail-brand) 7%,var(--retail-card))}
 #sx-retail-workspace details article{margin-inline:0}
 #sx-retail-workspace bdi{unicode-bidi:isolate}
 #sx-retail-workspace .sx-retail-product-image{display:block;width:100%;max-width:220px;height:150px;object-fit:contain;background:var(--retail-bg);border-radius:8px;margin-block:8px}

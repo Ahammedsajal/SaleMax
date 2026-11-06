@@ -147,7 +147,8 @@ function normalizeProduct(provider, row) {
         host.split('.').length >= 2) imageUrl = image.toString();
   } catch { /* Image previews are optional; malformed or private URLs are omitted. */ }
   return { id, title: String(row.name || row.title || row.handle || id).slice(0, 255), sku: String(row.sku || first.sku || '').slice(0, 100) || null,
-    status: String(row.status || 'unknown').toLowerCase().slice(0, 32), currency: currency(cur), price: safeAmount(price),
+    status: String(row.status || 'unknown').toLowerCase().slice(0, 32), type: provider === 'woocommerce' ? String(row.type || 'simple').toLowerCase().slice(0, 32) : null,
+    currency: currency(cur), price: safeAmount(price),
     imageUrl, variants, variantsTruncated: Boolean(row.variants?.pageInfo?.hasNextPage),
     updatedAt: row.date_modified_gmt || row.updatedAt || row.updated_at || null, source: provider };
 }

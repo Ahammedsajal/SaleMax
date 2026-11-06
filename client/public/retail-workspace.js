@@ -33,7 +33,7 @@
     button.onclick=async()=>{
       button.disabled=true;
       try {const result=await operation();status.textContent=typeof result==='string'?result:(result?.message||t('Saved','تم الحفظ'));if(refresh&&result?.refresh!==false)await refresh();}
-      catch {status.textContent=t('Could not save. Refresh and try again.','تعذر الحفظ. حدّث الصفحة وحاول مرة أخرى.');}
+      catch(error){const code=String(error?.code||error?.message||'').replace(/[^A-Z0-9_ -]/gi,'').slice(0,64);status.textContent=t('Could not save. Refresh and try again.','تعذر الحفظ. حدّث الصفحة وحاول مرة أخرى.')+(code?' '+code:'');}
       finally {button.disabled=false;}
     };
   }
@@ -258,7 +258,7 @@
   }
   function showCode(status,error){status.textContent=t('Could not complete this action.','تعذر إكمال هذا الإجراء.')+(error?.message?' '+String(error.message).replace(/[^A-Z0-9_ -]/gi,'').slice(0,64):'');}
   async function connectedStores(root,status){
-    const intro=add(root,'p',t('Connect your existing Shopify or WooCommerce store. Imported data stays in this business workspace; it does not change 7Network stock, fulfilment, accounting or customer messages.','اربط متجرك الحالي على Shopify أو WooCommerce. تبقى البيانات المستوردة في مساحة العمل هذه ولا تغيّر مخزون 7Network أو التنفيذ أو المحاسبة أو رسائل العملاء.'));
+    const intro=add(root,'p',t('Connect your existing Shopify or WooCommerce store. Imported data stays in this business workspace. WooCommerce product publishing is separate, off by default, and requires a saved write key, per-product field selection and owner approval for each overwrite conflict.','اربط متجرك الحالي على Shopify أو WooCommerce. تبقى البيانات المستوردة في مساحة العمل هذه. نشر منتجات WooCommerce منفصل ومعطل افتراضياً، ويتطلب حفظ مفتاح كتابة واختيار الحقول لكل منتج وموافقة المالك على كل تعارض قبل الاستبدال.'));
     const shopify=add(root,'section');add(shopify,'h2',t('Shopify','Shopify'));
     add(shopify,'p',t('Connect through Shopify authorization. The app requests read-only product, order and customer access. Orders cover the last 60 days by default; the optional older-order scope can be enabled only after Shopify approves it. Customer names and contact details also require protected customer data access. The authorizing Shopify staff account must also be allowed to view abandoned checkouts.','يتم الربط عبر تفويض Shopify. يطلب التطبيق قراءة المنتجات والطلبات والعملاء فقط. تشمل الطلبات آخر 60 يوماً افتراضياً؛ ولا يمكن تفعيل نطاق الطلبات الأقدم الاختياري إلا بعد موافقة Shopify. كما تتطلب أسماء العملاء وبيانات التواصل موافقة الوصول إلى بيانات العملاء المحمية. ويجب أن يملك حساب موظف Shopify المفوّض صلاحية عرض السلات المتروكة.'));
     const shopName=input(shopify,t('Shopify store domain','نطاق متجر Shopify'));
@@ -268,11 +268,11 @@
     connectShopify.onclick=async()=>{connectShopify.disabled=true;try{const result=await api('/connectors/shopify/start','POST',{shop:shopName.value,currency:shopCurrency.value.toUpperCase()});location.assign(result.authorizationUrl);}catch(error){showCode(status,error);connectShopify.disabled=false;}};
 
     const woo=add(root,'section');add(woo,'h2',t('WooCommerce','WooCommerce'));
-    add(woo,'p',t('Create a dedicated read-only WooCommerce REST API key over HTTPS. Checkout abandonment capture uses the optional 7Network plugin; standard WooCommerce webhooks keep orders, customers and products current.','أنشئ مفتاح REST API مخصصاً للقراءة فقط في WooCommerce عبر HTTPS. يستخدم التقاط السلات المتروكة إضافة 7Network الاختيارية؛ وتبقي Webhooks القياسية الطلبات والعملاء والمنتجات محدثة.'));
+    add(woo,'p',t('Use a dedicated read-only WooCommerce REST API key for imports. Product publishing is optional and uses a separate read/write key that stays disabled until you configure mappings and enable it for that store. Checkout abandonment capture uses the optional 7Network plugin; standard webhooks keep imported records current.','استخدم مفتاح REST API مخصصاً للقراءة فقط لاستيراد WooCommerce. نشر المنتجات اختياري ويستخدم مفتاح قراءة وكتابة منفصلاً ويبقى معطلاً حتى إعداد الربط وتفعيله لهذا المتجر. يستخدم التقاط السلات المتروكة إضافة 7Network الاختيارية؛ وتبقي Webhooks القياسية السجلات المستوردة محدثة.'));
     const wooUrl=input(woo,t('Store URL','رابط المتجر'));wooUrl.placeholder='https://shop.example.com';wooUrl.autocomplete='url';
     const wooDisplay=input(woo,t('Display name','اسم العرض'));
     const wooCurrency=input(woo,t('Store currency (ISO 4217)','عملة المتجر (ISO 4217)'),'QAR');wooCurrency.maxLength=3;wooCurrency.autocomplete='off';
-    const wooKey=input(woo,t('Consumer key (read only)','مفتاح المستهلك (قراءة فقط)'),'','password');wooKey.autocomplete='new-password';
+    const wooKey=input(woo,t('Consumer key (read only for imports)','مفتاح المستهلك (قراءة فقط للاستيراد)'),'','password');wooKey.autocomplete='new-password';
     const wooSecret=input(woo,t('Consumer secret','السر الخاص بالمستهلك'),'','password');wooSecret.autocomplete='new-password';
     const connectWoo=add(woo,'button',t('Connect WooCommerce','ربط WooCommerce'));connectWoo.type='button';
     const oneTime=add(woo,'div');oneTime.className='sx-retail-one-time-secret';oneTime.hidden=true;
@@ -337,6 +337,110 @@
         if(connection.provider==='shopify')add(area,'p',t('The store will receive read-only resource webhook subscriptions. Complete the mandatory privacy topic configuration and Shopify protected-customer-data review before production activation.','سيتلقى المتجر اشتراكات Webhook للقراءة فقط. أكمل إعداد موضوعات الخصوصية الإلزامية ومراجعة بيانات العملاء المحمية من Shopify قبل التفعيل الإنتاجي.'));
       }catch(error){add(area,'p',t('Could not load setup details.','تعذر تحميل تفاصيل الإعداد.'));showCode(status,error);}
     }
+    function fieldLabel(field){return ({name:t('English product name','اسم المنتج بالإنجليزية'),sku:t('SKU / product code','رمز SKU / المنتج'),description:t('English description','الوصف بالإنجليزية'),price:t('Regular price','السعر الأساسي'),stock_quantity:t('Available stock at one location','المخزون المتاح في موقع واحد')})[field]||field;}
+    function displaySyncValue(field,value,currency){if(value==null)return t('(empty)','(فارغ)');if(field==='price')return new Intl.NumberFormat(t('en-QA','ar-QA'),{style:'currency',currency:currency||'QAR'}).format(Number(value)/100);return String(value);}
+    async function showProductPublishing(connection,area,offset=0,previous=null){
+      area.replaceChildren();add(area,'h3',t('WooCommerce product publishing','نشر منتجات WooCommerce'));
+      try{
+        const page=await api('/connectors/'+encodeURIComponent(connection.id)+'/product-sync'+(offset?'?offset='+offset:''));
+        const state=previous?{...page,mappings:[...previous.mappings,...page.mappings],conflicts:[...previous.conflicts,...page.conflicts],jobs:[...previous.jobs,...page.jobs]}:page;
+        add(area,'p',t('7Network publishes English name, SKU, English description, regular price and available stock only when selected below. Stock uses one chosen location and subtracts reservations. Product variants and variable WooCommerce products are not supported in this first version.','ينشر 7Network الاسم الإنجليزي ورمز SKU والوصف الإنجليزي والسعر الأساسي والمخزون المتاح فقط عند اختيارها أدناه. يستخدم المخزون موقعاً واحداً ويطرح الكميات المحجوزة. لا يدعم الإصدار الأول المتغيرات أو منتجات WooCommerce متعددة الأنواع.'));
+        const keyBox=add(area,'section');add(keyBox,'h3',t('Separate WooCommerce write key','مفتاح كتابة منفصل لـ WooCommerce'));
+        add(keyBox,'p',t('Use a dedicated WordPress integration user with the minimum product-edit permissions your store allows. Keep this key separate from the import key and administrator accounts.','استخدم مستخدم تكامل مخصصاً في WordPress بأقل صلاحيات تعديل منتجات يسمح بها متجرك. احتفظ بهذا المفتاح منفصلاً عن مفتاح الاستيراد وحسابات الإدارة.'));
+        add(keyBox,'p',state.writeAccessVerified?t('A successful product update has verified write access.','تم التحقق من صلاحية الكتابة عبر تحديث منتج بنجاح.'):t('Read access is checked when you save this key. WooCommerce does not provide a safe non-writing permission check, so write access is confirmed only after an approved product update succeeds.','يتم التحقق من صلاحية القراءة عند حفظ هذا المفتاح. لا يوفر WooCommerce فحصاً آمناً لصلاحية الكتابة دون تعديل، لذلك لا تتأكد صلاحية الكتابة إلا بعد نجاح تحديث منتج تمت الموافقة عليه.'));
+        const key=input(keyBox,t('Read/write consumer key','مفتاح المستهلك للقراءة والكتابة'),'','password');key.autocomplete='new-password';
+        const secret=input(keyBox,t('Read/write consumer secret','السر الخاص للقراءة والكتابة'),'','password');secret.autocomplete='new-password';
+        action(keyBox,t(state.writeCredentialsConfigured?'Replace write key':'Save write key',state.writeCredentialsConfigured?'استبدال مفتاح الكتابة':'حفظ مفتاح الكتابة'),async()=>{
+          await api('/connectors/'+encodeURIComponent(connection.id)+'/product-sync/credentials','PUT',{consumerKey:key.value,consumerSecret:secret.value});
+          key.value='';secret.value='';await showProductPublishing(connection,area);return t('Write key saved. Product publishing is still off.','تم حفظ مفتاح الكتابة. لا يزال نشر المنتجات معطلاً.');
+        },status);
+        const enabled=input(area,t('Enable product publishing for this WooCommerce store','تفعيل نشر المنتجات لهذا المتجر على WooCommerce'),'','checkbox');
+        enabled.checked=state.enabled;enabled.disabled=!state.writeCredentialsConfigured||connection.status!=='active'||(!state.workerEnabled&&!state.enabled);
+        if(!state.workerEnabled)add(area,'p',t('Product publishing is not enabled for this deployment yet. The platform operator must enable its reviewed worker gate first.','لم يتم تفعيل نشر المنتجات لهذا النشر بعد. يجب على مشغل المنصة تفعيل بوابة العامل بعد مراجعتها أولاً.'));
+        enabled.addEventListener('change',async()=>{
+          const next=enabled.checked;
+          if(next&&!window.confirm(t('Enable publishing for this store? Only mapped products and selected fields can be sent. Conflicts pause automatically. 7Network will ask you before every overwrite of a changed WooCommerce value.','هل تريد تفعيل النشر لهذا المتجر؟ لن تُرسل إلا المنتجات والحقول المحددة. يتوقف النشر تلقائياً عند التعارض، وسيطلب 7Network موافقتك قبل استبدال أي قيمة WooCommerce متغيرة.'))){enabled.checked=false;return;}
+          enabled.disabled=true;
+          try{await api('/connectors/'+encodeURIComponent(connection.id)+'/product-sync','PUT',{enabled:next});status.textContent=next?t('Publishing enabled. WooCommerce values are being checked; any conflict will appear for owner review before it is changed.','تم تفعيل النشر. يجري التحقق من قيم WooCommerce؛ وسيظهر أي تعارض لمراجعة المالك قبل تغيير القيمة.'):t('Product publishing paused for this store.','تم إيقاف نشر المنتجات لهذا المتجر.');await showProductPublishing(connection,area);}
+          catch(error){enabled.checked=!next;showCode(status,error);enabled.disabled=false;}
+        });
+
+        const mappingForm=add(area,'section');add(mappingForm,'h3',t('Link a 7Network product','ربط منتج من 7Network'));
+        const localSelect=add(add(mappingForm,'label',t('7Network inventory product','منتج مخزون 7Network')+' '),'select');
+        localSelect.setAttribute('aria-label',t('7Network inventory product','منتج مخزون 7Network'));
+        const remoteSelect=add(add(mappingForm,'label',t('WooCommerce simple product','منتج WooCommerce بسيط')+' '),'select');
+        remoteSelect.setAttribute('aria-label',t('WooCommerce simple product','منتج WooCommerce بسيط'));
+        const renderLocalProducts=rows=>{const arabic=(localStorage.getItem('language')||'').toLowerCase().startsWith('ar');localSelect.replaceChildren();add(localSelect,'option',t('Select a 7Network product','اختر منتجاً من 7Network')).value='';for(const product of rows){const option=add(localSelect,'option',product.code+' · '+(arabic&&product.nameAr?product.nameAr:product.nameEn));option.value=product.id;}};
+        const renderWooProducts=rows=>{remoteSelect.replaceChildren();add(remoteSelect,'option',t('Select a WooCommerce product','اختر منتجاً من WooCommerce')).value='';for(const product of rows){const option=add(remoteSelect,'option',(product.sku?product.sku+' · ':'')+product.title+' · '+(product.type||t('type not imported','النوع غير مستورد'))+' · #'+product.id);option.value=product.id;option.disabled=Boolean(product.type&&product.type!=='simple');}};
+        renderLocalProducts(state.catalog);renderWooProducts(state.storeProducts);
+        const addProductSearch=(select,label,endpoint,render)=>{
+          const box=add(mappingForm,'div');const query=input(box,label,'','search');query.maxLength=100;
+          const find=add(box,'button',t('Search products','البحث عن المنتجات'));find.type='button';
+          const previous=add(box,'button',t('Previous page','الصفحة السابقة'));previous.type='button';previous.disabled=true;
+          const next=add(box,'button',t('Next page','الصفحة التالية'));next.type='button';next.disabled=true;
+          const pageLabel=add(box,'span',t('Showing initial products','عرض المنتجات الأولية'));let currentPage=1,hasMore=false,requestId=0;
+          const load=async(page=1)=>{const search=query.value.trim();if(search.length<2){status.textContent=t('Enter at least two characters to search the full catalog.','أدخل حرفين على الأقل للبحث في الكتالوج بالكامل.');return;}
+            const current=++requestId;find.disabled=previous.disabled=next.disabled=true;
+            try{const result=await api('/connectors/'+encodeURIComponent(connection.id)+'/product-sync/'+endpoint+'?search='+encodeURIComponent(search)+'&page='+page);if(current!==requestId)return;
+              render(result.rows||[]);createMapping.disabled=true;currentPage=result.page;hasMore=Boolean(result.hasMore);previous.disabled=currentPage<=1;next.disabled=!hasMore;
+              pageLabel.textContent=t('Search results page ','صفحة نتائج البحث ')+currentPage;
+              status.textContent=(result.rows||[]).length?t('Search results loaded.','تم تحميل نتائج البحث.'):t('No matching products found.','لم يتم العثور على منتجات مطابقة.');
+            }catch(error){if(current===requestId)showCode(status,error);}
+            finally{if(current===requestId)find.disabled=previous.disabled=next.disabled=false;}};
+          find.onclick=()=>load(1);previous.onclick=()=>load(Math.max(1,currentPage-1));next.onclick=()=>load(currentPage+1);
+          query.addEventListener('keydown',event=>{if(event.key==='Enter'){event.preventDefault();load(1);}});
+          select.addEventListener('change',()=>{createMapping.disabled=!localSelect.value||!remoteSelect.value;});
+          return {query,load};
+        };
+        addProductSearch(localSelect,t('Search 7Network products','البحث في منتجات 7Network'),'catalog-products',renderLocalProducts);
+        addProductSearch(remoteSelect,t('Search WooCommerce products','البحث في منتجات WooCommerce'),'woocommerce-products',renderWooProducts);
+        add(mappingForm,'p',t('Search supports products beyond the initial list. Enter at least two characters. Variable and non-simple WooCommerce products cannot be linked.','يدعم البحث المنتجات خارج القائمة الأولية. أدخل حرفين على الأقل. لا يمكن ربط المنتجات المتغيرة أو غير البسيطة من WooCommerce.'));
+        const checkboxGrid=add(mappingForm,'div');checkboxGrid.className='sx-retail-sync-fields';
+        const fieldInputs={};
+        for(const field of ['name','sku','description','price','stock_quantity']){const inputField=input(checkboxGrid,fieldLabel(field),'','checkbox');fieldInputs[field]=inputField;}
+        const locationSelect=add(add(mappingForm,'label',t('Stock location used for WooCommerce availability','موقع المخزون المستخدم لكمية WooCommerce')+' '),'select');
+        for(const place of state.locations){const option=add(locationSelect,'option',place.nameEn+(Number(place.isDefault)?' · '+t('default','افتراضي'):''));option.value=place.id;}
+        fieldInputs.stock_quantity.addEventListener('change',()=>{locationSelect.disabled=!fieldInputs.stock_quantity.checked;});locationSelect.disabled=true;
+        const createMapping=add(mappingForm,'button',t('Create product link','إنشاء ربط المنتج'));createMapping.type='button';createMapping.disabled=!localSelect.value||!remoteSelect.value;
+        createMapping.onclick=async()=>{const fields=Object.keys(fieldInputs).filter(field=>fieldInputs[field].checked);if(!fields.length){status.textContent=t('Choose at least one field to publish.','اختر حقلاً واحداً على الأقل للنشر.');return;}
+          if(!window.confirm(t('Create this link? 7Network will compare both products first. Any difference will pause and ask for your choice; no initial value is overwritten automatically.','هل تريد إنشاء هذا الربط؟ سيقارن 7Network المنتجين أولاً. يتوقف النشر عند أي اختلاف ويطلب اختيارك؛ ولن يتم استبدال أي قيمة تلقائياً.')))return;
+          createMapping.disabled=true;try{await api('/connectors/'+encodeURIComponent(connection.id)+'/product-sync/mappings','POST',{localProductId:localSelect.value,externalProductId:remoteSelect.value,publishFields:fields,stockLocationId:locationSelect.value||null});status.textContent=t('Product link created. Review any conflicts before publishing.','تم إنشاء ربط المنتج. راجع التعارضات قبل النشر.');await showProductPublishing(connection,area);}catch(error){showCode(status,error);createMapping.disabled=false;}};
+
+        const mappingSection=add(area,'section');add(mappingSection,'h3',t('Product links and sync status','روابط المنتجات وحالة المزامنة'));
+        if(!state.mappings.length)add(mappingSection,'p',t('No products are linked to this store.','لا توجد منتجات مرتبطة بهذا المتجر.'));
+        for(const mapping of state.mappings){const card=add(mappingSection,'article');add(card,'strong',mapping.productNameEn+' · '+mapping.code);add(card,'p',t('WooCommerce product','منتج WooCommerce')+' #'+mapping.externalProductId+' · '+mapping.status);
+          const selected=['name','sku','description','price','stock_quantity'].filter(field=>Number(mapping[{name:'publishName',sku:'publishSku',description:'publishDescription',price:'publishPrice',stock_quantity:'publishStock'}[field]]));
+          add(card,'p',t('Publishing fields','حقول النشر')+': '+(selected.map(fieldLabel).join(', ')||t('None','لا يوجد')));
+          if(mapping.stockLocationId){const place=state.locations.find(row=>row.id===mapping.stockLocationId);if(place)add(card,'p',t('Stock location','موقع المخزون')+': '+place.nameEn);}
+          const edit=add(card,'details');add(edit,'summary',t('Change fields','تغيير الحقول'));const editGrid=add(edit,'div');editGrid.className='sx-retail-sync-fields';const editFields={};
+          for(const field of ['name','sku','description','price','stock_quantity']){const fieldInput=input(editGrid,fieldLabel(field),'','checkbox');fieldInput.checked=selected.includes(field);editFields[field]=fieldInput;}
+          const editLocation=add(add(edit,'label',t('Stock location','موقع المخزون')+' '),'select');for(const place of state.locations){const option=add(editLocation,'option',place.nameEn);option.value=place.id;}editLocation.value=mapping.stockLocationId||'';editLocation.disabled=!editFields.stock_quantity.checked;
+          editFields.stock_quantity.addEventListener('change',()=>{editLocation.disabled=!editFields.stock_quantity.checked;});
+          action(edit,mapping.status==='disabled'?t('Save fields and reactivate link','حفظ الحقول وإعادة تفعيل الربط'):t('Save field selection','حفظ اختيار الحقول'),async()=>{const fields=Object.keys(editFields).filter(field=>editFields[field].checked);await api('/connectors/'+encodeURIComponent(connection.id)+'/product-sync/mappings/'+encodeURIComponent(mapping.id),'PUT',{publishFields:fields,stockLocationId:editLocation.value||null});await showProductPublishing(connection,area);return mapping.status==='disabled'?t('Product link reactivated. Review any conflicts before publishing.','تمت إعادة تفعيل ربط المنتج. راجع أي تعارض قبل النشر.'):t('Field selection saved.','تم حفظ اختيار الحقول.');},status);
+          action(edit,t('Disable product link','تعطيل ربط المنتج'),async()=>{if(!window.confirm(t('Disable this link and pause all its fields?','هل تريد تعطيل هذا الربط وإيقاف جميع حقوله؟')))return t('No changes made.','لم يتم إجراء أي تغيير.');await api('/connectors/'+encodeURIComponent(connection.id)+'/product-sync/mappings/'+encodeURIComponent(mapping.id),'DELETE',{});await showProductPublishing(connection,area);return t('Product link disabled.','تم تعطيل ربط المنتج.');},status);
+        }
+
+        const conflicts=add(area,'section');add(conflicts,'h3',t('Conflicts need your choice','تعارضات تحتاج إلى اختيارك'));
+        if(!state.conflicts.length)add(conflicts,'p',t('No field conflicts are waiting for review.','لا توجد تعارضات حقول بانتظار المراجعة.'));
+        for(const conflict of state.conflicts){const card=add(conflicts,'article');add(card,'strong',conflict.productNameEn+' · '+fieldLabel(conflict.field));
+          add(card,'p',t('WooCommerce value','قيمة WooCommerce')+': '+displaySyncValue(conflict.field,conflict.remoteValue,connection.currency));
+          add(card,'p',t('7Network value','قيمة 7Network')+': '+displaySyncValue(conflict.field,conflict.localValue,connection.currency));
+          add(card,'p',t('No value has been overwritten. Choose which system controls this field.','لم يتم استبدال أي قيمة. اختر النظام الذي يتحكم بهذا الحقل.'));
+          action(card,t('Publish 7Network value to WooCommerce','نشر قيمة 7Network في WooCommerce'),async()=>{
+            const message=t('Approve overwriting this WooCommerce field? WooCommerce currently has “'+displaySyncValue(conflict.field,conflict.remoteValue,connection.currency)+'”; 7Network will publish “'+displaySyncValue(conflict.field,conflict.localValue,connection.currency)+'”. Approval expires after 24 hours or if the WooCommerce value differs when the worker rechecks it.','هل توافق على استبدال هذا الحقل في WooCommerce؟ القيمة الحالية هي “'+displaySyncValue(conflict.field,conflict.remoteValue,connection.currency)+'”، وسينشر 7Network “'+displaySyncValue(conflict.field,conflict.localValue,connection.currency)+'”. تنتهي الموافقة بعد 24 ساعة أو إذا اختلفت قيمة WooCommerce عند إعادة التحقق.');
+            if(!window.confirm(message))return t('No changes made.','لم يتم إجراء أي تغيير.');
+            const approved=await api('/connectors/'+encodeURIComponent(connection.id)+'/product-sync/mappings/'+encodeURIComponent(conflict.mappingId)+'/conflicts/'+encodeURIComponent(conflict.field)+'/resolve','POST',{resolution:'publish_local'});await showProductPublishing(connection,area);return approved.queued?t('Approval recorded. The queued update will recheck WooCommerce before writing.','تم تسجيل الموافقة. سيعيد التحديث المنتظر فحص WooCommerce قبل الكتابة.'):t('Approval saved. Publishing is paused until you enable it for this store.','تم حفظ الموافقة. النشر متوقف حتى تفعيله لهذا المتجر.');
+          },status);
+          action(card,t('Keep WooCommerce value and pause this field','الاحتفاظ بقيمة WooCommerce وإيقاف هذا الحقل'),async()=>{await api('/connectors/'+encodeURIComponent(connection.id)+'/product-sync/mappings/'+encodeURIComponent(conflict.mappingId)+'/conflicts/'+encodeURIComponent(conflict.field)+'/resolve','POST',{resolution:'keep_woo'});await showProductPublishing(connection,area);return t('WooCommerce now controls this field; its 7Network publishing toggle is off.','أصبح WooCommerce يتحكم بهذا الحقل؛ وتم إيقاف خيار نشره من 7Network.');},status);
+        }
+        const jobs=add(area,'section');add(jobs,'h3',t('Recent updates','آخر التحديثات'));
+        if(!state.jobs.length)add(jobs,'p',t('No product updates have been queued.','لم يتم وضع تحديثات منتجات في قائمة الانتظار.'));
+        for(const job of state.jobs){const card=add(jobs,'article');add(card,'strong',job.productNameEn+' · '+fieldLabel(job.field));add(card,'p',t('Status','الحالة')+': '+job.status+(job.lastErrorCode?' · '+job.lastErrorCode:''));
+          if(job.status==='failed'&&job.mappingStatus==='active'&&state.enabled&&state.workerEnabled)action(card,t('Retry update','إعادة محاولة التحديث'),async()=>{await api('/connectors/'+encodeURIComponent(connection.id)+'/product-sync/jobs/'+encodeURIComponent(job.id)+'/retry','POST',{});await showProductPublishing(connection,area);return t('Update queued for retry.','تم وضع التحديث في قائمة إعادة المحاولة.');},status);
+        }
+        if(state.hasMore)action(area,t('Load more product sync records','تحميل المزيد من سجلات مزامنة المنتجات'),async()=>{await showProductPublishing(connection,area,state.offset+100,state);return t('More product sync records loaded.','تم تحميل سجلات إضافية لمزامنة المنتجات.');},status);
+      }catch(error){area.replaceChildren();add(area,'p',t('Unable to load product publishing settings.','تعذر تحميل إعدادات نشر المنتجات.'));showCode(status,error);}
+    }
     async function showPrivacy(connection,area){
       if(connection.provider!=='shopify')return;
       area.replaceChildren();add(area,'h3',t('Shopify privacy requests','طلبات خصوصية Shopify'));
@@ -397,6 +501,10 @@
           }
           const privacy=add(card,'details');add(privacy,'summary',t('Privacy request handling','معالجة طلبات الخصوصية'));
           const privacyBody=add(privacy,'div');privacy.addEventListener('toggle',()=>{if(privacy.open&&!privacy.dataset.loaded){privacy.dataset.loaded='true';showPrivacy(connection,privacyBody);}});
+          if(connection.provider==='woocommerce'){
+            const publishing=add(card,'details');add(publishing,'summary',t('Product publishing','نشر المنتجات'));const publishingBody=add(publishing,'div');
+            publishing.addEventListener('toggle',()=>{if(publishing.open&&!publishing.dataset.loaded){publishing.dataset.loaded='true';showProductPublishing(connection,publishingBody);}});
+          }
         }
       }catch(error){add(connectionsRoot,'p',t('Unable to load connected stores.','تعذر تحميل المتاجر المتصلة.'));showCode(status,error);}
     }
@@ -426,7 +534,7 @@
     root.className='sx-retail-workspace';
     root.dir=t('ltr','rtl');
     syncTheme();
-    if(!document.querySelector('[data-retail-workspace-css]')){const css=document.createElement('link');css.rel='stylesheet';css.href='/retail-workspace.css?v=20261106-shopify-woo-images3';css.dataset.retailWorkspaceCss='';document.head.append(css);}
+    if(!document.querySelector('[data-retail-workspace-css]')){const css=document.createElement('link');css.rel='stylesheet';css.href='/retail-workspace.css?v=20261106-woo-product-publish1';css.dataset.retailWorkspaceCss='';document.head.append(css);}
     new MutationObserver(syncTheme).observe(document.documentElement,{attributes:true,attributeFilter:['data-sx-theme']});
     window.addEventListener('storage',syncTheme);
     add(root,'h1',page[2]);

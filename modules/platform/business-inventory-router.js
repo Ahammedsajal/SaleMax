@@ -2,6 +2,7 @@
 
 const express = require('express');
 const { decision } = require('./policy');
+const retailProductSync = require('./retail-product-sync');
 const { randomUUID } = require('node:crypto');
 const uuid = /^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i;
 const validQuantity = value => Number.isInteger(value) && value >= 0 && value <= 1000000000;
@@ -150,6 +151,8 @@ module.exports = function createInventoryRouter({pool, authenticate}) {
       ) balance`,[tenant,req.params.id]);
       const [[open]]=await db.query("SELECT COUNT(*) AS count FROM sx_retail_orders WHERE tenant_id=? AND location_id=? AND status IN ('placed','ready','dispatched')",[tenant,req.params.id]);
       const [[reserved]]=await db.query('SELECT COALESCE(SUM(quantity),0) AS count FROM sx_retail_stock_reservations WHERE tenant_id=? AND location_id=?',[tenant,req.params.id]);
+      const [[publishing]]=await db.query("SELECT COUNT(*) AS count FROM sx_retail_woo_product_mappings WHERE tenant_id=? AND stock_location_id=? AND publish_stock=1 AND mapping_status='active'",[tenant,req.params.id]);
+      if(Number(publishing.count)){await db.rollback();return res.status(409).json({success:false,code:'LOCATION_USED_BY_STORE_SYNC'});}
       if(Number(stock.quantity)>0||Number(open.count)>0||Number(reserved.count)>0){await db.rollback();return res.status(409).json({success:false,code:'LOCATION_STOCK_OR_ORDERS_REMAIN'});}
       await db.query("UPDATE sx_retail_locations SET status='archived',is_default=0 WHERE tenant_id=? AND id=?",[tenant,req.params.id]);
       await db.commit();res.json({success:true,data:{archived:true}});
@@ -201,6 +204,8 @@ module.exports = function createInventoryRouter({pool, authenticate}) {
           (tenant_id,product_id,location_id,request_id,actor_id,previous_revision,previous_quantity,quantity,reason)
           VALUES (?,?,?,?,?,?,?,?,?)`,[tenant,productId,locationId,requestId,actor,revision,previous,next,`Transfer ${direction}: ${reason}`]);
       }
+      await retailProductSync.enqueueProductChange(db,tenant,productId,sourceId);
+      await retailProductSync.enqueueProductChange(db,tenant,productId,targetId);
       await db.query(`INSERT INTO sx_retail_stock_transfers
         (id,tenant_id,request_id,product_id,source_location_id,target_location_id,quantity,reason,actor_identity_id)
         VALUES (?,?,?,?,?,?,?,?,?)`,[outId,tenant,requestId,productId,sourceId,targetId,quantity,reason,actor]);
@@ -250,6 +255,7 @@ module.exports = function createInventoryRouter({pool, authenticate}) {
       await db.query(
         'INSERT INTO sx_business_stock_movements (tenant_id,product_id,location_id,request_id,actor_id,previous_revision,previous_quantity,quantity,reason) VALUES (?,?,?,?,?,?,?,?,?)',
         [...key, requestId.toLowerCase(), req.businessContext.identity.id, expectedRevision, latest?.quantity ?? 0, quantity, reason.trim()]);
+      await retailProductSync.enqueueProductChange(db,tenant,req.params.id,location.id);
       await db.commit();
       res.json({success: true, data: {quantity}});
     } catch (error) {

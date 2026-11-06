@@ -3,6 +3,7 @@
 const {randomUUID, createHash} = require('node:crypto');
 const deliveryProof = require('./retail-delivery-proof');
 const customerConsent = require('./retail-notice-consent');
+const productSync = require('./retail-product-sync');
 const uuid = /^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i;
 const slugPattern = /^[a-z0-9](?:[a-z0-9-]{0,78}[a-z0-9])?$/;
 const fail = (code, status = 400) => { throw Object.assign(new Error(code), {code, status}); };
@@ -142,6 +143,7 @@ async function move(db, tenant, locationId, product, request, actor, delta, reas
   await db.query(`INSERT INTO sx_business_stock_movements
     (tenant_id,product_id,location_id,request_id,actor_id,previous_revision,previous_quantity,quantity,reason) VALUES (?,?,?,?,?,?,?,?,?)`,
     [tenant, product,locationId,request, actor, last?.revision || '0', previous, next, reason]);
+  await productSync.enqueueProductChange(db,tenant,product,locationId);
 }
 function returnInput(input) {
   if(!input||!uuid.test(input.requestId||'')||typeof input.restock!=='boolean'||!Array.isArray(input.lines)||!input.lines.length||input.lines.length>30)fail('INVALID_RETURN');

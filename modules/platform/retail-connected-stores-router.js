@@ -5,6 +5,7 @@ const crypto = require('node:crypto');
 const path = require('node:path');
 const fs = require('node:fs');
 const connector = require('./retail-connected-stores');
+const productSync = require('./retail-product-sync');
 const { decision } = require('./policy');
 const originCheck = require('./request-origin');
 
@@ -15,7 +16,9 @@ const fail = connector.fail;
 const validVersion = value => /^20\d{2}-(01|04|07|10)$/.test(value || '');
 const safeConnection = row => ({ id: row.id, provider: row.provider, storeDomain: row.store_domain, displayName: row.display_name,
   currency: row.default_currency, status: row.status, scopes: parseJson(row.scopes, []), lastSyncAt: row.last_sync_at,
-  lastErrorCode: row.last_error_code, counts: row.counts || { orders: 0, customers: 0, products: 0, checkouts: 0 } });
+  lastErrorCode: row.last_error_code, productSyncEnabled: Number(row.product_sync_enabled) === 1,
+  productWriteCredentialsConfigured: Boolean(row.product_write_credentials_ciphertext), productWriteAccessVerified: Boolean(row.product_write_verified_at),
+  counts: row.counts || { orders: 0, customers: 0, products: 0, checkouts: 0 } });
 function parseJson(value, fallback) { try { return typeof value === 'string' ? JSON.parse(value) : value || fallback; } catch { return fallback; } }
 function jsonFromEncrypted(row, tenantId, connectionId, kind) { return connector.openJson(row, tenantId, connectionId, kind); }
 function auditSql() { return `INSERT INTO sx_audit_events(id,tenant_id,actor_identity_id,actor_kind,action,resource_type,resource_id,changes,correlation_id)
@@ -24,6 +27,10 @@ async function audit(db, context, action, connectionId, changes = {}) {
   await db.query(auditSql(), [crypto.randomUUID(), context.tenant.id, context.identity.id, action, connectionId, JSON.stringify(changes), crypto.randomUUID()]);
 }
 function originGuard(origin) { return (req, res, next) => originCheck.matches(req, origin) ? next() : res.sendStatus(403); }
+function requireProductPermissions(context, fields) {
+  if (fields.some(field => field !== 'stock_quantity') && !decision(context, { capability: 'products.catalog', permission: 'products.manage' }).allowed) fail('PERMISSION_DENIED', 403);
+  if (fields.includes('stock_quantity') && !decision(context, { capability: 'retail.inventory', permission: 'inventory.manage' }).allowed) fail('PERMISSION_DENIED', 403);
+}
 function cleanError(error) {
   const code = String(error?.code || '').match(/^[A-Z0-9_]{1,64}$/)?.[0] || 'RETAIL_CONNECTOR_FAILED';
   const status = Number(error?.status) >= 400 && Number(error.status) < 600 ? Number(error.status) : 502;
@@ -209,7 +216,10 @@ async function syncWoo(pool, connection) {
       try {
         await writer.beginTransaction();
         for (const row of data.rows) {
-          if (resource === 'products') await connector.upsertProduct(writer, connection, row);
+          if (resource === 'products') {
+            await connector.upsertProduct(writer, connection, row);
+            if (connection.provider === 'woocommerce') await productSync.observeWooProduct(writer, connection, row);
+          }
           if (resource === 'customers') await connector.upsertCustomer(writer, connection, row);
           if (resource === 'orders') {
             if (Number(row.customer_id) > 0) await connector.upsertCustomer(writer, connection, { ...row.billing, id: row.customer_id, billing: row.billing, updated_at: row.date_modified_gmt });
@@ -389,10 +399,15 @@ async function processWebhook(pool, connection, event) {
       if (/delete|redact/.test(topic)) await connector.redactCustomer(db, connection, String(parsed?.id || ''));
       else await connector.upsertCustomer(db, connection, parsed);
     } else if (topic.includes('product') || resourceType === 'product' || resourceType === 'products') {
-      if (/delete/.test(topic)) await db.query(`UPDATE sx_retail_external_products SET product_status='deleted'
-        WHERE tenant_id=? AND connection_id=? AND external_product_id=?`, [connection.tenant_id, connection.id,
-          connection.provider === 'shopify' ? connector.canonicalShopifyId('Product', externalId) : externalId]);
-      else await connector.upsertProduct(db, connection, parsed);
+      if (/delete/.test(topic)) {
+        const deletedId = connection.provider === 'shopify' ? connector.canonicalShopifyId('Product', externalId) : externalId;
+        await db.query(`UPDATE sx_retail_external_products SET product_status='deleted'
+          WHERE tenant_id=? AND connection_id=? AND external_product_id=?`, [connection.tenant_id, connection.id, deletedId]);
+        if (connection.provider === 'woocommerce') await productSync.markWooProductDeleted(db, connection, deletedId);
+      } else {
+        await connector.upsertProduct(db, connection, parsed);
+        if (connection.provider === 'woocommerce') await productSync.observeWooProduct(db, connection, parsed);
+      }
     } else if (topic.includes('checkout') || resourceType === 'checkout' || parsed?.type?.startsWith('checkout.')) {
       const checkout = parsed?.data || parsed?.checkout || parsed;
       if (parsed?.type === 'checkout.started') checkout.status = 'started';
@@ -499,9 +514,12 @@ function workspaceRouter({ pool, authenticate, origin }) {
       if (existing) {
         await db.query(`UPDATE sx_retail_store_connections SET display_name=?,default_currency=?,status='active',scopes=JSON_ARRAY('read_products','read_orders','read_customers'),
           credentials_ciphertext=?,credentials_iv=?,credentials_auth_tag=?,webhook_secret_ciphertext=?,webhook_secret_iv=?,webhook_secret_auth_tag=?,
+          product_sync_enabled=0,product_write_credentials_ciphertext=NULL,product_write_credentials_iv=NULL,product_write_credentials_auth_tag=NULL,product_write_verified_at=NULL,
           sync_cursor=NULL,sync_lock_token=NULL,sync_lock_until=NULL,last_error_code=NULL,created_by_identity_id=? WHERE tenant_id=? AND id=?`,
         [displayName, currency, encryptedCredentials.ciphertext, encryptedCredentials.iv, encryptedCredentials.authTag,
           encryptedWebhook.ciphertext, encryptedWebhook.iv, encryptedWebhook.authTag, context.identity.id, context.tenant.id, id]);
+        await db.query("UPDATE sx_retail_woo_product_sync_jobs SET status='paused',attempts=0,override_approved_by=NULL,override_approved_at=NULL,approved_remote_value_json=NULL,lease_token=NULL,lease_until=NULL,last_error_code='STORE_RECONNECTED' WHERE tenant_id=? AND connection_id=?", [context.tenant.id, id]);
+        await db.query("UPDATE sx_retail_woo_product_sync_conflicts SET status='paused',resolution='store_reconnected',resolved_by_identity_id=?,resolved_at=UTC_TIMESTAMP(3) WHERE tenant_id=? AND connection_id=? AND status='active'", [context.identity.id, context.tenant.id, id]);
       } else {
         await db.query(`INSERT INTO sx_retail_store_connections(id,tenant_id,provider,store_domain,display_name,default_currency,status,scopes,
           credentials_ciphertext,credentials_iv,credentials_auth_tag,webhook_secret_ciphertext,webhook_secret_iv,webhook_secret_auth_tag,created_by_identity_id)
@@ -532,6 +550,72 @@ function workspaceRouter({ pool, authenticate, origin }) {
       setup.abandonedCheckoutPlugin = `${publicOrigin(origin)}/api/retail-connectors/woocommerce-plugin`;
     }
     reply(res, setup);
+  }));
+
+  router.get('/:id/product-sync', owner(async (req, res, context) => {
+    const connection = await loadConnection(pool, context.tenant.id, req.params.id);
+    if (connection.provider !== 'woocommerce') fail('WOOCOMMERCE_STORE_REQUIRED', 409);
+    if (Object.keys(req.query || {}).some(key => key !== 'offset')) fail('INVALID_PAGE', 400);
+    reply(res, await productSync.state(pool, connection, req.query.offset || 0));
+  }));
+  router.get('/:id/product-sync/catalog-products', owner(async (req, res, context) => {
+    const connection = await loadConnection(pool, context.tenant.id, req.params.id);
+    if (connection.provider !== 'woocommerce') fail('WOOCOMMERCE_STORE_REQUIRED', 409);
+    if (Object.keys(req.query || {}).some(key => !['search','page'].includes(key))) fail('INVALID_PRODUCT_SEARCH', 400);
+    reply(res, await productSync.searchCatalog(pool, context.tenant.id, req.query.search, req.query.page || 1));
+  }));
+  router.get('/:id/product-sync/woocommerce-products', owner(async (req, res, context) => {
+    const connection = await loadConnection(pool, context.tenant.id, req.params.id);
+    if (connection.provider !== 'woocommerce') fail('WOOCOMMERCE_STORE_REQUIRED', 409);
+    if (Object.keys(req.query || {}).some(key => !['search','page'].includes(key))) fail('INVALID_PRODUCT_SEARCH', 400);
+    reply(res, await productSync.searchWooProducts(connection, req.query.search, req.query.page || 1));
+  }));
+  router.put('/:id/product-sync/credentials', owner(async (req, res, context) => {
+    const connection = await loadConnection(pool, context.tenant.id, req.params.id);
+    if (connection.provider !== 'woocommerce') fail('WOOCOMMERCE_STORE_REQUIRED', 409);
+    if (Object.keys(req.body || {}).some(key => !['consumerKey','consumerSecret'].includes(key))) fail('INVALID_WOOCOMMERCE_CREDENTIALS', 400);
+    const result = await productSync.storeWriteCredentials(pool, connection, context.identity.id, req.body?.consumerKey, req.body?.consumerSecret);
+    reply(res, result);
+  }));
+  router.put('/:id/product-sync', owner(async (req, res, context) => {
+    const connection = await loadConnection(pool, context.tenant.id, req.params.id);
+    if (connection.provider !== 'woocommerce') fail('WOOCOMMERCE_STORE_REQUIRED', 409);
+    if (Object.keys(req.body || {}).some(key => key !== 'enabled')) fail('INVALID_PRODUCT_SYNC_SETTINGS', 400);
+    if (req.body?.enabled === true) requireProductPermissions(context, ['name']);
+    reply(res, await productSync.setStoreEnabled(pool, connection, context.identity.id, req.body?.enabled));
+  }));
+  router.post('/:id/product-sync/mappings', owner(async (req, res, context) => {
+    const connection = await loadConnection(pool, context.tenant.id, req.params.id);
+    if (connection.provider !== 'woocommerce') fail('WOOCOMMERCE_STORE_REQUIRED', 409);
+    if (Object.keys(req.body || {}).some(key => !['localProductId','externalProductId','publishFields','stockLocationId'].includes(key))) fail('INVALID_PRODUCT_MAPPING', 400);
+    requireProductPermissions(context, Array.isArray(req.body?.publishFields) ? req.body.publishFields : []);
+    reply(res, await productSync.createMapping(pool, connection, context.identity.id, req.body || {}));
+  }));
+  router.put('/:id/product-sync/mappings/:mappingId', owner(async (req, res, context) => {
+    const connection = await loadConnection(pool, context.tenant.id, req.params.id);
+    if (connection.provider !== 'woocommerce') fail('WOOCOMMERCE_STORE_REQUIRED', 409);
+    if (Object.keys(req.body || {}).some(key => !['publishFields','stockLocationId'].includes(key))) fail('INVALID_PRODUCT_MAPPING', 400);
+    requireProductPermissions(context, Array.isArray(req.body?.publishFields) ? req.body.publishFields : []);
+    reply(res, await productSync.updateMapping(pool, connection, context.identity.id, req.params.mappingId, req.body || {}));
+  }));
+  router.delete('/:id/product-sync/mappings/:mappingId', owner(async (req, res, context) => {
+    const connection = await loadConnection(pool, context.tenant.id, req.params.id);
+    if (connection.provider !== 'woocommerce') fail('WOOCOMMERCE_STORE_REQUIRED', 409);
+    reply(res, await productSync.disableMapping(pool, connection, context.identity.id, req.params.mappingId));
+  }));
+  router.post('/:id/product-sync/mappings/:mappingId/conflicts/:field/resolve', owner(async (req, res, context) => {
+    const connection = await loadConnection(pool, context.tenant.id, req.params.id);
+    if (connection.provider !== 'woocommerce') fail('WOOCOMMERCE_STORE_REQUIRED', 409);
+    requireProductPermissions(context, req.params.field === 'stock_quantity' ? ['stock_quantity'] : ['name']);
+    if (Object.keys(req.body || {}).some(key => key !== 'resolution')) fail('INVALID_CONFLICT_RESOLUTION', 400);
+    reply(res, await productSync.resolveConflict(pool, connection, context.identity.id, req.params.mappingId, req.params.field, req.body?.resolution));
+  }));
+  router.post('/:id/product-sync/jobs/:jobId/retry', owner(async (req, res, context) => {
+    const connection = await loadConnection(pool, context.tenant.id, req.params.id);
+    if (connection.provider !== 'woocommerce') fail('WOOCOMMERCE_STORE_REQUIRED', 409);
+    requireProductPermissions(context, ['name']);
+    if (Object.keys(req.body || {}).length) fail('INVALID_PRODUCT_SYNC_RETRY', 400);
+    reply(res, await productSync.retryJob(pool, connection, req.params.jobId));
   }));
 
   router.post('/:id/sync', owner(async (req, res, context) => {
@@ -637,13 +721,22 @@ function workspaceRouter({ pool, authenticate, origin }) {
   router.delete('/:id', owner(async (req, res, context) => {
     if (Object.keys(req.body || {}).length) fail('INVALID_STORE_DISCONNECT', 400);
     const connection = await loadConnection(pool, context.tenant.id, req.params.id);
-    await pool.query(`UPDATE sx_retail_store_connections SET status='revoked',credentials_ciphertext=NULL,credentials_iv=NULL,
-      credentials_auth_tag=NULL,webhook_secret_ciphertext=NULL,webhook_secret_iv=NULL,webhook_secret_auth_tag=NULL,
-      sync_lock_token=NULL,sync_lock_until=NULL,last_error_code='DISCONNECTED_BY_OWNER' WHERE tenant_id=? AND id=?`,
-    [context.tenant.id, connection.id]);
-    await pool.query(`INSERT INTO sx_audit_events(id,tenant_id,actor_identity_id,actor_kind,action,resource_type,resource_id,changes,correlation_id)
-      VALUES (?, ?, ?, 'identity', 'retail.store-disconnected', 'retail-store-connection', ?, ?, ?)`,
-    [crypto.randomUUID(), context.tenant.id, context.identity.id, connection.id, JSON.stringify({ provider: connection.provider }), crypto.randomUUID()]);
+    const db = await pool.getConnection();
+    try {
+      await db.beginTransaction();
+      await db.query('SELECT id FROM sx_retail_store_connections WHERE tenant_id=? AND id=? FOR UPDATE', [context.tenant.id, connection.id]);
+      await db.query(`UPDATE sx_retail_store_connections SET status='revoked',credentials_ciphertext=NULL,credentials_iv=NULL,
+        credentials_auth_tag=NULL,webhook_secret_ciphertext=NULL,webhook_secret_iv=NULL,webhook_secret_auth_tag=NULL,
+        product_sync_enabled=0,product_write_credentials_ciphertext=NULL,product_write_credentials_iv=NULL,product_write_credentials_auth_tag=NULL,product_write_verified_at=NULL,
+        sync_lock_token=NULL,sync_lock_until=NULL,last_error_code='DISCONNECTED_BY_OWNER' WHERE tenant_id=? AND id=?`,
+      [context.tenant.id, connection.id]);
+      await db.query("UPDATE sx_retail_woo_product_sync_jobs SET status='paused',override_approved_by=NULL,override_approved_at=NULL,approved_remote_value_json=NULL,lease_token=NULL,lease_until=NULL,last_error_code='STORE_DISCONNECTED' WHERE tenant_id=? AND connection_id=?", [context.tenant.id, connection.id]);
+      await db.query("UPDATE sx_retail_woo_product_sync_conflicts SET status='paused',resolution='store_disconnected',resolved_by_identity_id=?,resolved_at=UTC_TIMESTAMP(3) WHERE tenant_id=? AND connection_id=? AND status='active'", [context.identity.id, context.tenant.id, connection.id]);
+      await db.query(`INSERT INTO sx_audit_events(id,tenant_id,actor_identity_id,actor_kind,action,resource_type,resource_id,changes,correlation_id)
+        VALUES (?, ?, ?, 'identity', 'retail.store-disconnected', 'retail-store-connection', ?, ?, ?)`,
+      [crypto.randomUUID(), context.tenant.id, context.identity.id, connection.id, JSON.stringify({ provider: connection.provider }), crypto.randomUUID()]);
+      await db.commit();
+    } catch (error) { try { await db.rollback(); } catch {} throw error; } finally { db.release(); }
     reply(res, { id: connection.id, status: 'revoked', importedDataRetained: true });
   }));
 
