@@ -92,8 +92,10 @@ async function assign(db,ctx,body){
   input(ctx,body,true);
   return transaction(db,()=>assignInTransaction(db,ctx,body));
 }
-async function assignInTransaction(db,ctx,body){
-    const data=input(ctx,body,true),payloadHash=hash(JSON.stringify({userId:data.userId,planVersionId:data.planVersionId,roleLimits:data.roleLimits,expectedState:data.expectedState}));
+async function assignInTransaction(db,ctx,body,{preserveCurrentPeriod=false}={}){
+    const data=input(ctx,body,true),payload={userId:data.userId,planVersionId:data.planVersionId,roleLimits:data.roleLimits,expectedState:data.expectedState};
+    if(preserveCurrentPeriod)payload.preserveCurrentPeriod=true;
+    const payloadHash=hash(JSON.stringify(payload));
     const user=await userRow(db,data.userId,true);
     const [[prior]]=await db.query('SELECT r.*,a.plan_version_id,a.role_limits,a.status,h.assigned_expiry FROM sx_legacy_contract_assignments r JOIN sx_plan_assignments a ON a.id=r.assignment_id JOIN sx_legacy_plan_assignments h ON h.id=r.legacy_assignment_id WHERE r.request_id=? FOR UPDATE',[data.requestId]);
     if(prior){
@@ -103,17 +105,27 @@ async function assignInTransaction(db,ctx,body){
     const loaded=await load(db,ctx,user,data,true);
     if(data.expectedState!==loaded.token)fail('STALE_ASSIGNMENT');
     if(loaded.blockers.length)fail(loaded.blockers[0].split(':')[0]);
-    // One database UTC instant supplies both DATETIME and epoch expiries.
-    // DATETIME strings avoid a local-time driver round trip.
-    const [[clock]]=await db.query("SELECT DATE_FORMAT(t.started_at,'%Y-%m-%d %H:%i:%s.%f') AS starts,DATE_FORMAT(DATE_ADD(t.started_at,INTERVAL ? DAY),'%Y-%m-%d %H:%i:%s.%f') AS ends,CAST(TIMESTAMPDIFF(MICROSECOND,'1970-01-01 00:00:00',DATE_ADD(t.started_at,INTERVAL ? DAY))/1000 AS UNSIGNED) AS epoch FROM (SELECT UTC_TIMESTAMP(3) AS started_at) AS t",[loaded.days,loaded.days]);
-    const id=crypto.randomUUID(),historyId=crypto.randomUUID(),status=Number(loaded.commercial.is_trial)===1?'trial':'active',snapshot=JSON.stringify(loaded.commercial);
+    // Category activation keeps the existing subscription period and legacy
+    // snapshot. Reviewed contract changes retain their existing renewal behavior.
+    let clock;
+    if(preserveCurrentPeriod){
+      const expiry=Number(user.plan_expire);
+      if(!Number.isSafeInteger(expiry)||!Number.isFinite(new Date(expiry).getTime()))fail('BUSINESS_PLAN_EXPIRED');
+      const [[now]]=await db.query("SELECT DATE_FORMAT(UTC_TIMESTAMP(3),'%Y-%m-%d %H:%i:%s.%f') AS starts,CAST(TIMESTAMPDIFF(MICROSECOND,'1970-01-01 00:00:00',UTC_TIMESTAMP(3))/1000 AS UNSIGNED) AS nowEpoch");
+      if(expiry<=Number(now.nowEpoch))fail('BUSINESS_PLAN_EXPIRED');
+      clock={starts:now.starts,ends:new Date(expiry).toISOString().slice(0,23).replace('T',' '),epoch:expiry};
+    }else{
+      const [[period]]=await db.query("SELECT DATE_FORMAT(t.started_at,'%Y-%m-%d %H:%i:%s.%f') AS starts,DATE_FORMAT(DATE_ADD(t.started_at,INTERVAL ? DAY),'%Y-%m-%d %H:%i:%s.%f') AS ends,CAST(TIMESTAMPDIFF(MICROSECOND,'1970-01-01 00:00:00',DATE_ADD(t.started_at,INTERVAL ? DAY))/1000 AS UNSIGNED) AS epoch FROM (SELECT UTC_TIMESTAMP(3) AS started_at) AS t",[loaded.days,loaded.days]);
+      clock=period;
+    }
+    const id=crypto.randomUUID(),historyId=crypto.randomUUID(),status=Number(loaded.commercial.is_trial)===1?'trial':'active',snapshot=preserveCurrentPeriod?(typeof user.plan==='string'?user.plan:JSON.stringify(user.plan)):JSON.stringify(loaded.commercial);
     await db.query("UPDATE sx_plan_assignments SET status='superseded' WHERE tenant_id=? AND current_tenant IS NOT NULL",[loaded.tenant.id]);
     await db.query('INSERT INTO sx_plan_assignments(id,tenant_id,plan_version_id,role_limits,status,effective_from,expires_at) VALUES (?,?,?,?,?,?,?)',[id,loaded.tenant.id,data.planVersionId,JSON.stringify(data.roleLimits),status,clock.starts,clock.ends]);
     await db.query('INSERT INTO sx_legacy_plan_assignments(id,request_id,owner_uid,owner_uid_hash,actor_uid,plan_id,previous_snapshot,previous_expiry,assigned_snapshot,assigned_expiry) VALUES (?,?,?,?,?,?,?,?,?,?)',[historyId,data.requestId,user.uid,hash(user.uid),ctx.identity.id,loaded.version.legacy_plan_id,user.plan,user.plan_expire,snapshot,clock.epoch]);
-    const [updated]=await db.query('UPDATE user SET plan=?,plan_expire=? WHERE id=?',[snapshot,clock.epoch,user.id]);if(updated.affectedRows!==1)fail('ASSIGNMENT_WRITE_FAILED');
+    if(!preserveCurrentPeriod){const [updated]=await db.query('UPDATE user SET plan=?,plan_expire=? WHERE id=?',[snapshot,clock.epoch,user.id]);if(updated.affectedRows!==1)fail('ASSIGNMENT_WRITE_FAILED');}
     await db.query('UPDATE sx_tenants SET revision=revision+1 WHERE id=?',[loaded.tenant.id]);
     await db.query('INSERT INTO sx_legacy_contract_assignments(request_id,legacy_user_id,tenant_id,actor_identity_id,payload_hash,assignment_id,legacy_assignment_id) VALUES (?,?,?,?,?,?,?)',[data.requestId,user.id,loaded.tenant.id,ctx.identity.id,payloadHash,id,historyId]);
-    await plans.audit(db,ctx,'legacy-business.contract-assigned',id,{userId:user.id,planVersionId:data.planVersionId,legacyPlanId:loaded.version.legacy_plan_id,roleLimits:data.roleLimits,status,durationDays:loaded.days,legacyAssignmentId:historyId},loaded.tenant.id);
+    await plans.audit(db,ctx,'legacy-business.contract-assigned',id,{userId:user.id,planVersionId:data.planVersionId,legacyPlanId:loaded.version.legacy_plan_id,roleLimits:data.roleLimits,status,durationDays:loaded.days,legacyAssignmentId:historyId,preservedCurrentPeriod:preserveCurrentPeriod},loaded.tenant.id);
     return {id,legacyAssignmentId:historyId,tenantId:loaded.tenant.id,planVersionId:data.planVersionId,roleLimits:data.roleLimits,status,expiresAt:Number(clock.epoch),replayed:false};
 }
 async function inspect(db,ctx,body,{locked=false}={}){

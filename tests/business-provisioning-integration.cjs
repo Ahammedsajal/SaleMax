@@ -6,7 +6,7 @@ const express=require('express');
 const http=require('node:http');
 const provisioning=require('../modules/platform/business-provisioning');
 const catalogue=require('../modules/platform/catalogue-bridge');
-const {salemaxSales}=require('../modules/platform/categories');
+const {trainingCenter,salemaxSales}=require('../modules/platform/categories');
 module.exports=async(db,other,{i1},pool)=>{
   const [[emailColumn]]=await db.query("SELECT COLUMN_NAME FROM information_schema.COLUMNS WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='user' AND COLUMN_NAME='email'");
   if(!emailColumn)await db.query('ALTER TABLE user ADD COLUMN email VARCHAR(999) NULL');
@@ -49,6 +49,27 @@ module.exports=async(db,other,{i1},pool)=>{
   await assert.rejects(provisioning.options(db,actor,user.insertId),{code:'BUSINESS_ALREADY_PROVISIONED'});
   const denied={...actor,mfaVerified:false};await assert.rejects(provisioning.options(db,denied,user.insertId),{code:'PERMISSION_DENIED'});
   const [[audit]]=await db.query("SELECT COUNT(*) n FROM sx_audit_events WHERE tenant_id=? AND action='business.tenant-provisioned'",[result.tenantId]);assert.equal(Number(audit.n),1);
+
+  // Exercise the streamlined Manage Users category-assignment path with
+  // per-business limits and automatic adoption of existing active staff.
+  const quickRoleCeiling={owner:1,accountant:4,manager:6,agent:20};
+  const quickDraft=await catalogue.createDraft(db,actor,{legacyPlanId:Number(contract.legacy_plan_id),requestId:crypto.randomUUID(),categoryKey:trainingCenter.key,categoryVersion:trainingCenter.version,capabilities:[...trainingCenter.capabilities],roleLimits:quickRoleCeiling});
+  await catalogue.publish(db,actor,{legacyPlanId:Number(contract.legacy_plan_id),versionId:quickDraft.id,revision:1});
+  const quickUid='quick-provision-'+crypto.randomUUID(),quickEmail=`quick-provision-${crypto.randomUUID()}@example.invalid`,quickExpiry=String(Date.now()+172800000);
+  const [quickUser]=await db.query('INSERT INTO user(uid,name,email,plan,plan_expire) VALUES (?,?,?,?,?)',[quickUid,'Synthetic Quick Workspace',quickEmail,JSON.stringify(commercial),quickExpiry]);
+  const legacyAgentUid='quick-agent-'+crypto.randomUUID(),legacyAgentEmail=`quick-agent-${crypto.randomUUID()}@example.invalid`;
+  const [legacyAgent]=await db.query("INSERT INTO agents(owner_uid,uid,email,password,name,mobile,role,is_active) VALUES (?,?,?,?,?,?,'agent',1)",[quickUid,legacyAgentUid,legacyAgentEmail,'synthetic-agent-hash','Synthetic Existing Agent','00000002']);
+  const quickOptions=await request(`${quickUser.insertId}/quick-provision-options?categoryKey=training_center&categoryVersion=1`);
+  assert.equal(quickOptions.status,200);assert.equal(quickOptions.body.data.contract.version,quickDraft.version);assert.deepEqual(quickOptions.body.data.roleCeiling,quickRoleCeiling);assert.equal(Number(quickOptions.body.data.legacyStaffCount),1);
+  const selectedLimits={owner:1,accountant:2,manager:3,agent:10},quickRequestId=crypto.randomUUID();
+  const quickConfirmation=await request(`${quickUser.insertId}/quick-provision`,{categoryKey:'training_center',categoryVersion:1,requestId:quickRequestId,expectedState:quickOptions.body.data.expectedState,roleLimits:selectedLimits});
+  assert.equal(quickConfirmation.status,201);assert.deepEqual(quickConfirmation.body.data.roleLimits,selectedLimits);assert.equal(Number(quickConfirmation.body.data.staffAdopted),1);
+  const quickReplay=await request(`${quickUser.insertId}/quick-provision`,{categoryKey:'training_center',categoryVersion:1,requestId:quickRequestId,expectedState:quickOptions.body.data.expectedState,roleLimits:selectedLimits});
+  assert.equal(quickReplay.status,200);assert.equal(quickReplay.body.data.replayed,true);assert.equal(quickReplay.body.data.tenantId,quickConfirmation.body.data.tenantId);
+  const [[quickAssignment]]=await db.query('SELECT role_limits,expires_at FROM sx_plan_assignments WHERE id=?',[quickConfirmation.body.data.assignmentId]);assert.deepEqual(typeof quickAssignment.role_limits==='string'?JSON.parse(quickAssignment.role_limits):quickAssignment.role_limits,selectedLimits);assert.equal(new Date(quickAssignment.expires_at).getTime(),Number(quickExpiry));
+  const [[quickOwner]]=await db.query('SELECT plan,plan_expire FROM user WHERE id=?',[quickUser.insertId]);assert.equal(quickOwner.plan,JSON.stringify(commercial));assert.equal(String(quickOwner.plan_expire),quickExpiry);
+  const [[adoptedAgent]]=await db.query("SELECT tenant_id,membership_id,legacy_uid_hash FROM sx_legacy_ownership WHERE source_table='agents' AND source_id=?",[String(legacyAgent.insertId)]);assert.equal(adoptedAgent.tenant_id,quickConfirmation.body.data.tenantId);assert.equal(adoptedAgent.legacy_uid_hash,crypto.createHash('sha256').update(legacyAgentUid).digest('hex'));
+  await assert.rejects(provisioning.validateQuickRoleLimits(trainingCenter,{...selectedLimits,agent:9},quickRoleCeiling,10),{code:'SEATS_IN_USE'});
 
   // Exercise the first-party Sales bootstrap against the same existing catalogue,
   // then verify that the setup link activates the legacy and canonical login
@@ -94,6 +115,6 @@ module.exports=async(db,other,{i1},pool)=>{
     const [[storedSession]]=await db.query('SELECT token_hash FROM sx_sessions WHERE id=?',[session.context.sessionId]);
     assert.equal(storedSession.token_hash,crypto.createHash('sha256').update(session.token).digest('hex'));
   }finally{for(const [key,value]of Object.entries(saved)){if(value===undefined)delete process.env[key];else process.env[key]=value;}}
-  return {existingBusinessProvisionHttpWorkflow:true,existingUserProvisionedInPlace:true,trainingCategoryAndQatarDefaults:true,wrongSalesOwnerCannotProvision:true,wrongSalesOwnerNoTenantOrIdentityCreated:true,salesOwnerProvisionedInPlace:true,salesTenantIndiaDefaults:true,oneTimeOwnerActivationTokenHashed:true,legacyAndCanonicalOwnerPasswordsActivatedAtomically:true,ownerInviteCannotBeReplayed:true,publishedPlanAssignedAtomically:true,provisionPreviewStalenessEnforced:true,provisionIdempotency:true,reviewedLegacyOwnerLinkCreated:true,provisioningAudited:true,legacyOwnerLoginCreatesTenantSession:true,legacyPasswordRehashedNotCopied:true,canonicalSessionRetryDoesNotRehash:true,foreignOriginDoesNotCreateTenantSession:true,canonicalSessionTokenOnlyStoredAsHash:true,unauthorizedProvisionDenied:true};
+  return {existingBusinessProvisionHttpWorkflow:true,existingUserProvisionedInPlace:true,trainingCategoryAndQatarDefaults:true,quickCategoryActivationHttpWorkflow:true,categoryRoleLimitsConfigurablePerBusiness:true,existingActiveStaffAdopted:true,quickActivationPreservesLegacyPlanAndExpiry:true,quickActivationIdempotent:true,wrongSalesOwnerCannotProvision:true,wrongSalesOwnerNoTenantOrIdentityCreated:true,salesOwnerProvisionedInPlace:true,salesTenantIndiaDefaults:true,oneTimeOwnerActivationTokenHashed:true,legacyAndCanonicalOwnerPasswordsActivatedAtomically:true,ownerInviteCannotBeReplayed:true,publishedPlanAssignedAtomically:true,provisionPreviewStalenessEnforced:true,provisionIdempotency:true,reviewedLegacyOwnerLinkCreated:true,provisioningAudited:true,legacyOwnerLoginCreatesTenantSession:true,legacyPasswordRehashedNotCopied:true,canonicalSessionRetryDoesNotRehash:true,foreignOriginDoesNotCreateTenantSession:true,canonicalSessionTokenOnlyStoredAsHash:true,unauthorizedProvisionDenied:true};
   } finally {await new Promise(resolve=>server.close(resolve));}
 };

@@ -4,6 +4,7 @@ const assert=require('node:assert/strict');
 const fs=require('node:fs');
 const path=require('node:path');
 const provisioning=require('../modules/platform/business-provisioning');
+const {trainingCenter}=require('../modules/platform/categories');
 const contractAssignment=require('../modules/platform/business-contract-assignment');
 const actor={audience:'platform',identity:{id:'f2af2210-e20c-488d-aa35-2eac9025e045'},membership:{role:'super_admin',status:'active'},mfaVerified:true,recentlyAuthenticated:true};
 test('business provisioning denies missing platform authority before database access',async()=>{
@@ -25,6 +26,27 @@ test('7Network Sales setup only accepts the designated Business Admin before con
   const queries=[];const db={async query(sql){queries.push(sql);if(sql.includes('SELECT id,uid,name,email,plan,plan_expire FROM user'))return [[{id:27,uid:'legacy-user-27',name:'Other account',email:'other@example.qa',plan:JSON.stringify({id:12,title:'Internal',price:0,plan_duration_in_days:365}),plan_expire:1}],[]];if(sql.includes('SELECT id FROM user WHERE uid='))return [[{id:27}],[]];if(sql.includes('FROM sx_legacy_ownership'))return [[],[]];throw new Error('provisioning must stop before identity or contract lookup');}};
   await assert.rejects(provisioning.options(db,actor,27,'7network_sales'),{code:'DESIGNATED_OWNER_REQUIRED'});
   assert.equal(queries.some(sql=>sql.includes('FROM sx_plan_versions')),false);
+});
+test('quick category activation binds editable role limits to the contract ceiling and active staff',()=>{
+  const ceiling=provisioning.defaultRoleCeiling(trainingCenter);
+  assert.deepEqual(ceiling,{owner:1,accountant:10000,manager:10000,agent:10000});
+  assert.deepEqual(provisioning.defaultRoleLimits(trainingCenter),{owner:1,accountant:1,manager:1,agent:7});
+  const request={userId:41,requestId:'10000000-0000-4000-8000-000000000001',expectedState:'a'.repeat(64),categoryKey:'training_center',categoryVersion:1,roleLimits:{owner:1,accountant:3,manager:4,agent:24}};
+  assert.deepEqual(provisioning.quickSelection(request).roleLimits,request.roleLimits);
+  assert.deepEqual(provisioning.validateQuickRoleLimits(trainingCenter,request.roleLimits,ceiling,24),request.roleLimits);
+  assert.throws(()=>provisioning.validateQuickRoleLimits(trainingCenter,{...request.roleLimits,manager:5},{owner:1,accountant:3,manager:4,agent:24},0),{code:'PLAN_LIMIT_EXCEEDED'});
+  assert.throws(()=>provisioning.validateQuickRoleLimits(trainingCenter,{...request.roleLimits,agent:23},ceiling,24),{code:'SEATS_IN_USE'});
+  assert.throws(()=>provisioning.quickSelection({...request,roleLimits:{...request.roleLimits,owner:2}}),{code:'ONE_OWNER_REQUIRED'});
+  assert.throws(()=>provisioning.quickSelection({...request,roleLimits:{...request.roleLimits,agent:10001}}),{code:'INVALID_ROLE_LIMITS'});
+});
+test('category assignment in Manage Users submits role limits to the protected quick-provision API',()=>{
+  const ui=fs.readFileSync(path.join(__dirname,'../client/public/admin-user-plans.js'),'utf8');
+  const router=fs.readFileSync(path.join(__dirname,'../modules/platform/existing-business-router.js'),'utf8');
+  assert.match(ui,/data-seat-role/);
+  assert.match(ui,/roleLimits:validation\.roleLimits/);
+  assert.match(ui,/Each business has exactly one owner/);
+  assert.match(router,/quick-provision-options/);
+  assert.match(router,/provisioning\.quickProvision/);
 });
 test('onboarding controls extend the original Manage Users contract screen',()=>{
   const ui=fs.readFileSync(path.join(__dirname,'../client/public/admin-user-plans.js'),'utf8');
