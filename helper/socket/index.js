@@ -29,6 +29,8 @@ const {
   mergeConversationLists,
   sortGroupChatsByActivity,
   prioritizeExactChat,
+  exactChatIdFromSearch,
+  filterExactChat,
   sanitizeMergedRows,
 } = require("../inbox/chatData.js");
 const {
@@ -61,7 +63,7 @@ function processSocketEvent({
       switch (type) {
         case "get_chat_list":
           const {
-            search = "",
+            search: requestedSearch = "",
             origin: requestedOrigin = "",
             unreadOnly = false,
             assignedOnly = false,
@@ -76,7 +78,9 @@ function processSocketEvent({
             conversationKind = 'direct',
           } = payload;
 
-          const origin = conversationKind === 'group' && requestedOrigin === 'qr' ? '' : requestedOrigin;
+          const exactChatId = exactChatIdFromSearch(requestedSearch);
+          const search = exactChatId ? '' : requestedSearch;
+          const origin = exactChatId ? '' : conversationKind === 'group' && requestedOrigin === 'qr' ? '' : requestedOrigin;
 
           const chatListOwnerUid = isAgent ? socket?.userData?.owner_uid : uid;
           let chats = [];
@@ -88,7 +92,10 @@ function processSocketEvent({
               `%"id":${socket.userData.id}"%`,
             ];
 
-            if (search) {
+            if (exactChatId) {
+              queryStr += ` AND uid = ? AND chat_id = ?`;
+              queryParams.push(chatListOwnerUid, exactChatId);
+            } else if (search) {
               queryStr += ` AND (
                 chat_id = ? OR
                 sender_name LIKE ? OR 
@@ -110,22 +117,22 @@ function processSocketEvent({
               queryParams.push(origin);
             }
 
-            if (origin === 'assigned' || assignedOnly) {
+            if (!exactChatId && (origin === 'assigned' || assignedOnly)) {
               queryStr += ` AND assigned_agent IS NOT NULL AND assigned_agent != 'null' AND assigned_agent != '' AND assigned_agent != '[]'`;
             }
 
-            if (instance) {
+            if (!exactChatId && instance) {
               queryStr += ` AND (chat_id LIKE ? OR origin_instance_unique_id = ? OR origin_instance_unique_id IN (SELECT uniqueId FROM instance WHERE uid = ? AND number = ?))`;
               queryParams.push(`${instance}_%`, instance, chatListOwnerUid, instance);
             }
 
-            if (unreadOnly) {
+            if (!exactChatId && unreadOnly) {
               queryStr += ` AND unread_count > 0`;
             }
 
 
 
-            if (agentFilter) {
+            if (!exactChatId && agentFilter) {
               queryStr += ` AND (assigned_agent LIKE ? OR assigned_agent LIKE ?)`;
               queryParams.push(
                 `%"name":"${agentFilter}"%`,
@@ -133,46 +140,47 @@ function processSocketEvent({
               );
             }
 
-            if (dateRange.start) {
+            if (!exactChatId && dateRange.start) {
               queryStr += ` AND createdAt >= ?`;
               queryParams.push(
                 moment(dateRange.start).format("YYYY-MM-DD HH:mm:ss"),
               );
             }
 
-            if (dateRange.end) {
+            if (!exactChatId && dateRange.end) {
               queryStr += ` AND createdAt <= ?`;
               queryParams.push(
                 moment(dateRange.end).format("YYYY-MM-DD HH:mm:ss"),
               );
             }
 
-            if (statusFilter === "read") {
+            if (!exactChatId && statusFilter === "read") {
               queryStr += ` AND unread_count = 0`;
-            } else if (statusFilter === "unread") {
+            } else if (!exactChatId && statusFilter === "unread") {
               queryStr += ` AND unread_count > 0`;
             }
 
-            if (hasNote) {
+            if (!exactChatId && hasNote) {
               queryStr += ` AND (chat_note IS NOT NULL AND chat_note != '')`;
             }
 
             chats = await query(`SELECT * ${queryStr}`, queryParams);
           } else {
             const betaChats = await query(`SELECT bc.*,i.number AS origin_instance_number FROM beta_chats bc
-              LEFT JOIN instance i ON i.uid=bc.uid AND i.uniqueId=bc.origin_instance_unique_id WHERE bc.uid = ?`, [
-              chatListOwnerUid,
-            ]);
-            const legacyChats = await query(`SELECT * FROM chats WHERE uid = ?`, [
-              chatListOwnerUid,
-            ]);
+              LEFT JOIN instance i ON i.uid=bc.uid AND i.uniqueId=bc.origin_instance_unique_id
+              WHERE bc.uid = ?${exactChatId ? ' AND bc.chat_id = ?' : ''}`,
+            exactChatId ? [chatListOwnerUid, exactChatId] : [chatListOwnerUid]);
+            const legacyChats = await query(`SELECT * FROM chats WHERE uid = ?${exactChatId ? ' AND chat_id = ?' : ''}`,
+              exactChatId ? [chatListOwnerUid, exactChatId] : [chatListOwnerUid]);
 
             chats = filterChats(
               mergeChatLists({
                 betaChats,
                 legacyChats,
               }),
-              {
+              exactChatId ? { search: '', origin: '', unreadOnly: false, dateRange: {},
+                statusFilter: 'all', hasNote: false, instance: '', assignedOnly: false,
+                conversationKind: 'all' } : {
                 search,
                 origin,
                 unreadOnly,
@@ -187,10 +195,12 @@ function processSocketEvent({
           }
 
           chats = inboxAccess.filterAssignedChats(chats, inboxScope);
+          chats = filterExactChat(chats, exactChatId);
           chats = sortGroupChatsByActivity(chats);
-          chats = prioritizeExactChat(chats, search);
+          chats = prioritizeExactChat(chats, exactChatId || search);
           const total = chats.length;
-          chats = chats.slice(offset, offset + limit);
+          const resultOffset = exactChatId ? 0 : offset;
+          chats = chats.slice(resultOffset, resultOffset + limit);
 
           const contacts = await query(`SELECT * FROM contact WHERE uid = ?`, [
             chatListOwnerUid,
@@ -221,7 +231,7 @@ function processSocketEvent({
           socket.emit("chat_list", {
             chats: chatData,
             total,
-            offset,
+            offset: resultOffset,
             agentData,
             qrInstances,
           });

@@ -24,7 +24,7 @@ test('lead detail opens the latest linked chat in the same window and prepares a
   assert.match(pipeline,/SaleMaxLeadDetailWorkspace\?\.inboxHref\(c\.chat_id\)/);
   assert.doesNotMatch(pipeline,/appHome\(\)\?page=chat/);
   assert.match(workspaceApi,/inbox:'\/api\/workspace\/inbox'/);
-  assert.match(fs.readFileSync(path.join(root,'client/public/index.html'),'utf8'),/inbox-deep-link\.js\?v=20261105-exact-chat1/);
+  assert.match(fs.readFileSync(path.join(root,'client/public/index.html'),'utf8'),/inbox-deep-link\.js\?v=20261107-exact-chat2/);
 });
 
 test('lead chat links route users and agents to the selected shared Inbox conversation',()=>{

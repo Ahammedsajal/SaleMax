@@ -104,6 +104,20 @@ function prioritizeExactChat(chats = [], search = '') {
   return exact.length ? exact.concat(remaining) : chats;
 }
 
+const EXACT_CHAT_SEARCH_PREFIX = 'chatid:';
+
+function exactChatIdFromSearch(search = '') {
+  const value = String(search || '').trim();
+  if (!value.toLowerCase().startsWith(EXACT_CHAT_SEARCH_PREFIX)) return '';
+  const chatId = value.slice(EXACT_CHAT_SEARCH_PREFIX.length).trim();
+  return chatId && chatId.length <= 999 ? chatId : '';
+}
+
+function filterExactChat(chats = [], chatId = '') {
+  if (!chatId) return chats;
+  return chats.filter(chat => String(chat?.chat_id || '').trim() === chatId);
+}
+
 function normalizeChat(chat, source = "beta") {
   const normalized = {
     ...chat,
@@ -406,6 +420,8 @@ module.exports = {
   mergeChatLists,
   sortGroupChatsByActivity,
   prioritizeExactChat,
+  exactChatIdFromSearch,
+  filterExactChat,
   mergeConversationLists,
   normalizeOriginFilter,
   sanitizeMergedRows,

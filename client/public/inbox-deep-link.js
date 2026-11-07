@@ -2,55 +2,58 @@
   'use strict';
 
   const FOCUS_KEY = '7networkLeadChatFocus';
-  const DONE_KEY = '7networkLeadChatCompleted';
-  const FAILED_KEY = '7networkLeadChatFailed';
-  const TIMEOUT_MS = 20000;
+  const SEARCH_PREFIX = 'chatid:';
+  const TIMEOUT_MS = 30000;
   const idOf = value => String(value?.chat_id || '').trim();
   const readJson = (storage, key) => {
     try { return JSON.parse(storage.getItem(key) || 'null'); } catch (_) { return null; }
   };
 
-  function chatIdFromProps(props) {
-    const chat = props?.chat;
-    return idOf(chat) || String(props?.chat_id || props?.chatId || '').trim();
+  function inboxTarget(search = location.search) {
+    const params = new URLSearchParams(search);
+    return params.get('page') === 'inbox' ? String(params.get('chatId') || '').trim() : '';
   }
 
-  function fiberOf(element) {
-    const key = Object.keys(element || {}).find(name => name.startsWith('__reactFiber$'));
-    return key ? element[key] : null;
+  function exactQuery(chatId) {
+    return SEARCH_PREFIX + String(chatId || '').trim();
   }
 
-  function clickableHost(componentFiber) {
-    const queue = componentFiber?.child ? [componentFiber.child] : [];
-    while (queue.length) {
-      const fiber = queue.shift();
-      const element = fiber?.tag === 5 ? fiber.stateNode : null;
-      if (element?.nodeType === 1 && typeof fiber.memoizedProps?.onClick === 'function') return element;
-      if (fiber?.child) queue.push(fiber.child);
-      if (fiber?.sibling) queue.push(fiber.sibling);
-    }
-    return null;
-  }
-
-  function findExactChatRow(root, chatId) {
-    const wanted = String(chatId || '').trim();
-    if (!wanted || !root?.querySelectorAll) return null;
-    for (const element of root.querySelectorAll('*')) {
-      let fiber = fiberOf(element);
-      while (fiber) {
-        if (chatIdFromProps(fiber.memoizedProps) === wanted) {
-          const host = clickableHost(fiber);
-          if (host) return host;
-        }
-        fiber = fiber.return;
+  function findInboxSurface(root) {
+    for (const input of root.querySelectorAll('input[type="text"]')) {
+      if (!/search|بحث/i.test(input.getAttribute('placeholder') || '')) continue;
+      if (input.getClientRects && !input.getClientRects().length) continue;
+      let parent = input.parentElement;
+      for (let depth = 0; parent && depth < 9; depth++, parent = parent.parentElement) {
+        const children = Array.from(parent.children || []);
+        const inputIndex = children.findIndex(child => child.contains(input));
+        if (inputIndex < 1 || inputIndex + 1 >= children.length) continue;
+        if (!children[0].querySelector('h6,[role="heading"]')) continue;
+        return { input, list: children[inputIndex + 1] };
       }
     }
     return null;
   }
 
-  function inboxTarget(search = location.search) {
-    const params = new URLSearchParams(search);
-    return params.get('page') === 'inbox' ? String(params.get('chatId') || '').trim() : '';
+  function isEmptyResult(list) {
+    return list?.children?.length === 1
+      && !list.querySelector('[class*="MuiAvatar-root"]')
+      && !list.querySelector('[class*="MuiCircularProgress-root"]')
+      && Boolean(list.querySelector('svg'))
+      && String(list.textContent || '').trim().length > 10;
+  }
+
+  function exactResultRow(list) {
+    if (list?.children?.length !== 1) return null;
+    const row = list.children[0];
+    return row.querySelector('[class*="MuiAvatar-root"]') ? row : null;
+  }
+
+  function setReactInput(input, value) {
+    if (input.value === value) return;
+    const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set;
+    if (setter) setter.call(input, value);
+    else input.value = value;
+    input.dispatchEvent(new Event('input', { bubbles: true }));
   }
 
   function announce(message) {
@@ -63,104 +66,100 @@
     window.setTimeout(() => banner.remove(), 7000);
   }
 
-  function restoreFilters(focus) {
-    if (focus?.previousFilters == null) localStorage.removeItem('chatFilters');
-    else localStorage.setItem('chatFilters', JSON.stringify(focus.previousFilters));
-  }
-
-  function fail(focus, chatId) {
-    restoreFilters(focus);
-    sessionStorage.removeItem(FOCUS_KEY);
-    sessionStorage.setItem(FAILED_KEY, chatId);
-    location.reload();
-  }
-
   function start() {
     const chatId = inboxTarget();
     if (!chatId || !window.MutationObserver || !document.body) return;
 
-    if (sessionStorage.getItem(FAILED_KEY) === chatId) {
-      sessionStorage.removeItem(FAILED_KEY);
-      announce(document.documentElement.lang?.toLowerCase().startsWith('ar')
-        ? 'تعذر فتح هذه المحادثة. قد لا تكون متاحة لحسابك أو لم تعد موجودة.'
-        : 'Could not open that conversation. It may be unavailable to your account or no longer exist.');
-      return;
-    }
-
-    const selected = idOf(readJson(localStorage, 'chatInfo'));
-    if (selected === chatId && sessionStorage.getItem(DONE_KEY) === chatId) return;
-
-    let focus = readJson(sessionStorage, FOCUS_KEY);
-    if (!focus || focus.chatId !== chatId || Date.now() - Number(focus.startedAt || 0) > 60000) {
-      const previousFilters = readJson(localStorage, 'chatFilters');
-      focus = { chatId, previousFilters, startedAt: Date.now() };
-      sessionStorage.setItem(FOCUS_KEY, JSON.stringify(focus));
-      sessionStorage.removeItem(DONE_KEY);
-      const filters = {
-        search: chatId, origin: '', unreadOnly: false, assignedOnly: false,
-        instanceFilter: '', instance: '', dateRange: { start: null, end: null },
-        limit: 20, offset: 0, filterType: 'all', hasNote: false,
-        statusFilter: 'all', agentFilter: '', conversationKind: 'all'
-      };
-      localStorage.setItem('chatFilters', JSON.stringify(filters));
-      localStorage.setItem('chatInfo', 'null');
-      location.reload();
-      return;
-    }
-
-    const requestedFilters = readJson(localStorage, 'chatFilters');
-    if (requestedFilters?.search !== chatId) {
-      localStorage.setItem('chatFilters', JSON.stringify({
-        search: chatId, origin: '', unreadOnly: false, assignedOnly: false,
-        instanceFilter: '', instance: '', dateRange: { start: null, end: null },
-        limit: 20, offset: 0, filterType: 'all', hasNote: false,
-        statusFilter: 'all', agentFilter: '', conversationKind: 'all'
-      }));
-      location.reload();
-      return;
-    }
-
+    const focus = readJson(sessionStorage, FOCUS_KEY);
+    const previousSearch = String(focus?.chatId === chatId ? focus?.previousFilters?.search || '' : '');
+    const emptyQuery = exactQuery('__7network_no_match_' + Math.random().toString(36).slice(2));
+    const targetQuery = exactQuery(chatId);
+    const deadline = Date.now() + TIMEOUT_MS;
+    let phase = 'await-input';
+    let surface = null;
+    let phaseAt = 0;
     let finished = false;
-    let clickAttempted = false;
-    const startedAt = Date.now();
-    const observer = new MutationObserver(trySelect);
+    const observer = new MutationObserver(tick);
     observer.observe(document.body, { childList: true, subtree: true });
-    const interval = window.setInterval(trySelect, 200);
+    const interval = window.setInterval(tick, 200);
 
-    function done() {
+    function stop() {
       finished = true;
       observer.disconnect();
       window.clearInterval(interval);
+      try { sessionStorage.removeItem(FOCUS_KEY); } catch (_) { /* URL remains authoritative */ }
     }
 
-    function trySelect() {
+    function restoreSearch() {
+      const current = findInboxSurface(document);
+      if (current) setReactInput(current.input, previousSearch);
+    }
+
+    function fail() {
+      stop();
+      restoreSearch();
+      announce(document.documentElement.lang?.toLowerCase().startsWith('ar')
+        ? 'تعذر فتح هذه المحادثة. قد لا تكون متاحة لحسابك أو لم تعد موجودة.'
+        : 'Could not open that conversation. It may be unavailable to your account or no longer exist.');
+    }
+
+    function tick() {
       if (finished) return;
-      if (idOf(readJson(localStorage, 'chatInfo')) === chatId) {
-        done();
-        sessionStorage.setItem(DONE_KEY, chatId);
-        sessionStorage.removeItem(FOCUS_KEY);
-        restoreFilters(focus);
-        window.setTimeout(() => location.reload(), 100);
+      if (Date.now() >= deadline) return fail();
+
+      if (!surface || !surface.input.isConnected || !surface.list.isConnected) {
+        surface = findInboxSurface(document);
+        if (!surface) return;
+      }
+
+      if (phase === 'await-input') {
+        phase = 'await-empty';
+        phaseAt = Date.now();
+        setReactInput(surface.input, emptyQuery);
         return;
       }
-      if (!clickAttempted) {
-        const row = findExactChatRow(document.body, chatId);
-        if (row) {
-          clickAttempted = true;
+
+      if (phase === 'await-empty') {
+        if (surface.input.value !== emptyQuery && Date.now() - phaseAt > 1200) {
+          phaseAt = Date.now();
+          setReactInput(surface.input, emptyQuery);
+        }
+        if (Date.now() - phaseAt >= 650 && isEmptyResult(surface.list)) {
+          phase = 'await-result';
+          phaseAt = Date.now();
+          setReactInput(surface.input, targetQuery);
+        }
+        return;
+      }
+
+      if (phase === 'await-result') {
+        if (surface.input.value !== targetQuery && Date.now() - phaseAt > 1200) {
+          phaseAt = Date.now();
+          setReactInput(surface.input, targetQuery);
+        }
+        const row = exactResultRow(surface.list);
+        if (row && Date.now() - phaseAt >= 650) {
+          phase = 'await-selection';
+          phaseAt = Date.now();
           row.scrollIntoView?.({ block: 'nearest' });
           row.click();
         }
+        return;
       }
-      if (Date.now() - startedAt >= TIMEOUT_MS) {
-        done();
-        fail(focus, chatId);
+
+      if (idOf(readJson(localStorage, 'chatInfo')) === chatId) {
+        stop();
+        restoreSearch();
+      } else if (Date.now() - phaseAt > 2500) {
+        phase = 'await-result';
+        phaseAt = Date.now() - 650;
       }
     }
 
-    trySelect();
+    tick();
   }
 
-  const api = Object.freeze({ chatIdFromProps, findExactChatRow, inboxTarget });
+  const api = Object.freeze({ inboxTarget, exactQuery, findInboxSurface, isEmptyResult, exactResultRow, setReactInput });
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   if (typeof window !== 'undefined') {
     window.SaleMaxInboxDeepLink = api;
