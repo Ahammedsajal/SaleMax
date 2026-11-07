@@ -14,12 +14,12 @@ import urllib.request
 ROOT = Path('/opt/salemax')
 APP = 'salemax-app-1'
 BASE = '/opt/salemax/releases/training-pipeline-correction-v3-9867ca72-20261104'
-LATEST_OVERLAY = '/opt/salemax/releases/website-funnel-stack-2936a79fc999-20261107/compose.website-funnel-stack.json'
+LATEST_OVERLAY = '/opt/salemax/releases/website-funnel-stack-f6ef7385d3b9-20261107/compose.website-funnel-stack.json'
 PRIOR_VARS = ROOT / 'shared/rollback-private-inventory-84644fdfebee/compose-manual-vars.json'
 IMAGE = 'sha256:c756899fdbf63edc71d45de0c71cffe1f063244d91378d90b15a2c98fc1d5135'
-EXPECTED_COMPOSE_FILES = 155
+EXPECTED_COMPOSE_FILES = 157
 EXPECTED_ENV_FILES = 11
-EXPECTED_MOUNTS = 153
+EXPECTED_MOUNTS = 157
 MIGRATION = '20270202_retail_order_email_search.sql'
 SUPPORT = (
     'salemax-db-1', 'salemax-report-worker-1', 'salemax-libretranslate-1',
