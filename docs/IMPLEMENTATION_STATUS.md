@@ -1,3 +1,7 @@
+## Public website customer-journey card motion — deployed, 7 November 2026
+
+Active cards now use a quiet corner-led page-turn entrance: copy and photo lift in from alternating lower corners, then settle flat. The sticky card shell stays stable and prefers-reduced-motion disables the entrance. Source `005f9782e08422dd1711d88e8badafb4e3b6325e` is live as a guarded app-only overlay. Public health, page cache key, stylesheet response and runtime hashes were verified; no database/API change or migration occurred. See `DEPLOYMENT.md` for hashes and rollback steps. Physical-device, intermediate-motion and Arabic/RTL acceptance remain open.
+
 ## Public website stacked-card scroll reveal — deployed, 7 November 2026
 
 Exposed content on the previous desktop card now stays visible while the next card rises; it is covered naturally as the incoming card advances, and deeper stacked cards remain hidden. Mobile layout is unchanged. Source `2e20b8695b41ee142d068b30b87703824e1b85ae` is live as a guarded app-only overlay. Public health, cache key, served CSS behavior and runtime hashes were verified. No database/API change or migration occurred. See `DEPLOYMENT.md` for hashes and rollback steps. Physical-device and Arabic/RTL visual review remain open.
