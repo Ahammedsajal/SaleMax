@@ -1,3 +1,9 @@
+## Retail Orders, Business Profile and Inventory listing — deployed, 7 November 2026
+
+The Retail Orders screen is organized around date range, customer name/mobile/email and status filters, with paged order cards and the existing fulfilment actions. Store name/link, enablement and the single delivery fee are under Business Profile; public About and Contact are separated from private business contact fields. Existing delivery zones are preserved unless the owner confirms replacing them. Inventory product cards now own storefront visibility, photos and variant setup. Checkout email is optional, retained for order administration and explicitly not used for marketing.
+
+Source commit `5bf8f98ba4421768aa0dcccc54bad4a9d45bab00` is active in `/opt/salemax/releases/retail-orders-workspace-5bf8f98ba442-20261107`. The additive `20270202_retail_order_email_search.sql` migration is applied. Production health, shell, served asset hashes and anonymous Retail API denial pass; the app was the only service recreated and support identities stayed unchanged. Static syntax and diff checks pass; no automated suite ran. The new Edge tab redirected to `/user/login`, so signed-in owner/staff screen acceptance remains open along with Arabic/RTL, theme, responsive/PWA and broader category gates. See `DEPLOYMENT.md` for exact hashes and protected rollback.
+
 ## Inventory sidebar row alignment — deployed, 7 November 2026
 
 Inventory now uses the same native sidebar row structure as neighboring links, so its icon and label align correctly and inherit the existing hover, compact and responsive behavior. The separate hand-built inventory row injection was removed; the shared sidebar owns placement, grouping and role visibility.
