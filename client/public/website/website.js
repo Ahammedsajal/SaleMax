@@ -530,35 +530,53 @@
     );
   }
   const funnelCards = [...document.querySelectorAll(".funnel-card")];
-  if (!reduceMotion.matches && funnelCards.length) {
-    root.classList.add("funnel-motion-ready");
-    if ("IntersectionObserver" in window) {
-      const funnelReveal = new IntersectionObserver(
-        (entries) =>
-          entries.forEach((entry) => {
-            if (entry.isIntersecting) {
-              entry.target.classList.add("is-entered");
-              funnelReveal.unobserve(entry.target);
-            }
-          }),
-        { threshold: 0.14, rootMargin: "0px 0px -7% 0px" },
-      );
-      funnelCards.forEach((card) => funnelReveal.observe(card));
-    } else {
-      const revealVisibleFunnelCards = () => {
+  if (funnelCards.length) {
+    const desktopStack = matchMedia("(min-width: 901px)");
+    if (!reduceMotion.matches) root.classList.add("funnel-motion-ready");
+    let scheduled = false;
+    const updateFunnelStack = () => {
+      scheduled = false;
+      if (!desktopStack.matches) {
+        root.classList.remove("funnel-stack-ready", "funnel-motion-ready");
         funnelCards.forEach((card) => {
-          const bounds = card.getBoundingClientRect();
-          if (bounds.top < innerHeight * 0.9 && bounds.bottom > innerHeight * 0.1)
-            card.classList.add("is-entered");
+          card.classList.add("is-active");
+          card.classList.remove("is-peeking", "is-stacked-away");
         });
-      };
-      window.addEventListener("scroll", revealVisibleFunnelCards, { passive: true });
-      window.addEventListener("resize", revealVisibleFunnelCards, { passive: true });
-      revealVisibleFunnelCards();
-    }
-    window.addEventListener("beforeprint", () =>
-      funnelCards.forEach((card) => card.classList.add("is-entered")),
-    );
+        return;
+      }
+      root.classList.add("funnel-stack-ready");
+      root.classList.toggle("funnel-motion-ready", !reduceMotion.matches);
+      // Advance as a new card reaches the prior card's lower edge. This clears
+      // old copy before the incoming card can cover it during the sticky climb.
+      let activeIndex = 0;
+      for (let index = 1; index < funnelCards.length; index += 1) {
+        const current = funnelCards[index].getBoundingClientRect();
+        const previous = funnelCards[index - 1].getBoundingClientRect();
+        if (current.top < previous.bottom - 2) activeIndex = index;
+      }
+      funnelCards.forEach((card, index) => {
+        card.classList.toggle("is-active", index === activeIndex);
+        card.classList.toggle("is-peeking", index === activeIndex - 1);
+        card.classList.toggle("is-stacked-away", index < activeIndex - 1);
+      });
+    };
+    const requestFunnelUpdate = () => {
+      if (scheduled) return;
+      scheduled = true;
+      requestAnimationFrame(updateFunnelStack);
+    };
+    window.addEventListener("scroll", requestFunnelUpdate, { passive: true });
+    window.addEventListener("resize", requestFunnelUpdate, { passive: true });
+    desktopStack.addEventListener?.("change", requestFunnelUpdate);
+    reduceMotion.addEventListener?.("change", () => {
+      root.classList.toggle("funnel-motion-ready", !reduceMotion.matches);
+      requestFunnelUpdate();
+    });
+    window.addEventListener("beforeprint", () => {
+      root.classList.remove("funnel-stack-ready", "funnel-motion-ready");
+      funnelCards.forEach((card) => card.classList.remove("is-peeking", "is-stacked-away"));
+    });
+    updateFunnelStack();
   }
   const floating = document.querySelector(".floating-cta");
   if (floating) {
