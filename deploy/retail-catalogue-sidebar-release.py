@@ -236,9 +236,18 @@ def prepare_compose(app, files, env_files, workdir, stage, commit):
     replacements = {row['target'] for row in mounts}
     for target, row in new_volumes.items():
         expected = expected_volumes[target]
-        if target in replacements and (row['type'], row.get('source'), row.get('read_only'), row.get('bind')) != (
-                expected['type'], expected.get('source'), expected.get('read_only'), expected.get('bind')):
-            raise RuntimeError('Unexpected candidate mount: ' + target)
+        if target in replacements:
+            bind = row.get('bind') or {}
+            bind_is_safe = (
+                isinstance(bind, dict)
+                and not (set(bind) - {'create_host_path', 'propagation'})
+                and bind.get('create_host_path', False) is False
+                and bind.get('propagation', 'rprivate') == 'rprivate'
+            )
+            if ((row['type'], row.get('source'), row.get('read_only')) !=
+                    (expected['type'], expected.get('source'), expected.get('read_only'))
+                    or not bind_is_safe):
+                raise RuntimeError('Unexpected candidate mount: ' + target)
         if target not in replacements and row != old_volumes[target]:
             raise RuntimeError('Unrelated app mount changed: ' + target)
     old_app.pop('volumes')
