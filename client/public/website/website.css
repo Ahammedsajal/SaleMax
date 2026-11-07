@@ -3130,6 +3130,45 @@ nav {
   .visual-orbit { animation: none; }
 }
 
+/* Corner-led page turn: the active card's copy and photo settle into place
+   from alternating lower corners. The sticky card itself remains steady. */
+.funnel-motion-ready .funnel-card.is-active .funnel-card-copy {
+  animation: funnel-page-copy-left 680ms cubic-bezier(.18,.72,.22,1) both;
+  transform-origin: 0% 100%;
+}
+.funnel-motion-ready .funnel-card.is-active .funnel-visual {
+  animation: funnel-page-visual-right 760ms cubic-bezier(.18,.72,.22,1) 55ms both;
+  transform-origin: 100% 100%;
+}
+.funnel-motion-ready .funnel-card:nth-child(even).is-active .funnel-card-copy {
+  animation-name: funnel-page-copy-right;
+  transform-origin: 100% 100%;
+}
+.funnel-motion-ready .funnel-card:nth-child(even).is-active .funnel-visual {
+  animation-name: funnel-page-visual-left;
+  transform-origin: 0% 100%;
+}
+@keyframes funnel-page-copy-left {
+  0% { opacity: .9; transform: perspective(900px) translate3d(-20px, 16px, 0) rotateY(-5deg) rotateZ(-1deg) scale(.99); }
+  72% { opacity: 1; transform: perspective(900px) translate3d(2px, -1px, 0) rotateY(.6deg) rotateZ(.12deg) scale(1.002); }
+  100% { opacity: 1; transform: none; }
+}
+@keyframes funnel-page-copy-right {
+  0% { opacity: .9; transform: perspective(900px) translate3d(20px, 16px, 0) rotateY(5deg) rotateZ(1deg) scale(.99); }
+  72% { opacity: 1; transform: perspective(900px) translate3d(-2px, -1px, 0) rotateY(-.6deg) rotateZ(-.12deg) scale(1.002); }
+  100% { opacity: 1; transform: none; }
+}
+@keyframes funnel-page-visual-right {
+  0% { opacity: .88; transform: perspective(900px) translate3d(22px, 18px, 0) rotateY(6deg) rotateZ(1.2deg) scale(.985); }
+  72% { opacity: 1; transform: perspective(900px) translate3d(-2px, -1px, 0) rotateY(-.6deg) rotateZ(-.12deg) scale(1.003); }
+  100% { opacity: 1; transform: none; }
+}
+@keyframes funnel-page-visual-left {
+  0% { opacity: .88; transform: perspective(900px) translate3d(-22px, 18px, 0) rotateY(-6deg) rotateZ(-1.2deg) scale(.985); }
+  72% { opacity: 1; transform: perspective(900px) translate3d(2px, -1px, 0) rotateY(.6deg) rotateZ(.12deg) scale(1.003); }
+  100% { opacity: 1; transform: none; }
+}
+
 /* The card and copy stay fixed; only the active real photo settles into focus. */
 .funnel-motion-ready .funnel-card .funnel-photo {
   opacity: .76;
@@ -3151,6 +3190,8 @@ nav {
     transform: none;
     transition: none;
   }
+  .funnel-card.is-active .funnel-card-copy,
+  .funnel-card.is-active .funnel-visual { animation: none; transform: none; }
   .visual-orbit { animation: none; }
 }
 
