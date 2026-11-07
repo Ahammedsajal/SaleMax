@@ -74,6 +74,124 @@ function updatePreview(node,profile){const values=readFields(node,profile),arabi
 function status(node,message,error=false){const target=node.querySelector('[data-status]');target.innerHTML=`<div class="${error?'error':'status'}" role="${error?'alert':'status'}">${esc(message)}</div>`;}
 function errorText(error){const messages={STALE_REVISION:tr('This profile changed in another tab. Reload it and reapply your edits.','تم تعديل الملف في نافذة أخرى. أعد تحميله ثم أعد تطبيق التغييرات.'),INVALID_EMAIL:tr('Enter a valid email address.','أدخل بريداً إلكترونياً صحيحاً.'),INVALID_WEBSITE_URL:tr('Website links must start with https://.','يجب أن يبدأ رابط الموقع بـ https://.'),INVALID_MAPS_URL:tr('Use a Google Maps link.','استخدم رابط خرائط Google.'),INVALID_FAVICON_TYPE:tr('The browser icon must be a PNG or WebP image.','يجب أن تكون أيقونة المتصفح بصيغة PNG أو WebP.'),CRM_LOGO_TYPE_NOT_ALLOWED:tr('Choose a JPEG, PNG or WebP image.','اختر صورة بصيغة JPEG أو PNG أو WebP.'),CRM_LOGO_TOO_LARGE:tr('Each image must be 5 MB or smaller.','يجب ألا يتجاوز حجم كل صورة 5 ميجابايت.'),PERMISSION_DENIED:tr('Only the business owner can edit this profile.','مالك النشاط التجاري فقط يمكنه تعديل هذا الملف.')};return messages[error.message]||tr('The profile could not be saved. Check the fields and try again.','تعذر حفظ الملف. تحقق من الحقول ثم أعد المحاولة.');}
 
+function storefrontProfileCss(){if($('#sx-crm-storefront-css'))return;const style=document.createElement('style');style.id='sx-crm-storefront-css';style.textContent=`
+ #sx-crm-appearance .sx-storefront-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:15px 18px}
+ #sx-crm-appearance .sx-storefront-grid .field{min-width:0}
+ #sx-crm-appearance .sx-store-toggle{display:flex;align-items:center;gap:11px;min-height:48px;padding:10px 12px;border:1px solid #d0d5dd;border-radius:10px;background:#fff;color:#344054;font-weight:600}
+ #sx-crm-appearance .sx-store-toggle input{flex:0 0 auto;width:20px;min-height:20px;margin:0;padding:0;accent-color:#1768d4}
+ #sx-crm-appearance .sx-store-link{display:flex;align-items:center;justify-content:space-between;gap:12px;min-width:0;margin-top:16px;padding:13px 14px;border:1px solid #e4e7ec;border-radius:12px;background:#fcfcfd}
+ #sx-crm-appearance .sx-store-link a{min-width:0;overflow-wrap:anywhere;color:#1768d4;font-weight:650}
+ #sx-crm-appearance .sx-store-link span{color:#667085;font-size:13px}
+ #sx-crm-appearance .sx-storefront-actions{display:flex;align-items:center;justify-content:flex-end;gap:10px;margin-top:16px}
+ #sx-crm-appearance .sx-storefront-actions button{min-height:44px}
+ #sx-crm-appearance .sx-storefront-status{min-height:1.5em;margin:10px 0 0;color:#667085}
+ #sx-crm-appearance .sx-storefront-status[role=alert]{color:#b42318}
+ #sx-crm-appearance .sx-storefront-note{margin:10px 0;padding:10px 12px;border:1px solid #f0c36d;border-radius:10px;background:#fffaeb;color:#7a4b00;font-size:13px}
+ #sx-crm-appearance .sx-storefront-flat-fee{margin-top:8px}
+ #sx-crm-appearance .sx-store-notification-toggle{display:flex;align-items:center;gap:10px;margin:8px 0;color:#344054}
+ #sx-crm-appearance .sx-store-notification-toggle input{width:20px;min-height:20px;margin:0;padding:0;accent-color:#1768d4}
+ #sx-crm-appearance .sx-store-notifications{margin-top:14px;padding-top:8px;border-top:1px solid #e4e7ec}
+ html[data-sx-theme=dark] #sx-crm-appearance .sx-store-toggle{background:#101827;border-color:#34445b;color:#e6edf7}
+ html[data-sx-theme=dark] #sx-crm-appearance .sx-store-link{background:#111a28;border-color:#34445b}
+ html[data-sx-theme=dark] #sx-crm-appearance .sx-store-link span,html[data-sx-theme=dark] #sx-crm-appearance .sx-storefront-status{color:#a9b7ca}
+ html[data-sx-theme=dark] #sx-crm-appearance .sx-storefront-note{background:#34270f;border-color:#755b1d;color:#f5d98b}
+ html[data-sx-theme=dark] #sx-crm-appearance .sx-store-notification-toggle{color:#e6edf7}
+ html[data-sx-theme=dark] #sx-crm-appearance .sx-store-notifications{border-color:#34445b}
+ @media(max-width:650px){#sx-crm-appearance .sx-storefront-grid{grid-template-columns:1fr;gap:12px}#sx-crm-appearance .sx-store-link{align-items:flex-start;flex-direction:column}#sx-crm-appearance .sx-storefront-actions{justify-content:stretch}#sx-crm-appearance .sx-storefront-actions button{width:100%;min-height:46px}}
+`;document.head.append(style);}
+function storefrontField(key,label,value,{type='text',hint='',full=false}={}){const wrapper=document.createElement('label');wrapper.className='field'+(full?' full':'');wrapper.append(document.createTextNode(label));if(hint){const small=document.createElement('small');small.textContent=hint;wrapper.append(small);}const input=document.createElement('input');input.dataset.storeField=key;input.type=type;input.value=value??'';input.autocomplete='off';wrapper.append(input);return {wrapper,input};}
+function storefrontArea(key,label,value,{hint=''}={}){const wrapper=document.createElement('label');wrapper.className='field full';wrapper.append(document.createTextNode(label));if(hint){const small=document.createElement('small');small.textContent=hint;wrapper.append(small);}const input=document.createElement('textarea');input.dataset.storeField=key;input.value=value??'';input.dir='auto';wrapper.append(input);return {wrapper,input};}
+function storeSlug(value){return String(value||'').normalize('NFKD').replace(/[\u0300-\u036f]/g,'').toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-+|-+$/g,'').slice(0,80)||'my-store';}
+async function loadStorefrontSettings(node,profile){
+ let access;try{access=await window.SaleMaxWorkspace?.session?.();}catch{return;}
+ if(!access?.permissions?.['retail.configure'])return;
+ storefrontProfileCss();
+ const online=document.createElement('section');online.className='section';
+ const publicInfo=document.createElement('section');publicInfo.className='section';
+ const retry=document.createElement('button');retry.type='button';retry.className='primary';retry.textContent=tr('Retry loading store settings','إعادة تحميل إعدادات المتجر');
+ const showStatus=(target,message,error=false)=>{target.textContent=message;target.setAttribute('role',error?'alert':'status');};
+ try{
+  const response=await window.SaleMaxWorkspace.request('retail','/store/settings');
+  const settings=response.data||response;let store=settings.store||null;
+  let zones=Array.isArray(store?.deliveryZones)?store.deliveryZones:[];
+  const businessName=profile.businessNameEn||tenant?.name||'';
+  const linkName=storefrontField('slug',tr('Store link name','اسم رابط المتجر'),store?.slug||storeSlug(businessName),{hint:tr('This becomes your public storefront address.','سيصبح هذا عنوان واجهة متجرك العامة.')});linkName.input.maxLength=80;linkName.input.required=true;linkName.input.spellcheck=false;linkName.input.pattern='[a-z0-9](?:[a-z0-9-]{0,78}[a-z0-9])?';linkName.input.autocapitalize='none';
+  const storeName=storefrontField('title',tr('Store name','اسم المتجر'),store?.title||businessName);storeName.input.maxLength=160;storeName.input.required=true;
+  const fee=storefrontField('deliveryFee',tr('Delivery fee (QAR)','رسوم التوصيل (ريال)'),store?.deliveryFee==null?'':(Number(store.deliveryFee)/100).toFixed(2),{hint:zones.length?tr('Existing delivery zones still control where you deliver and their prices.','ما زالت مناطق التوصيل الحالية تحدد أماكن التوصيل وأسعارها.'):tr('Leave empty for pickup only.','اتركه فارغاً للاستلام فقط.')});fee.input.type='number';fee.input.min='0';fee.input.max='10000';fee.input.step='0.01';fee.input.inputMode='decimal';fee.input.autocomplete='off';
+  const toggleWrap=document.createElement('label');toggleWrap.className='sx-store-toggle';
+  const enabled=document.createElement('input');enabled.type='checkbox';enabled.dataset.storeField='enabled';enabled.checked=Boolean(store?.enabled);toggleWrap.append(enabled,document.createTextNode(tr('Enable public storefront','تفعيل واجهة المتجر العامة')));
+  const onlineHead=document.createElement('div');onlineHead.className='section-head';onlineHead.innerHTML=`<span class="section-icon" aria-hidden="true">▣</span><div><h2>${tr('Online store','المتجر الإلكتروني')}</h2><p class="help">${tr('Set the store name, link and delivery fee.','حدد اسم المتجر ورابطه ورسوم التوصيل.')}</p></div>`;online.append(onlineHead);
+  const onlineGrid=document.createElement('div');onlineGrid.className='sx-storefront-grid';onlineGrid.append(linkName.wrapper,storeName.wrapper,fee.wrapper,toggleWrap);online.append(onlineGrid);
+  const linkPanel=document.createElement('div');linkPanel.className='sx-store-link';
+  const link=document.createElement('a');link.target='_blank';link.rel='noopener noreferrer';link.dir='ltr';
+  const linkHint=document.createElement('span');linkPanel.append(link,linkHint);online.append(linkPanel);
+  const onlineActions=document.createElement('div');onlineActions.className='sx-storefront-actions';
+  const copy=document.createElement('button');copy.type='button';copy.textContent=tr('Copy store link','نسخ رابط المتجر');onlineActions.append(copy);
+  const saveStoreButton=document.createElement('button');saveStoreButton.type='button';saveStoreButton.className='primary';saveStoreButton.textContent=tr('Save store settings','حفظ إعدادات المتجر');onlineActions.append(saveStoreButton);
+  online.append(onlineActions);
+  const onlineStatus=document.createElement('p');onlineStatus.className='sx-storefront-status';onlineStatus.setAttribute('role','status');onlineStatus.setAttribute('aria-live','polite');online.append(onlineStatus);
+  let flatFeeButton=null;
+  if(zones.length){
+   const zoneNote=document.createElement('p');zoneNote.className='sx-storefront-note';zoneNote.textContent=tr(`This store currently has ${zones.length} delivery zones. You can keep them or switch to one fee for all addresses.`,`يحتوي هذا المتجر حالياً على ${zones.length} مناطق توصيل. يمكنك الإبقاء عليها أو استخدام رسوم واحدة لكل العناوين.`);online.append(zoneNote);
+   flatFeeButton=document.createElement('button');flatFeeButton.type='button';flatFeeButton.className='sx-storefront-flat-fee';flatFeeButton.textContent=tr('Use one fee for all deliveries','استخدام رسوم واحدة لكل عمليات التوصيل');online.append(flatFeeButton);
+  }
+  const notificationSettings=settings.notifications||{};
+  const notificationPanel=document.createElement('details');notificationPanel.className='sx-store-notifications';
+  const notificationTitle=document.createElement('summary');notificationTitle.textContent=tr('Order notifications','إشعارات الطلبات');notificationPanel.append(notificationTitle);
+  const staffToggle=document.createElement('label');staffToggle.className='sx-store-notification-toggle';
+  const staffAlerts=document.createElement('input');staffAlerts.type='checkbox';staffAlerts.checked=Boolean(notificationSettings.retailOrdersEnabled);staffToggle.append(staffAlerts,document.createTextNode(tr('Send order alerts to owners and managers','إرسال تنبيهات الطلبات إلى المالك والمديرين')));notificationPanel.append(staffToggle);
+  const customerToggle=document.createElement('label');customerToggle.className='sx-store-notification-toggle';
+  const customerAlerts=document.createElement('input');customerAlerts.type='checkbox';customerAlerts.checked=Boolean(notificationSettings.retailCustomerUpdatesEnabled);customerToggle.append(customerAlerts,document.createTextNode(tr('Allow order updates for customers who opt in','السماح بتحديثات الطلب للعملاء الذين يوافقون')));notificationPanel.append(customerToggle);
+  const notificationHelp=document.createElement('p');notificationHelp.className='help';notificationHelp.textContent=tr('Customer WhatsApp updates are sent only when the customer gives separate order-only consent. No marketing messages are sent.','لا تُرسل تحديثات واتساب إلا بعد موافقة العميل المنفصلة على تحديث الطلب فقط. لا تُرسل رسائل تسويقية.');notificationPanel.append(notificationHelp);
+  const saveNotifications=document.createElement('button');saveNotifications.type='button';saveNotifications.className='';saveNotifications.textContent=tr('Save notification preferences','حفظ تفضيلات الإشعارات');notificationPanel.append(saveNotifications);online.append(notificationPanel);
+  saveNotifications.onclick=async()=>{saveNotifications.disabled=true;showStatus(onlineStatus,tr('Saving…','جار الحفظ…'));try{await window.SaleMaxWorkspace.request('retail','/notifications',{method:'PUT',body:{retailOrdersEnabled:staffAlerts.checked,retailCustomerUpdatesEnabled:customerAlerts.checked}});showStatus(onlineStatus,tr('Notification preferences saved.','تم حفظ تفضيلات الإشعارات.'));}catch{showStatus(onlineStatus,tr('Could not save notification preferences. Try again.','تعذر حفظ تفضيلات الإشعارات. حاول مرة أخرى.'),true);}finally{saveNotifications.disabled=false;}};
+  const about=storefrontArea('about',tr('About your store','عن المتجر'),store?.about||'',{hint:tr('Shown on the public About page.','يظهر في صفحة نبذة عنا العامة.')});about.input.maxLength=4000;
+  const contact=storefrontField('contact',tr('Public customer contact','وسيلة التواصل العامة للعملاء'),store?.contact||'',{hint:tr('Shown on the public Contact page. Enter only a contact you want customers to see.','يظهر في صفحة التواصل العامة. أدخل وسيلة اتصال تريد إتاحتها للعملاء فقط.')});contact.input.maxLength=200;contact.input.autocomplete='off';
+  const publicHead=document.createElement('div');publicHead.className='section-head';publicHead.innerHTML=`<span class="section-icon" aria-hidden="true">✉</span><div><h2>${tr('About and contact','نبذة عن المتجر والتواصل')}</h2><p class="help">${tr('These details appear on your public storefront.','ستظهر هذه البيانات في واجهة متجرك العامة.')}</p></div>`;publicInfo.append(publicHead);
+  const publicGrid=document.createElement('div');publicGrid.className='sx-storefront-grid';publicGrid.append(about.wrapper,contact.wrapper);publicInfo.append(publicGrid);
+  const publicActions=document.createElement('div');publicActions.className='sx-storefront-actions';const savePublicButton=document.createElement('button');savePublicButton.type='button';savePublicButton.className='primary';savePublicButton.textContent=tr('Save about and contact','حفظ النبذة والتواصل');publicActions.append(savePublicButton);publicInfo.append(publicActions);
+  const publicStatus=document.createElement('p');publicStatus.className='sx-storefront-status';publicStatus.setAttribute('role','status');publicStatus.setAttribute('aria-live','polite');publicInfo.append(publicStatus);
+  const storeUrl=()=>new URL('/business/'+encodeURIComponent(linkName.input.value.trim())+'/shop/',location.origin).href;
+  function updateStoreLink(){const slug=linkName.input.value.trim(),valid=/^[a-z0-9](?:[a-z0-9-]{0,78}[a-z0-9])?$/.test(slug),url=storeUrl(),canOpen=valid&&enabled.checked&&store?.enabled&&store.slug===slug;link.href=canOpen?url:'#';link.textContent=url;linkHint.textContent=canOpen?tr('Public storefront','واجهة المتجر العامة'):tr('Save and enable the store before customers can open this link.','احفظ المتجر وفعّله قبل أن يتمكن العملاء من فتح هذا الرابط.');link.setAttribute('aria-disabled',canOpen?'false':'true');link.tabIndex=canOpen?0:-1;}
+  linkName.input.addEventListener('input',updateStoreLink);enabled.addEventListener('change',updateStoreLink);updateStoreLink();
+  copy.onclick=async()=>{try{await navigator.clipboard.writeText(storeUrl());showStatus(onlineStatus,tr('Store link copied.','تم نسخ رابط المتجر.'));}catch{showStatus(onlineStatus,tr('Could not copy the link. Select the address above to copy it.','تعذر نسخ الرابط. حدد العنوان أعلاه لنسخه.'),true);}};
+  async function saveStoreSettings(button,target,{scope='store',replaceZones=false}={}){
+   const creating=!store?.slug;
+   const saveStore=scope==='store'||creating;
+   const slug=saveStore?linkName.input.value.trim():store.slug;
+   const title=saveStore?storeName.input.value.trim():store.title;
+   const feeValue=saveStore?fee.input.value:'';
+   const deliveryFee=saveStore?(feeValue===''?null:Math.round(fee.input.valueAsNumber*100)):(store?.deliveryFee??null);
+   const isEnabled=saveStore?enabled.checked:Boolean(store?.enabled);
+   const aboutValue=scope==='public'?about.input.value:String(store?.about||'');
+   const contactValue=scope==='public'?contact.input.value:String(store?.contact||'');
+   if(saveStore&&(!title||!slug||!linkName.input.checkValidity())){showStatus(target,tr('Enter a store name and a valid lowercase link name.','أدخل اسم المتجر ورابطاً صحيحاً بأحرف إنجليزية صغيرة.'),true);linkName.input.reportValidity();return false;}
+   if(saveStore&&feeValue!==''&&(!Number.isFinite(fee.input.valueAsNumber)||fee.input.valueAsNumber<0||fee.input.valueAsNumber>10000)){showStatus(target,tr('Enter a delivery fee from QAR 0 to QAR 10,000.','أدخل رسوم توصيل من 0 إلى 10,000 ريال.'),true);return false;}
+   if(replaceZones&&zones.length){if(feeValue===''||!Number.isFinite(fee.input.valueAsNumber)){showStatus(target,tr('Enter one delivery fee before replacing the delivery zones.','أدخل رسوم التوصيل الواحدة قبل استبدال مناطق التوصيل.'),true);fee.input.focus();return false;}
+    const confirmed=window.confirm(tr(`Replace ${zones.length} delivery zones? Customers will choose any address and pay the same QAR ${fee.input.value} delivery fee.`,`استبدال ${zones.length} مناطق توصيل؟ سيتمكن العملاء من اختيار أي عنوان ودفع رسوم توصيل موحدة قدرها ${fee.input.value} ريال.`));if(!confirmed)return false;}
+   button.disabled=true;showStatus(target,tr('Saving…','جار الحفظ…'));
+   const nextZones=replaceZones?[]:zones;
+   try{
+    await window.SaleMaxWorkspace.request('retail','/store',{method:'PUT',body:{slug,title,about:aboutValue,contact:contactValue,enabled:isEnabled,deliveryFee,deliveryZones:nextZones}});
+    store={...(store||{}),slug,title,about:aboutValue,contact:contactValue,enabled:isEnabled,deliveryFee,deliveryZones:nextZones};zones=nextZones;updateStoreLink();
+    showStatus(target,scope==='public'&&!creating?tr('About and contact saved.','تم حفظ النبذة وبيانات التواصل.'):tr('Store settings saved.','تم حفظ إعدادات المتجر.'));
+    if(replaceZones&&flatFeeButton){flatFeeButton.remove();flatFeeButton=null;onlineStatus.textContent='';}
+    if(replaceZones){const note=online.querySelector('.sx-storefront-note');if(note)note.remove();fee.wrapper.querySelector('small').textContent=tr('Leave empty for pickup only.','اتركه فارغاً للاستلام فقط.');}
+    return true;
+   }catch(error){const messages={STORE_SLUG_TAKEN:tr('That store link is already in use. Choose another.','رابط المتجر مستخدم بالفعل. اختر رابطاً آخر.'),INVALID_STORE:tr('Check the store name, link and delivery fee.','تحقق من اسم المتجر والرابط ورسوم التوصيل.'),PERMISSION_DENIED:tr('Only the business owner can update storefront settings.','مالك النشاط التجاري فقط يمكنه تحديث إعدادات المتجر.')};showStatus(target,messages[error.message]||tr('Could not save storefront details. Check the fields and try again.','تعذر حفظ تفاصيل المتجر. تحقق من الحقول وحاول مرة أخرى.'),true);return false;}
+   finally{button.disabled=false;}
+  }
+  saveStoreButton.onclick=()=>saveStoreSettings(saveStoreButton,onlineStatus,{scope:'store'});
+  savePublicButton.onclick=()=>saveStoreSettings(savePublicButton,publicStatus,{scope:'public'});
+  if(flatFeeButton)flatFeeButton.onclick=()=>saveStoreSettings(flatFeeButton,onlineStatus,{scope:'store',replaceZones:true});
+  const contactPanel=node.querySelector('[data-contact]')?.closest('.section');if(contactPanel)contactPanel.after(online,publicInfo);
+ }catch{
+  online.innerHTML=`<h2>${tr('Online store settings unavailable','إعدادات المتجر غير متاحة')}</h2><p class="help">${tr('The settings could not be loaded. Try again.','تعذر تحميل الإعدادات. حاول مرة أخرى.')}</p>`;
+  retry.onclick=()=>{online.remove();publicInfo.remove();loadStorefrontSettings(node,profile);};online.append(retry);
+  const contactPanel=node.querySelector('[data-contact]')?.closest('.section');if(contactPanel)contactPanel.after(online);
+ }
+}
+
 async function render(){
  if(busy||!active())return;busy=true;profileCss();
  const node=document.createElement('section');node.id='sx-crm-appearance';node.dir=document.documentElement.lang?.toLowerCase().startsWith('ar')?'rtl':'ltr';
@@ -95,6 +213,7 @@ async function render(){
   let clearLogo=false,clearFavicon=false;node.querySelector('[data-logo]').addEventListener('change',()=>{if(node.querySelector('[data-logo]').files?.[0])clearLogo=false;});node.querySelector('[data-favicon]').addEventListener('change',()=>{if(node.querySelector('[data-favicon]').files?.[0])clearFavicon=false;});node.querySelector('[data-clear-logo]').addEventListener('click',event=>{clearLogo=true;node.querySelector('[data-logo]').value='';node.querySelector('[data-logo-preview]').textContent=tr('No logo uploaded','لم يتم رفع شعار');event.currentTarget.hidden=true;updateAssets();});
   node.querySelector('[data-clear-favicon]').addEventListener('click',event=>{clearFavicon=true;node.querySelector('[data-favicon]').value='';node.querySelector('[data-favicon-preview]').textContent=tr('No icon uploaded','لم يتم رفع أيقونة');event.currentTarget.hidden=true;updateAssets();});
   node.querySelector('[data-save]').addEventListener('click',async event=>{const button=event.currentTarget,logoFile=node.querySelector('[data-logo]').files?.[0],iconFile=node.querySelector('[data-favicon]').files?.[0];if([logoFile,iconFile].some(file=>file&&file.size>5*1024*1024))return status(node,tr('Each image must be 5 MB or smaller.','يجب ألا يتجاوز حجم كل صورة 5 ميجابايت.'),true);if(iconFile&&!['image/png','image/webp'].includes(iconFile.type))return status(node,tr('The browser icon must be PNG or WebP.','يجب أن تكون أيقونة المتصفح بصيغة PNG أو WebP.'),true);button.disabled=true;try{const values=readFields(node,profile);const form=new FormData();form.append('profile',JSON.stringify({...values,expectedRevision:profile.revision||0,clearLogo,clearFavicon}));if(logoFile)form.append('logo',logoFile);if(iconFile)form.append('favicon',iconFile);profile=await request('/api/crm/profile','PUT',form);branding={...branding,...profile};applyBrand(profile,tenant?.name);status(node,tr('Business profile saved. Your verified domain branding is updated.','تم حفظ ملف النشاط وتحديث العلامة التجارية على نطاقك الموثق.'));node.querySelector('[data-clear-logo]').hidden=!profile.logoUrl;node.querySelector('[data-clear-favicon]').hidden=!profile.faviconUrl;clearLogo=false;clearFavicon=false;node.querySelector('[data-logo]').value='';node.querySelector('[data-favicon]').value='';updateAssets();}catch(error){status(node,errorText(error),true);}finally{button.disabled=false;}});
+  await loadStorefrontSettings(node,profile);
  }catch(error){node.querySelector('.section').innerHTML=`<h2>${error.message==='PERMISSION_DENIED'?tr('Business owner access required','يلزم دخول مالك النشاط'):tr('Profile unavailable','ملف النشاط غير متاح')}</h2><p class="help">${error.message==='PERMISSION_DENIED'?tr('Only the business owner can view and change these settings.','مالك النشاط فقط يمكنه عرض هذه الإعدادات وتعديلها.'):tr('Try again in a moment. No changes have been made.','حاول مرة أخرى بعد قليل. لم يتم إجراء أي تغييرات.')}</p>`;}
  finally{busy=false;window.SaleMaxCustomization?.mount(node);}
 }
