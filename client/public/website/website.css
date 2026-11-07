@@ -3142,8 +3142,6 @@ nav {
   transform: scale(1.005);
   transition-delay: 90ms;
 }
-.funnel-stack-ready .funnel-card.is-peeking .funnel-card-copy,
-.funnel-stack-ready .funnel-card.is-peeking .funnel-visual,
 .funnel-stack-ready .funnel-card.is-stacked-away { visibility: hidden; }
 .funnel-stack-ready .funnel-card.is-stacked-away { pointer-events: none; }
 @media (prefers-reduced-motion: reduce) {

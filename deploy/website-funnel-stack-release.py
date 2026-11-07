@@ -22,13 +22,11 @@ SOURCE_FILES = (
     'client/public/website/website.js',
 )
 OLD_HASHES = {
-    'client/public/website/index.html': 'a28d7c602d9cf7df04a0b562699125856be13e26f0f793c8ecd37fcc43edfb66',
+    'client/public/website/index.html': 'a153e5ac28ac90d74d98f8ef8013d5f0edbe5ed118375c8eb433932326192a51',
     'client/public/website/website.css': '2da8de3d776188dd09c5129396e5148c73e09c0ea4af9190f6b7ac91da09dc42',
     'client/public/website/website.js': '449e711583b6de2a58699bacd30709b6be54887c91819058d02db05546ddaa07',
 }
-NEW_FILES = (
-    'client/public/website/media/journey-progress-team.webp',
-)
+NEW_FILES = ()
 EXPECTED_IMAGE = 'sha256:c756899fdbf63edc71d45de0c71cffe1f063244d91378d90b15a2c98fc1d5135'
 SUPPORT = (
     'salemax-db-1', 'salemax-report-worker-1', 'salemax-libretranslate-1',
