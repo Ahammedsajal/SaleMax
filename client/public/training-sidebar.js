@@ -273,7 +273,49 @@
       return shape;
     }));
   }
+  function ensureInventoryNavigationRow(list) {
+    const href='/user?page=business-inventory';
+    const candidates=new Set();
+    for(const node of list.querySelectorAll('[data-sx-stock-nav],a[href="'+href+'"]')){
+      const row=node.matches('li')?node:node.closest('li');
+      if(row)candidates.add(row);
+    }
+    for(const row of [...list.children]){
+      if(row.tagName==='LI'&&navigationIdentity(row)==='business-inventory')candidates.add(row);
+    }
+    const isNativeRow=row=>row.dataset.sxStockNav==='native'&&row.parentElement===list&&
+      row.querySelector('.MuiListItemButton-root')&&
+      row.querySelector('.MuiListItemIcon-root svg')&&row.querySelector('.MuiListItemText-primary');
+    let row=[...candidates].find(isNativeRow)||null;
+    for(const duplicate of candidates)if(duplicate!==row)duplicate.remove();
+    if(!roleNavigation?.has('business-inventory')||
+      (assignedNavigation!==null&&!assignedNavigation.has('business-inventory')))return;
+    const title=tr('Inventory','المخزون');
+    if(!row){
+      const template=list.querySelector(':scope > li[data-salemax-pipeline-link]')||
+        list.querySelector(':scope > li:not([data-sx-nav-section])');
+      if(!template)return;
+      row=cloneNavigationRow(template);
+      row.dataset.sxStockNav='native';
+      row.removeAttribute('data-salemax-pipeline-link');
+      row.removeAttribute('data-sx-search-hidden');
+      row.removeAttribute('data-sx-optional-hidden');
+      row.hidden=false;
+      list.append(row);
+    }
+    row.dataset.sxStockNav='native';
+    row.hidden=false;
+    row.removeAttribute('data-sx-search-hidden');
+    row.removeAttribute('data-sx-optional-hidden');
+    const primary=row.querySelector('.MuiListItemText-primary');
+    if(primary&&primary.textContent!==title)primary.textContent=title;
+    row.setAttribute('aria-label',title);
+    const button=row.querySelector('.MuiListItemButton-root,[role="button"],button,a')||row;
+    button.setAttribute('aria-label',title);
+    button.onclick=event=>{event.preventDefault();location.href=href;};
+  }
   function syncInjectedRows(list) {
+    ensureInventoryNavigationRow(list);
     // The legacy shell mounts separate desktop and mobile drawers. Reuse only
     // entries already admitted by the maintained modules' permission checks.
     if (membershipRole === 'owner' && roleNavigation?.has('ai-integrations') && (assignedNavigation === null || assignedNavigation.has('ai-integrations')) && !hasNavigationKey(list,'ai-integrations')) {

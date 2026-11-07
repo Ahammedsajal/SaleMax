@@ -2,7 +2,6 @@
   if (location.pathname.replace(/\/$/, '') !== '/user') return;
   if (window.__sxBusinessInventoryLoaded) return;
   window.__sxBusinessInventoryLoaded = true;
-  const href = '/user?page=business-inventory';
   const active = () => new URLSearchParams(location.search).get('page') === 'business-inventory';
   const ar = () => {
     const language = (localStorage.getItem('language') || document.documentElement.lang).toLowerCase();
@@ -22,87 +21,6 @@
     return node;
   };
   const request = async (path, options) => (await window.SaleMaxWorkspace.request('inventory', path, options)).data;
-  const sidebarLists = () => [...document.querySelectorAll('.MuiDrawer-paper')]
-    .map(drawer => drawer.querySelector('[data-sx-sidebar-list]') || drawer.querySelector('ul'))
-    .filter(Boolean);
-  function makeInventoryRow() {
-    const title = tr('Inventory', 'المخزون');
-    const row = document.createElement('li');
-    row.className = 'MuiListItem-root';
-    row.dataset.sxStockNav = '1';
-    row.setAttribute('aria-label', title);
-    const link = document.createElement('a');
-    link.className = 'MuiButtonBase-root MuiListItemButton-root';
-    link.dataset.sxStockLink = '1';
-    link.href = href;
-    link.setAttribute('aria-label', title);
-    if (active()) link.setAttribute('aria-current', 'page');
-    const icon = document.createElement('div');
-    icon.className = 'MuiListItemIcon-root';
-    icon.setAttribute('aria-hidden', 'true');
-    const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
-    svg.setAttribute('viewBox', '0 0 24 24');
-    svg.setAttribute('fill', 'none');
-    svg.setAttribute('stroke', 'currentColor');
-    svg.setAttribute('stroke-width', '1.8');
-    svg.setAttribute('stroke-linecap', 'round');
-    svg.setAttribute('stroke-linejoin', 'round');
-    for (const d of ['M3 6 12 2l9 4v12l-9 4-9-4z', 'M3 6l9 4 9-4', 'M12 10v12']) {
-      const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
-      path.setAttribute('d', d);
-      svg.append(path);
-    }
-    icon.append(svg);
-    const text = document.createElement('div');
-    text.className = 'MuiListItemText-root';
-    const primary = document.createElement('span');
-    primary.className = 'MuiTypography-root MuiListItemText-primary';
-    primary.textContent = title;
-    text.append(primary);
-    link.append(icon, text);
-    row.append(link);
-    return row;
-  }
-  function ensureInventoryNav() {
-    for (const list of sidebarLists()) {
-      const candidates = new Set();
-      for (const node of list.querySelectorAll('[data-sx-stock-nav], a[href="' + href + '"]')) {
-        const row = node.matches('li') ? node : node.closest('li');
-        if (row) candidates.add(row);
-      }
-      const title = tr('Inventory', 'المخزون');
-      let row = [...candidates].find(candidate => {
-        const link = candidate.querySelector(':scope > a[data-sx-stock-link]');
-        const primary = link?.querySelector('.MuiListItemText-primary');
-        return candidate.parentElement === list && candidate.tagName === 'LI' &&
-          candidate.hasAttribute('data-sx-stock-nav') && candidate.children.length === 1 &&
-          candidate.querySelectorAll('a').length === 1 && link?.getAttribute('href') === href &&
-          primary?.textContent === title;
-      });
-      for (const duplicate of candidates) if (duplicate !== row) duplicate.remove();
-      if (!row) {
-        row = makeInventoryRow();
-        const productRow = [...list.children].find(item => item.tagName === 'LI' &&
-          (item.matches('[data-sx-course-nav][data-sx-catalog-kind="products"]') ||
-            item.querySelector('[data-sx-course-nav][data-sx-catalog-kind="products"]')));
-        const dashboardRow = [...list.children].find(item => item.tagName === 'LI' &&
-          ['Dashboard', 'لوحة التحكم'].includes((item.getAttribute('aria-label') ||
-            item.querySelector('.MuiListItemText-primary')?.textContent || '').trim()));
-        (productRow || dashboardRow)?.after(row);
-        if (!row.parentElement) list.append(row);
-      }
-      const link = row.querySelector(':scope > a[data-sx-stock-link]');
-      if (link?.getAttribute('aria-label') !== title) link?.setAttribute('aria-label', title);
-      if (active()) link?.setAttribute('aria-current', 'page');
-      else link?.removeAttribute('aria-current');
-    }
-  }
-  let navQueued = false;
-  const scheduleInventoryNav = () => {
-    if (navQueued) return;
-    navQueued = true;
-    queueMicrotask(() => { navQueued = false; ensureInventoryNav(); });
-  };
   let started = false;
   async function start() {
     if (started || !window.SaleMaxWorkspace) return;
@@ -113,14 +31,6 @@
         if (active()) make('p', tr('You do not have inventory access.', 'ليس لديك صلاحية الوصول إلى المخزون.'), document.body);
         return;
       }
-      const observer = new MutationObserver(records => {
-        const relevant = records.some(record => record.target.closest?.('.MuiDrawer-paper') ||
-          [...record.addedNodes].some(node => node.matches?.('.MuiDrawer-paper') || node.querySelector?.('.MuiDrawer-paper')));
-        if (relevant) scheduleInventoryNav();
-      });
-      observer.observe(document.body, {childList: true, subtree: true});
-      window.addEventListener('storage', scheduleInventoryNav);
-      scheduleInventoryNav();
       if (active()) await render(access.permissions['inventory.manage']);
     } catch {
       if (active()) make('p', tr('Inventory is unavailable. Reload to try again.', 'المخزون غير متاح. أعد تحميل الصفحة للمحاولة.'), document.body);
