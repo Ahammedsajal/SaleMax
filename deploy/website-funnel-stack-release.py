@@ -22,11 +22,15 @@ SOURCE_FILES = (
     'client/public/website/website.js',
 )
 OLD_HASHES = {
-    'client/public/website/index.html': 'f4d9bc8f94dd783254504b6374222e08ca0b6b0c77ee7d2351f9d30767011d17',
-    'client/public/website/website.css': 'f5563c9d0cf7b57216a00f22b24028493c9d857c4c77fb958b41620e7c5afae5',
+    'client/public/website/index.html': '5234f2264fab58136aba601734a8507e7ca5cfd83128d8a57ba2c52d246940ff',
+    'client/public/website/website.css': 'ffd20192725da25e6b7bccb177666a8cc826ea3b49e6bad2277f61fdf00a1a11',
     'client/public/website/website.js': '449e711583b6de2a58699bacd30709b6be54887c91819058d02db05546ddaa07',
 }
-NEW_FILES = ()
+NEW_FILES = (
+    'client/public/website/media/journey-campaign.webp',
+    'client/public/website/media/journey-invoice.webp',
+    'client/public/website/media/journey-payment.webp',
+)
 EXPECTED_IMAGE = 'sha256:c756899fdbf63edc71d45de0c71cffe1f063244d91378d90b15a2c98fc1d5135'
 SUPPORT = (
     'salemax-db-1', 'salemax-report-worker-1', 'salemax-libretranslate-1',

@@ -2908,24 +2908,25 @@ nav {
   margin-bottom: clamp(92px, 13vw, 160px);
   padding: clamp(30px, 5vw, 70px);
   overflow: hidden;
-  border: 1px solid rgba(170, 188, 220, .32);
-  border-inline-start: 4px solid var(--stage);
+  border: 1px solid color-mix(in srgb, var(--stage), white 40%);
+  border-inline-start: 5px solid color-mix(in srgb, var(--stage), white 10%);
   border-radius: 34px 34px 34px 14px;
   color: #f6f7ff;
   background:
-    radial-gradient(ellipse at 82% 16%, rgba(87, 110, 175, .14), transparent 42%),
-    linear-gradient(128deg, #10172d 0%, #171d37 57%, #20203b 100%);
-  box-shadow: 0 34px 92px rgba(24, 33, 62, .2), inset 0 1px rgba(255,255,255,.13);
+    radial-gradient(ellipse at 82% 14%, color-mix(in srgb, var(--stage), transparent 68%), transparent 48%),
+    radial-gradient(ellipse at 8% 100%, color-mix(in srgb, var(--stage), transparent 83%), transparent 42%),
+    linear-gradient(125deg, var(--card-from) 0%, var(--card-to) 100%);
+  box-shadow: 0 34px 92px color-mix(in srgb, var(--stage), transparent 86%), inset 0 1px rgba(255,255,255,.22);
   transform: translateZ(0);
 }
-.funnel-card:nth-child(1) { --stage: #24bd87; }
-.funnel-card:nth-child(2) { --stage: #6688f2; }
-.funnel-card:nth-child(3) { --stage: #ba72eb; }
-.funnel-card:nth-child(4) { --stage: #e69a52; }
-.funnel-card:nth-child(5) { --stage: #f05c71; }
-.funnel-card:nth-child(6) { --stage: #9878e8; }
-.funnel-card:nth-child(7) { --stage: #45b8a6; }
-.funnel-card:nth-child(8) { --stage: #58c995; }
+.funnel-card:nth-child(1) { --stage: #24d5a0; --card-from: #096b60; --card-to: #10394d; }
+.funnel-card:nth-child(2) { --stage: #8ca5ff; --card-from: #344fa4; --card-to: #292b59; }
+.funnel-card:nth-child(3) { --stage: #d29aff; --card-from: #70429d; --card-to: #342b62; }
+.funnel-card:nth-child(4) { --stage: #ffc078; --card-from: #985629; --card-to: #53334c; }
+.funnel-card:nth-child(5) { --stage: #ff8292; --card-from: #a73b53; --card-to: #4b2c53; }
+.funnel-card:nth-child(6) { --stage: #b7a0ff; --card-from: #5b48a9; --card-to: #2c315f; }
+.funnel-card:nth-child(7) { --stage: #75e2d0; --card-from: #176f7c; --card-to: #293858; }
+.funnel-card:nth-child(8) { --stage: #84edb7; --card-from: #17694f; --card-to: #193b56; }
 .funnel-stack-ready .funnel-card { position: sticky; }
 .funnel-stack-ready .funnel-card:nth-child(1) { z-index: 1; top: 74px; }
 .funnel-stack-ready .funnel-card:nth-child(2) { z-index: 2; top: calc(74px + var(--stack-edge, 16px)); }
@@ -2938,7 +2939,7 @@ nav {
 .funnel-card::before {
   position: absolute;
   inset: 12px;
-  border: 1px solid rgba(255,255,255,.075);
+  border: 1px solid color-mix(in srgb, var(--stage), transparent 78%);
   border-radius: 25px 25px 25px 9px;
   content: "";
   pointer-events: none;
@@ -2949,9 +2950,9 @@ nav {
   bottom: -230px;
   width: 470px;
   height: 470px;
-  border: 1px solid rgba(255,255,255,.055);
+  border: 1px solid color-mix(in srgb, var(--stage), transparent 69%);
   border-radius: 50%;
-  box-shadow: 0 0 0 42px rgba(255,255,255,.018), 0 0 0 86px rgba(255,255,255,.012);
+  box-shadow: 0 0 0 42px color-mix(in srgb, var(--stage), transparent 94%), 0 0 0 86px color-mix(in srgb, var(--stage), transparent 97%);
   content: "";
   pointer-events: none;
 }
@@ -2990,7 +2991,7 @@ nav {
 .funnel-card-copy > p:not(.funnel-stage) {
   max-width: 500px;
   margin: 0;
-  color: #c2c9da;
+  color: #e2e7f4;
   font-size: clamp(14px, 1.25vw, 17px);
   line-height: 1.75;
 }
@@ -3008,45 +3009,86 @@ nav {
   min-height: 290px;
   place-items: center;
   overflow: hidden;
-  border: 1px solid rgba(255,255,255,.13);
+  border: 1px solid color-mix(in srgb, var(--stage), white 36%);
   border-radius: 28px 28px 28px 10px;
-  background: linear-gradient(145deg, rgba(255,255,255,.085), rgba(255,255,255,.025));
-  box-shadow: inset 0 1px rgba(255,255,255,.1), 0 20px 50px rgba(0,0,0,.16), 0 0 36px color-mix(in srgb, var(--stage), transparent 90%);
+  background:
+    radial-gradient(ellipse at 50% 48%, color-mix(in srgb, var(--stage), transparent 62%), transparent 68%),
+    linear-gradient(145deg, rgba(255,255,255,.18), rgba(10,16,38,.28));
+  box-shadow: inset 0 1px rgba(255,255,255,.2), 0 20px 50px rgba(0,0,0,.2), 0 0 48px color-mix(in srgb, var(--stage), transparent 78%);
 }
 .funnel-visual > * { position: relative; z-index: 1; }
-/* Capture: channel signals converge on one lead. */
-.capture-visual { background: radial-gradient(ellipse at 50% 48%, color-mix(in srgb, var(--stage), transparent 73%), transparent 61%), linear-gradient(145deg, rgba(255,255,255,.09), rgba(255,255,255,.025)); }
-.visual-orbit { position: absolute!important; width: 238px; height: 238px; border: 1px solid color-mix(in srgb, var(--stage), transparent 42%); border-radius: 50%; animation: funnel-orbit 19s linear infinite; }
-.visual-orbit::before, .visual-orbit::after { position: absolute; width: 9px; height: 9px; border-radius: 50%; background: var(--stage); box-shadow: 0 0 18px var(--stage); content: ""; }
-.visual-orbit::before { top: 28px; left: 31px; }.visual-orbit::after { right: 19px; bottom: 52px; }
-.visual-orbit-inner { width: 178px; height: 178px; border-style: dashed; opacity: .65; animation-direction: reverse; }
-.mini-enquiry, .profile-lines, .assign-thread, .timeline-event, .pipeline-deal, .campaign-message, .invoice-sheet, .payment-ledger { border: 1px solid rgba(255,255,255,.15); background: rgba(17,24,46,.82); box-shadow: 0 16px 42px rgba(0,0,0,.2); }
-.mini-enquiry { width: min(80%, 310px); padding: 21px; border-radius: 20px 20px 20px 7px; }
-.mini-enquiry small, .assign-thread small, .pipeline-deal small, .campaign-message small { display: block; margin-bottom: 13px; color: #9eaac4; font-size: 9px; font-weight: 800; letter-spacing: .12em; }
-.mini-enquiry strong { display: block; margin-bottom: 17px; font-size: 16px; }
-.mini-enquiry span { display: flex; align-items: center; gap: 7px; color: #b9c3d7; font-size: 11px; }
-.mini-enquiry span i, .campaign-message span i { width: 7px; height: 7px; border-radius: 50%; background: var(--stage); box-shadow: 0 0 12px var(--stage); }
-.mini-enquiry span b { margin-left: auto; font-weight: 500; }
-.source-chip { position: absolute!important; display: grid; width: 43px; height: 43px; place-items: center; border: 1px solid color-mix(in srgb, var(--stage), white 12%); border-radius: 14px; color: white; background: #182340; font-size: 11px; font-weight: 800; box-shadow: 0 0 24px color-mix(in srgb, var(--stage), transparent 55%); }
-.source-chip-one { top: 19%; left: 14%; }.source-chip-two { right: 14%; bottom: 20%; }
-/* Qualify: a lead profile assembled from contact and source details. */
-.qualify-visual { grid-template-columns: auto minmax(140px, 230px); align-content: center; justify-content: center; gap: 17px; }
-.profile-ring { display: grid; width: 66px; height: 66px; place-items: center; border: 2px solid var(--stage); border-radius: 24px 24px 24px 8px; color: white; background: color-mix(in srgb, var(--stage), transparent 75%); font-size: 19px; font-weight: 750; }
-.profile-lines { width: 100%; padding: 17px; border-radius: 16px; }
-.profile-lines b { display: block; margin-bottom: 14px; font-size: 12px; }.profile-lines span { display: block; width: 92%; height: 5px; margin: 8px 0; border-radius: 9px; background: rgba(255,255,255,.17); }.profile-lines span:nth-child(3) { width: 66%; }.profile-lines .profile-highlight { width: 78%; background: color-mix(in srgb, var(--stage), white 14%); }
-.profile-badge { position: absolute!important; right: 12%; bottom: 13%; padding: 10px 13px; border: 1px solid rgba(255,255,255,.14); border-radius: 12px; color: #a9b4ca; background: #20203b; font-size: 8px; letter-spacing: .1em; }.profile-badge strong { color: #fff; }
-/* Assign: clear ownership and a shared team thread. */
-.assign-visual { align-content: center; gap: 12px; padding: 10%; }
-.assign-thread { display: grid; grid-template-columns: 12px 1fr auto; align-items: center; gap: 15px; width: min(100%, 370px); padding: 17px 19px; border-radius: 17px 17px 17px 7px; }
-.assign-dot { width: 11px; height: 11px; border-radius: 50%; background: var(--stage); box-shadow: 0 0 15px var(--stage); }.assign-thread strong { display: block; font-size: 14px; }.assign-thread em { display: block; margin-top: 6px; color: #aab5ca; font-size: 10px; font-style: normal; }.assign-thread > b { display: grid; width: 31px; height: 31px; place-items: center; border-radius: 11px; color: #171d37; background: color-mix(in srgb, var(--stage), white 8%); }.assign-thread-faded { opacity: .72; }
-/* Follow-up: a tactile activity timeline. */
-.followup-visual { align-content: center; justify-items: start; gap: 12px; padding: 26px 11% 26px 14%; }.timeline-line { position: absolute!important; top: 23%; bottom: 23%; left: calc(14% + 13px); width: 1px; background: color-mix(in srgb, var(--stage), transparent 25%); }.timeline-event { display: flex; align-items: center; gap: 13px; width: 100%; padding: 14px 16px; border-radius: 15px; }.timeline-event i { z-index: 1; display: grid; width: 25px; height: 25px; flex: 0 0 25px; place-items: center; border: 1px solid color-mix(in srgb, var(--stage), white 15%); border-radius: 9px; color: white; background: #1b2340; font-size: 11px; font-style: normal; }.timeline-event i.done { color: #141b32; background: var(--stage); }.timeline-event i.current { box-shadow: 0 0 0 5px color-mix(in srgb, var(--stage), transparent 82%); }.timeline-event b, .timeline-event small { display: block; }.timeline-event b { font-size: 12px; }.timeline-event small { margin-top: 5px; color: #aab5ca; font-size: 10px; }.timeline-event-muted { opacity: .52; }
-/* Progress: three pipeline stages and a deal card. */
-.pipeline-visual { align-content: center; padding: 9%; }.pipeline-labels, .pipeline-track { display: flex; width: 100%; max-width: 420px; justify-content: space-between; }.pipeline-labels { color: #b7c0d2; font-size: 9px; font-weight: 800; letter-spacing: .12em; }.pipeline-track { position: relative; margin: 14px 0 25px; }.pipeline-track::before { position: absolute; top: 50%; right: 0; left: 0; height: 2px; background: rgba(255,255,255,.2); content: ""; }.pipeline-track i { z-index: 1; width: 15px; height: 15px; border: 3px solid #252c48; border-radius: 50%; background: #77839e; }.pipeline-track i.active { background: var(--stage); box-shadow: 0 0 0 5px color-mix(in srgb, var(--stage), transparent 78%), 0 0 18px var(--stage); }.pipeline-deal { width: 100%; max-width: 420px; padding: 18px 20px; border-radius: 17px 17px 17px 7px; }.pipeline-deal strong { display: block; font-size: 14px; }.pipeline-deal > span { display: flex; justify-content: space-between; gap: 8px; margin-top: 17px; color: #aeb8cc; font-size: 10px; }.pipeline-deal > span b { color: #fff; font-weight: 600; }
-/* Campaign review, invoice preparation, and payment follow-up. */
-.campaign-visual { background: radial-gradient(ellipse at 50% 15%, color-mix(in srgb, var(--stage), transparent 68%), transparent 60%), linear-gradient(145deg, rgba(255,255,255,.09), rgba(255,255,255,.025)); }.campaign-orb { position: absolute!important; top: 9%; right: 12%; width: 140px; height: 140px; border: 1px solid color-mix(in srgb, var(--stage), transparent 45%); border-radius: 50%; box-shadow: 0 0 0 18px color-mix(in srgb, var(--stage), transparent 94%); }.campaign-message { width: min(76%, 330px); padding: 21px; border-radius: 18px 18px 18px 7px; }.campaign-message strong { display: block; max-width: 230px; font-size: 15px; line-height: 1.4; }.campaign-message span { display: flex; align-items: center; gap: 7px; margin-top: 17px; color: #aeb8cc; font-size: 10px; }.campaign-stamp { position: absolute!important; right: 8%; bottom: 12%; padding: 10px 12px; transform: rotate(-7deg); border: 1px solid color-mix(in srgb, var(--stage), transparent 15%); border-radius: 9px; color: #d1baf4; background: #28213e; font-size: 8px; line-height: 1.55; letter-spacing: .1em; }.campaign-stamp b { color: #fff; }
-.invoice-visual { background: radial-gradient(ellipse at 50% 100%, color-mix(in srgb, var(--stage), transparent 75%), transparent 58%), linear-gradient(145deg, rgba(255,255,255,.09), rgba(255,255,255,.025)); }.invoice-sheet { width: min(62%, 255px); padding: 21px; transform: rotate(-4deg); border-radius: 12px; background: #f4f6fb; color: #20253a; }.invoice-sheet-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 21px; font-size: 11px; }.invoice-sheet-head span { padding: 5px 7px; border-radius: 6px; color: #946126; background: #fff0d7; font-size: 8px; font-weight: 800; }.invoice-sheet > i { display: block; width: 90%; height: 5px; margin: 9px 0; border-radius: 5px; background: #dce1eb; }.invoice-sheet > i:nth-of-type(2) { width: 68%; }.invoice-sheet > .invoice-line-short { width: 43%; }.invoice-total { display: flex; justify-content: space-between; margin-top: 20px; padding-top: 12px; border-top: 1px solid #dce1eb; font-size: 10px; }.invoice-total span { color: #7e8798; font-size: 8px; letter-spacing: .1em; }.invoice-seal { position: absolute!important; right: 20%; bottom: 18%; display: grid; width: 47px; height: 47px; place-items: center; border: 1px solid color-mix(in srgb, var(--stage), white 10%); border-radius: 16px 16px 16px 5px; color: white; background: color-mix(in srgb, var(--stage), #171d37 38%); font-size: 18px; font-weight: 800; }
-.payment-visual { grid-template-columns: 150px minmax(150px, 240px); align-content: center; justify-content: center; gap: 22px; }.payment-ring { display: grid; width: 142px; height: 142px; place-items: center; border: 1px solid color-mix(in srgb, var(--stage), transparent 35%); border-radius: 50%; box-shadow: 0 0 0 13px color-mix(in srgb, var(--stage), transparent 93%), inset 0 0 35px color-mix(in srgb, var(--stage), transparent 88%); text-align: center; color: #c4cbe0; font-size: 9px; letter-spacing: .13em; }.payment-ring b { color: #fff; font-size: 11px; }.payment-ledger { width: 100%; padding: 16px; border-radius: 16px; }.payment-ledger span { display: flex; align-items: center; gap: 8px; color: #e1e5ef; font-size: 10px; }.payment-ledger span i { width: 7px; height: 7px; border-radius: 50%; background: #50d2a3; }.payment-ledger span i.ledger-pending { background: #f0b65f; }.payment-ledger b { display: block; margin: 5px 0 12px 15px; color: #9eaac4; font-size: 9px; font-weight: 500; }.payment-ledger b:last-child { margin-bottom: 0; }
+/* Real product context: one human-centered photo and feature caption per stage. */
+.funnel-visual {
+  position: relative;
+  display: block;
+  min-height: 320px;
+  aspect-ratio: 1.48;
+  overflow: hidden;
+  border: 1px solid color-mix(in srgb, var(--stage), white 34%);
+  border-radius: 28px 28px 28px 10px;
+  background: color-mix(in srgb, var(--stage), #10172d 70%);
+  box-shadow: inset 0 1px rgba(255,255,255,.22), 0 24px 56px rgba(0,0,0,.25), 0 0 44px color-mix(in srgb, var(--stage), transparent 78%);
+}
+.funnel-photo {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: center;
+  opacity: .96;
+  filter: saturate(.96);
+  transform: scale(1.01);
+  transition: opacity 760ms cubic-bezier(.2,.72,.18,1), transform 1050ms cubic-bezier(.2,.72,.18,1), filter 900ms ease;
+}
+.funnel-visual::after {
+  position: absolute;
+  z-index: 1;
+  inset: 0;
+  background:
+    linear-gradient(180deg, rgba(8,17,37,.03) 38%, rgba(8,17,37,.72) 100%),
+    linear-gradient(135deg, color-mix(in srgb, var(--stage), transparent 88%), transparent 58%);
+  content: "";
+  pointer-events: none;
+}
+.funnel-photo-caption {
+  position: absolute;
+  z-index: 2;
+  right: clamp(14px, 2vw, 22px);
+  bottom: clamp(14px, 2vw, 22px);
+  left: clamp(14px, 2vw, 22px);
+  display: flex;
+  min-height: 54px;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 16px;
+  border: 1px solid rgba(255,255,255,.3);
+  border-radius: 16px 16px 16px 7px;
+  color: #fff;
+  background: rgba(9,18,39,.76);
+  box-shadow: 0 12px 30px rgba(4,10,25,.2), inset 0 1px rgba(255,255,255,.16);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: -.01em;
+}
+.funnel-photo-dot {
+  width: 10px;
+  height: 10px;
+  flex: 0 0 10px;
+  border-radius: 50%;
+  background: var(--stage);
+  box-shadow: 0 0 16px var(--stage);
+}
+.capture-visual .funnel-photo { object-position: 62% center; }
+.qualify-visual .funnel-photo { object-position: 52% center; }
+.assign-visual .funnel-photo { object-position: 48% center; }
+.followup-visual .funnel-photo { object-position: 52% center; }
+.pipeline-visual .funnel-photo { object-position: 50% 34%; }
+.campaign-visual .funnel-photo { object-position: 45% center; }
+.invoice-visual .funnel-photo { object-position: 52% center; }
+.payment-visual .funnel-photo { object-position: 50% center; }
 .funnel-finish { position: relative; z-index: 9; display: grid; justify-items: center; gap: 16px; max-width: 620px; margin: 0 auto; padding: 22px 20px 0; text-align: center; }
 .funnel-finish p { margin: 0; color: #151b30; font-size: clamp(22px, 3vw, 32px); font-weight: 700; letter-spacing: -.04em; }
 .funnel-finish .button { border: 0; background: linear-gradient(115deg, #23a875, #7664c8); box-shadow: 0 14px 34px rgba(85, 120, 170, .2); }
@@ -3054,11 +3096,11 @@ nav {
 @keyframes funnel-orbit { to { transform: rotate(360deg); } }
 @media (max-width: 900px) {
   .funnel-section { padding-right: 24px; padding-left: 24px; }
-  .funnel-card, .funnel-card:nth-child(n) { position: relative; top: auto; z-index: auto; grid-template-columns: minmax(0, .9fr) minmax(280px, 1.1fr); gap: 26px; margin-bottom: 24px; padding: 34px; }
+  .funnel-card, .funnel-card:nth-child(n) { position: relative; top: auto; z-index: auto; grid-template-columns: 1fr; gap: 24px; margin-bottom: 24px; padding: 34px; }
   .funnel-card.is-peeking .funnel-card-copy, .funnel-card.is-peeking .funnel-visual { visibility: visible; opacity: 1; }
-  .funnel-visual { min-height: 270px; }
+  .funnel-visual { min-height: 280px; aspect-ratio: 1.9; }
 }
-@media (max-width: 620px) {
+@media (max-width: 760px) {
   .funnel-section { padding: 72px 16px; }
   .funnel-heading { display: block; margin-bottom: 42px; }
   .funnel-heading > p { margin-top: 18px; }
@@ -3080,34 +3122,34 @@ nav {
   .funnel-card h3 { font-size: clamp(28px, 8vw, 38px); }
   .funnel-card-copy > p:not(.funnel-stage) { font-size: 14px; }
   .funnel-tags { margin-top: 17px; }
-  .funnel-visual { min-height: 220px; border-radius: 20px 20px 20px 8px; }
-  .visual-orbit { width: 190px; height: 190px; }.visual-orbit-inner { width: 144px; height: 144px; }
-  .qualify-visual { grid-template-columns: auto minmax(120px, 190px); gap: 12px; }
-  .profile-ring { width: 52px; height: 52px; border-radius: 18px 18px 18px 6px; font-size: 16px; }
-  .profile-badge { right: 8%; bottom: 8%; }
-  .payment-visual { grid-template-columns: 100px minmax(120px, 1fr); gap: 14px; padding: 12px; }
-  .payment-ring { width: 98px; height: 98px; font-size: 7px; }.payment-ring b { font-size: 9px; }
-  .payment-ledger { padding: 12px; }.payment-ledger span { font-size: 9px; }
+  .funnel-visual { min-height: 220px; aspect-ratio: 1.55; border-radius: 20px 20px 20px 8px; }
+  .funnel-photo-caption { right: 12px; bottom: 12px; left: 12px; min-height: 48px; padding: 10px 13px; font-size: 12px; }
   .funnel-finish { padding-top: 12px; }
 }
 @media (prefers-reduced-motion: reduce) {
   .visual-orbit { animation: none; }
 }
 
-/* The sticky card frame and its copy stay fixed; only the product scene enters. */
-.funnel-motion-ready .funnel-card .funnel-visual {
-  opacity: 0;
-  transform: translate3d(0, 18px, 0) scale(.985);
-  transition: opacity 520ms cubic-bezier(.2,.72,.18,1), transform 620ms cubic-bezier(.2,.72,.18,1);
+/* The card and copy stay fixed; only the active real photo settles into focus. */
+.funnel-motion-ready .funnel-card .funnel-photo {
+  opacity: .76;
+  filter: saturate(.82) brightness(.94);
+  transform: scale(1.055);
 }
-.funnel-motion-ready .funnel-card.is-active .funnel-visual { opacity: 1; transform: none; transition-delay: 70ms; }
+.funnel-motion-ready .funnel-card.is-active .funnel-photo {
+  opacity: 1;
+  filter: saturate(1.04) brightness(1);
+  transform: scale(1.005);
+  transition-delay: 90ms;
+}
 .funnel-stack-ready .funnel-card.is-peeking .funnel-card-copy,
 .funnel-stack-ready .funnel-card.is-peeking .funnel-visual,
 .funnel-stack-ready .funnel-card.is-stacked-away { visibility: hidden; }
 .funnel-stack-ready .funnel-card.is-stacked-away { pointer-events: none; }
 @media (prefers-reduced-motion: reduce) {
-  .funnel-card .funnel-visual {
+  .funnel-card .funnel-photo {
     opacity: 1;
+    filter: none;
     transform: none;
     transition: none;
   }
