@@ -2875,9 +2875,10 @@ nav {
   z-index: -1;
   inset: 0 calc((100% - 100vw) / 2);
   background:
-    radial-gradient(ellipse at 8% 11%, rgba(135, 224, 194, .22), transparent 31%),
-    radial-gradient(ellipse at 92% 38%, rgba(174, 154, 231, .20), transparent 34%),
-    linear-gradient(145deg, #f6fcf8 0%, #f8f8ff 52%, #f2faf7 100%);
+    radial-gradient(ellipse at 7% 37%, rgba(83, 202, 154, .28), transparent 38%),
+    radial-gradient(ellipse at 94% 48%, rgba(148, 126, 225, .26), transparent 42%),
+    radial-gradient(ellipse at 50% 92%, rgba(115, 173, 205, .13), transparent 39%),
+    linear-gradient(138deg, #effaf4 0%, #f6f7ff 52%, #f0faf7 100%);
   content: "";
   pointer-events: none;
 }
@@ -2895,9 +2896,8 @@ nav {
   padding-bottom: 32vh;
   isolation: isolate;
 }
-.funnel-stack-ready .funnel-deck { --stack-edge: 16px; }
+.funnel-stack-ready .funnel-deck { --stack-edge: 12px; }
 .funnel-card {
-  --stage: #27a77b;
   position: relative;
   z-index: auto;
   display: grid;
@@ -2912,10 +2912,20 @@ nav {
   border-inline-start: 4px solid var(--stage);
   border-radius: 34px 34px 34px 14px;
   color: #f6f7ff;
-  background: linear-gradient(128deg, #11182e 0%, #171d37 57%, #20203b 100%);
-  box-shadow: 0 30px 80px rgba(24, 33, 62, .17), inset 0 1px rgba(255,255,255,.12);
+  background:
+    radial-gradient(ellipse at 82% 16%, rgba(87, 110, 175, .14), transparent 42%),
+    linear-gradient(128deg, #10172d 0%, #171d37 57%, #20203b 100%);
+  box-shadow: 0 34px 92px rgba(24, 33, 62, .2), inset 0 1px rgba(255,255,255,.13);
   transform: translateZ(0);
 }
+.funnel-card:nth-child(1) { --stage: #24bd87; }
+.funnel-card:nth-child(2) { --stage: #6688f2; }
+.funnel-card:nth-child(3) { --stage: #ba72eb; }
+.funnel-card:nth-child(4) { --stage: #e69a52; }
+.funnel-card:nth-child(5) { --stage: #f05c71; }
+.funnel-card:nth-child(6) { --stage: #9878e8; }
+.funnel-card:nth-child(7) { --stage: #45b8a6; }
+.funnel-card:nth-child(8) { --stage: #58c995; }
 .funnel-stack-ready .funnel-card { position: sticky; }
 .funnel-stack-ready .funnel-card:nth-child(1) { z-index: 1; top: 74px; }
 .funnel-stack-ready .funnel-card:nth-child(2) { z-index: 2; top: calc(74px + var(--stack-edge, 16px)); }
@@ -3045,7 +3055,6 @@ nav {
 @media (max-width: 900px) {
   .funnel-section { padding-right: 24px; padding-left: 24px; }
   .funnel-card, .funnel-card:nth-child(n) { position: relative; top: auto; z-index: auto; grid-template-columns: minmax(0, .9fr) minmax(280px, 1.1fr); gap: 26px; margin-bottom: 24px; padding: 34px; }
-  .funnel-card.is-stacked-away { display: grid; }
   .funnel-card.is-peeking .funnel-card-copy, .funnel-card.is-peeking .funnel-visual { visibility: visible; opacity: 1; }
   .funnel-visual { min-height: 270px; }
 }
