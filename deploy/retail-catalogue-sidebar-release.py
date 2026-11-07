@@ -14,10 +14,10 @@ import urllib.request
 ROOT = Path('/opt/salemax')
 APP = 'salemax-app-1'
 BASE = '/opt/salemax/releases/training-pipeline-correction-v3-9867ca72-20261104'
-LATEST_OVERLAY = '/opt/salemax/releases/website-integrations-style-4a19fe752875-20261107/compose.website-integrations-style.json'
+LATEST_OVERLAY = '/opt/salemax/releases/website-conversation-story-ef6d9fa8fbf8-20261107/compose.website-conversation-story.json'
 PRIOR_VARS = ROOT / 'shared/rollback-private-inventory-84644fdfebee/compose-manual-vars.json'
 IMAGE = 'sha256:c756899fdbf63edc71d45de0c71cffe1f063244d91378d90b15a2c98fc1d5135'
-EXPECTED_COMPOSE_FILES = 147
+EXPECTED_COMPOSE_FILES = 148
 EXPECTED_ENV_FILES = 11
 EXPECTED_MOUNTS = 145
 MIGRATION = '20270201_retail_catalogue_schema_compatibility.sql'
