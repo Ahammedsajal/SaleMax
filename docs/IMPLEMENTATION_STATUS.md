@@ -1,3 +1,9 @@
+## Inventory sidebar row alignment — deployed, 7 November 2026
+
+Inventory now uses the same native sidebar row structure as neighboring links, so its icon and label align correctly and inherit the existing hover, compact and responsive behavior. The separate hand-built inventory row injection was removed; the shared sidebar owns placement, grouping and role visibility.
+
+Source commit 6502cc2a8461ab9fc47a31bcf2641f67408cb29e is live in /opt/salemax/releases/retail-inventory-sidebar-alignment-6502cc2a8461-20261107. The signed-in browser was refreshed and visually confirms Inventory aligns with Retail orders and Connected Stores. The app is healthy; assets and public health/shell checks pass; anonymous inventory API access remains denied. No database or business data changed. Arabic/RTL, dark theme, narrow viewport, installed-PWA and staff-role acceptance remain open. See DEPLOYMENT.md for hashes and rollback; the broader 42-ticket upgrade remains active.
+
 ## Retail & Inventory sidebar duplication — deployed, 7 November 2026
 
 The repeated raw Inventory links shown beneath More Tools came from the inventory script injecting into the wrong part of the React sidebar and reprocessing broad document mutations. The existing shared sidebar now renders a single styled Inventory link in a dedicated Retail & Inventory section and groups Retail orders, Connected Stores and My deliveries with it. The normal navigation permissions apply, and ChatGPT remains an optional More Tools shortcut.
