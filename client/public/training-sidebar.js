@@ -7,7 +7,7 @@
   if (!window.__sxChatbotAdminLoader) {
     window.__sxChatbotAdminLoader = true;
     const chatbotScript = document.createElement('script');
-    chatbotScript.src = '/chatbot-admin.js?v=20261103-ai-integrations1';
+    chatbotScript.src = '/chatbot-admin.js?v=20261104-ai-provider-profiles2';
     chatbotScript.defer = true;
     document.head.append(chatbotScript);
   }
@@ -35,7 +35,7 @@
     ['Courses & Admissions', 'الدورات والقبول', ['Courses', 'Products & services']],
     ['Leads & Reports', 'العملاء المحتملون والتقارير', ['Lead Pipeline', 'Lead Reports']],
     ['Contacts & Conversations', 'جهات الاتصال والمحادثات', ['Phonebook', 'Call Center']],
-    ['Finance', 'المالية', ['Invoices & Payments', 'Finance Reports', 'Sales Finance']],
+    ['Finance', 'المالية', ['Invoices & Payments', 'Finance Reports', 'Sales Finance', 'Cash reconciliation']],
     ['WhatsApp & Campaigns', 'واتساب والحملات', ['Add WhatsApp by QR', 'Link Meta WhatsApp', 'Create Meta Template', 'Send Campaign', 'Campaign Dashboard', 'Web Notification']],
     ['Automation & Bots', 'الأتمتة والروبوتات', ['Automation Flows', 'WA Chatbot', 'FAQs', 'AI Integrations']],
     ['Team & Tasks', 'الفريق والمهام', ['Team access', 'Tasks', 'Team Login', 'Agent Task']],
@@ -46,6 +46,7 @@
     ['More Tools', 'أدوات أخرى', []]
   ];
   const aliases = {
+    'تسوية النقد':'Cash reconciliation',
     'تكاملات الذكاء الاصطناعي':'AI Integrations',
     'المنتجات والخدمات':'Products & services', 'الدورات': 'Courses', 'طلبات المتقدمين': 'Candidate Applications', 'الأسئلة الشائعة': 'FAQs',
     'مسار العملاء المحتملين': 'Lead Pipeline', 'تقارير العملاء المحتملين': 'Lead Reports',
@@ -61,7 +62,7 @@
     'Automation Flows':'flows', 'WA Chatbot':'chatbot', 'FAQs':'faqs', 'Create Meta Template':'templates', 'Send Campaign':'campaigns',
     'Campaign Dashboard':'campaign-dashboard', 'Lead Pipeline':'leads', 'Lead Reports':'reports', Phonebook:'contacts', 'Team Login':'agent-login','Agent Login':'agent-login','CRM appearance':'settings','Web Notification':'notifications','Web Notifications':'notifications',
     'Agent Task':'tasks', Tasks:'tasks', 'Call Center':'call-center', 'Products & services':'products-services', Courses:'courses', Students:'students', 'Center profile':'training-profile', 'Candidate Applications':'forms', 'Applications & CVs':'recruitment', 'طلبات التوظيف والسير الذاتية':'recruitment', 'Invoices & Payments':'invoices',
-    'Finance Reports':'finance-reports', 'Team access':'team', 'People & Roles':'team', 'الأشخاص والأدوار':'team', 'Team and Roles':'team', 'Commission Policy':'commission-policy', 'Sales Deals':'sales-deals','Sales Targets':'sales-targets','Sales Reports':'sales-targets', 'My Commissions':'sales-commissions','Commission Payouts':'sales-commissions','Sales Finance':'sales-finance','Sales Overview':'sales-workspace',
+    'Finance Reports':'finance-reports', 'Cash reconciliation':'retail-finance', 'Team access':'team', 'People & Roles':'team', 'الأشخاص والأدوار':'team', 'Team and Roles':'team', 'Commission Policy':'commission-policy', 'Sales Deals':'sales-deals','Sales Targets':'sales-targets','Sales Reports':'sales-targets', 'My Commissions':'sales-commissions','Commission Payouts':'sales-commissions','Sales Finance':'sales-finance','Sales Overview':'sales-workspace',
     'AI Integrations':'ai-integrations','Business Settings':'settings','Business Profile':'settings', Settings:'settings', Organization:'sales-organization', 'Sales Overview':'sales-targets','Audit Trail':'sales-audit','ICP':'icp',Properties:'properties','العقارات':'properties'
   };
   const salesNavLabels={
@@ -219,6 +220,7 @@
       'Call Center':['M4 13v-2a8 8 0 0 1 16 0v2','M4 12H3v5h4v-5z','M20 12h1v5h-4v-5z','M17 19a5 5 0 0 1-5 3h-2'],
       'Invoices & Payments':['M6 2h12v20l-3-2-3 2-3-2-3 2z','M9 7h6','M9 11h6','M12 14v4','M10 16h4'],
       'Finance Reports':['M4 19V5','M4 19h17','M8 16v-3','M13 16V8','M18 16V5'],
+      'Cash reconciliation':['M3 6h18v14H3z','M7 6V4h10v2','M3 10h18','M9 14h6'],
       'Add WhatsApp by QR':['M3 8V3h5','M16 3h5v5','M21 16v5h-5','M8 21H3v-5','M8 8h3v3H8z','M15 8v2','M15 14h2v2h-2z','M10 15v2'],
       'Link Meta WhatsApp':['M4 5h16v12H8l-4 4z','M8 9h8','M8 13h5'],
       'Create Meta Template':['M5 3h10l4 4v14H5z','M14 3v5h5','M8 12h8','M8 16h8'],

@@ -141,7 +141,8 @@ function createTrainingCourseRouter({ pool, origin, userGuard, canonicalGuard, s
     if (res.headersSent) return next(error);
     const temporaryFiles = Object.values(req.files || {}).flat().filter(Boolean).map(file => file.tempFilePath).filter(Boolean);
     await Promise.all(temporaryFiles.map(file => fs.rm(file, { force: true }).catch(() => {})));
-    const code = error.code || 'TRAINING_CATALOGUE_UNAVAILABLE';
+    const unavailableCode = products ? 'PRODUCT_CATALOGUE_UNAVAILABLE' : 'TRAINING_CATALOGUE_UNAVAILABLE';
+    const code = error.code || unavailableCode;
     const status = Number.isInteger(error.status) ? error.status
       : error.httpCode === 413 ? 413
         : code === 'COURSE_MEDIA_UPLOAD_BUSY' ? 429
@@ -152,7 +153,11 @@ function createTrainingCourseRouter({ pool, origin, userGuard, canonicalGuard, s
                 : ['COURSE_MEDIA_TYPE_NOT_ALLOWED', 'COURSE_MEDIA_SIGNATURE_INVALID'].includes(code) ? 415
                   : code.startsWith('INVALID_') ? 400
                     : ['ACCOUNT_INACTIVE', 'CATEGORY_UNAVAILABLE', 'FEATURE_UNAVAILABLE'].includes(code) ? 409 : 503;
-    res.status(status).json({ success: false, code: status >= 500 ? 'TRAINING_CATALOGUE_UNAVAILABLE' : code === 'ER_DUP_ENTRY' ? 'CATALOGUE_CODE_EXISTS' : code });
+    if (status >= 500) {
+      const diagnosticCode = /^[A-Z0-9_]{1,80}$/.test(String(error.code || '')) ? error.code : 'UNKNOWN_ERROR';
+      console.error(`7Network ${products ? 'product' : 'training'} catalogue request failed (${diagnosticCode})`);
+    }
+    res.status(status).json({ success: false, code: status >= 500 ? unavailableCode : code === 'ER_DUP_ENTRY' ? 'CATALOGUE_CODE_EXISTS' : code });
   });
   return router;
 }
