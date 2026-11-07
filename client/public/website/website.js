@@ -70,14 +70,10 @@
       { event_id: eventId },
     );
   }
-  if (openAiConsent === "granted") {
-    consentSettings.hidden = false;
-    loadOpenAiPixel();
-  } else if (openAiConsent === null) {
-    window.addEventListener("load", () => showConsentPanel(false), { once: true });
-  } else {
-    consentSettings.hidden = false;
-  }
+  // Keep ad measurement opt-in available from Privacy settings, without
+  // interrupting every first-time visitor with a tracking prompt.
+  consentSettings.hidden = false;
+  if (openAiConsent === "granted") loadOpenAiPixel();
   consentSave.addEventListener("click", () =>
     saveOpenAiConsent(openAiConsentChoice.checked ? "granted" : "denied"),
   );
@@ -88,8 +84,18 @@
   const headlineMiddle = document.getElementById("hero-headline-middle");
   const enquiryDialog = document.getElementById("enquiry-dialog");
   const enquiryForm = document.getElementById("enquiry-form");
+  const demoPromptKey = "7network.website-demo-prompt.v1";
+  let autoOpenedDemo = false;
+  function saveDemoPromptState(action) {
+    try {
+      localStorage.setItem(demoPromptKey, JSON.stringify({ action, at: Date.now() }));
+    } catch (_) {
+      // The form remains usable when browser storage is unavailable.
+    }
+  }
   document.querySelectorAll("[data-open-enquiry]").forEach((button) =>
     button.addEventListener("click", () => {
+      saveDemoPromptState("engaged");
       if (!enquiryDialog?.open) enquiryDialog?.showModal();
       enquiryForm?.elements.name?.focus();
     }),
@@ -99,6 +105,10 @@
   );
   enquiryDialog?.addEventListener("click", (event) => {
     if (event.target === enquiryDialog) enquiryDialog.close();
+  });
+  enquiryDialog?.addEventListener("close", () => {
+    if (autoOpenedDemo) saveDemoPromptState("dismissed");
+    autoOpenedDemo = false;
   });
   const headlineStates = [
     {
@@ -394,6 +404,23 @@
       planGrid.classList.add("plan-error");
     });
   applyLanguage();
+  window.addEventListener("load", () => {
+    let promptState = null;
+    try { promptState = JSON.parse(localStorage.getItem(demoPromptKey) || "null"); } catch (_) {}
+    const age = Date.now() - Number(promptState?.at || 0);
+    const suppressed =
+      (promptState?.action === "dismissed" && age < 30 * 24 * 60 * 60 * 1000) ||
+      (promptState?.action === "shown" && age < 24 * 60 * 60 * 1000) ||
+      ((promptState?.action === "engaged" || promptState?.action === "submitted") && age < 365 * 24 * 60 * 60 * 1000);
+    if (suppressed || document.hidden || enquiryDialog?.open) return;
+    window.setTimeout(() => {
+      if (document.hidden || enquiryDialog?.open) return;
+      autoOpenedDemo = true;
+      saveDemoPromptState("shown");
+      enquiryDialog?.showModal();
+      enquiryForm?.elements.name?.focus({ preventScroll: true });
+    }, 6500);
+  }, { once: true });
   languageButton.addEventListener("click", () => {
     language = language === "en" ? "ar" : "en";
     applyLanguage();
@@ -461,6 +488,7 @@
   document.querySelectorAll("[data-solution]").forEach((link) =>
     link.addEventListener("click", (event) => {
       event.preventDefault();
+      saveDemoPromptState("engaged");
       document.getElementById("solution").value = link.dataset.solution;
       const industry = document.getElementById("industry");
       industry.value = link.dataset.solution === "training"
@@ -585,6 +613,8 @@
       }
       const conversionEventId = submissionToken;
       sendOpenAiLead(conversionEventId);
+      saveDemoPromptState("submitted");
+      autoOpenedDemo = false;
       form.reset();
       submissionToken = crypto.randomUUID();
       submittedPayload = null;
