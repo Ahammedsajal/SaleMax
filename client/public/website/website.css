@@ -4243,3 +4243,100 @@ a.footer-contact-item:hover .footer-contact-icon { transform: translateY(-2px); 
 @media (prefers-reduced-motion: reduce) {
   .story-human-photo { transition: none; }
 }
+
+/* Training Centre video feature: editorial heading with a quiet product-demo frame. */
+.training-demo-section {
+  position: relative;
+  overflow: hidden;
+  padding: clamp(66px, 8vw, 108px) 0 clamp(78px, 9vw, 124px);
+  background:
+    radial-gradient(ellipse at 6% 74%, rgba(42, 178, 132, .11), transparent 38%),
+    radial-gradient(ellipse at 94% 10%, rgba(124, 93, 190, .12), transparent 39%),
+    #f4f6f8;
+}
+.training-demo-section::before {
+  position: absolute;
+  top: -34%;
+  left: -12%;
+  width: min(48vw, 680px);
+  aspect-ratio: 1;
+  border: 1px solid rgba(73, 141, 128, .08);
+  border-radius: 50%;
+  box-shadow: 0 0 0 46px rgba(255, 255, 255, .18), 0 0 0 100px rgba(255, 255, 255, .12);
+  content: "";
+  pointer-events: none;
+}
+.training-demo-inner { position: relative; z-index: 1; width: min(1280px, 88%); margin-inline: auto; }
+.training-demo-heading { max-width: 880px; margin: 0 auto clamp(34px, 4vw, 50px); text-align: center; }
+.training-demo-heading .eyebrow { margin: 0 0 14px; color: #167b62; font-size: 11px; }
+.training-demo-heading h2 {
+  position: relative;
+  display: inline-block;
+  margin: 0 0 20px;
+  color: #132b49;
+  font-size: clamp(34px, 5.1vw, 60px);
+  font-weight: 700;
+  line-height: 1.12;
+  letter-spacing: -.045em;
+}
+.training-demo-heading h2::after {
+  position: absolute;
+  right: 12%;
+  bottom: -9px;
+  left: 12%;
+  height: 5px;
+  border-radius: 99px;
+  background: linear-gradient(90deg, #24b481, #7160c0);
+  content: "";
+  opacity: .78;
+}
+.training-demo-heading > p:last-child { max-width: 690px; margin: 0 auto; color: #63728a; font-size: clamp(16px, 1.8vw, 20px); line-height: 1.65; }
+.training-demo-player {
+  overflow: hidden;
+  margin: 0;
+  padding: clamp(8px, 1.15vw, 15px);
+  border: 1px solid rgba(255,255,255,.94);
+  border-radius: clamp(18px, 2.2vw, 30px);
+  background: rgba(255,255,255,.82);
+  box-shadow: 0 34px 90px rgba(26, 44, 71, .17), 0 5px 18px rgba(30, 54, 83, .07), inset 0 1px 0 #fff;
+  -webkit-backdrop-filter: blur(12px);
+  backdrop-filter: blur(12px);
+}
+.training-demo-player video {
+  display: block;
+  width: 100%;
+  max-height: min(68vw, 720px);
+  aspect-ratio: 16 / 9;
+  border-radius: clamp(12px, 1.5vw, 20px);
+  background: #dfe5ee;
+  object-fit: contain;
+}
+.training-demo-caption { display: flex; align-items: center; gap: 13px; padding: 15px 12px 5px; color: #233754; }
+.training-demo-caption-icon { display: grid; flex: 0 0 36px; width: 36px; height: 36px; place-items: center; padding-inline-start: 2px; border-radius: 50%; background: linear-gradient(145deg, #1ea779, #685bb7); color: #fff; font-size: 12px; }
+.training-demo-caption > span:nth-child(2) { display: grid; min-width: 0; gap: 2px; }
+.training-demo-caption strong { font-size: 13px; font-weight: 700; }
+.training-demo-caption small { color: #758198; font-size: 11px; }
+.training-demo-caption a { margin-inline-start: auto; padding: 9px 13px; border: 1px solid rgba(42, 61, 87, .15); border-radius: 999px; color: #425573; font-size: 11px; font-weight: 650; }
+.training-demo-caption a:hover { border-color: #31a783; color: #15775f; }
+.training-demo-note { margin: 15px 0 0; color: #78849a; font-size: 11px; text-align: center; }
+.solution-video-link { display: inline-flex; margin-top: 14px; color: #1a8268; font-size: 12px; font-weight: 700; text-decoration: underline; text-decoration-color: rgba(26,130,104,.35); text-underline-offset: 4px; }
+.solution-video-link:hover { color: #6456a8; text-decoration-color: currentColor; }
+@media (max-width: 700px) {
+  .training-demo-section { padding-block: 60px 76px; }
+  .training-demo-inner { width: 91%; }
+  .training-demo-heading { margin-bottom: 30px; }
+  .training-demo-heading .eyebrow { font-size: 9px; }
+  .training-demo-heading h2 { margin-bottom: 17px; font-size: clamp(30px, 8vw, 42px); }
+  .training-demo-heading > p:last-child { font-size: 16px; }
+  .training-demo-player { padding: 7px; border-radius: 18px; }
+  .training-demo-player video { max-height: none; border-radius: 12px; }
+  .training-demo-caption { gap: 9px; padding: 12px 7px 3px; }
+  .training-demo-caption-icon { flex-basis: 32px; width: 32px; height: 32px; }
+  .training-demo-caption strong { font-size: 11px; }
+  .training-demo-caption small { font-size: 9px; }
+  .training-demo-caption a { padding: 8px 10px; font-size: 10px; }
+}
+@media (max-width: 390px) {
+  .training-demo-caption { flex-wrap: wrap; }
+  .training-demo-caption a { margin-inline-start: 41px; }
+}

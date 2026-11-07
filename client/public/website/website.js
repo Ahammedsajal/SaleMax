@@ -199,6 +199,12 @@
     translations.forEach(([node, en, ar]) => {
       node.textContent = language === "ar" ? ar : en;
     });
+    document.getElementById("training-demo-video")?.setAttribute(
+      "aria-label",
+      language === "ar"
+        ? "جولة مرئية في نظام 7Network Training Centre باللغة الإنجليزية"
+        : "7Network Training Centre product walkthrough, in English",
+    );
     renderHeadline(headlineIndex);
     document
       .querySelector("[data-close-enquiry]")
