@@ -1,3 +1,7 @@
+## Public website Progress card photo — deployed, 7 November 2026
+
+Replaced the Progress stage's close-up portrait with a photo of a team reviewing its sales pipeline. Existing copy, card style and stack behavior remain. Source `f6ef7385d3b92cf3c4e4b23f7eb4265720c98ab2` is live as a guarded app-only overlay. Public health, page reference, photo response and runtime hashes were verified; no database/API change or migration occurred. See `DEPLOYMENT.md` for asset hash and rollback steps. Arabic/RTL and physical-device review remain open.
+
 ## Public website journey cards — real imagery and readable layout, deployed 7 November 2026
 
 The eight-stage sales journey now pairs each feature description with a real photo card: a readable two-column layout at desktop and a full-width copy block above the photo on narrow screens. Campaign, invoice and payment photos were added; the other five stages reuse existing website photography. The active photo enters gently while the stacked card and its copy stay still. The existing desktop sticky stack and per-stage card colors remain. Source `46ef11798f7aec5619c977cdacaa96dc38fd1776` is deployed as an app-only overlay. Public health, HTML, photo URLs and runtime hashes were verified, and the production browser confirms the journey stages are present. No database, API or migration changed. Arabic/RTL and physical-device review remain open. See `DEPLOYMENT.md` for runtime hashes and rollback.
