@@ -1,3 +1,7 @@
+## Public website stacked-card scroll reveal — deployed, 7 November 2026
+
+Exposed content on the previous desktop card now stays visible while the next card rises; it is covered naturally as the incoming card advances, and deeper stacked cards remain hidden. Mobile layout is unchanged. Source `2e20b8695b41ee142d068b30b87703824e1b85ae` is live as a guarded app-only overlay. Public health, cache key, served CSS behavior and runtime hashes were verified. No database/API change or migration occurred. See `DEPLOYMENT.md` for hashes and rollback steps. Physical-device and Arabic/RTL visual review remain open.
+
 ## Public website Progress card photo — deployed, 7 November 2026
 
 Replaced the Progress stage's close-up portrait with a photo of a team reviewing its sales pipeline. Existing copy, card style and stack behavior remain. Source `f6ef7385d3b92cf3c4e4b23f7eb4265720c98ab2` is live as a guarded app-only overlay. Public health, page reference, photo response and runtime hashes were verified; no database/API change or migration occurred. See `DEPLOYMENT.md` for asset hash and rollback steps. Arabic/RTL and physical-device review remain open.
