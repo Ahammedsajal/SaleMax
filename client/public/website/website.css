@@ -3715,6 +3715,122 @@ a.footer-contact-item:hover .footer-contact-icon { transform: translateY(-2px); 
   bottom: max(14px, env(safe-area-inset-bottom));
   box-shadow: 0 4px 16px rgba(24, 45, 70, .15);
 }
+.integration-section {
+  width: min(1300px, 88%);
+  margin: 0 auto;
+  padding: clamp(58px, 7vw, 92px) 0 clamp(64px, 8vw, 104px);
+}
+.integration-heading {
+  display: flex;
+  align-items: end;
+  justify-content: space-between;
+  gap: 36px;
+  margin-bottom: 30px;
+}
+.integration-heading > div { max-width: 700px; }
+.integration-heading .eyebrow { margin-bottom: 14px; }
+.integration-heading h2 {
+  max-width: 700px;
+  color: var(--ink);
+  font-size: clamp(30px, 4vw, 48px);
+}
+.integration-heading > p {
+  max-width: 360px;
+  padding-bottom: 4px;
+  color: var(--muted);
+  font-size: 14px;
+  line-height: 1.75;
+}
+.integration-panel {
+  position: relative;
+  overflow: hidden;
+  padding: clamp(22px, 3.2vw, 42px);
+  border: 1px solid rgba(88, 117, 158, .12);
+  border-radius: 30px 30px 30px 12px;
+  background:
+    radial-gradient(ellipse at 8% 100%, rgba(60, 186, 137, .1), transparent 34%),
+    radial-gradient(ellipse at 96% 0%, rgba(130, 99, 205, .1), transparent 37%),
+    linear-gradient(125deg, #f3f8f6, #f6f5fb 70%, #f9f7fc);
+  box-shadow: 0 20px 55px rgba(19, 42, 70, .06), inset 0 1px rgba(255,255,255,.9);
+}
+.integration-grid {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  align-items: stretch;
+  gap: 12px;
+}
+.integration-item {
+  --integration-color: #415a77;
+  position: relative;
+  display: flex;
+  min-width: 0;
+  min-height: 142px;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 13px;
+  padding: 16px 8px;
+  border: 1px solid rgba(105, 126, 152, .12);
+  border-radius: 20px 20px 20px 8px;
+  background: rgba(255,255,255,.66);
+  color: #253953;
+  font-size: clamp(11px, 1.05vw, 13px);
+  font-weight: 700;
+  text-align: center;
+  transition: transform .28s var(--ease), box-shadow .28s var(--ease), border-color .28s var(--ease), background .28s var(--ease);
+}
+.integration-item::before {
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 3px;
+  border-radius: inherit;
+  background: var(--integration-color);
+  opacity: .7;
+  content: "";
+}
+.integration-item:hover {
+  transform: translateY(-5px);
+  border-color: color-mix(in srgb, var(--integration-color), transparent 64%);
+  background: rgba(255,255,255,.94);
+  box-shadow: 0 16px 30px rgba(22, 40, 66, .11);
+}
+.integration-icon {
+  display: grid;
+  width: 58px;
+  height: 58px;
+  place-items: center;
+  border: 1px solid color-mix(in srgb, var(--integration-color), white 78%);
+  border-radius: 19px 19px 19px 7px;
+  background: color-mix(in srgb, var(--integration-color), white 93%);
+  color: var(--integration-color);
+  box-shadow: 0 8px 18px color-mix(in srgb, var(--integration-color), transparent 91%);
+}
+.integration-icon svg { width: 36px; height: 36px; fill: none; stroke: currentColor; stroke-width: 2.1; stroke-linecap: round; stroke-linejoin: round; }
+.integration-chat .integration-icon svg circle { fill: currentColor; stroke: none; }
+.integration-whatsapp .integration-icon svg path:last-child { fill: currentColor; stroke: currentColor; }
+.integration-woo .integration-wordmark {
+  border-radius: 50%;
+  background: #7f54b3;
+  border-color: #7f54b3;
+  color: white;
+  box-shadow: 0 8px 18px rgba(127, 84, 179, .22);
+}
+.integration-wordmark span { font-size: 17px; font-weight: 850; letter-spacing: -.08em; }
+.integration-email { --integration-color: #e2766c; }
+.integration-chat { --integration-color: #d68a20; }
+.integration-whatsapp { --integration-color: #168b66; }
+.integration-voice { --integration-color: #218ac5; }
+.integration-woo { --integration-color: #7f54b3; }
+.integration-shopify { --integration-color: #56833e; }
+.integration-ai { --integration-color: #6650a5; }
+.integration-note {
+  max-width: 850px;
+  margin: 20px auto 0;
+  color: #6e7d8f;
+  font-size: 11px;
+  line-height: 1.65;
+  text-align: center;
+}
 @media (prefers-color-scheme: dark) {
   .analytics-consent { border-color: #3c4e67; background: #142238; color: #f2f6fb; }
   .analytics-consent p { color: #c5d1e0; }
@@ -3723,6 +3839,26 @@ a.footer-contact-item:hover .footer-contact-icon { transform: translateY(-2px); 
   .analytics-consent-actions button,
   .analytics-settings { border-color: #52657e; background: #1c304a; color: #f2f6fb; }
   .analytics-consent-actions .analytics-consent-accept { border-color: #087f5b; background: #087f5b; color: #fff; }
+  .integration-panel { border-color: rgba(154, 177, 210, .18); background: radial-gradient(ellipse at 8% 100%, rgba(60, 186, 137, .12), transparent 34%), radial-gradient(ellipse at 96% 0%, rgba(130, 99, 205, .16), transparent 37%), #16253b; }
+  .integration-item { border-color: rgba(191, 207, 230, .12); background: rgba(255,255,255,.045); color: #edf3fb; }
+  .integration-item:hover { background: rgba(255,255,255,.1); }
+  .integration-note { color: #aebbd0; }
+}
+@media (max-width: 1000px) {
+  .integration-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+  .integration-item { min-height: 132px; }
+}
+@media (max-width: 700px) {
+  .integration-section { width: 90%; padding-block: 58px 70px; }
+  .integration-heading { display: block; margin-bottom: 24px; }
+  .integration-heading h2 { font-size: clamp(30px, 8vw, 38px); }
+  .integration-heading > p { margin-top: 15px; font-size: 13px; }
+  .integration-panel { padding: 16px; border-radius: 23px 23px 23px 9px; }
+  .integration-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 9px; }
+  .integration-item { min-height: 118px; gap: 9px; padding: 12px 5px; font-size: 12px; }
+  .integration-icon { width: 48px; height: 48px; border-radius: 16px 16px 16px 6px; }
+  .integration-icon svg { width: 31px; height: 31px; }
+  .integration-note { margin-top: 14px; font-size: 10px; }
 }
 @media (max-width: 560px) {
   .analytics-consent {
@@ -3737,4 +3873,7 @@ a.footer-contact-item:hover .footer-contact-icon { transform: translateY(-2px); 
   .analytics-consent p { font-size: 12px; }
   .analytics-consent-choice { padding: 9px 10px; }
   .analytics-consent-actions button { padding-inline: 8px; font-size: 11px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .integration-item { transition: none; }
 }
