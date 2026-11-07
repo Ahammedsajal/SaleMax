@@ -1,7 +1,7 @@
 """Guarded app-only overlay for the 7Network public website funnel stack update.
 
 Deploy on carsqatar-prod-01 under the production lock. The overlay mounts only
-the reviewed website HTML, CSS and JavaScript; it does not rebuild the image or touch data.
+the reviewed website HTML, CSS, JavaScript and photo assets; it does not rebuild the image or touch data.
 """
 import hashlib
 import json
@@ -22,14 +22,12 @@ SOURCE_FILES = (
     'client/public/website/website.js',
 )
 OLD_HASHES = {
-    'client/public/website/index.html': '5234f2264fab58136aba601734a8507e7ca5cfd83128d8a57ba2c52d246940ff',
-    'client/public/website/website.css': 'ffd20192725da25e6b7bccb177666a8cc826ea3b49e6bad2277f61fdf00a1a11',
+    'client/public/website/index.html': 'a28d7c602d9cf7df04a0b562699125856be13e26f0f793c8ecd37fcc43edfb66',
+    'client/public/website/website.css': '2da8de3d776188dd09c5129396e5148c73e09c0ea4af9190f6b7ac91da09dc42',
     'client/public/website/website.js': '449e711583b6de2a58699bacd30709b6be54887c91819058d02db05546ddaa07',
 }
 NEW_FILES = (
-    'client/public/website/media/journey-campaign.webp',
-    'client/public/website/media/journey-invoice.webp',
-    'client/public/website/media/journey-payment.webp',
+    'client/public/website/media/journey-progress-team.webp',
 )
 EXPECTED_IMAGE = 'sha256:c756899fdbf63edc71d45de0c71cffe1f063244d91378d90b15a2c98fc1d5135'
 SUPPORT = (
