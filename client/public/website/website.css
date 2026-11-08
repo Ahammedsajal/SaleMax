@@ -2980,7 +2980,7 @@ nav {
   margin: 0;
   box-sizing: border-box;
   background: none;
-  padding: clamp(76px, 10vw, 140px) max(24px, calc((100vw - 1240px) / 2));
+  padding: clamp(76px, 8vw, 112px) max(24px, calc((100vw - 1240px) / 2)) clamp(44px, 4vw, 64px);
 }
 .funnel-section::before {
   position: absolute;
@@ -3006,7 +3006,9 @@ nav {
   width: 100%;
   max-width: 1240px;
   margin: 0 auto;
-  padding-bottom: 32vh;
+  /* Keep a small handoff after the final sticky card instead of a full-screen
+     runway that reads as accidental blank space before the closing CTA. */
+  padding-bottom: clamp(20px, 2.2vw, 32px);
   isolation: isolate;
 }
 .funnel-stack-ready .funnel-deck { --stack-edge: 12px; }
@@ -3214,10 +3216,10 @@ nav {
   .funnel-visual { min-height: 280px; aspect-ratio: 1.9; }
 }
 @media (max-width: 760px) {
-  .funnel-section { width: 100%; padding: 72px 16px; }
+  .funnel-section { width: 100%; padding: 56px 16px 40px; }
   .funnel-heading { display: block; margin-bottom: 42px; }
   .funnel-heading > p { margin-top: 18px; }
-  .funnel-deck { padding-bottom: 20vh; }
+  .funnel-deck { padding-bottom: 12px; }
   .funnel-card, .funnel-card:nth-child(n) {
     position: relative;
     top: auto;
@@ -3242,7 +3244,7 @@ nav {
 @media (max-width: 760px) {
   /* Keep phone cards compact enough to stack, while retaining the full copy
      and photo on every stage. */
-  .funnel-stack-ready .funnel-deck { --stack-edge: 8px; padding-bottom: 30vh; }
+  .funnel-stack-ready .funnel-deck { --stack-edge: 8px; padding-bottom: 16px; }
   .funnel-stack-ready .funnel-card,
   .funnel-stack-ready .funnel-card:nth-child(n) { position: sticky; }
   .funnel-stack-ready .funnel-card:nth-child(1) { z-index: 1; top: 66px; }
