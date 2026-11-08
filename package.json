@@ -20,6 +20,7 @@
     "migrate:apply": "node database/migrate-pipeline.js --apply",
     "start": "node server.js",
     "build:call-center": "node scripts/build-call-center-sip.cjs",
+    "build:website-hero": "esbuild client/public/website/hero-scene-entry.js --bundle --minify --format=iife --target=es2020 --outfile=client/public/website/hero-scene.bundle.js && node -e \"const fs=require('node:fs'); const p='client/public/website/hero-scene.bundle.js'; fs.writeFileSync(p,fs.readFileSync(p,'utf8').replace(/[\\t ]+$/gm,'').replace(/ +\\t/g,'\\t'));\"",
     "test:telephony:database": "node tests/telephony-database.integration.cjs",
     "worker:asterisk-events": "node scripts/asterisk-ari-events-worker.cjs"
   },
@@ -77,6 +78,7 @@
   },
   "devDependencies": {
     "acorn": "8.16.0",
-    "esbuild": "0.28.2"
+    "esbuild": "0.28.2",
+    "three": "^0.187.0"
   }
 }

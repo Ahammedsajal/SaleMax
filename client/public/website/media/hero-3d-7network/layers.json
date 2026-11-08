@@ -1,0 +1,156 @@
+{
+  "canvas": {
+    "width": 1536,
+    "height": 1024,
+    "format": "RGBA PNG"
+  },
+  "layers": [
+    {
+      "id": "01-crm-pipeline-sales",
+      "file": "layers/01-crm-pipeline-sales.png",
+      "alignedFile": "layers/01-crm-pipeline-sales-aligned.png",
+      "x": 29,
+      "y": 55,
+      "width": 543,
+      "height": 435,
+      "centerX": 300.5,
+      "centerY": 272.5,
+      "depthOrder": 0,
+      "webpFile": "layers/01-crm-pipeline-sales.webp"
+    },
+    {
+      "id": "02-whatsapp-campaigns",
+      "file": "layers/02-whatsapp-campaigns.png",
+      "alignedFile": "layers/02-whatsapp-campaigns-aligned.png",
+      "x": 551,
+      "y": 120,
+      "width": 489,
+      "height": 338,
+      "centerX": 795.5,
+      "centerY": 289.0,
+      "depthOrder": 1,
+      "webpFile": "layers/02-whatsapp-campaigns.webp"
+    },
+    {
+      "id": "03-ai-chatbot",
+      "file": "layers/03-ai-chatbot.png",
+      "alignedFile": "layers/03-ai-chatbot-aligned.png",
+      "x": 1047,
+      "y": 119,
+      "width": 471,
+      "height": 353,
+      "centerX": 1282.5,
+      "centerY": 295.5,
+      "depthOrder": 2,
+      "webpFile": "layers/03-ai-chatbot.webp"
+    },
+    {
+      "id": "04-follow-up-automation",
+      "file": "layers/04-follow-up-automation.png",
+      "alignedFile": "layers/04-follow-up-automation-aligned.png",
+      "x": 17,
+      "y": 556,
+      "width": 504,
+      "height": 382,
+      "centerX": 269.0,
+      "centerY": 747.0,
+      "depthOrder": 3,
+      "webpFile": "layers/04-follow-up-automation.webp"
+    },
+    {
+      "id": "05-unified-inbox",
+      "file": "layers/05-unified-inbox.png",
+      "alignedFile": "layers/05-unified-inbox-aligned.png",
+      "x": 493,
+      "y": 551,
+      "width": 541,
+      "height": 389,
+      "centerX": 763.5,
+      "centerY": 745.5,
+      "depthOrder": 4,
+      "webpFile": "layers/05-unified-inbox.webp"
+    },
+    {
+      "id": "06-invoicing-payments",
+      "file": "layers/06-invoicing-payments.png",
+      "alignedFile": "layers/06-invoicing-payments-aligned.png",
+      "x": 1005,
+      "y": 556,
+      "width": 516,
+      "height": 408,
+      "centerX": 1263.0,
+      "centerY": 760.0,
+      "depthOrder": 5,
+      "webpFile": "layers/06-invoicing-payments.webp"
+    }
+  ],
+  "animationNotes": {
+    "suggestedStack": "Three.js or CSS 3D planes using the transparent PNGs as textures",
+    "sequence": [
+      "01-crm-pipeline-sales",
+      "02-whatsapp-campaigns",
+      "03-ai-chatbot",
+      "04-follow-up-automation",
+      "05-unified-inbox",
+      "06-invoicing-payments"
+    ],
+    "motion": "Use the CRM dashboard as the anchor. Let support panels enter from alternating corners with a restrained 3D tilt, staggered opacity, and subtle depth; keep movements short and readable. Respect prefers-reduced-motion."
+  },
+  "heroComposition": {
+    "canvas": {
+      "width": 1672,
+      "height": 941
+    },
+    "background": "CSS radial gradient in the live scene; preview uses a dark navy guide background.",
+    "placements": [
+      {
+        "id": "01-crm-pipeline-sales",
+        "x": 510,
+        "y": 210,
+        "width": 650,
+        "height": 521,
+        "zIndex": 1
+      },
+      {
+        "id": "02-whatsapp-campaigns",
+        "x": 55,
+        "y": 80,
+        "width": 390,
+        "height": 270,
+        "zIndex": 2
+      },
+      {
+        "id": "03-ai-chatbot",
+        "x": 1228,
+        "y": 85,
+        "width": 380,
+        "height": 285,
+        "zIndex": 3
+      },
+      {
+        "id": "04-follow-up-automation",
+        "x": 68,
+        "y": 570,
+        "width": 350,
+        "height": 265,
+        "zIndex": 4
+      },
+      {
+        "id": "05-unified-inbox",
+        "x": 425,
+        "y": 655,
+        "width": 330,
+        "height": 237,
+        "zIndex": 6
+      },
+      {
+        "id": "06-invoicing-payments",
+        "x": 1240,
+        "y": 560,
+        "width": 360,
+        "height": 285,
+        "zIndex": 5
+      }
+    ]
+  }
+}
