@@ -31,6 +31,14 @@ RUNTIME_FILES = (
     'modules/platform/retail-commerce-router.js',
 )
 STAGE_FILES = RUNTIME_FILES + ('deploy/retail-dashboard-release.py',)
+RELEASE_SLUG = 'retail-dashboard'
+SHELL_PATH = '/user?page=dashboard'
+ANONYMOUS_API_PATH = '/api/workspace/retail/orders/overview?days=7'
+PUBLIC_ASSETS = tuple(zip((
+    '/business-dashboard/',
+    '/business-dashboard/dashboard.js?v=20261108-retail1',
+    '/business-dashboard/dashboard.css?v=20261108-retail1',
+), RUNTIME_FILES))
 OLD_HASHES = dict(zip(RUNTIME_FILES, (
     '1433e9575986552ff355320e82181c3a2f0c2555ca049227bf321f0f1bbf63f6',
     'e36147b829f16e9907de2a1e943ac440fc7a84e8d18b08392ff037ce03057281',
@@ -63,7 +71,19 @@ app.use(workspaceRouter({pool,authenticate(req,res,next){
 app.use((_error,_req,res,_next)=>res.sendStatus(500));
 const server = app.listen(0,'127.0.0.1',async()=>{
   try {
-    const url = 'http://127.0.0.1:'+server.address().port+'/orders/overview';
+    const base = 'http://127.0.0.1:'+server.address().port;
+    /* SMOKE_CASES */
+  } catch {
+    console.error('Retail runtime probe failed');
+    process.exitCode=1;
+  } finally {
+    server.close();
+    await pool.end();
+  }
+});
+"""
+SMOKE_CASES = r"""
+    const url = base + '/orders/overview';
     const allowed = await fetch(url+'?days=7');
     assert.equal(allowed.status,200);
     assert.match(allowed.headers.get('cache-control'),/no-store/);
@@ -73,14 +93,6 @@ const server = app.listen(0,'127.0.0.1',async()=>{
     assert.equal((await fetch(url,{headers:{'x-test-category':'training_center'}})).status,403);
     assert.equal((await fetch(url+'?days=365')).status,400);
     console.log(JSON.stringify({syntheticRetail:200,agent:403,trainingCenter:403,invalidPeriod:400}));
-  } catch {
-    console.error('Retail overview runtime probe failed');
-    process.exitCode=1;
-  } finally {
-    server.close();
-    await pool.end();
-  }
-});
 """
 
 
@@ -193,8 +205,8 @@ def prepare(app, files, env_files, workdir, stage_dir, commit, staged):
     if shutil.disk_usage(ROOT).free < 1024 * 1024 * 1024:
         raise RuntimeError('Insufficient production disk space for a protected release snapshot')
 
-    release = ROOT / 'releases' / f'retail-dashboard-{commit[:12]}-20261108'
-    backup = ROOT / 'shared' / f'rollback-retail-dashboard-{commit[:12]}-20261108'
+    release = ROOT / 'releases' / f'{RELEASE_SLUG}-{commit[:12]}-20261108'
+    backup = ROOT / 'shared' / f'rollback-{RELEASE_SLUG}-{commit[:12]}-20261108'
     if release.exists() or backup.exists():
         raise RuntimeError('Release or rollback path already exists')
     os.umask(0o077)
@@ -264,7 +276,7 @@ def prepare(app, files, env_files, workdir, stage_dir, commit, staged):
 
     mounts = [{'type': 'bind', 'source': str(runtime / name), 'target': '/app/' + name,
                'read_only': True, 'bind': {'create_host_path': False}} for name in changed]
-    overlay = release / 'compose.retail-dashboard.json'
+    overlay = release / f'compose.{RELEASE_SLUG}.json'
     overlay.write_text(json.dumps({'services': {'app': {'image': app['Config']['Image'], 'volumes': mounts}}}))
     overlay.chmod(0o644)
     (backup / 'release-path.txt').write_text(str(release) + '\n')
@@ -358,19 +370,15 @@ def deploy(stage_dir, commit):
                 raise RuntimeError('Runtime source hash mismatch: ' + name)
 
         health, _ = http_status('/healthz')
-        shell_status, _ = http_status('/user?page=dashboard')
-        api_status, _ = http_status('/api/workspace/retail/orders/overview?days=7')
+        shell_status, _ = http_status(SHELL_PATH)
+        api_status, _ = http_status(ANONYMOUS_API_PATH)
         if health != 200 or shell_status != 200 or api_status not in (401, 403):
             raise RuntimeError('Health, dashboard shell or anonymous Retail API boundary check failed')
-        smoke = json.loads(run('docker', 'exec', APP, 'node', '-e', ROUTER_SMOKE))
-        for url, name in zip((
-            '/business-dashboard/',
-            '/business-dashboard/dashboard.js?v=20261108-retail1',
-            '/business-dashboard/dashboard.css?v=20261108-retail1',
-        ), RUNTIME_FILES):
+        smoke = json.loads(run('docker', 'exec', APP, 'node', '-e', ROUTER_SMOKE.replace('/* SMOKE_CASES */', SMOKE_CASES)))
+        for url, name in PUBLIC_ASSETS:
             code, body = http_status(url)
             if code != 200 or sha(body) != sha(staged[name]):
-                raise RuntimeError('Public dashboard asset differs from the reviewed release: ' + name)
+                raise RuntimeError('Public asset differs from the reviewed release: ' + name)
         verify_preimages(backup)
         result = {'sourceCommit': commit, 'release': str(release), 'rollback': str(backup),
                   'image': current['Image'], 'composeInputs': len(files) + 1,
@@ -428,7 +436,7 @@ def restore(backup):
                       'supportServicesUnchanged': True}))
 
 
-if __name__ == '__main__':
+def main():
     if len(sys.argv) == 4 and sys.argv[1] == 'stage':
         stage(Path(sys.argv[2]), sys.argv[3])
     elif len(sys.argv) == 4 and sys.argv[1] == 'deploy':
@@ -436,4 +444,8 @@ if __name__ == '__main__':
     elif len(sys.argv) == 3 and sys.argv[1] == 'restore':
         restore(Path(sys.argv[2]))
     else:
-        raise SystemExit('Usage: retail-dashboard-release.py stage <directory> <commit> | deploy <stage> <commit> | restore <rollback-directory>')
+        raise SystemExit('Usage: release.py stage <directory> <commit> | deploy <stage> <commit> | restore <rollback-directory>')
+
+
+if __name__ == '__main__':
+    main()
