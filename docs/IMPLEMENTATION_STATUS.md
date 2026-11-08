@@ -2295,3 +2295,7 @@ The browser review exposed `prefers-reduced-motion: reduce`, which had hidden th
 ### Public website pond ripple interaction — 8 November 2026
 
 Replaced the cursor-following glow with visible expanding pond-style ripple rings in the hero. Mouse movement creates spreading rings, click/tap creates an immediate ring, and reduced-motion mode uses a static ripple. Production browser review showed the rings. Current source `627716cd682eb030eef785b25b6e278236719a57`; release and rollback details are in `DEPLOYMENT.md`. Touch-device, localization, theme and wider roadmap acceptance remain open.
+
+### Public website navy header — 8 November 2026
+
+The public header and 3D hero share a navy surface. The header uses translucent glass on pointer hover and keyboard focus, and the touch menu uses solid navy. Local Chromium verification covered English and Arabic at 360, 390, 768, 1024 and 1440 pixels, including navigation contrast colors, layout, mobile menu opening, hover, focus and reduced motion. Production deployment remains pending.

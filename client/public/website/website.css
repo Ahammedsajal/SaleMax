@@ -6,6 +6,7 @@
   --cream: #F7FAFF;
   --line: #DCE7F4;
   --dark: #081630;
+  --hero-surface: #071426;
   --ease: cubic-bezier(0.2, 0.7, 0.2, 1);
 }
 * {
@@ -2880,25 +2881,49 @@ nav {
     font-size: 25px;
   }
 }
-/* Carry the demo dialog's soft mint and lavender glass into the opening hero. */
+/* Match the navigation to the full-bleed hero. */
 .site-header {
-  color: #172d43;
-  background: rgba(249, 252, 250, 0.76);
-  border-bottom-color: rgba(74, 104, 95, 0.12);
-  -webkit-backdrop-filter: blur(18px) saturate(135%);
-  backdrop-filter: blur(18px) saturate(135%);
+  color: #e4edf7;
+  background: var(--hero-surface);
+  border-bottom-color: transparent;
+  transition: background-color 180ms ease, border-color 180ms ease;
 }
 .site-header .brand {
-  border: 1px solid rgba(101, 133, 117, 0.12);
-  box-shadow: 0 4px 18px rgba(65, 94, 79, 0.08);
+  border: 1px solid rgba(211, 229, 250, 0.22);
 }
-.site-header .nav-link { color: #3f5364; }
+.site-header .nav-link { color: #c3d1e2; }
 .site-header .nav-link:hover,
-.site-header .login:hover { color: #27886a; }
+.site-header .nav-link:focus-visible,
+.site-header .login:hover,
+.site-header .login:focus-visible,
+.site-header .language:hover,
+.site-header .language:focus-visible { color: #8de8cb; }
 .site-header .menu-toggle {
-  color: #263e51;
-  border-color: rgba(60, 91, 79, 0.28);
+  color: inherit;
+  border-color: rgba(195, 209, 226, 0.34);
 }
+.site-header:focus-within {
+  background-color: #10243b;
+  border-bottom-color: rgba(195, 209, 226, 0.2);
+}
+@media (hover: hover) and (pointer: fine) {
+  .site-header:hover {
+    background-color: #10243b;
+    border-bottom-color: rgba(195, 209, 226, 0.2);
+  }
+  @supports ((-webkit-backdrop-filter: blur(1px)) or (backdrop-filter: blur(1px))) {
+    .site-header:hover,
+    .site-header:focus-within {
+      background-color: rgba(16, 36, 59, 0.82);
+      -webkit-backdrop-filter: blur(16px) saturate(135%);
+      backdrop-filter: blur(16px) saturate(135%);
+    }
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .site-header { transition: none; }
+}
+/* Soft mint and lavender remains the fallback palette for the hero. */
 .hero {
   color: #142a42;
   background: linear-gradient(122deg, #eef9f1 0%, #fafcfb 46%, #f1edf9 100%);
@@ -2941,8 +2966,8 @@ nav {
 }
 @media (max-width: 900px) {
   .site-header nav {
-    background: rgba(247, 251, 248, 0.97);
-    border-bottom-color: rgba(74, 104, 95, 0.14);
+    background: var(--hero-surface);
+    border-bottom-color: rgba(195, 209, 226, 0.2);
   }
 }
 
@@ -4547,7 +4572,7 @@ a.footer-contact-item:hover .footer-contact-icon { transform: translateY(-2px); 
   overflow: hidden;
   isolation: isolate;
   color: #f7fbff;
-  background: #071426;
+  background: var(--hero-surface);
   text-align: start;
 }
 .hero::after {
