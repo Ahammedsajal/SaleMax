@@ -84,49 +84,111 @@
   const headlineMiddle = document.getElementById("hero-headline-middle");
   const hero = document.querySelector(".hero");
   const prefersReducedPointerMotion = matchMedia("(prefers-reduced-motion: reduce)");
-  if (
-    hero &&
-    matchMedia("(hover: hover) and (pointer: fine)").matches
-  ) {
-    let pointerFrame = 0;
-    let pointerX = 50;
-    let pointerY = 50;
-    let waterX = 50;
-    let waterY = 50;
-    const easeWater = () => {
-      waterX += (pointerX - waterX) * 0.14;
-      waterY += (pointerY - waterY) * 0.14;
-      hero.style.setProperty("--water-x", `${waterX}%`);
-      hero.style.setProperty("--water-y", `${waterY}%`);
-      if (Math.abs(pointerX - waterX) + Math.abs(pointerY - waterY) > 0.15) {
-        pointerFrame = requestAnimationFrame(easeWater);
-      } else {
-        waterX = pointerX;
-        waterY = pointerY;
-        hero.style.setProperty("--water-x", `${waterX}%`);
-        hero.style.setProperty("--water-y", `${waterY}%`);
-        pointerFrame = 0;
-      }
-    };
-    hero.addEventListener("pointermove", (event) => {
+  const rippleCanvas = hero?.querySelector(".hero-water");
+  const rippleContext = rippleCanvas?.getContext("2d", { alpha: true });
+  if (hero && rippleCanvas && rippleContext) {
+    const ripples = [];
+    const rippleLife = 1250;
+    const rippleLimit = 8;
+    let rippleFrame = 0;
+    let lastRipple = null;
+    let lastRippleAt = 0;
+    let canvasWidth = 0;
+    let canvasHeight = 0;
+    const resizeRippleCanvas = () => {
+      if (rippleFrame) cancelAnimationFrame(rippleFrame);
+      rippleFrame = 0;
       const bounds = hero.getBoundingClientRect();
-      pointerX = Math.max(0, Math.min(100, ((event.clientX - bounds.left) / bounds.width) * 100));
-      pointerY = Math.max(0, Math.min(100, ((event.clientY - bounds.top) / bounds.height) * 100));
-      if (prefersReducedPointerMotion.matches) {
-        if (pointerFrame) cancelAnimationFrame(pointerFrame);
-        pointerFrame = 0;
-        waterX = pointerX;
-        waterY = pointerY;
-        hero.style.setProperty("--water-x", `${waterX}%`);
-        hero.style.setProperty("--water-y", `${waterY}%`);
-        hero.classList.add("has-water");
-        return;
+      const pixelRatio = Math.min(window.devicePixelRatio || 1, 1.5);
+      canvasWidth = bounds.width;
+      canvasHeight = bounds.height;
+      rippleCanvas.width = Math.max(1, Math.round(canvasWidth * pixelRatio));
+      rippleCanvas.height = Math.max(1, Math.round(canvasHeight * pixelRatio));
+      rippleContext.setTransform(pixelRatio, 0, 0, pixelRatio, 0, 0);
+      drawRipples(performance.now());
+    };
+    const drawWaveRing = (x, y, radius, alpha, phase) => {
+      const points = 64;
+      const wave = rippleContext.createLinearGradient(x, y - radius, x, y + radius);
+      wave.addColorStop(0, `rgba(255,255,255,${0.82 * alpha})`);
+      wave.addColorStop(0.34, `rgba(86,190,157,${0.58 * alpha})`);
+      wave.addColorStop(0.68, `rgba(76,92,143,${0.38 * alpha})`);
+      wave.addColorStop(1, `rgba(255,255,255,${0.72 * alpha})`);
+      rippleContext.beginPath();
+      for (let point = 0; point <= points; point += 1) {
+        const angle = (point / points) * Math.PI * 2;
+        const wobble = 1 + Math.sin(angle * 5 + phase) * 0.012 + Math.sin(angle * 9 - phase * 1.4) * 0.006;
+        const px = x + Math.cos(angle) * radius * wobble;
+        const py = y + Math.sin(angle) * radius * wobble * 0.88;
+        if (point === 0) rippleContext.moveTo(px, py);
+        else rippleContext.lineTo(px, py);
       }
-      if (pointerFrame) return;
-      hero.classList.add("has-water");
-      pointerFrame = requestAnimationFrame(easeWater);
+      rippleContext.closePath();
+      rippleContext.strokeStyle = wave;
+      rippleContext.lineWidth = Math.max(0.8, 1.7 - radius / 180);
+      rippleContext.shadowColor = `rgba(46,142,121,${0.42 * alpha})`;
+      rippleContext.shadowBlur = 7 * alpha;
+      rippleContext.stroke();
+      rippleContext.shadowBlur = 0;
+    };
+    function drawRipples(now, staticFrame = false) {
+      rippleContext.clearRect(0, 0, canvasWidth, canvasHeight);
+      const reduced = prefersReducedPointerMotion.matches;
+      const active = [];
+      for (const ripple of ripples) {
+        const age = Math.max(0, now - ripple.started);
+        if (!reduced && age >= rippleLife) continue;
+        const progress = reduced ? 0.48 : age / rippleLife;
+        const strength = reduced ? 0.72 : Math.pow(1 - progress, 1.25);
+        const radius = reduced ? 58 : 8 + progress * 150;
+        drawWaveRing(ripple.x, ripple.y, radius, strength, ripple.phase);
+        drawWaveRing(ripple.x, ripple.y, radius * 0.78, strength * 0.48, ripple.phase + 1.2);
+        drawWaveRing(ripple.x, ripple.y, radius * 1.2, strength * 0.32, ripple.phase - 0.8);
+        if (!reduced) active.push(ripple);
+      }
+      ripples.splice(0, ripples.length, ...active);
+      if (!reduced && ripples.length && !staticFrame) rippleFrame = requestAnimationFrame((time) => drawRipples(time));
+      else rippleFrame = 0;
+    }
+    const addRipple = (event, force = false) => {
+      if (document.hidden) return;
+      const bounds = hero.getBoundingClientRect();
+      const x = event.clientX - bounds.left;
+      const y = event.clientY - bounds.top;
+      const now = performance.now();
+      if (!force && lastRipple) {
+        const distance = Math.hypot(x - lastRipple.x, y - lastRipple.y);
+        if (distance < 34 || now - lastRippleAt < 90) return;
+      }
+      lastRipple = { x, y };
+      lastRippleAt = now;
+      ripples.push({ x, y, started: now, phase: Math.random() * Math.PI * 2 });
+      if (ripples.length > rippleLimit) ripples.shift();
+      if (prefersReducedPointerMotion.matches) drawRipples(now, true);
+      else if (!rippleFrame) rippleFrame = requestAnimationFrame((time) => drawRipples(time));
+    };
+    if (matchMedia("(hover: hover) and (pointer: fine)").matches) {
+      hero.addEventListener("pointermove", (event) => addRipple(event), { passive: true });
+    }
+    hero.addEventListener("pointerdown", (event) => addRipple(event, true), { passive: true });
+    hero.addEventListener("pointerleave", () => {
+      lastRipple = null;
+      if (prefersReducedPointerMotion.matches) {
+        ripples.length = 0;
+        drawRipples(performance.now(), true);
+      }
     }, { passive: true });
-    hero.addEventListener("pointerleave", () => hero.classList.remove("has-water"), { passive: true });
+    document.addEventListener("visibilitychange", () => {
+      if (document.hidden && rippleFrame) {
+        cancelAnimationFrame(rippleFrame);
+        rippleFrame = 0;
+        ripples.length = 0;
+        drawRipples(performance.now(), true);
+      }
+    });
+    if ("ResizeObserver" in window) new ResizeObserver(resizeRippleCanvas).observe(hero);
+    else window.addEventListener("resize", resizeRippleCanvas, { passive: true });
+    resizeRippleCanvas();
   }
   const enquiryDialog = document.getElementById("enquiry-dialog");
   const enquiryForm = document.getElementById("enquiry-form");
