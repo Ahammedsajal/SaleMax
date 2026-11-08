@@ -2280,3 +2280,8 @@ Source commit `4fa962b8735f9d3d64ab1ef836efd28d73f47bc9` is deployed at `/opt/sa
 ### Public website hero pointer motion — 8 November 2026
 
 Deployed the subtle mouse-following liquid-light background in the public hero. The effect is restricted to hover-capable fine pointers, remains behind hero content, and is disabled for reduced-motion preferences. Source `a4bbc3d0fbdbaf070470565fd0c9d51b0e2e3079`; release `/opt/salemax/releases/website-funnel-stack-a4bbc3d0fbdb-20261108`; no migration. Live health and served asset hashes are recorded in `DEPLOYMENT.md`. Manual pointer-motion, device, Arabic/RTL, theme and broader roadmap acceptance remain open.
+
+
+### Public website hero pointer easing — 8 November 2026
+
+Follow-up release `adc8ce2e9a92a4b11886412817d410a3de77727f` supersedes the initial hero liquid-light release with eased pointer tracking. Current release `/opt/salemax/releases/website-funnel-stack-adc8ce2e9a92-20261108`; live health and served asset hashes are recorded in `DEPLOYMENT.md`. Direct device, reduced-motion, Arabic/RTL, theme and wider roadmap acceptance remain open.
