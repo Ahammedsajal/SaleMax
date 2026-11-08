@@ -22,8 +22,8 @@ SOURCE_FILES = (
     'client/public/website/website.js',
 )
 OLD_HASHES = {
-    'client/public/website/index.html': '53d8ceeccf38576a22ed1bd005dcd5c5f6ed480765aeb0187ef98c8a2fda8598',
-    'client/public/website/website.css': '2326a90635054ac02114fb4ba2bb97a71bff8f5cff01e49fb603df4101e8e734',
+    'client/public/website/index.html': 'fedea049f9809d33c9b1603ee310c58cde1016e3310682a7230ac4300e85648d',
+    'client/public/website/website.css': '5508d2851de0424a709947c0244dec8e4ad48046cc790af704cc768c84112be4',
     'client/public/website/website.js': '449e711583b6de2a58699bacd30709b6be54887c91819058d02db05546ddaa07',
 }
 NEW_FILES = ()

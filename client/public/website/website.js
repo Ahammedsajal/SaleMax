@@ -531,12 +531,12 @@
   }
   const funnelCards = [...document.querySelectorAll(".funnel-card")];
   if (funnelCards.length) {
-    const desktopStack = matchMedia("(min-width: 901px)");
+    const stackMode = matchMedia("(min-width: 901px), (max-width: 760px)");
     if (!reduceMotion.matches) root.classList.add("funnel-motion-ready");
     let scheduled = false;
     const updateFunnelStack = () => {
       scheduled = false;
-      if (!desktopStack.matches) {
+      if (!stackMode.matches) {
         root.classList.remove("funnel-stack-ready", "funnel-motion-ready");
         funnelCards.forEach((card) => {
           card.classList.add("is-active");
@@ -567,7 +567,7 @@
     };
     window.addEventListener("scroll", requestFunnelUpdate, { passive: true });
     window.addEventListener("resize", requestFunnelUpdate, { passive: true });
-    desktopStack.addEventListener?.("change", requestFunnelUpdate);
+    stackMode.addEventListener?.("change", requestFunnelUpdate);
     reduceMotion.addEventListener?.("change", () => {
       root.classList.toggle("funnel-motion-ready", !reduceMotion.matches);
       requestFunnelUpdate();
