@@ -2,6 +2,7 @@
 const express = require('express');
 const path = require('node:path');
 const {randomUUID}=require('node:crypto');
+const moment = require('moment-timezone');
 const commerce = require('./retail-commerce');
 const {decision} = require('./policy');
 const originCheck = require('./request-origin');
@@ -360,6 +361,39 @@ function workspaceRouter({pool,authenticate}) {
   }
   router.post('/orders/search',allow('retail.orders',(req,res,c)=>list(res,c,false,orderSearchInput(req.body))));
   router.get('/orders',allow('retail.orders',(req,res,c)=>list(res,c,false)));
+  router.get('/orders/overview',allow('retail.orders',async(req,res,c)=>{
+    if (Array.isArray(c.membership.assignedNavigation) && !c.membership.assignedNavigation.includes('retail-orders')) {
+      commerce.fail('PERMISSION_DENIED',403);
+    }
+    const days = req.query.days ?? '7';
+    if (!['1','7','30'].includes(days)) commerce.fail('INVALID_ORDER_OVERVIEW_PERIOD');
+    const timezone = moment.tz.zone(c.tenant.timezone || '') ? c.tenant.timezone : 'Asia/Qatar';
+    const today = moment.tz(timezone).startOf('day');
+    const start = today.clone().subtract(Number(days)-1,'days');
+    const end = today.clone().add(1,'day');
+    const values = [c.tenant.id, start.clone().utc().format('YYYY-MM-DD HH:mm:ss'), end.utc().format('YYYY-MM-DD HH:mm:ss')];
+    const overview = await commerce.transaction(pool, async db => {
+      const [statuses] = await db.query(`
+        SELECT status, COUNT(*) AS orderCount,
+          COALESCE(SUM(CASE WHEN status <> 'cancelled' THEN total_minor ELSE 0 END),0) AS valueMinor,
+          SUM(CASE WHEN status = 'dispatched' AND delivery_state = 'failed' THEN 1 ELSE 0 END) AS failedDeliveries
+        FROM sx_retail_orders WHERE tenant_id = ? AND created_at >= ? AND created_at < ?
+        GROUP BY status`, values);
+      const [recentOrders] = await db.query(`
+        SELECT id, buyer_name AS buyerName, total_minor AS totalMinor, status, fulfillment,
+          delivery_state AS deliveryState, CONCAT(LEFT(DATE_FORMAT(created_at,'%Y-%m-%dT%H:%i:%s.%f'),23),'Z') AS createdAt
+        FROM sx_retail_orders WHERE tenant_id = ? AND created_at >= ? AND created_at < ?
+        ORDER BY created_at DESC, id DESC LIMIT 6`, values);
+      return {
+        orderCount: statuses.reduce((total,row)=>total+Number(row.orderCount),0),
+        orderValueMinor: statuses.reduce((total,row)=>total+BigInt(row.valueMinor),0n).toString(),
+        failedDeliveries: statuses.reduce((total,row)=>total+Number(row.failedDeliveries),0),
+        statusCounts: Object.fromEntries(statuses.map(row=>[row.status,Number(row.orderCount)])),
+        recentOrders
+      };
+    });
+    reply(res,{...overview,currency:'QAR',timezone,from:start.format('YYYY-MM-DD'),through:today.format('YYYY-MM-DD')});
+  }));
   router.get('/deliveries',allow('retail.deliver',(req,res,c)=>list(res,c,true)));
   router.get('/drivers',allow('retail.orders',async(req,res,c)=>{
     const [rows]=await pool.query(`SELECT m.id,i.display_name AS name FROM sx_memberships m JOIN sx_identities i ON i.id=m.identity_id

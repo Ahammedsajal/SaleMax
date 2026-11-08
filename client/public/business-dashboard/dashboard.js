@@ -1,9 +1,10 @@
 (()=>{'use strict';
 const $=s=>document.querySelector(s),esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-const ar=()=>{const language=(localStorage.getItem('language')||'').toLowerCase();return language==='ar'||language.includes('arab')||document.documentElement.dir==='rtl';};
+const ar=()=>{const language=localStorage.getItem('language');return language?/^(ar(?:[-_.]|$)|arabic|العربية)/i.test(language):document.documentElement.dir==='rtl';};
 const tr=(en,aa)=>ar()?aa:en;
 function actor(){try{const parentUrl=new URL(window.parent.location.href),parentPath=parentUrl.pathname.replace(/\/$/,'');return parentPath==='/agent'||(parentPath==='/user'&&parentUrl.searchParams.get('actor')==='agent')?'agent':'user';}catch(_){return localStorage.getItem('sx_workspace_actor_preference')==='agent'||(localStorage.getItem('wacrm_agent')&&!localStorage.getItem('wacrm_user'))?'agent':'user';}}
 const state={access:null,data:{},errors:new Set()};let createCloseBound=false;
+let dashboardLoad=0;
 const navigation=()=>new Set((state.access?.roleNavigation||[]).filter(key=>state.access?.assignedNavigation===null||!Array.isArray(state.access?.assignedNavigation)||state.access.assignedNavigation.includes(key)));
 async function api(url){const kind=actor(),token=localStorage.getItem(kind==='agent'?'wacrm_agent':'wacrm_user'),headers={Accept:'application/json'};if(token){headers.Authorization=`Bearer ${token}`;headers['X-Salemax-Actor']=kind;}else{const auth=await fetch('/api/user/business-auth/me',{credentials:'same-origin',cache:'no-store',headers:{Accept:'application/json'}}),session=await auth.json().catch(()=>({}));if(!auth.ok||session.context?.audience!=='tenant'||!session.csrfToken)throw Error(session.code||'AUTH_REQUIRED');headers['X-CSRF-Token']=session.csrfToken;}const response=await fetch(url,{credentials:'same-origin',cache:'no-store',headers});const body=await response.json().catch(()=>({}));if(!response.ok||body.success===false)throw Error(body.code||'REQUEST_FAILED');return body.data??body;}
 const count=(x)=>Number(x||0).toLocaleString(ar()?'ar':'en');
@@ -12,6 +13,122 @@ const labelFor=key=>({training_center:['Training center overview','نظرة عا
 function setupLanguage(){document.documentElement.lang=ar()?'ar':'en';document.documentElement.dir=ar()?'rtl':'ltr';$('#dashboard').classList.toggle('rtl',ar());$('#refresh').setAttribute('aria-label',tr('Refresh dashboard','تحديث لوحة المعلومات'));}
 function createMenu(){const nav=navigation(),items=[];const add=(key,label,path)=>{if(nav.has(key))items.push({label,path});};add('leads','Add lead','/user?page=lead-pipeline');add('courses','Create course','/user?page=courses');add('invoices','Create invoice','/user?page=finance-settings');add('tasks','Create task','/user?page=tasks');add('campaigns','Create campaign','/user?page=send-campaign');if(nav.has('sales-finance')&&state.access?.permissions?.['sales.receipt.record'])items.push({label:'Record payment',path:'/user?page=sales-finance&view=reconciliation'});const menu=$('#create-menu');menu.innerHTML=items.map((x,i)=>`<button type="button" data-index="${i}">${esc(tr(x.label,({'Add lead':'إضافة عميل محتمل','Create course':'إنشاء دورة','Create invoice':'إنشاء فاتورة','Create task':'إنشاء مهمة','Create campaign':'إنشاء حملة','Record payment':'تسجيل دفعة'})[x.label]||x.label))}</button>`).join('')||`<div class="empty" style="min-height:60px">${tr('No create actions assigned','لا توجد إجراءات إنشاء مخصصة')}</div>`;menu.querySelectorAll('button').forEach(b=>b.onclick=()=>location.assign(items[Number(b.dataset.index)].path));$('#create').onclick=()=>menu.hidden=!menu.hidden;if(!createCloseBound){document.addEventListener('click',e=>{if(!e.target.closest('.create-wrap'))$('#create-menu').hidden=true;});createCloseBound=true;}}
 function metric(label,value,note,color){return `<article class="metric" style="--accent:${color}"><span class="metric-label">${esc(label)}</span><strong class="metric-value">${esc(value)}</strong><span class="metric-note">${esc(note||'')}</span></article>`;}
+
+const retailStatuses={
+  placed:['New','جديد'],ready:['Ready','جاهز'],dispatched:['Dispatched','قيد التوصيل'],
+  completed:['Completed','مكتمل'],cancelled:['Cancelled','ملغى'],
+  returned:['Returned','مرتجع'],partially_returned:['Partially returned','مرتجع جزئيًا']
+};
+const systemDark=matchMedia('(prefers-color-scheme: dark)');
+
+function syncRetailTheme(){
+  const root=document.documentElement;
+  if (!$('#dashboard').classList.contains('retail-category')){
+    delete root.dataset.retailTheme;
+    return;
+  }
+  const preference=(localStorage.getItem('theme_mode')||'').toLowerCase();
+  root.dataset.retailTheme=preference==='dark'||(preference!=='light'&&systemDark.matches)?'dark':'light';
+}
+
+function showRetailDashboard(active){
+  $('#dashboard').classList.toggle('retail-category',active);
+  syncRetailTheme();
+  $('.main-grid').hidden=active;
+  $('.bottom-grid').hidden=active;
+  $('.create-wrap').hidden=active;
+  $('#retail-overview').hidden=!active;
+  $('#period').hidden=active;
+  $('#metrics').setAttribute('aria-label',tr('Key metrics','المؤشرات الرئيسية'));
+  if(!active){
+    $('#retail-range').hidden=true;
+    $('#retail-orders-link').hidden=true;
+  }
+  $('#retail-overview').replaceChildren();
+}
+
+function retailPanel(title,subtitle,content){
+  return `<section class="panel retail-panel"><div class="section-title"><div><h2>${esc(title)}</h2><p>${esc(subtitle)}</p></div></div>${content}</section>`;
+}
+
+function paintRetailOverview(data){
+  const statuses=data.statusCounts;
+  const outstanding=['placed','ready','dispatched'].reduce((total,key)=>total+(statuses[key]||0),0);
+  const value=minor=>money(minor,null,data.currency);
+  const locale=tr('en-QA','ar-QA');
+  const formatCount=new Intl.NumberFormat(locale);
+  const retailCount=number=>formatCount.format(number||0);
+  $('#metrics').innerHTML=[
+    metric(tr('Total orders','إجمالي الطلبات'),retailCount(data.orderCount),tr('All orders in this period','جميع الطلبات خلال هذه الفترة'),'var(--sx-brand)'),
+    metric(tr('Total order value','إجمالي قيمة الطلبات'),value(data.orderValueMinor),tr('Excludes cancellations, before returns','بعد استبعاد الإلغاءات وقبل المرتجعات'),'var(--sx-success)'),
+    metric(tr('To fulfill','بانتظار التنفيذ'),retailCount(outstanding),tr('New, ready or dispatched','جديدة أو جاهزة أو قيد التوصيل'),'var(--sx-warning)'),
+    metric(tr('Completed','مكتملة'),retailCount(statuses.completed),tr('Currently marked completed','مصنّفة حاليًا كمكتملة'),'var(--sx-brand)')
+  ].join('');
+
+  const dateFormat=new Intl.DateTimeFormat(locale,{dateStyle:'medium',timeStyle:'short',timeZone:data.timezone});
+  const orders=data.recentOrders.map(order=>{
+    const label=tr(...(retailStatuses[order.status]||['Order','طلب']));
+    const failed=order.status==='dispatched'&&order.deliveryState==='failed';
+    const tone=failed?'failed':order.status==='completed'?'complete':'default';
+    const method=order.fulfillment==='delivery'?tr('Delivery','توصيل'):tr('Pickup','استلام');
+    return `<li class="retail-order-row">
+      <div class="retail-order-identity"><strong><bdi>${esc(order.buyerName||tr('Customer','عميل'))}</bdi></strong>
+      <small class="retail-order-meta"><bdi dir="ltr">#${esc(String(order.id).slice(0,8).toUpperCase())}</bdi><time datetime="${esc(order.createdAt)}">${esc(dateFormat.format(new Date(order.createdAt)))}</time></small></div>
+      <div class="retail-order-state"><span class="retail-badge" data-tone="${tone}">${esc(failed?tr('Delivery failed','تعذر التسليم'):label)}</span><small>${esc(method)}</small></div>
+      <strong class="retail-order-value"><bdi>${esc(value(order.totalMinor))}</bdi></strong>
+    </li>`;
+  }).join('');
+  const recent=orders?`<ul class="retail-order-list">${orders}</ul>`:`<p class="retail-empty">${tr('No orders in this period. Choose a wider date range to see earlier orders.','لا توجد طلبات خلال هذه الفترة. اختر نطاقًا زمنيًا أوسع لعرض الطلبات السابقة.')}</p>`;
+  const breakdown=Object.entries(retailStatuses).map(([key,label])=>
+    `<li><span>${esc(tr(...label))}</span><strong>${retailCount(statuses[key])}</strong></li>`).join('');
+  const failures=`<p class="retail-delivery-note"><span>${tr('Failed deliveries','عمليات التوصيل المتعثرة')}</span><strong>${retailCount(data.failedDeliveries)}</strong></p>`;
+  $('#retail-overview').innerHTML=
+    retailPanel(tr('Recent orders','أحدث الطلبات'),tr('Latest orders in this period','أحدث الطلبات خلال هذه الفترة'),recent)+
+    retailPanel(tr('Order status','حالات الطلبات'),tr('Current status of orders in this period','الحالة الحالية للطلبات خلال هذه الفترة'),`<ul class="retail-status-list">${breakdown}</ul>${failures}`);
+
+  const calendar=new Intl.DateTimeFormat(locale,{dateStyle:'medium',timeZone:'UTC'});
+  const from=new Date(data.from+'T00:00:00Z'),through=new Date(data.through+'T00:00:00Z');
+  const dates=calendar.formatRange?.(from,through)||[from,through].map(date=>calendar.format(date)).join(' – ');
+  $('#updated').textContent=dates+' · '+data.timezone;
+}
+
+async function loadRetailDashboard(access,generation){
+  showRetailDashboard(true);
+  $('#eyebrow').textContent=tr('7Network · RETAIL & E-COMMERCE','7Network · التجزئة والتجارة الإلكترونية');
+  $('#title').textContent=tr('Retail dashboard','لوحة معلومات التجزئة');
+  $('#subtitle').textContent=tr('Track orders, order value and fulfillment.','تابع الطلبات وقيمتها وحالة تنفيذها.');
+
+  const metrics=$('#metrics');
+  metrics.setAttribute('aria-label',tr('Order metrics','مؤشرات الطلبات'));
+  if (!navigation().has('retail-orders') || !access.permissions?.['retail.orders']){
+    $('#retail-range').hidden=true;
+    $('#retail-orders-link').hidden=true;
+    metrics.innerHTML=`<p class="retail-empty">${tr('Your role does not have access to Retail Orders.','صلاحيات دورك لا تتيح الوصول إلى طلبات التجزئة.')}</p>`;
+    return;
+  }
+
+  const range=$('#retail-range'),link=$('#retail-orders-link');
+  range.setAttribute('aria-label',tr('Order date range','النطاق الزمني للطلبات'));
+  const dates={1:['Today','اليوم'],7:['Last 7 days','آخر 7 أيام'],30:['Last 30 days','آخر 30 يومًا']};
+  for(const option of range.options) option.textContent=tr(...dates[option.value]);
+  range.hidden=false;
+  link.textContent=tr('Manage orders','إدارة الطلبات');
+  link.href='/user?page=retail-orders'+(actor()==='agent'?'&actor=agent':'');
+  link.hidden=false;
+  metrics.innerHTML=`<div class="loading" role="status">${tr('Loading orders…','جارٍ تحميل الطلبات…')}</div>`;
+  try {
+    const workspace=window.SaleMaxWorkspace;
+    window.SaleMaxActor=actor();
+    workspace.paths.retail??='/api/workspace/retail';
+    const {data}=await workspace.request('retail','/orders/overview?days='+range.value);
+    if(generation===dashboardLoad) paintRetailOverview(data);
+  } catch {
+    if(generation!==dashboardLoad)return;
+    metrics.replaceChildren();
+    $('#notice').textContent=tr('Orders could not load. Refresh to try again.','تعذر تحميل الطلبات. حدّث اللوحة للمحاولة مرة أخرى.');
+    $('#notice').hidden=false;
+  }
+}
 function drawBars(rows,{value,key}={}){const vals=rows.map(r=>Number(value(r)||0)),max=Math.max(...vals,1);return `<div class="bars">${rows.map((r,i)=>`<div class="bar-group" title="${esc(key(r))}: ${count(vals[i])}"><span class="bar-value">${esc(count(vals[i]))}</span><div class="bar" style="height:${Math.max(3,Math.round(vals[i]/max*142))}px"></div><span class="bar-label">${esc(key(r))}</span></div>`).join('')}</div>`;}
 function stageName(key,title){const names={new:['New','جديد'],contacted:['Contacted','تم التواصل'],qualified:['Qualified','مؤهل'],proposal:['Proposal','عرض'],won:['Won','تم الفوز'],lost:['Lost','مفقود'],training_invoice_issued:['Invoice issued','تم إصدار الفاتورة'],training_payment_received:['Payment received','تم استلام الدفعة'],training_course_started:['Course started','بدأت الدورة'],training_fully_paid:['Paid in full','مدفوع بالكامل'],training_course_completed:['Course completed','اكتملت الدورة'],training_certificate_issued:['Certificate issued','تم إصدار الشهادة']};return names[key]?tr(...names[key]):(title||key);}
 function drawDonut(rows){const colors=['#1768d4','#d94378','#efa8c0','#f5d7e2','#8b9aaf','#c4cbd5'];const total=rows.reduce((n,r)=>n+Number(r.value||0),0);if(!total)return `<div class="chart-empty"><strong>${tr('No activity yet','لا يوجد نشاط بعد')}</strong>${tr('Your chart will fill as records are added.','سيظهر الرسم عند إضافة السجلات.')}</div>`;let offset=0,stops=[];rows.forEach((r,i)=>{const end=offset+Number(r.value||0)/total*100;stops.push(`${colors[i%colors.length]} ${offset}% ${end}%`);offset=end;});return `<div class="donut-layout"><div class="donut" style="background:conic-gradient(${stops.join(',')})"><div class="donut-total"><strong>${esc(count(total))}</strong>${tr('records','سجل')}</div></div><div class="legend">${rows.map((r,i)=>`<div class="legend-row"><i class="swatch" style="--swatch:${colors[i%colors.length]}"></i><span>${esc(r.label)}</span><strong>${esc(count(r.value))}</strong></div>`).join('')}</div></div>`;}
@@ -95,7 +212,14 @@ $('#mix-title').textContent=tr(category==='training_center'?(d.enrollments?'Enro
 $('#priority-title').textContent=tr(category==='training_center'?'Today’s priorities':category==='7network_sales'&&d.salesFinance&&!d.board?'Finance priorities':'Needs attention',category==='training_center'?'أولويات اليوم':category==='7network_sales'&&d.salesFinance&&!d.board?'أولويات المالية':'يحتاج إلى اهتمام');$('#priority-link').href=nav.has('tasks')?'/user?page=tasks':category==='7network_sales'&&d.salesFinance&&!d.board?'/user?page=sales-finance&view=reconciliation':'/user?page=lead-pipeline&view=followups';priorities();
 const insights=[];if(category==='7network_sales'&&d.salesFinance){const invoices=d.salesFinance.invoicesByCurrency||d.salesFinance.billedByCurrency||[],receipts=d.salesFinance.receiptsByCurrency||[];const overdue=invoices.reduce((n,x)=>n+Number(x.overdueInvoiceCount||0),0),unmatched=receipts.reduce((n,x)=>n+Number(x.unmatchedCount||0),0);if(d.salesFinance.invoicesByCurrency)insights.push([tr('Overdue invoices','الفواتير المتأخرة'),count(overdue)]);if(d.salesFinance.receiptsByCurrency)insights.push([tr('Unmatched receipts','الإيصالات غير المطابقة'),count(unmatched)]);}if(d.courses)insights.push([tr('Active courses','الدورات النشطة'),count(d.courses.total)]);if(d.finance)insights.push([tr('Issued invoices','الفواتير الصادرة'),count(d.finance.summary?.invoice_count)]);if(d.finance)insights.push([tr('Overdue amount','المبلغ المتأخر'),money(d.finance.summary?.overdue_minor,access)]);if(d.board)insights.push([tr('Pipeline stages','مراحل المسار'),count(d.board.stages?.length||0)]);if(d.targets)insights.push([tr('Team members in report','أعضاء الفريق في التقرير'),count(d.targets.members?.length)]);if(!insights.length)insights.push([tr('Use your shortcuts','استخدم الاختصارات'),tr('Choose Create to open an assigned workflow.','اختر إنشاء لفتح سير عمل مسند.')]);$('#insights').innerHTML=insights.slice(0,5).map(([k,v])=>`<div class="insight"><span>${esc(k)}</span><strong>${esc(v)}</strong></div>`).join('');$('#updated').textContent=tr(`Updated ${new Date().toLocaleTimeString()}`,`تم التحديث ${new Date().toLocaleTimeString()}`);}
 function money(minor,access,currency){const code=currency||access?.tenantCurrency||access?.currency||'QAR';try{return new Intl.NumberFormat(ar()?'ar-QA':'en-QA',{style:'currency',currency:code,maximumFractionDigits:2}).format(Number(minor||0)/100);}catch{return `${code} ${(Number(minor||0)/100).toFixed(2)}`;}}
-async function load(){setupLanguage();$('#metrics').innerHTML=`<div class="loading">${tr('Loading your dashboard…','جارٍ تحميل لوحة المعلومات…')}</div>`;state.errors.clear();try{state.access=await api('/api/workspace/session');}catch(e){$('#metrics').innerHTML=`<div class="empty">${tr('Your account session could not be verified. Sign in again to load your dashboard.','تعذر التحقق من جلسة الحساب. سجّل الدخول مرة أخرى لتحميل لوحة المعلومات.')}</div>`;return;}const a=state.access,nav=navigation(),req={};if(nav.has('leads')){req.board=api('/api/pipeline/stage-summary');req.followups=api('/api/pipeline/follow-ups?period=all&page=1&limit=6');}if(nav.has('tasks'))req.tasks=api(`/api/user/training/tasks?status=active&scope=${['owner','manager','team_leader'].includes(a.role)?'team':'mine'}&page=1&limit=6`);if(a.categoryKey==='training_center'&&a.modules?.finance&&(nav.has('invoices')||nav.has('reports'))){const today=period(),from=new Date(today.slice(0,7)+'-01T00:00:00Z');from.setUTCMonth(from.getUTCMonth()-11);req.finance=api(`/api/workspace/finance/reports/dashboard?from=${from.toISOString().slice(0,10)}&to=${today}`);}if(a.categoryKey==='training_center'&&a.modules?.courses&&nav.has('courses')){req.courses=api('/api/workspace/courses?status=active&page=1&limit=100');if(a.permissions?.['courses.manage'])req.enrollments=api('/api/workspace/courses/enrollments?page=1&limit=1');}if(a.categoryKey==='7network_sales'&&nav.has('sales-targets')){const month=period().slice(0,7);req.targets=api(`/api/user/sales-targets?period=${month}`);if(nav.has('sales-deals'))req.deals=api('/api/user/sales-commissions/deals?status=pending_approval&limit=100');}if(a.categoryKey==='7network_sales'){if(nav.has('campaigns'))req.campaigns=api('/api/broadcast/dashboard');if(nav.has('call-center'))req.calls=api('/api/user/call-center/calls');if(nav.has('sales-finance')){req.salesFinance=api('/api/user/sales-finance/overview');if(['owner','accountant'].includes(a.role)){req.invoices=api('/api/user/sales-finance/invoices?limit=5');req.receipts=api('/api/user/sales-finance/receipts?limit=5');}}}
-const entries=Object.entries(req),results=await Promise.allSettled(entries.map(([,p])=>p));state.data={};for(let i=0;i<entries.length;i++)if(results[i].status==='fulfilled')state.data[entries[i][0]]=results[i].value;else state.errors.add(entries[i][0]);paint();if(state.errors.size){const labels=[...state.errors].map(k=>({finance:'finance overview',board:'lead overview',followups:'follow-ups',tasks:'tasks',courses:'courses',enrollments:'enrollments',targets:'sales performance',deals:'sales reviews',salesFinance:'Sales Finance',campaigns:'campaign performance',calls:'call center activity',invoices:'invoice list',receipts:'recent receipts'}[k]||k));$('#notice').hidden=false;$('#notice').textContent=tr(`Some sections could not load: ${labels.join(', ')}. Other dashboard data is shown.`,`تعذر تحميل بعض الأقسام: ${labels.join('، ')}. تظهر بقية بيانات لوحة المعلومات.`);}else $('#notice').hidden=true;}
-$('#refresh').onclick=load;window.addEventListener('storage',e=>{if(e.key==='language')load();});load();
+async function load(){const generation=++dashboardLoad;setupLanguage();$('#notice').hidden=true;$('#updated').textContent='';$('#retail-overview').replaceChildren();$('#metrics').innerHTML=`<div class="loading">${tr('Loading your dashboard…','جارٍ تحميل لوحة المعلومات…')}</div>`;state.errors.clear();try{const access=await api('/api/workspace/session');if(generation!==dashboardLoad)return;state.access=access;}catch(e){if(generation!==dashboardLoad)return;showRetailDashboard(false);$('.main-grid').hidden=true;$('.bottom-grid').hidden=true;$('.create-wrap').hidden=true;$('#metrics').innerHTML=`<div class="empty">${tr('Your account session could not be verified. Sign in again to load your dashboard.','تعذر التحقق من جلسة الحساب. سجّل الدخول مرة أخرى لتحميل لوحة المعلومات.')}</div>`;return;}const a=state.access,nav=navigation(),req={};
+if(a.categoryKey==='retail_boutique')return loadRetailDashboard(a,generation);
+showRetailDashboard(false);if(nav.has('leads')){req.board=api('/api/pipeline/stage-summary');req.followups=api('/api/pipeline/follow-ups?period=all&page=1&limit=6');}if(nav.has('tasks'))req.tasks=api(`/api/user/training/tasks?status=active&scope=${['owner','manager','team_leader'].includes(a.role)?'team':'mine'}&page=1&limit=6`);if(a.categoryKey==='training_center'&&a.modules?.finance&&(nav.has('invoices')||nav.has('reports'))){const today=period(),from=new Date(today.slice(0,7)+'-01T00:00:00Z');from.setUTCMonth(from.getUTCMonth()-11);req.finance=api(`/api/workspace/finance/reports/dashboard?from=${from.toISOString().slice(0,10)}&to=${today}`);}if(a.categoryKey==='training_center'&&a.modules?.courses&&nav.has('courses')){req.courses=api('/api/workspace/courses?status=active&page=1&limit=100');if(a.permissions?.['courses.manage'])req.enrollments=api('/api/workspace/courses/enrollments?page=1&limit=1');}if(a.categoryKey==='7network_sales'&&nav.has('sales-targets')){const month=period().slice(0,7);req.targets=api(`/api/user/sales-targets?period=${month}`);if(nav.has('sales-deals'))req.deals=api('/api/user/sales-commissions/deals?status=pending_approval&limit=100');}if(a.categoryKey==='7network_sales'){if(nav.has('campaigns'))req.campaigns=api('/api/broadcast/dashboard');if(nav.has('call-center'))req.calls=api('/api/user/call-center/calls');if(nav.has('sales-finance')){req.salesFinance=api('/api/user/sales-finance/overview');if(['owner','accountant'].includes(a.role)){req.invoices=api('/api/user/sales-finance/invoices?limit=5');req.receipts=api('/api/user/sales-finance/receipts?limit=5');}}}
+const entries=Object.entries(req),results=await Promise.allSettled(entries.map(([,p])=>p));if(generation!==dashboardLoad)return;state.data={};for(let i=0;i<entries.length;i++)if(results[i].status==='fulfilled')state.data[entries[i][0]]=results[i].value;else state.errors.add(entries[i][0]);paint();if(state.errors.size){const labels=[...state.errors].map(k=>({finance:'finance overview',board:'lead overview',followups:'follow-ups',tasks:'tasks',courses:'courses',enrollments:'enrollments',targets:'sales performance',deals:'sales reviews',salesFinance:'Sales Finance',campaigns:'campaign performance',calls:'call center activity',invoices:'invoice list',receipts:'recent receipts'}[k]||k));$('#notice').hidden=false;$('#notice').textContent=tr(`Some sections could not load: ${labels.join(', ')}. Other dashboard data is shown.`,`تعذر تحميل بعض الأقسام: ${labels.join('، ')}. تظهر بقية بيانات لوحة المعلومات.`);}else $('#notice').hidden=true;}
+$('#refresh').onclick=load;
+$('#retail-range').onchange=load;
+window.addEventListener('storage',e=>{if(e.key===null||['language','wacrm_user','wacrm_agent'].includes(e.key))load();});
+window.addEventListener('storage',e=>{if(e.key===null||e.key==='theme_mode')syncRetailTheme();});
+systemDark.addEventListener('change',syncRetailTheme);
+load();
 })();

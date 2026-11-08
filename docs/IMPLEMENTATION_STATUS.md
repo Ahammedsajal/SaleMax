@@ -1,3 +1,9 @@
+## Retail and E-commerce dashboard — source verified, 8 November 2026
+
+The existing Business Dashboard selects an order-focused view for the Retail category. It defaults to the last seven days and shows total orders, total order value, orders to fulfill, completed orders, six recent orders, and status and failed-delivery counts. Total order value excludes cancelled orders and uses the original order totals before returns. The Manage orders action opens the existing Retail Orders screen. The shared Retail API uses the current tenant, entitlement, Retail Orders permission and assigned navigation.
+
+Fourteen focused tests pass. A disposable MariaDB and actual Retail router verify date boundaries, full-period totals beyond the recent list, cancellations, tenant isolation, denied roles, and private responses. Synthetic Edge checks exercise the business dashboard in English/Arabic, light/dark, at 320, 360, 390, 768, 1024 and 1440 pixels, including bearer/cookie requests, date changes, retry, and navigation to Retail Orders from the business shell. No migration is required. The tracked Retail branch and live dashboard/router preimages were reconciled for this increment. Live signed-in and installed-PWA acceptance remain open. This increment has no production deployment.
+
 ## Retail Orders, Business Profile and Inventory listing — deployed, 7 November 2026
 
 The Retail Orders screen is organized around date range, customer name/mobile/email and status filters, with paged order cards and the existing fulfilment actions. Store name/link, enablement and the single delivery fee are under Business Profile; public About and Contact are separated from private business contact fields. Existing delivery zones are preserved unless the owner confirms replacing them. Inventory product cards now own storefront visibility, photos and variant setup. Checkout email is optional, retained for order administration and explicitly not used for marketing.

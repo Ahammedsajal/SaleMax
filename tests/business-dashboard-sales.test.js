@@ -7,12 +7,22 @@ const source=fs.readFileSync(require.resolve('../client/public/business-dashboar
 const css=fs.readFileSync(require.resolve('../client/public/business-dashboard/dashboard.css'),'utf8');
 
 async function render(access,fixtures,language='en'){
-  const ids=['metrics','eyebrow','title','subtitle','period','create-menu','create','refresh','dashboard','updated','notice','chart','chart-link','chart-subtitle','chart-title','mix','mix-subtitle','mix-title','insights','priorities','priority-link','priority-title'];
-  const elements=Object.fromEntries(ids.map(id=>[id,{id,textContent:'',innerHTML:'',hidden:true,href:'',dataset:{},classList:{toggle(){},add(){},remove(){}},setAttribute(){},querySelectorAll(){return[];},closest(){return null;}}]));
-  const containers={'.main-grid':{innerHTML:''},'.bottom-grid':{innerHTML:''}};
-  const document={documentElement:{lang:'',dir:''},querySelector:s=>s.startsWith('#')?elements[s.slice(1)]:containers[s]||null,addEventListener(){}};
+  const ids=['metrics','eyebrow','title','subtitle','period','create-menu','create','refresh','dashboard','updated','notice','chart','chart-link','chart-subtitle','chart-title','mix','mix-subtitle','mix-title','insights','priorities','priority-link','priority-title','retail-range','retail-orders-link','retail-overview'];
+  const elements=Object.fromEntries(ids.map(id=>[id,{id,textContent:'',innerHTML:'',hidden:true,href:'',dataset:{},classList:{toggle(){},add(){},remove(){},contains(){return false;}},setAttribute(){},querySelectorAll(){return[];},closest(){return null;},replaceChildren(){this.innerHTML='';}}]));
+  elements['retail-range'].value='7';
+  elements['retail-range'].options=[{value:'1'},{value:'7'},{value:'30'}];
+  const containers={'.main-grid':{innerHTML:''},'.bottom-grid':{innerHTML:''},'.create-wrap':{}};
+  const document={documentElement:{lang:'',dir:'',dataset:{}},querySelector:s=>s.startsWith('#')?elements[s.slice(1)]:containers[s]||null,addEventListener(){}};
   const requests=[];
   const context={document,window:{parent:{location:{pathname:'/user'}},addEventListener(){}},localStorage:{getItem:k=>k==='language'?language:null},location:{assign(){}},Intl,Date,Number,String,Math,Set,Map,Promise,encodeURIComponent,fetch:async url=>{const key=String(url);requests.push(key);if(key==='/api/user/business-auth/me')return{ok:true,json:async()=>({context:{audience:'tenant'},csrfToken:'synthetic-csrf'})};let result;if(key==='/api/workspace/session')result=access;else if(fixtures[key]!==undefined)result=fixtures[key];else throw Error(`Unexpected request ${key}`);return{ok:true,json:async()=>({success:true,...(key==='/api/broadcast/dashboard'?result:{data:result})})};},console};
+  context.matchMedia=()=>({matches:false,addEventListener(){}});
+  context.window.parent.location.href='http://localhost/user';
+  context.window.SaleMaxWorkspace={paths:{},request:async(module,path)=>{
+    const url='/api/workspace/'+module+path;
+    requests.push(url);
+    if(!fixtures[url])throw Error('Unexpected request '+url);
+    return {data:fixtures[url]};
+  }};
   vm.runInNewContext(source,context,{timeout:1000});await new Promise(r=>setTimeout(r,20));return{elements,containers,requests};
 }
 
@@ -58,4 +68,34 @@ test('Training Center keeps the existing dashboard layout and never receives Sal
   assert.doesNotMatch(containers['.main-grid'].innerHTML,/Connected calls by team/);
   assert.ok(!requests.some(url=>url.includes('/api/broadcast/dashboard')||url.includes('/api/user/call-center/calls')));
   assert.match(css,/\.sales-category \.metrics/);
+});
+
+const retailAccess={
+  categoryKey:'retail_boutique',role:'owner',roleNavigation:['leads','retail-orders'],
+  assignedNavigation:null,permissions:{'retail.orders':true}
+};
+const retailOverview='/api/workspace/retail/orders/overview?days=7';
+
+test('Retail dashboard leads with real orders and escapes recent order names in English and Arabic',async()=>{
+  const fixtures={[retailOverview]:{
+    orderCount:3,orderValueMinor:'32500',currency:'QAR',timezone:'Asia/Qatar',from:'2026-11-02',through:'2026-11-08',
+    failedDeliveries:1,statusCounts:{dispatched:1,completed:1,cancelled:1},
+    recentOrders:[{id:'retail-123',buyerName:'<img src=x>',totalMinor:25000,status:'dispatched',deliveryState:'failed',fulfillment:'delivery',createdAt:'2026-11-08T05:00:00.000Z'}]
+  }};
+  for(const [language,label] of [['en','Total order value'],['ar','إجمالي قيمة الطلبات']]){
+    const {elements,containers,requests}=await render(retailAccess,fixtures,language);
+    assert.match(elements.metrics.innerHTML,new RegExp(label));
+    assert.match(elements['retail-overview'].innerHTML,/&lt;img src=x&gt;/);
+    assert.equal(elements['retail-orders-link'].href,'/user?page=retail-orders');
+    assert.equal(containers['.main-grid'].hidden,true);
+    assert.deepEqual(requests.filter(url=>url.includes('/api/workspace/retail')), [retailOverview]);
+    assert.ok(!requests.some(url=>url.startsWith('/api/pipeline')));
+  }
+});
+
+test('Retail roles without Orders access never request or render the overview',async()=>{
+  const {elements,requests}=await render({...retailAccess,assignedNavigation:['leads']},{});
+  assert.match(elements.metrics.innerHTML,/does not have access/);
+  assert.equal(elements['retail-orders-link'].hidden,true);
+  assert.ok(!requests.includes(retailOverview));
 });

@@ -15,6 +15,7 @@ business feature. Add future changes to that implementation once.
 | Finance, invoices, payments and receipts | `/api/workspace/finance` | `/api/user/training/finance-policies`; its `/accountant` and `/canonical` prefixes are stripped before routing |
 | Course catalogue | `/api/workspace/courses` | `/api/user/training/courses` |
 | Products & services catalogue (SaleMaX Sales) | `/api/workspace/products-services` | None |
+| Retail order overview | `GET /api/workspace/retail/orders/overview?days=7` | None |
 | Students | `/api/workspace/students` | `/api/user/training/students` |
 | Business profile | `/api/workspace/profile` | `/api/user/training/profile` |
 | Shared tenant AI settings | `/api/workspace/ai/settings` | `/api/user/chatbots/settings/provider` |
@@ -28,6 +29,13 @@ delegations, configured screen access and current plan entitlements. Legacy
 unmapped Phonebook accounts retain their existing account scope; training and
 Finance services still require an enabled, linked business. No tenant is
 silently provisioned and no subscription is bypassed.
+
+The Retail order overview requires the Retail commerce entitlement and Retail
+Orders access. It accepts 1, 7 or 30 calendar days including today, using the
+business timezone, and defaults to 7 days. It counts orders in all statuses
+and returns the original QAR value of non-cancelled orders before returns, plus
+current status counts, failed deliveries and up to six recent order summaries.
+The response is private and uncached.
 
 Products & services reuse the course editor and catalogue handlers with the
 `products.catalog` capability and `products.read` / `products.manage` permissions.
