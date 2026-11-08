@@ -91,17 +91,30 @@
     let pointerFrame = 0;
     let pointerX = 50;
     let pointerY = 50;
+    let waterX = 50;
+    let waterY = 50;
+    const easeWater = () => {
+      waterX += (pointerX - waterX) * 0.14;
+      waterY += (pointerY - waterY) * 0.14;
+      hero.style.setProperty("--water-x", `${waterX}%`);
+      hero.style.setProperty("--water-y", `${waterY}%`);
+      if (Math.abs(pointerX - waterX) + Math.abs(pointerY - waterY) > 0.15) {
+        pointerFrame = requestAnimationFrame(easeWater);
+      } else {
+        waterX = pointerX;
+        waterY = pointerY;
+        hero.style.setProperty("--water-x", `${waterX}%`);
+        hero.style.setProperty("--water-y", `${waterY}%`);
+        pointerFrame = 0;
+      }
+    };
     hero.addEventListener("pointermove", (event) => {
       const bounds = hero.getBoundingClientRect();
-      pointerX = ((event.clientX - bounds.left) / bounds.width) * 100;
-      pointerY = ((event.clientY - bounds.top) / bounds.height) * 100;
+      pointerX = Math.max(0, Math.min(100, ((event.clientX - bounds.left) / bounds.width) * 100));
+      pointerY = Math.max(0, Math.min(100, ((event.clientY - bounds.top) / bounds.height) * 100));
       if (pointerFrame) return;
-      pointerFrame = requestAnimationFrame(() => {
-        hero.style.setProperty("--water-x", `${pointerX}%`);
-        hero.style.setProperty("--water-y", `${pointerY}%`);
-        hero.classList.add("has-water");
-        pointerFrame = 0;
-      });
+      hero.classList.add("has-water");
+      pointerFrame = requestAnimationFrame(easeWater);
     }, { passive: true });
     hero.addEventListener("pointerleave", () => hero.classList.remove("has-water"), { passive: true });
   }
