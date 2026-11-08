@@ -4975,7 +4975,7 @@ a.footer-contact-item:hover .footer-contact-icon { transform: translateY(-2px); 
   .workspace-photo > img { object-position: center 40%; }
   .workspace-photo-kicker { inset-block-start: 14px; inset-inline-start: 14px; max-width: calc(100% - 28px); font-size: 8px; }
   .workspace-photo-story,
-  [dir="rtl"] .workspace-photo-story { width: 100%; padding: 0 19px 73px; }
+  [dir="rtl"] .workspace-photo-story { width: 100%; padding: 0 19px 128px; }
   .workspace-photo-story h3 { max-width: 390px; font-size: 1.7rem; }
   .workspace-photo-story p { max-width: 360px; font-size: 12px; }
   .workspace-photo-chip { display: none; }
