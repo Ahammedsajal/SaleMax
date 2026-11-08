@@ -1,6 +1,10 @@
 (()=>{'use strict';
 const $=s=>document.querySelector(s),esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-const ar=()=>{const language=localStorage.getItem('language');return language?/^(ar(?:[-_.]|$)|arabic|العربية)/i.test(language):document.documentElement.dir==='rtl';};
+const ar=()=>{
+  const language=(localStorage.getItem('language')||'').toLowerCase();
+  if(language&&state.access?.categoryKey==='retail_boutique')return /^(ar(?:[-_.]|$)|arabic|العربية)/i.test(language);
+  return language==='ar'||language.includes('arab')||document.documentElement.dir==='rtl';
+};
 const tr=(en,aa)=>ar()?aa:en;
 function actor(){try{const parentUrl=new URL(window.parent.location.href),parentPath=parentUrl.pathname.replace(/\/$/,'');return parentPath==='/agent'||(parentPath==='/user'&&parentUrl.searchParams.get('actor')==='agent')?'agent':'user';}catch(_){return localStorage.getItem('sx_workspace_actor_preference')==='agent'||(localStorage.getItem('wacrm_agent')&&!localStorage.getItem('wacrm_user'))?'agent':'user';}}
 const state={access:null,data:{},errors:new Set()};let createCloseBound=false;
@@ -212,14 +216,38 @@ $('#mix-title').textContent=tr(category==='training_center'?(d.enrollments?'Enro
 $('#priority-title').textContent=tr(category==='training_center'?'Today’s priorities':category==='7network_sales'&&d.salesFinance&&!d.board?'Finance priorities':'Needs attention',category==='training_center'?'أولويات اليوم':category==='7network_sales'&&d.salesFinance&&!d.board?'أولويات المالية':'يحتاج إلى اهتمام');$('#priority-link').href=nav.has('tasks')?'/user?page=tasks':category==='7network_sales'&&d.salesFinance&&!d.board?'/user?page=sales-finance&view=reconciliation':'/user?page=lead-pipeline&view=followups';priorities();
 const insights=[];if(category==='7network_sales'&&d.salesFinance){const invoices=d.salesFinance.invoicesByCurrency||d.salesFinance.billedByCurrency||[],receipts=d.salesFinance.receiptsByCurrency||[];const overdue=invoices.reduce((n,x)=>n+Number(x.overdueInvoiceCount||0),0),unmatched=receipts.reduce((n,x)=>n+Number(x.unmatchedCount||0),0);if(d.salesFinance.invoicesByCurrency)insights.push([tr('Overdue invoices','الفواتير المتأخرة'),count(overdue)]);if(d.salesFinance.receiptsByCurrency)insights.push([tr('Unmatched receipts','الإيصالات غير المطابقة'),count(unmatched)]);}if(d.courses)insights.push([tr('Active courses','الدورات النشطة'),count(d.courses.total)]);if(d.finance)insights.push([tr('Issued invoices','الفواتير الصادرة'),count(d.finance.summary?.invoice_count)]);if(d.finance)insights.push([tr('Overdue amount','المبلغ المتأخر'),money(d.finance.summary?.overdue_minor,access)]);if(d.board)insights.push([tr('Pipeline stages','مراحل المسار'),count(d.board.stages?.length||0)]);if(d.targets)insights.push([tr('Team members in report','أعضاء الفريق في التقرير'),count(d.targets.members?.length)]);if(!insights.length)insights.push([tr('Use your shortcuts','استخدم الاختصارات'),tr('Choose Create to open an assigned workflow.','اختر إنشاء لفتح سير عمل مسند.')]);$('#insights').innerHTML=insights.slice(0,5).map(([k,v])=>`<div class="insight"><span>${esc(k)}</span><strong>${esc(v)}</strong></div>`).join('');$('#updated').textContent=tr(`Updated ${new Date().toLocaleTimeString()}`,`تم التحديث ${new Date().toLocaleTimeString()}`);}
 function money(minor,access,currency){const code=currency||access?.tenantCurrency||access?.currency||'QAR';try{return new Intl.NumberFormat(ar()?'ar-QA':'en-QA',{style:'currency',currency:code,maximumFractionDigits:2}).format(Number(minor||0)/100);}catch{return `${code} ${(Number(minor||0)/100).toFixed(2)}`;}}
-async function load(){const generation=++dashboardLoad;setupLanguage();$('#notice').hidden=true;$('#updated').textContent='';$('#retail-overview').replaceChildren();$('#metrics').innerHTML=`<div class="loading">${tr('Loading your dashboard…','جارٍ تحميل لوحة المعلومات…')}</div>`;state.errors.clear();try{const access=await api('/api/workspace/session');if(generation!==dashboardLoad)return;state.access=access;}catch(e){if(generation!==dashboardLoad)return;showRetailDashboard(false);$('.main-grid').hidden=true;$('.bottom-grid').hidden=true;$('.create-wrap').hidden=true;$('#metrics').innerHTML=`<div class="empty">${tr('Your account session could not be verified. Sign in again to load your dashboard.','تعذر التحقق من جلسة الحساب. سجّل الدخول مرة أخرى لتحميل لوحة المعلومات.')}</div>`;return;}const a=state.access,nav=navigation(),req={};
-if(a.categoryKey==='retail_boutique')return loadRetailDashboard(a,generation);
-showRetailDashboard(false);if(nav.has('leads')){req.board=api('/api/pipeline/stage-summary');req.followups=api('/api/pipeline/follow-ups?period=all&page=1&limit=6');}if(nav.has('tasks'))req.tasks=api(`/api/user/training/tasks?status=active&scope=${['owner','manager','team_leader'].includes(a.role)?'team':'mine'}&page=1&limit=6`);if(a.categoryKey==='training_center'&&a.modules?.finance&&(nav.has('invoices')||nav.has('reports'))){const today=period(),from=new Date(today.slice(0,7)+'-01T00:00:00Z');from.setUTCMonth(from.getUTCMonth()-11);req.finance=api(`/api/workspace/finance/reports/dashboard?from=${from.toISOString().slice(0,10)}&to=${today}`);}if(a.categoryKey==='training_center'&&a.modules?.courses&&nav.has('courses')){req.courses=api('/api/workspace/courses?status=active&page=1&limit=100');if(a.permissions?.['courses.manage'])req.enrollments=api('/api/workspace/courses/enrollments?page=1&limit=1');}if(a.categoryKey==='7network_sales'&&nav.has('sales-targets')){const month=period().slice(0,7);req.targets=api(`/api/user/sales-targets?period=${month}`);if(nav.has('sales-deals'))req.deals=api('/api/user/sales-commissions/deals?status=pending_approval&limit=100');}if(a.categoryKey==='7network_sales'){if(nav.has('campaigns'))req.campaigns=api('/api/broadcast/dashboard');if(nav.has('call-center'))req.calls=api('/api/user/call-center/calls');if(nav.has('sales-finance')){req.salesFinance=api('/api/user/sales-finance/overview');if(['owner','accountant'].includes(a.role)){req.invoices=api('/api/user/sales-finance/invoices?limit=5');req.receipts=api('/api/user/sales-finance/receipts?limit=5');}}}
-const entries=Object.entries(req),results=await Promise.allSettled(entries.map(([,p])=>p));if(generation!==dashboardLoad)return;state.data={};for(let i=0;i<entries.length;i++)if(results[i].status==='fulfilled')state.data[entries[i][0]]=results[i].value;else state.errors.add(entries[i][0]);paint();if(state.errors.size){const labels=[...state.errors].map(k=>({finance:'finance overview',board:'lead overview',followups:'follow-ups',tasks:'tasks',courses:'courses',enrollments:'enrollments',targets:'sales performance',deals:'sales reviews',salesFinance:'Sales Finance',campaigns:'campaign performance',calls:'call center activity',invoices:'invoice list',receipts:'recent receipts'}[k]||k));$('#notice').hidden=false;$('#notice').textContent=tr(`Some sections could not load: ${labels.join(', ')}. Other dashboard data is shown.`,`تعذر تحميل بعض الأقسام: ${labels.join('، ')}. تظهر بقية بيانات لوحة المعلومات.`);}else $('#notice').hidden=true;}
+async function load(){const generation=++dashboardLoad;setupLanguage();
+if(state.access?.categoryKey==='retail_boutique'){
+  $('#notice').hidden=true;
+  $('#updated').textContent='';
+  $('#retail-overview').replaceChildren();
+}
+$('#metrics').innerHTML=`<div class="loading">${tr('Loading your dashboard…','جارٍ تحميل لوحة المعلومات…')}</div>`;state.errors.clear();try{
+  const access=await api('/api/workspace/session');
+  const wasRetail=state.access?.categoryKey==='retail_boutique';
+  if(wasRetail||access.categoryKey==='retail_boutique'){
+    if(generation!==dashboardLoad)return;
+    state.access=access;
+    setupLanguage();
+    if(access.categoryKey==='retail_boutique')return loadRetailDashboard(access,generation);
+    showRetailDashboard(false);
+  }
+  state.access=access;
+}catch(e){
+  if(state.access?.categoryKey==='retail_boutique'&&generation!==dashboardLoad)return;
+$('#metrics').innerHTML=`<div class="empty">${tr('Your account session could not be verified. Sign in again to load your dashboard.','تعذر التحقق من جلسة الحساب. سجّل الدخول مرة أخرى لتحميل لوحة المعلومات.')}</div>`;return;}const a=state.access,nav=navigation(),req={};if(nav.has('leads')){req.board=api('/api/pipeline/stage-summary');req.followups=api('/api/pipeline/follow-ups?period=all&page=1&limit=6');}if(nav.has('tasks'))req.tasks=api(`/api/user/training/tasks?status=active&scope=${['owner','manager','team_leader'].includes(a.role)?'team':'mine'}&page=1&limit=6`);if(a.categoryKey==='training_center'&&a.modules?.finance&&(nav.has('invoices')||nav.has('reports'))){const today=period(),from=new Date(today.slice(0,7)+'-01T00:00:00Z');from.setUTCMonth(from.getUTCMonth()-11);req.finance=api(`/api/workspace/finance/reports/dashboard?from=${from.toISOString().slice(0,10)}&to=${today}`);}if(a.categoryKey==='training_center'&&a.modules?.courses&&nav.has('courses')){req.courses=api('/api/workspace/courses?status=active&page=1&limit=100');if(a.permissions?.['courses.manage'])req.enrollments=api('/api/workspace/courses/enrollments?page=1&limit=1');}if(a.categoryKey==='7network_sales'&&nav.has('sales-targets')){const month=period().slice(0,7);req.targets=api(`/api/user/sales-targets?period=${month}`);if(nav.has('sales-deals'))req.deals=api('/api/user/sales-commissions/deals?status=pending_approval&limit=100');}if(a.categoryKey==='7network_sales'){if(nav.has('campaigns'))req.campaigns=api('/api/broadcast/dashboard');if(nav.has('call-center'))req.calls=api('/api/user/call-center/calls');if(nav.has('sales-finance')){req.salesFinance=api('/api/user/sales-finance/overview');if(['owner','accountant'].includes(a.role)){req.invoices=api('/api/user/sales-finance/invoices?limit=5');req.receipts=api('/api/user/sales-finance/receipts?limit=5');}}}
+const entries=Object.entries(req),results=await Promise.allSettled(entries.map(([,p])=>p));state.data={};for(let i=0;i<entries.length;i++)if(results[i].status==='fulfilled')state.data[entries[i][0]]=results[i].value;else state.errors.add(entries[i][0]);paint();if(state.errors.size){const labels=[...state.errors].map(k=>({finance:'finance overview',board:'lead overview',followups:'follow-ups',tasks:'tasks',courses:'courses',enrollments:'enrollments',targets:'sales performance',deals:'sales reviews',salesFinance:'Sales Finance',campaigns:'campaign performance',calls:'call center activity',invoices:'invoice list',receipts:'recent receipts'}[k]||k));$('#notice').hidden=false;$('#notice').textContent=tr(`Some sections could not load: ${labels.join(', ')}. Other dashboard data is shown.`,`تعذر تحميل بعض الأقسام: ${labels.join('، ')}. تظهر بقية بيانات لوحة المعلومات.`);}else $('#notice').hidden=true;}
 $('#refresh').onclick=load;
 $('#retail-range').onchange=load;
-window.addEventListener('storage',e=>{if(e.key===null||['language','wacrm_user','wacrm_agent'].includes(e.key))load();});
-window.addEventListener('storage',e=>{if(e.key===null||e.key==='theme_mode')syncRetailTheme();});
-systemDark.addEventListener('change',syncRetailTheme);
+window.addEventListener('storage',e=>{
+  if(e.key==='language')load();
+  else if(state.access?.categoryKey==='retail_boutique'){
+    if(e.key===null||['wacrm_user','wacrm_agent'].includes(e.key))load();
+    if(e.key===null||e.key==='theme_mode')syncRetailTheme();
+  }
+});
+systemDark.addEventListener('change',()=>{
+  if(state.access?.categoryKey==='retail_boutique')syncRetailTheme();
+});
 load();
 })();

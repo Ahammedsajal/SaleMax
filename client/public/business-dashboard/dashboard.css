@@ -73,7 +73,7 @@
 }
 
 /* Retail uses the existing dashboard shell and semantic workspace colors. */
-.dashboard [hidden] { display: none !important; }
+.retail-category [hidden] { display: none !important; }
 html[data-sx-modern][data-retail-theme="dark"] {
   color-scheme: dark;
   --sx-canvas: #111824;
@@ -127,7 +127,7 @@ html[data-sx-modern] .retail-category :is(.metric,.retail-panel) {
   overflow-wrap: anywhere;
 }
 .retail-category :is(.metric-label,.metric-note,.section-title p,.retail-order-row small,.updated) { color: var(--sx-muted); }
-.retail-overview { display: grid; grid-template-columns: minmax(0,1.75fr) minmax(0,1fr); gap: 16px; }
+.retail-category .retail-overview { display: grid; grid-template-columns: minmax(0,1.75fr) minmax(0,1fr); gap: 16px; }
 .retail-order-list,.retail-status-list { list-style: none; padding: 0; margin: 14px 0 0; }
 .retail-order-row {
   display: grid;
@@ -168,7 +168,7 @@ html[data-sx-modern] .retail-category :is(.metric,.retail-panel) {
 .retail-category .updated { text-align: start; }
 @media (max-width: 1000px) {
   .retail-category .metrics { grid-template-columns: repeat(2,minmax(0,1fr)); }
-  .retail-overview { grid-template-columns: minmax(0,1fr); }
+  .retail-category .retail-overview { grid-template-columns: minmax(0,1fr); }
 }
 @media (max-width: 600px) {
   html[data-sx-modern] .dashboard.retail-category { padding: 16px 14px 24px; }
