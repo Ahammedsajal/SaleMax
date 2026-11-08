@@ -2290,3 +2290,8 @@ Follow-up release `adc8ce2e9a92a4b11886412817d410a3de77727f` supersedes the init
 ### Public website hero motion preference follow-up — 8 November 2026
 
 The browser review exposed `prefers-reduced-motion: reduce`, which had hidden the hero effect. Current release `196bd5518f34b269b7b2b9175ef287eb78ccc4e2` keeps pointer feedback enabled for fine pointers while removing easing, fade and blur under that preference. Browser confirms the updated assets and accessibility mode; see `DEPLOYMENT.md` for live hashes and rollback. Physical cursor interaction and remaining responsive, localization, theme and roadmap checks remain open.
+
+
+### Public website pond ripple interaction — 8 November 2026
+
+Replaced the cursor-following glow with visible expanding pond-style ripple rings in the hero. Mouse movement creates spreading rings, click/tap creates an immediate ring, and reduced-motion mode uses a static ripple. Production browser review showed the rings. Current source `627716cd682eb030eef785b25b6e278236719a57`; release and rollback details are in `DEPLOYMENT.md`. Touch-device, localization, theme and wider roadmap acceptance remain open.
