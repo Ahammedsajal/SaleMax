@@ -28,13 +28,13 @@
     />
     <link rel="icon" href="/favicon.ico?v=20261022-clear1" />
     <link rel="apple-touch-icon" href="/branding/7network/apple-touch-icon.png?v=20261022-clear1" />
-    <link rel="stylesheet" href="/website/website.css?v=20261108-3dhero1" />
+    <link rel="stylesheet" href="/website/website.css?v=20261108-hero-bg-motion2" />
     <script
       defer
-      src="/website/plan-presentation.js?v=20261029-pricing-redesign7"
+      src="/website/plan-presentation.js?v=20261103-whatsapp-icon1"
     ></script>
-    <script defer src="/website/website.js?v=20261031-meta-pixel-consent1"></script>
-    <script defer src="/website/hero-scene.bundle.js?v=20261108-3dhero1"></script>
+    <script defer src="/website/website.js?v=20261108-hero-bg-motion2"></script>
+    <script defer src="/website/hero-scene.bundle.js?v=20261108-hero-bg-motion2"></script>
   </head>
   <body>
     <a class="skip" href="#main"><span data-ar="انتقل إلى المحتوى">Skip to content</span></a>
@@ -80,6 +80,7 @@
     <main id="main">
       <section class="hero">
         <div class="hero-grid" aria-hidden="true"></div>
+        <canvas class="hero-water" aria-hidden="true"></canvas>
         <div class="hero-orb orb-one" aria-hidden="true"></div>
         <div class="hero-orb orb-two" aria-hidden="true"></div>
         <div class="hero-inner">
@@ -147,6 +148,156 @@
           </div>
         </div>
       </div>
+      <section class="integration-section" id="integrations" aria-labelledby="integrations-title">
+        <div class="integration-container">
+          <h2 class="integration-title" id="integrations-title" data-ar="يتكامل مع:">Integrates with:</h2>
+          <div class="integration-panel">
+            <div class="integration-grid" aria-label="7Network integrations">
+              <div class="integration-item integration-email">
+                <svg class="integration-icon" viewBox="0 0 64 64" aria-hidden="true"><path d="M11 19c.4-3.4 2.4-5 5.7-5h31c3.6 0 5.4 1.8 5.4 5v26c0 3.6-1.8 5.4-5.4 5.4H17c-4 0-6-1.9-6-5.8V19Z"/><path d="m13 18 19 16 19-16M12 46l14-14m25 14L38 32"/></svg>
+                <span class="integration-label" data-ar="البريد الإلكتروني">Email</span>
+              </div>
+              <div class="integration-item integration-chat">
+                <svg class="integration-icon" viewBox="0 0 64 64" aria-hidden="true"><path d="M32 11C18.8 11 9 19.5 9 30.2c0 6 3.3 10.9 9 14l-3.2 9 12.1-4.1c1.7.4 3.4.6 5.1.6 13.4 0 23-8.4 23-19.5S45.3 11 32 11Z"/><path d="M21 30h.2m10.7 0h.2m10.6 0h.2"/></svg>
+                <span class="integration-label" data-ar="الدردشة المباشرة">Live chat</span>
+              </div>
+              <div class="integration-item integration-whatsapp">
+                <svg class="integration-icon" viewBox="0 0 64 64" aria-hidden="true"><path d="M51 29.5c0 11.3-9 20.1-20.2 20.1-3.5 0-6.7-.8-9.5-2.4L12 50l2.9-8.8a19.7 19.7 0 0 1-3.1-10.7C11.8 19.4 20.7 10.5 32 10.5S51 19.1 51 29.5Z"/><path d="M23 21.5c-1 1-2 2.2-1.2 4.9 1.1 4.2 6.4 10.2 11.2 12.2 2.6 1.1 4 .2 5.2-1l2.1-2.8-6.4-3-2.4 2.6c-2.8-1.1-5.1-3.3-6.2-5.7l2.2-2.6-3-6.2-1.5 1.6Z"/></svg>
+                <span class="integration-label" data-ar="واتساب">WhatsApp</span>
+              </div>
+              <div class="integration-item integration-voice">
+                <svg class="integration-icon" viewBox="0 0 64 64" aria-hidden="true"><path d="m19 12 8-1 6 13-6 5c2.2 4.7 5.5 8 10.3 10.3l5-6 13 6-1 8c-.3 3.4-3 5.5-6 5-20.4-3.7-33.5-17-37-37-.5-3 1.5-5.7 4.7-6.3Z"/><path d="M39 13c7.3 1.2 11 5 12 12m-12-5c4 .7 5.5 2.4 6 6"/></svg>
+                <span class="integration-label" data-ar="الاتصال الصوتي عبر الإنترنت">VoIP</span>
+              </div>
+              <div class="integration-item integration-woo">
+                <svg class="integration-icon" viewBox="0 0 64 64" aria-hidden="true"><path d="M15 20h36l-3.2 29H18.5L15 20Z"/><path d="M23 22c.1-8 3.2-12 9.2-12 5.8 0 9 4.2 9 12M24 36c4.4 5.3 12 5.8 17 .1M27 31h.2m12.1 0h.2"/></svg>
+                <span class="integration-label">WooCommerce</span>
+              </div>
+              <div class="integration-item integration-shopify">
+                <svg class="integration-icon" viewBox="0 0 64 64" aria-hidden="true"><path d="m18 20 30-2 5 33H13l5-31Z"/><path d="M24 21c0-8 3.1-12 9-12 5.6 0 8.5 4 8.7 11M27 34c2.6-3 9.7-2.6 10.1.8.4 3.2-8.4 3.2-8 6.8.4 3.5 7.4 3.7 10.3.8"/></svg>
+                <span class="integration-label">Shopify</span>
+              </div>
+              <div class="integration-item integration-ai">
+                <svg class="integration-icon" viewBox="0 0 64 64" aria-hidden="true"><path d="m30 9 4.4 15.5L50 29l-15.6 4.4L30 49l-4.4-15.6L10 29l15.6-4.5L30 9Z"/><path d="m49 39 2.4 7.6L59 49l-7.6 2.4L49 59l-2.4-7.6L39 49l7.6-2.4L49 39Z"/><path d="M12 10v8m-4-4h8"/></svg>
+                <span class="integration-label" data-ar="تكاملات الذكاء الاصطناعي">AI integrations</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+      <section class="feature-showcase" id="features" aria-labelledby="feature-showcase-title">
+        <div class="feature-showcase-inner">
+          <h2 class="feature-showcase-title" id="feature-showcase-title">
+            <span data-ar="كل ميزات CRM">All your CRM</span><br />
+            <span class="feature-title-mark feature-title-circle" data-ar="في مكانها الصحيح.">features,</span>
+            <span class="feature-title-mark feature-title-underline" data-ar="مصممة لتعمل معاً.">working better together.</span>
+          </h2>
+          <div class="feature-showcase-grid">
+            <article class="feature-showcase-card">
+              <span class="feature-showcase-star" aria-hidden="true"><svg viewBox="0 0 48 48"><path d="m25 4 5.2 14.1L45 20l-12.1 8.2L36 43l-11-9-11 9 3.1-14.8L5 20l14.8-1.9L25 4Z"/></svg></span>
+              <h3 data-ar="فعّل الأتمتة">Enable automation</h3>
+              <p data-ar="أتمت إنشاء العملاء المحتملين وتوزيعها على الفريق ومواعيد المتابعة والمهام المتكررة.">Automate lead capture, team assignment, follow-up reminders and the repeatable tasks that keep work moving.</p>
+            </article>
+            <article class="feature-showcase-card">
+              <span class="feature-showcase-star" aria-hidden="true"><svg viewBox="0 0 48 48"><path d="m25 4 5.2 14.1L45 20l-12.1 8.2L36 43l-11-9-11 9 3.1-14.8L5 20l14.8-1.9L25 4Z"/></svg></span>
+              <h3 data-ar="رؤى ذكية للعملاء المحتملين">AI-assisted lead insights</h3>
+              <p data-ar="اربط أدوات الذكاء الاصطناعي المدعومة للمساعدة في مراجعة التفاصيل وتجهيز الخطوة التالية. يعتمد التوفر على الإعداد والخطة.">Connect supported AI tools to help review lead details and prepare a useful next step. Options depend on your setup and plan.</p>
+            </article>
+            <article class="feature-showcase-card">
+              <span class="feature-showcase-star" aria-hidden="true"><svg viewBox="0 0 48 48"><path d="m25 4 5.2 14.1L45 20l-12.1 8.2L36 43l-11-9-11 9 3.1-14.8L5 20l14.8-1.9L25 4Z"/></svg></span>
+              <h3 data-ar="قلّل الإدخال اليدوي">Reduce manual entry</h3>
+              <p data-ar="احتفظ ببيانات العميل ومحادثاته ومتابعته في سجل واحد، ليكمل الفريق العمل دون تكرار إدخال المعلومات.">Keep lead details, conversations and follow-up in one record, so your team can continue without entering the same information twice.</p>
+            </article>
+            <article class="feature-showcase-card">
+              <span class="feature-showcase-star" aria-hidden="true"><svg viewBox="0 0 48 48"><path d="m25 4 5.2 14.1L45 20l-12.1 8.2L36 43l-11-9-11 9 3.1-14.8L5 20l14.8-1.9L25 4Z"/></svg></span>
+              <h3 data-ar="أدر العملاء المحتملين">Manage leads</h3>
+              <p data-ar="أنشئ العملاء المحتملين واستوردهم وأهّلهم وعيّن المسؤول عنهم وتابع تقدمهم من مساحة واحدة.">Create or import leads, qualify them, assign an owner and follow progress through your pipeline in one place.</p>
+            </article>
+          </div>
+          <a class="feature-showcase-link" href="#platform" data-ar="اكتشف كيف يعمل CRM">See how your CRM works</a>
+        </div>
+      </section>
+      <section class="conversation-story" id="conversations" aria-labelledby="conversation-story-title">
+        <div class="conversation-story-inner">
+          <header class="conversation-story-heading">
+            <h2 id="conversation-story-title" data-ar="حوّل كل محادثة إلى خطوة أفضل لنشاطك.">Make every conversation a better next step.</h2>
+            <p data-ar="اربط حملات واتساب ومحادثات الفريق والمتابعة في مساحة عمل واحدة.">Bring WhatsApp campaigns, team conversations and follow-up together in one connected workspace.</p>
+          </header>
+          <article class="conversation-story-row">
+            <div class="conversation-story-copy">
+              <h3 data-ar="حملات واتساب مرتبطة بعملائك.">WhatsApp campaigns, connected to your customers.</h3>
+              <p data-ar="نظّم الجمهور وجهّز القوالب المدعومة وتابع نشاط الحملة مع سياق العميل وخطوات المتابعة في CRM.">Organize audiences, prepare supported templates and keep campaign activity connected to customer context and CRM follow-up.</p>
+            </div>
+            <div class="conversation-story-art campaign-preview" aria-hidden="true">
+              <img class="story-human-photo" src="/website/media/customer-enquiry-owner.webp" width="1280" height="853" loading="lazy" decoding="async" alt="" />
+              <div class="story-window">
+                <div class="story-window-bar"><span class="story-window-dots"><i></i><i></i><i></i></span><span data-ar="7Network / الحملات">7Network / Campaigns</span><span class="story-window-pill" data-ar="معاينة">PREVIEW</span></div>
+                <div class="campaign-preview-content">
+                  <div class="story-overline" data-ar="حملة واتساب">WHATSAPP CAMPAIGN</div>
+                  <h4 data-ar="تواصل مجدداً مع عملائك">Reconnect with your customers</h4>
+                  <div class="campaign-preview-row"><span class="story-mini-icon">WA</span><span><b data-ar="جمهور الحملة">Campaign audience</b><small data-ar="جهات اتصال محددة">Selected contacts</small></span><span class="story-status-dot"></span></div>
+                  <div class="campaign-message"><small data-ar="معاينة الرسالة">MESSAGE PREVIEW</small><p data-ar="مرحباً! لدينا تحديث نود مشاركته معك.">Hello! We have an update to share with you.</p></div>
+                  <div class="campaign-footer"><span data-ar="القالب جاهز للمراجعة">Template ready for review</span><b data-ar="مسودة">Draft</b></div>
+                </div>
+              </div>
+              <div class="story-float-tag campaign-float"><i></i><span data-ar="راجع قبل الإرسال">Review before sending</span></div>
+            </div>
+          </article>
+          <article class="conversation-story-row is-reversed">
+            <div class="conversation-story-copy">
+              <h3 data-ar="صندوق وارد موحّد لفريقك.">One unified inbox for your team.</h3>
+              <p data-ar="اجمع محادثات واتساب المتصلة في صندوق الفريق المشترك. عيّن المسؤول واحتفظ بالسياق ونسّق الرد التالي معاً.">Bring connected WhatsApp conversations into your shared team inbox. Assign an owner, keep context visible and coordinate the next reply together.</p>
+            </div>
+            <div class="conversation-story-art inbox-preview" aria-hidden="true">
+              <img class="story-human-photo" src="/website/media/team-collaboration.webp" width="1280" height="853" loading="lazy" decoding="async" alt="" />
+              <div class="inbox-preview-window">
+                <div class="inbox-preview-top"><span class="story-window-dots"><i></i><i></i><i></i></span><b data-ar="7Network / صندوق الفريق">7Network / Team inbox</b><span class="inbox-online"><i></i><span data-ar="الفريق متصل">Team online</span></span></div>
+                <div class="inbox-preview-body">
+                  <div class="inbox-thread-list">
+                    <div class="inbox-list-heading"><span data-ar="المحادثات">CONVERSATIONS</span><span>3</span></div>
+                    <div class="inbox-thread selected"><i class="thread-avatar green">SA</i><span><b>Sarah A.</b><small data-ar="شكراً، هذا مناسب لي.">Thanks, that works for me.</small></span><em data-ar="الآن">Now</em></div>
+                    <div class="inbox-thread"><i class="thread-avatar violet">MK</i><span><b>Mohammed K.</b><small data-ar="هل يمكنني معرفة المزيد؟">Can I get more details?</small></span></div>
+                    <div class="inbox-thread"><i class="thread-avatar blue">LN</i><span><b>Lina N.</b><small data-ar="أرسلت الطلب.">I’ve sent the request.</small></span></div>
+                  </div>
+                  <div class="inbox-conversation"><div class="inbox-contact"><b>Sarah Al-Mansoori</b><small data-ar="مسندة إلى سميرة">Assigned to Samira</small></div><div class="inbox-bubble incoming" data-ar="مرحباً، أود معرفة المزيد عن خدمتكم.">Hello, I’d like to know more about your service.</div><div class="inbox-bubble outgoing" data-ar="بالتأكيد. سأشارك التفاصيل معك.">Of course. I’ll share the details with you.</div><div class="inbox-reply" data-ar="اكتب رداً…">Write a reply…</div></div>
+                </div>
+              </div>
+              <div class="story-float-tag inbox-float"><i></i><span data-ar="سياق مشترك للفريق">Shared team context</span></div>
+            </div>
+          </article>
+          <article class="conversation-story-row">
+            <div class="conversation-story-copy">
+              <h3 data-ar="اربط القنوات وسير العمل.">Connect channels to your CRM workflow.</h3>
+              <p data-ar="اجمع الاستفسارات من مصادر مدعومة مثل واتساب ونماذج الموقع، ثم احتفظ بمصدرها وتفاصيل جهة الاتصال في السجل.">Bring enquiries from supported sources such as WhatsApp and website forms into your CRM, with contact details and source kept together.</p>
+            </div>
+            <div class="conversation-story-art channel-preview" aria-hidden="true">
+              <img class="story-human-photo" src="/website/media/customer-welcome.webp" width="1280" height="853" loading="lazy" decoding="async" alt="" />
+              <div class="channel-node channel-node-wa"><span>WA</span><b>WhatsApp</b><small data-ar="محادثة">Conversation</small></div>
+              <div class="channel-node channel-node-web"><span>WEB</span><b data-ar="نموذج الموقع">Website form</b><small data-ar="استفسار جديد">New enquiry</small></div>
+              <div class="channel-connectors"><i></i><i></i></div>
+              <div class="channel-core"><span class="channel-core-mark">7</span><b data-ar="سجل واحد للعميل">One customer record</b><small data-ar="المصدر · جهة الاتصال · السياق">Source · Contact · Context</small><div class="channel-core-line"><i></i><i></i><i></i></div></div>
+            </div>
+          </article>
+          <article class="conversation-story-row is-reversed">
+            <div class="conversation-story-copy">
+              <h3 data-ar="أتمت المتابعة مع إبقاء الفريق على اطلاع.">Automate follow-up. Keep your team in control.</h3>
+              <p data-ar="أنشئ خطوات متكررة للاستفسارات والمتابعة، واستخدم روبوتات المحادثة المدعومة مع تسليم واضح للفريق عند الحاجة.">Set up repeatable enquiry and follow-up steps, with supported chatbots and a clear hand-off to your team when needed.</p>
+            </div>
+            <div class="conversation-story-art automation-preview" aria-hidden="true">
+              <img class="story-human-photo" src="/website/media/team-follow-up.webp" width="1280" height="853" loading="lazy" decoding="async" alt="" />
+              <div class="automation-preview-heading"><span data-ar="أتمتة سير العمل">WORKFLOW AUTOMATION</span><b data-ar="متابعة العميل المحتمل">Lead follow-up</b></div>
+              <div class="automation-flow">
+                <div class="automation-step"><i class="automation-step-icon trigger-icon">✦</i><span><b data-ar="استفسار جديد">New enquiry</b><small data-ar="الموقع أو واتساب">Website or WhatsApp</small></span></div>
+                <div class="automation-link"><i></i></div>
+                <div class="automation-step"><i class="automation-step-icon assign-icon">AS</i><span><b data-ar="تعيين إلى الفريق">Assign to team</b><small data-ar="تحديد المسؤولية بوضوح">Keep ownership clear</small></span></div>
+                <div class="automation-link"><i></i></div>
+                <div class="automation-step"><i class="automation-step-icon task-icon">✓</i><span><b data-ar="جدولة المتابعة">Schedule follow-up</b><small data-ar="إظهار الخطوة التالية">Make the next step visible</small></span></div>
+              </div>
+              <div class="automation-preview-footer"><span><i></i><span data-ar="جاهز لسير عملك">Ready for your workflow</span></span><b data-ar="إعداد فريقك">Configured by your team</b></div>
+            </div>
+          </article>
+        </div>
+      </section>
       <section class="section platform funnel-section" id="platform">
         <div class="section-heading reveal funnel-heading">
           <div>
@@ -158,105 +309,77 @@
           </p>
         </div>
         <div class="funnel-deck" aria-label="Eight stages of a connected customer journey">
-          <article class="funnel-card" style="--stage:#27a77b" aria-labelledby="funnel-capture-title">
+          <article class="funnel-card" aria-labelledby="funnel-capture-title">
             <div class="funnel-card-copy">
               <p class="funnel-stage"><span>01</span><span data-ar="التقاط الاستفسار">CAPTURE</span></p>
-              <h3 id="funnel-capture-title" data-ar="ابدأ من حيث يبدأ اهتمام العميل.">Catch interest wherever it starts.</h3>
-              <p data-ar="اجمع الاستفسارات من موقعك والقنوات المتصلة، واجعل مصدر كل طلب واضحاً للفريق.">Collect enquiries from your website and connected channels, with the source visible to your team.</p>
+              <h3 id="funnel-capture-title" data-ar="اجمع كل استفسار في مكان واحد.">Bring every enquiry into one place.</h3>
+              <p data-ar="استقبل الاستفسارات من موقعك وواتساب ورموز QR والقنوات المتصلة، واعرف مصدر كل طلب.">Capture enquiries from your website, WhatsApp, QR codes and connected channels, then see where each one began.</p>
               <div class="funnel-tags"><span data-ar="نماذج الموقع">Website forms</span><span>WhatsApp</span><span>QR</span></div>
             </div>
-            <div class="funnel-visual capture-visual" aria-hidden="true">
-              <span class="visual-orbit"></span><span class="visual-orbit visual-orbit-inner"></span>
-              <div class="mini-enquiry"><small data-ar="استفسار جديد">NEW ENQUIRY</small><strong data-ar="طلب إعداد CRM">CRM setup request</strong><span><i></i> <span data-ar="نموذج الموقع">Website form</span> <b data-ar="الآن">Just now</b></span></div>
-              <div class="source-chip source-chip-one">WA</div><div class="source-chip source-chip-two">QR</div>
-            </div>
+            <div class="funnel-visual capture-visual" aria-hidden="true"><img class="funnel-photo" src="/website/media/customer-enquiry-owner.webp" width="1280" height="854" alt="" loading="lazy" decoding="async" /><div class="funnel-photo-caption"><span class="funnel-photo-dot"></span><span data-ar="استفسار جديد · واتساب">New enquiry · WhatsApp</span></div></div>
           </article>
-          <article class="funnel-card" style="--stage:#5c72c8" aria-labelledby="funnel-qualify-title">
+          <article class="funnel-card" aria-labelledby="funnel-qualify-title">
             <div class="funnel-card-copy">
               <p class="funnel-stage"><span>02</span><span data-ar="تأهيل الفرصة">QUALIFY</span></p>
-              <h3 id="funnel-qualify-title" data-ar="احتفظ بالقصة كاملة مع العميل المحتمل.">Keep the whole story with the lead.</h3>
+              <h3 id="funnel-qualify-title" data-ar="اعرف العميل والفرصة معاً.">See the person and the opportunity together.</h3>
               <p data-ar="اجمع بيانات جهة الاتصال ومصدرها واحتياجها وسياق المحادثة في سجل واحد.">Keep contact details, source, request and conversation context together in one lead record.</p>
               <div class="funnel-tags"><span data-ar="بيانات العميل">Contact details</span><span data-ar="المصدر">Source</span><span data-ar="الاحتياج">Need</span></div>
             </div>
-            <div class="funnel-visual qualify-visual" aria-hidden="true">
-              <div class="profile-ring">SA</div><div class="profile-lines"><b data-ar="ملف العميل">Customer profile</b><span></span><span></span><span class="profile-highlight"></span></div>
-              <div class="profile-badge"><span data-ar="السياق">CONTEXT</span><br /><strong data-ar="مترابط">CONNECTED</strong></div>
-            </div>
+            <div class="funnel-visual qualify-visual" aria-hidden="true"><img class="funnel-photo" src="/website/media/customer-welcome.webp" width="1280" height="854" alt="" loading="lazy" decoding="async" /><div class="funnel-photo-caption"><span class="funnel-photo-dot"></span><span data-ar="بيانات العميل وسياق التواصل">Contact + customer context</span></div></div>
           </article>
-          <article class="funnel-card" style="--stage:#a05fc1" aria-labelledby="funnel-assign-title">
+          <article class="funnel-card" aria-labelledby="funnel-assign-title">
             <div class="funnel-card-copy">
               <p class="funnel-stage"><span>03</span><span data-ar="تعيين المسؤول">ASSIGN</span></p>
-              <h3 id="funnel-assign-title" data-ar="اجعل المسؤولية واضحة للجميع.">Make ownership unmistakable.</h3>
+              <h3 id="funnel-assign-title" data-ar="حدّد مسؤولاً واضحاً لكل فرصة.">Give every opportunity a clear owner.</h3>
               <p data-ar="عيّن مسؤولاً عن كل فرصة وامنح الفريق سياقاً مشتركاً لتنسيق الرد والمتابعة.">Assign an owner to each opportunity and give the team shared context for replies and follow-up.</p>
               <div class="funnel-tags"><span data-ar="مسؤول محدد">Named owner</span><span data-ar="سياق الفريق">Team context</span></div>
             </div>
-            <div class="funnel-visual assign-visual" aria-hidden="true">
-              <div class="assign-thread"><span class="assign-dot"></span><div><small data-ar="مسؤول الفرصة">LEAD OWNER</small><strong data-ar="فريق المبيعات">Sales team</strong><em data-ar="تم التعيين الآن">Assigned just now</em></div><b>✓</b></div>
-              <div class="assign-thread assign-thread-faded"><span class="assign-dot"></span><div><small data-ar="سياق مشترك">SHARED CONTEXT</small><strong data-ar="الوارد + مسار المبيعات">Inbox + pipeline</strong></div></div>
-            </div>
+            <div class="funnel-visual assign-visual" aria-hidden="true"><img class="funnel-photo" src="/website/media/team-collaboration.webp" width="1280" height="854" alt="" loading="lazy" decoding="async" /><div class="funnel-photo-caption"><span class="funnel-photo-dot"></span><span data-ar="مسؤول واضح · فريق متصل">Clear owner · shared team</span></div></div>
           </article>
-          <article class="funnel-card" style="--stage:#d17a42" aria-labelledby="funnel-followup-title">
+          <article class="funnel-card" aria-labelledby="funnel-followup-title">
             <div class="funnel-card-copy">
               <p class="funnel-stage"><span>04</span><span data-ar="المتابعة">FOLLOW UP</span></p>
-              <h3 id="funnel-followup-title" data-ar="اجعل الخطوة التالية واضحة وفي موعدها.">Make the next action easy to see.</h3>
+              <h3 id="funnel-followup-title" data-ar="اعرف الخطوة التالية وموعدها.">Know the next step—and when it is due.</h3>
               <p data-ar="أنشئ مهاماً ومواعيد متابعة، وأتمت الخطوات المتكررة التي تساعد فريقك على الاستمرار.">Schedule tasks and reminders, then automate repeatable steps that keep the team moving.</p>
               <div class="funnel-tags"><span data-ar="مهام">Tasks</span><span data-ar="تذكيرات">Reminders</span><span data-ar="أتمتة">Automation</span></div>
             </div>
-            <div class="funnel-visual followup-visual" aria-hidden="true">
-              <div class="timeline-line"></div>
-              <div class="timeline-event"><i class="done">✓</i><span><b data-ar="تم استلام الاستفسار">Enquiry received</b><small data-ar="اليوم · ٩:١٤ ص">Today · 9:14 AM</small></span></div>
-              <div class="timeline-event"><i class="current"></i><span><b data-ar="الرد على العميل">Reply to customer</b><small data-ar="مهمة متابعة · اليوم">Follow-up task · Today</small></span></div>
-              <div class="timeline-event timeline-event-muted"><i></i><span><b data-ar="مراجعة الفرصة">Review opportunity</b><small data-ar="الخطوة التالية">Next step</small></span></div>
-            </div>
+            <div class="funnel-visual followup-visual" aria-hidden="true"><img class="funnel-photo" src="/website/media/team-follow-up.webp" width="1280" height="854" alt="" loading="lazy" decoding="async" /><div class="funnel-photo-caption"><span class="funnel-photo-dot"></span><span data-ar="الخطوة التالية · مجدولة">Next step · scheduled</span></div></div>
           </article>
-          <article class="funnel-card" style="--stage:#c54c61" aria-labelledby="funnel-progress-title">
+          <article class="funnel-card" aria-labelledby="funnel-progress-title">
             <div class="funnel-card-copy">
               <p class="funnel-stage"><span>05</span><span data-ar="تقدم الفرصة">PROGRESS</span></p>
-              <h3 id="funnel-progress-title" data-ar="تابع الصفقة عبر مراحل البيع.">Move the opportunity through your pipeline.</h3>
+              <h3 id="funnel-progress-title" data-ar="تابع كل فرصة حتى القرار.">See each opportunity move toward a decision.</h3>
               <p data-ar="اعرف ما هو جديد وما يحتاج متابعة وما تم حسمه، وسجّل النتيجة والخطوة التالية.">See what is new, what needs attention and what is won. Record the outcome and next step.</p>
               <div class="funnel-tags"><span data-ar="مراحل البيع">Sales stages</span><span data-ar="النتيجة">Outcome</span></div>
             </div>
-            <div class="funnel-visual pipeline-visual" aria-hidden="true">
-              <div class="pipeline-labels"><span data-ar="جديد">NEW</span><span data-ar="جارٍ">ACTIVE</span><span data-ar="ناجح">WON</span></div>
-              <div class="pipeline-track"><i></i><i class="active"></i><i></i></div>
-              <div class="pipeline-deal"><small data-ar="فرصة بيع">OPPORTUNITY</small><strong data-ar="مساحة عمل CRM">CRM workspace</strong><span><span data-ar="الخطوة التالية">Next step</span> <b data-ar="مراجعة العرض">Proposal review</b></span></div>
-            </div>
+            <div class="funnel-visual pipeline-visual" aria-hidden="true"><img class="funnel-photo" src="/website/media/journey-progress-team.webp" width="1280" height="960" alt="" loading="lazy" decoding="async" /><div class="funnel-photo-caption"><span class="funnel-photo-dot"></span><span data-ar="مراجعة الفريق · الفرصة قيد التقدم">Team review · opportunity progressing</span></div></div>
           </article>
-          <article class="funnel-card" style="--stage:#7b61b5" aria-labelledby="funnel-campaign-title">
+          <article class="funnel-card" aria-labelledby="funnel-campaign-title">
             <div class="funnel-card-copy">
               <p class="funnel-stage"><span>06</span><span data-ar="الحملات وإعادة التفاعل">CAMPAIGNS</span></p>
-              <h3 id="funnel-campaign-title" data-ar="واصل التواصل برسائل ذات صلة.">Keep the relationship moving.</h3>
+              <h3 id="funnel-campaign-title" data-ar="تابع العملاء برسائل مفيدة.">Keep customers engaged with thoughtful campaigns.</h3>
               <p data-ar="نظّم الجمهور وجهّز قوالب معتمدة وتابع نشاط الحملات ضمن إعدادات القنوات وموافقات التواصل.">Organize audiences, prepare supported templates and review campaign activity within channel and consent settings.</p>
               <div class="funnel-tags"><span data-ar="قوالب معتمدة">Supported templates</span><span data-ar="مراجعة الجمهور">Audience review</span></div>
             </div>
-            <div class="funnel-visual campaign-visual" aria-hidden="true">
-              <div class="campaign-orb"></div><div class="campaign-message"><small data-ar="مسودة حملة">CAMPAIGN DRAFT</small><strong data-ar="تحديث مفيد لعملائك">Helpful update for your customers</strong><span><i></i> <span data-ar="قالب جاهز للمراجعة">Template ready for review</span></span></div>
-              <div class="campaign-stamp"><span data-ar="مراجعة">REVIEW</span><br /><b data-ar="قبل الإرسال">BEFORE SEND</b></div>
-            </div>
+            <div class="funnel-visual campaign-visual" aria-hidden="true"><img class="funnel-photo" src="/website/media/journey-campaign.webp" width="1280" height="960" alt="" loading="lazy" decoding="async" /><div class="funnel-photo-caption"><span class="funnel-photo-dot"></span><span data-ar="الحملة · جاهزة للمراجعة">Campaign · ready to review</span></div></div>
           </article>
-          <article class="funnel-card" style="--stage:#42988b" aria-labelledby="funnel-invoice-title">
+          <article class="funnel-card" aria-labelledby="funnel-invoice-title">
             <div class="funnel-card-copy">
               <p class="funnel-stage"><span>07</span><span data-ar="الفوترة">INVOICE</span></p>
-              <h3 id="funnel-invoice-title" data-ar="اربط الفوترة بالعمل المنجز.">Keep billing connected to the work.</h3>
+              <h3 id="funnel-invoice-title" data-ar="اربط الفاتورة بسجل العميل.">Create invoices from the customer record.</h3>
               <p data-ar="أنشئ فواتير وتابع حالتها ضمن مسارات المالية المتاحة لفئة نشاطك وإعدادك.">Create invoices and follow their status through the finance workflows available for your category and setup.</p>
               <div class="funnel-tags"><span data-ar="مسودة فاتورة">Invoice draft</span><span data-ar="حالة الفاتورة">Invoice status</span></div>
             </div>
-            <div class="funnel-visual invoice-visual" aria-hidden="true">
-              <div class="invoice-sheet"><div class="invoice-sheet-head"><b data-ar="فاتورة">INVOICE</b><span data-ar="مسودة">DRAFT</span></div><i></i><i></i><i class="invoice-line-short"></i><div class="invoice-total"><span data-ar="المبلغ">AMOUNT</span><b>QAR —</b></div></div>
-              <div class="invoice-seal">7</div>
-            </div>
+            <div class="funnel-visual invoice-visual" aria-hidden="true"><img class="funnel-photo" src="/website/media/journey-invoice.webp" width="1280" height="960" alt="" loading="lazy" decoding="async" /><div class="funnel-photo-caption"><span class="funnel-photo-dot"></span><span data-ar="فاتورة · مرتبطة بالعميل">Invoice · linked to customer</span></div></div>
           </article>
-          <article class="funnel-card" style="--stage:#44977d" aria-labelledby="funnel-payment-title">
+          <article class="funnel-card" aria-labelledby="funnel-payment-title">
             <div class="funnel-card-copy">
               <p class="funnel-stage"><span>08</span><span data-ar="المدفوعات والتحصيل">PAYMENTS</span></p>
-              <h3 id="funnel-payment-title" data-ar="تابع ما تم تحصيله وما يحتاج متابعة.">Know what is paid and what needs attention.</h3>
+              <h3 id="funnel-payment-title" data-ar="اعرف ما تم دفعه وما يحتاج متابعة.">See what is paid and what needs attention.</h3>
               <p data-ar="تابع حالات الدفع والتحصيل المدعومة، واربط المتابعة بالسجل التجاري وسياق العميل.">Track supported payment and collection status, with follow-up tied to the business record and customer context.</p>
               <div class="funnel-tags"><span data-ar="حالة التحصيل">Collection status</span><span data-ar="متابعة مالية">Finance follow-up</span></div>
             </div>
-            <div class="funnel-visual payment-visual" aria-hidden="true">
-              <div class="payment-ring"><span><span data-ar="حالة">PAYMENT</span><br /><b data-ar="الدفع">STATUS</b></span></div>
-              <div class="payment-ledger"><span><i></i><span data-ar="تم إصدار الفاتورة">Invoice issued</span></span><b data-ar="مسجل">Recorded</b><span><i class="ledger-pending"></i><span data-ar="متابعة التحصيل">Collection follow-up</span></span><b data-ar="مجدولة">Scheduled</b></div>
-            </div>
+            <div class="funnel-visual payment-visual" aria-hidden="true"><img class="funnel-photo" src="/website/media/journey-payment.webp" width="1280" height="960" alt="" loading="lazy" decoding="async" /><div class="funnel-photo-caption"><span class="funnel-photo-dot"></span><span data-ar="الدفع · تم تسجيل الحالة">Payment · status recorded</span></div></div>
           </article>
         </div>
         <div class="funnel-finish">
@@ -272,13 +395,14 @@
               LESS SWITCHING. MORE DOING.
             </p>
             <h2 data-ar="رؤية واضحة للعمل المهم.">
-              A clear view of the work that matters.
+              One CRM, shaped around your business.
             </h2>
             <p
-              data-ar="مسؤول لكل استفسار، وسياق لكل محادثة، وخطوة تالية لكل عضو في الفريق."
+              data-ar="أساس مشترك للعملاء والمحادثات والمتابعة، مع عروض وسير عمل تناسب طريقة عمل كل فريق."
             >
-              Give every enquiry an owner, every conversation context and every
-              team member a next step.
+              Start with one connected foundation for leads, conversations and
+              follow-up, then shape the views and workflows around how your
+              team serves customers.
             </p>
             <div
               class="preview-tabs"
@@ -338,8 +462,8 @@
               aria-labelledby="tab-pipeline"
             >
               <div class="preview-title">
-                <h3 data-ar="وضوح أكثر، وتقدم أكبر.">
-                  A little more clarity. A lot more progress.
+                <h3 data-ar="مساحة عمل مرنة لأعمال متنوعة.">
+                  A flexible workspace for different businesses.
                 </h3>
 
               </div>
@@ -350,9 +474,8 @@
                     ><span>2</span>
                   </p>
                   <div class="lead-card">
-                    <strong data-ar="استفسار مشروع جديد"
-                      >New project enquiry</strong
-                    ><small data-ar="نموذج الموقع">Website form</small>
+                    <strong data-ar="استفسار عن عقار">Property viewing</strong
+                    ><small data-ar="العقارات · طلب من الموقع">Real estate · Website request</small>
                     <div>
                       <span class="pill"
                         ><span data-ar="تم التعيين">Assigned</span></span
@@ -360,8 +483,8 @@
                     </div>
                   </div>
                   <div class="lead-card">
-                    <strong data-ar="إعداد CRM للفريق">Team CRM setup</strong
-                    ><small data-ar="طلب عرض">Demo requested</small>
+                    <strong data-ar="طلب عرض خدمة">Service quote request</strong
+                    ><small data-ar="خدمات مهنية · طلب عرض">Professional services · Quote requested</small>
                     <div>
                       <span class="pill"
                         ><span data-ar="تم التعيين">Assigned</span></span
@@ -375,8 +498,8 @@
                     ><span>2</span>
                   </p>
                   <div class="lead-card">
-                    <strong data-ar="مركز تدريب">Training center</strong
-                    ><small data-ar="متابعة مجدولة">Follow-up scheduled</small>
+                    <strong data-ar="استفسار عن منتج متجر">Retail product enquiry</strong
+                    ><small data-ar="التجزئة · متابعة الفريق">Retail · Team follow-up</small>
                     <div>
                       <span class="pill"
                         ><span data-ar="تم التعيين">Assigned</span></span
@@ -384,8 +507,8 @@
                     </div>
                   </div>
                   <div class="lead-card">
-                    <strong data-ar="مساحة عمل للتجزئة">Retail workspace</strong
-                    ><small data-ar="مراجعة الحل">Solution review</small>
+                    <strong data-ar="استفسار عن دورة">Course enquiry</strong
+                    ><small data-ar="التدريب · التسجيل هو التالي">Training · Registration next</small>
                     <div>
                       <span class="pill"
                         ><span data-ar="تم التعيين">Assigned</span></span
@@ -399,8 +522,8 @@
                     ><span>1</span>
                   </p>
                   <div class="lead-card">
-                    <strong data-ar="أتمتة الأعمال">Business automation</strong
-                    ><small data-ar="مناقشة العرض">Proposal discussion</small>
+                    <strong data-ar="استفسار ضيافة">Hospitality enquiry</strong
+                    ><small data-ar="الضيافة · يحتاج إلى مراجعة">Hospitality · Needs review</small>
                     <div>
                       <span class="pill"
                         ><span data-ar="تم التعيين">Assigned</span></span
@@ -414,6 +537,15 @@
                 ><span data-ar="رؤية مشتركة. مسؤولية واضحة. خطوة تالية واحدة."
                   >A shared view. Clear ownership. One next action.</span
                 >
+              </div>
+              <div class="preview-industry-list" aria-hidden="true">
+                <span data-ar="الخدمات المهنية">Professional services</span>
+                <span data-ar="العقارات">Real estate</span>
+                <span data-ar="التجزئة والتجارة الإلكترونية">Retail &amp; ecommerce</span>
+                <span data-ar="التدريب والتعليم">Training &amp; education</span>
+                <span data-ar="الضيافة">Hospitality</span>
+                <span data-ar="الجملة والتوزيع">Wholesale &amp; distribution</span>
+                <span data-ar="نشاطك">Your business</span>
               </div>
             </div>
             <div
@@ -642,6 +774,7 @@
                 ><span data-ar="لنكتشف الحل المناسب">Let’s explore the fit</span
                 ></a
               >
+              <a class="solution-video-link" href="#training-demo" data-ar="شاهد جولة مركز التدريب">Watch the Training Centre walkthrough</a>
             </article>
             <article
               id="industry-retail"
@@ -706,6 +839,27 @@
               >
             </article>
           </div>
+        </div>
+      </section>
+      <section class="training-demo-section" id="training-demo" aria-labelledby="training-demo-title">
+        <div class="training-demo-inner">
+          <header class="training-demo-heading reveal">
+            <p class="eyebrow" data-ar="جولة سريعة في مركز التدريب">TRAINING CENTRE WALKTHROUGH</p>
+            <h2 id="training-demo-title" data-ar="شاهد مركز التدريب أثناء العمل.">See the Training Centre in action.</h2>
+            <p data-ar="جولة مرئية في إدارة الدورات والمتعلمين والعمليات اليومية ضمن مساحة عمل واحدة.">Take a guided look at course operations, learner journeys and the day-to-day work connected in one workspace.</p>
+          </header>
+          <figure class="training-demo-player reveal">
+            <video id="training-demo-video" controls preload="none" playsinline poster="/website/media/training-centre-poster.webp" aria-label="7Network Training Centre product walkthrough, in English">
+              <source src="https://7network.live/meta-media/WKXIAG_qr.mp4" type="video/mp4" />
+              <span data-ar="متصفحك لا يدعم تشغيل الفيديو. يمكنك فتحه مباشرة.">Your browser does not support this video. Open the video directly.</span>
+            </video>
+            <figcaption class="training-demo-caption">
+              <span class="training-demo-caption-icon" aria-hidden="true">▶</span>
+              <span><strong data-ar="جولة في نظام 7Network Training Centre">7Network Training Centre walkthrough</strong><small data-ar="عرض توضيحي لمدة 9 دقائق · باللغة الإنجليزية">9-minute product demo · English</small></span>
+              <a href="https://7network.live/meta-media/WKXIAG_qr.mp4" target="_blank" rel="noopener noreferrer" data-ar="فتح الفيديو">Open video</a>
+            </figcaption>
+          </figure>
+          <p class="training-demo-note" data-ar="هذه الجولة تعرض بيانات تجريبية توضيحية.">This walkthrough uses illustrative demo data.</p>
         </div>
       </section>
       <section class="journey-section" id="journey">
@@ -792,12 +946,20 @@
           </div>
         </aside>
         <div class="plan-customization reveal">
-          <div>
-            <p class="eyebrow" data-ar="مناسب لطريقة عملك">MADE FOR YOUR WAY OF WORKING</p>
-            <h3 data-ar="نخصص العرض حسب نشاطك.">Your industry. Your setup.</h3>
-            <p data-ar="الفئة والميزات الخاصة وحدود المستخدمين والقنوات والتكاملات يتم تحديدها معك أثناء الإعداد.">Choose the category, optional features, team and channel limits, and integrations that fit your setup.</p>
+          <div class="custom-plan-copy">
+            <p class="eyebrow" data-ar="خطة CRM مصممة لطريقة عملك">CUSTOM CRM PLANS</p>
+            <h3 data-ar="ابدأ بأساس متصل. خصص ما يحتاجه نشاطك.">Start with a connected CRM. Shape the rest around your business.</h3>
+            <p data-ar="نحدد سير العمل والميزات المناسبة ونختار إعداداً عملياً لفريقك. تختلف الخيارات حسب فئة النشاط والخطة.">We’ll map your workflow, select suitable features and shape a practical setup for your team. Options vary by category and plan.</p>
           </div>
-          <a class="button button-dark" href="#contact" data-solution="custom"><span data-ar="ناقش احتياجاتك">Talk through your needs</span></a>
+          <ul class="custom-plan-options">
+            <li><span aria-hidden="true">01</span><span data-ar="عروض ومسارات مبيعات حسب نشاطك">Industry views &amp; sales pipelines</span></li>
+            <li><span aria-hidden="true">02</span><span data-ar="مقاعد الفريق والصلاحيات">Team seats &amp; permissions</span></li>
+            <li><span aria-hidden="true">03</span><span data-ar="صندوق الفريق والقنوات والحملات">Team inbox, channels &amp; campaigns</span></li>
+            <li><span aria-hidden="true">04</span><span data-ar="النماذج والأتمتة وروبوتات المحادثة">Forms, automation &amp; chatbots</span></li>
+            <li><span aria-hidden="true">05</span><span data-ar="الدورات والتسجيل عند ملاءمتها لنشاطك">Courses &amp; enrolment where they fit</span></li>
+            <li><span aria-hidden="true">06</span><span data-ar="الفواتير وسجلات الدفع والتقارير المدعومة">Supported invoicing, payment records &amp; reports</span></li>
+          </ul>
+          <a class="button button-dark custom-plan-cta" href="#contact" data-solution="custom"><span data-ar="خطط لمساحة عملك">Plan my workspace</span></a>
         </div>
         <p
           class="section-note"
@@ -809,101 +971,142 @@
       </section>
       <section class="section faq-section" id="faq">
         <div class="faq-heading reveal">
-          <p class="eyebrow" data-ar="المزيد من الوضوح">
-            A LITTLE MORE CLARITY
-          </p>
-          <h2 data-ar="أسئلة مهمة. إجابات واضحة.">
-            Good questions. Clear answers.
-          </h2>
-          <p data-ar="ما زلت تستكشف؟ لنتحدث عن سير عملك.">
-            Still exploring? Let’s talk through your workflow.
+          <div class="faq-heading-copy">
+            <p class="eyebrow" data-ar="مصمم ليناسب طريقة عملك">
+              BUILT AROUND YOUR BUSINESS
+            </p>
+            <h2 data-ar="نشاطك فريد. ونظام CRM يجب أن يناسبه.">
+              Your business is unique. Your CRM should fit.
+            </h2>
+          </div>
+          <p data-ar="ابدأ بميزات 7Network المدمجة، ثم خصص مساحة العمل لتناسب قطاعك وعمليات فريقك.">
+            Start with 7Network’s built-in tools, then tailor the workspace to
+            your industry and the way your team works.
           </p>
         </div>
         <div class="faq-list reveal">
-          <details>
+          <details name="business-faq" open>
             <summary>
-              <span data-ar="هل 7Network نظام واتساب فقط؟"
-                >Is 7Network only a WhatsApp system?</span
-              ><span aria-hidden="true">+</span>
+              <span class="faq-topic" data-ar="حلول مخصصة">CUSTOM FIT</span>
+              <span class="faq-question" data-ar="هل يمكن تخصيص 7Network ليناسب نشاطي؟">Can you tailor 7Network to my business?</span>
+              <span class="faq-toggle" aria-hidden="true">+</span>
             </summary>
-            <p
-              data-ar="يجمع 7Network نظام CRM ومسار المبيعات ومحادثات العملاء والحملات والأتمتة ومهام الفريق. تضيف فئات الأعمال مسارات مناسبة مثل الدورات والتسجيل والتحصيل لمراكز التدريب. واتساب جزء من سير العمل المترابط."
-            >
-              7Network connects CRM, sales pipeline, customer conversations,
-              campaigns, automation and team tasks. Business categories add
-              relevant workflows, such as courses, enrolment and collections for
-              training centers. WhatsApp is one part of the connected workflow.
-            </p>
+            <div class="faq-answer">
+              <p data-ar="نعم. نبدأ بفهم طريقة عملك، ثم نهيئ الميزات المدمجة ونحدد أي حقول أو مراحل أو صلاحيات أو نماذج أو أتمتة إضافية تحتاجها. نؤكد النطاق والتوفر والتكلفة قبل بدء أي عمل مخصص.">
+                Yes. We start by understanding how your business works, then
+                configure the built-in features and identify any additional
+                fields, stages, permissions, forms or automation you need. We
+                confirm scope, availability and cost before custom work begins.
+              </p>
+            </div>
           </details>
-          <details>
+          <details name="business-faq">
             <summary>
-              <span data-ar="هل يناسب قطاعي؟">Can it fit my industry?</span
-              ><span aria-hidden="true">+</span>
+              <span class="faq-topic" data-ar="الميزات المدمجة">BUILT IN</span>
+              <span class="faq-question" data-ar="ما الميزات الجاهزة في 7Network؟">What comes built in to 7Network?</span>
+              <span class="faq-toggle" aria-hidden="true">+</span>
             </summary>
-            <p
-              data-ar="نصمم CRM حسب أعمالك، بعروض حسب فئة النشاط وميزات وسير عمل قابل للتخصيص. مركز التدريب أحد التطبيقات. أخبرنا بقطاعك ومتطلباتك لنتفق على الإعداد والتكاملات والتطوير المخصص المطلوب."
-            >
-              We design your CRM around your business process, with
-              category-based views, configurable features and workflows.
-              Training Center is one implementation. Tell us your industry and
-              requirements so we can agree the setup, integrations and any
-              bespoke development needed.
-            </p>
+            <div class="faq-answer">
+              <p data-ar="بحسب الخطة والإعداد، قد تشمل الأدوات إدارة العملاء المحتملين ومسار المبيعات وصندوق الفريق المشترك وحملات واتساب والنماذج وروبوتات المحادثة والأتمتة. ويمكن أن تتوفر مسارات الفواتير وسجلات الدفع والتقارير وفقاً للإعداد المتفق عليه.">
+                Depending on plan and setup, the built-in toolkit can include
+                lead management, sales pipelines, a shared team inbox, WhatsApp
+                campaigns, forms, chatbots and automation. Invoicing, payment
+                records and reporting workflows can be included where supported
+                by the agreed setup.
+              </p>
+            </div>
           </details>
-          <details>
+          <details name="business-faq">
             <summary>
-              <span data-ar="كيف يتعاون فريقي؟"
-                >How does my team work together?</span
-              ><span aria-hidden="true">+</span>
+              <span class="faq-topic" data-ar="مختلف القطاعات">ANY INDUSTRY</span>
+              <span class="faq-question" data-ar="هل يناسب 7Network نوع نشاطي؟">Will 7Network work for my industry?</span>
+              <span class="faq-toggle" aria-hidden="true">+</span>
             </summary>
-            <p
-              data-ar="استخدم سياق العملاء المشترك وتعيين المسؤولين ومهام المتابعة والصلاحيات حسب الدور. تعتمد الأدوار وحدود المستخدمين على فئة الأعمال والخطة المخصصة."
-            >
-              Use shared customer context, lead ownership, follow-up tasks and
-              role-based access. Available roles and seat limits depend on the
-              business category and assigned plan.
-            </p>
+            <div class="faq-answer">
+              <p data-ar="نعمل مع أنشطة وفرق مختلفة. يمكن تهيئة المصطلحات ومراحل البيع وطرق جمع الاستفسارات ومسؤوليات الفريق لتلائم سير عملك. نراجع احتياجاتك أولاً ونوضح ما يمكن إعداده بالميزات الحالية وما يتطلب نطاقاً مخصصاً.">
+                We work with businesses and teams across different industries.
+                Labels, sales stages, enquiry capture and team responsibilities
+                can be configured around your workflow. We review your needs
+                first and explain what fits the existing toolkit and what would
+                need a custom scope.
+              </p>
+            </div>
           </details>
-          <details>
+          <details name="business-faq">
             <summary>
-              <span data-ar="ما الذي يمكن أتمتته؟">What can we automate?</span
-              ><span aria-hidden="true">+</span>
+              <span class="faq-topic" data-ar="المبيعات والفريق">SALES &amp; TEAM</span>
+              <span class="faq-question" data-ar="كيف يساعد فريقي على إدارة العملاء والمتابعة؟">How does it help my team manage customers and follow-ups?</span>
+              <span class="faq-toggle" aria-hidden="true">+</span>
             </summary>
-            <p
-              data-ar="استخدم التدفقات المرئية والروبوتات الموجهة للأسئلة الشائعة وجمع الاستفسارات والتوجيه والتحويل للموظفين. تتم مراجعة القنوات وإعداد الذكاء الاصطناعي ومتطلبات المزود أثناء التهيئة."
-            >
-              Use visual flows and guided chatbots for common questions, enquiry
-              collection, routing and handoff. Channel availability, AI
-              configuration and provider requirements are reviewed during setup.
-            </p>
+            <div class="faq-answer">
+              <p data-ar="يجمع النظام تفاصيل العميل ومصدر الاستفسار والمحادثات في سياق واحد، ثم يساعد فريقك على تعيين المسؤولين وتسجيل الخطوات التالية ومتابعة الفرص عبر مراحل البيع. تعتمد الأدوار وحدود المستخدمين على الخطة والإعداد.">
+                Keep customer details, enquiry source and conversations together.
+                Your team can assign ownership, record next steps and follow
+                opportunities through sales stages. Available roles and seat
+                limits depend on the plan and setup.
+              </p>
+            </div>
           </details>
-          <details>
+          <details name="business-faq">
             <summary>
-              <span data-ar="هل تتوفر المالية والدورات لكل نشاط؟"
-                >Are finance and courses included for every business?</span
-              ><span aria-hidden="true">+</span>
+              <span class="faq-topic" data-ar="احتياجات خاصة">BEYOND THE CORE</span>
+              <span class="faq-question" data-ar="ماذا لو احتجت إلى ميزة غير متوفرة حالياً؟">What if I need something that isn’t built in?</span>
+              <span class="faq-toggle" aria-hidden="true">+</span>
             </summary>
-            <p
-              data-ar="تعتمد الميزات على الفئة والخطة. تدعم مراكز التدريب الدورات والمتعلمين والتسجيل والفواتير والتحصيل. نؤكد المسارات المالية والحدود المتاحة لأعمالك قبل الإعداد."
-            >
-              Features are category and plan dependent. Training Center
-              workflows support courses, learners, enrolment, invoices and
-              collections. We’ll confirm the finance workflows and limits
-              available for your business before setup.
-            </p>
+            <div class="faq-answer">
+              <p data-ar="أخبرنا بالنتيجة التي تريد تحقيقها. نراجع سير العمل والمتطلبات التقنية، ثم نوضح إن كان يمكن تهيئتها ضمن الميزات الحالية أو تحتاج إلى تكامل أو تطوير مخصص. نشارك النطاق والتكلفة والجدول المتوقع للموافقة قبل البدء.">
+                Tell us what outcome you need. We’ll review the workflow and
+                technical requirements, then explain whether it fits the current
+                toolkit or needs an integration or custom development. You’ll
+                receive the proposed scope, cost and timeline for approval
+                before work starts.
+              </p>
+            </div>
           </details>
-          <details>
+          <details name="business-faq">
             <summary>
-              <span data-ar="كيف أبدأ؟">How do I get started?</span
-              ><span aria-hidden="true">+</span>
+              <span class="faq-topic" data-ar="القنوات والتكاملات">CHANNELS</span>
+              <span class="faq-question" data-ar="هل يقتصر 7Network على واتساب؟">Is 7Network only for WhatsApp?</span>
+              <span class="faq-toggle" aria-hidden="true">+</span>
             </summary>
-            <p
-              data-ar="أرسل طلب عرض أدناه مع نشاطك وأولوياتك. يصل الاستفسار إلى فريق 7Network للمراجعة والمتابعة. نناقش معك الإعداد المناسب والشروط الحالية."
-            >
-              Send a demo request below with your business and priorities. Your
-              enquiry is delivered to the 7Network team for review and follow-up.
-              We’ll discuss the right configuration and current terms with you.
-            </p>
+            <div class="faq-answer">
+              <p data-ar="لا. واتساب إحدى القنوات التي يمكن ربطها بسير عمل العملاء. تتوفر القنوات والتكاملات حسب الخطة ومزود الخدمة والإعداد. سنراجع الأدوات التي تستخدمها ونؤكد التوافق قبل الالتزام بأي تكامل.">
+                No. WhatsApp is one channel that can connect to your customer
+                workflow. Channels and integrations depend on the plan, provider
+                and setup. We’ll review the tools you use and confirm
+                compatibility before committing to an integration.
+              </p>
+            </div>
+          </details>
+          <details name="business-faq">
+            <summary>
+              <span class="faq-topic" data-ar="التسعير والنطاق">PLANS</span>
+              <span class="faq-question" data-ar="كيف يتم تحديد سعر الإعداد المخصص؟">How is a tailored solution priced?</span>
+              <span class="faq-toggle" aria-hidden="true">+</span>
+            </summary>
+            <div class="faq-answer">
+              <p data-ar="تعرض الخطط المنشورة أسعار الميزات والحدود القياسية. إذا احتجت إلى إعداد أو تكاملات أو تطوير يتجاوز ذلك، نحدد احتياجاتك ونرسل نطاقاً وتكلفة واضحين للموافقة قبل البدء.">
+                Published plans show standard pricing and limits. If your needs
+                call for additional configuration, integrations or development,
+                we’ll define the scope and share a clear price for approval
+                before work begins.
+              </p>
+            </div>
+          </details>
+          <details name="business-faq">
+            <summary>
+              <span class="faq-topic" data-ar="الخطوة التالية">GET STARTED</span>
+              <span class="faq-question" data-ar="ماذا يحدث بعد إرسال طلب التواصل؟">What happens after I get in touch?</span>
+              <span class="faq-toggle" aria-hidden="true">+</span>
+            </summary>
+            <div class="faq-answer">
+              <p data-ar="يستمع فريق 7Network إلى أهدافك، ويراجع سير العمل والميزات التي تحتاجها، ثم يشرح الإعداد المناسب والخطوات التالية. لا نبدأ عملاً مخصصاً قبل الاتفاق على النطاق والتكلفة.">
+                The 7Network team will learn about your goals, review your
+                workflow and the features you need, then talk through a suitable
+                setup and next steps. Custom work starts only after scope and
+                cost are agreed.
+              </p>
+            </div>
           </details>
         </div>
       </section>
@@ -941,6 +1144,17 @@
               <span data-ar="اطلب عرضاً توضيحياً لـ CRM">Request a CRM demo</span>
             </button>
           </div>
+          <aside class="contact-human reveal" aria-label="A conversation with the 7Network team">
+            <div class="contact-human-photo">
+              <img src="/website/media/7network-contact.webp" width="1280" height="853" loading="lazy" decoding="async" alt="7Network team member in a contemporary office" />
+              <span class="contact-human-badge"><i aria-hidden="true"></i><span data-ar="تواصل مباشر مع فريق 7Network">A real conversation with 7Network</span></span>
+            </div>
+            <div class="contact-human-note">
+              <span class="eyebrow" data-ar="بداية عملية">A PRACTICAL START</span>
+              <strong data-ar="لنصمم سير العمل المناسب لفريقك.">Let’s shape the right workflow for your team.</strong>
+              <p data-ar="أخبرنا كيف يعمل فريقك اليوم وسنناقش معك الخطوة العملية التالية.">Tell us how your team works today and we’ll talk through a useful next step.</p>
+            </div>
+          </aside>
           <dialog class="enquiry-dialog" id="enquiry-dialog" aria-labelledby="enquiry-title">
           <form
             id="enquiry-form"
@@ -950,9 +1164,9 @@
           >
             <div class="enquiry-dialog-heading">
               <div>
-                <span class="dialog-kicker"><i aria-hidden="true"></i><span data-ar="طلب عرض توضيحي لـ CRM">CRM DEMO REQUEST</span></span>
-                <h3 id="enquiry-title" data-ar="لنتعرف على أعمالك.">Tell us about your business.</h3>
-                <p data-ar="شاركنا بياناتك وفريقنا سيتواصل معك.">Share your details and our team will get in touch.</p>
+                <span class="dialog-kicker"><i aria-hidden="true"></i><span data-ar="استشارة مخصصة لنظام CRM">PERSONALISED CRM CONSULTATION</span></span>
+                <h3 id="enquiry-title" data-ar="لنجد إعداد CRM المناسب لعملك.">Let’s find the right CRM setup for your business.</h3>
+                <p data-ar="شارك رقم واتساب وبعض التفاصيل عن عملك. سيتواصل معك فريقنا لمناقشة مساحة عمل تناسب طريقة عملك.">Share your WhatsApp number and a few details about your business. Our team will follow up to discuss a workspace that fits the way you work.</p>
               </div>
               <button class="dialog-close" type="button" data-close-enquiry aria-label="Close form">×</button>
             </div>
@@ -976,8 +1190,8 @@
                   maxlength="254"
                   required /></label
               ><label for="mobile"
-                ><span data-ar="الهاتف مع رمز الدولة"
-                  >Phone with country code</span
+                ><span data-ar="رقم واتساب مع رمز الدولة"
+                  >WhatsApp number with country code</span
                 ><input
                   id="mobile"
                   name="mobile"
@@ -1022,15 +1236,15 @@
             </div>
             <label class="consent"
               ><input type="checkbox" name="consent" required /><span
-                data-ar="أوافق على تواصل 7Network معي بشأن هذا الاستفسار."
-                >I agree to be contacted by 7Network about this enquiry.</span
+                data-ar="أوافق على أن يتواصل معي 7Network بشأن هذا الاستفسار عبر واتساب أو البريد الإلكتروني أو الهاتف، وأفهم أن تفاصيل طلبي ستُشارك مع فريق مبيعات 7Network للمتابعة."
+                >I agree that 7Network may contact me about this enquiry by WhatsApp, email or phone. I understand my request details will be shared with 7Network Sales for follow-up.</span
               ></label
             >
             <p
               class="form-privacy"
-              data-ar="نستخدم هذه التفاصيل لمراجعة طلبك وترتيب المتابعة. يرجى عدم إدراج كلمات المرور أو بيانات الدفع أو المعلومات الشخصية الحساسة."
+              data-ar="نستخدم هذه التفاصيل لمراجعة طلبك وترتيب المتابعة عبر واتساب أو البريد الإلكتروني أو الهاتف. يرجى عدم إدراج كلمات المرور أو بيانات الدفع أو المعلومات الشخصية الحساسة."
             >
-              We use these details to review your request and arrange follow-up.
+              We use these details to review your request and arrange follow-up by WhatsApp, email or phone.
               Please don’t include passwords, payment details or sensitive
               personal information.
             </p>
@@ -1116,20 +1330,73 @@
       </div>
     </footer>
     <a
-      href="#contact"
+      href="https://wa.me/97455160323?text=Hello%207Network%2C%20I%E2%80%99m%20interested%20in%20your%20CRM.%20Could%20you%20share%20more%20details%3F"
       class="floating-cta"
-      aria-label="Discuss your business with 7Network"
-      ><span data-ar="لنتحدث">Let’s talk</span></a
+      target="_blank"
+      rel="noopener noreferrer"
+      aria-label="Chat with 7Network on WhatsApp"
+      ><svg class="floating-cta-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M20 11.7a8 8 0 0 1-11.8 7L4 20l1.3-4A8 8 0 1 1 20 11.7Z"/><path d="M9 8.5c.2-.5.4-.5.7-.5h.5c.2 0 .4.1.5.4l.7 1.7c.1.2 0 .4-.1.6l-.5.6c-.2.2-.2.4 0 .6.5.8 1.2 1.4 2 1.8.2.1.4.1.6-.1l.7-.8c.2-.2.4-.2.6-.1l1.5.7c.2.1.3.3.3.5 0 .4-.2 1-.7 1.3-.5.4-1.1.6-1.8.4-1-.2-2.2-.8-3.3-1.8-1.2-1-2-2.4-2.2-3.3-.2-.8.1-1.5.5-2Z"/></svg></a
     >
-    <aside class="analytics-consent" id="analytics-consent" aria-labelledby="analytics-consent-title" hidden>
-      <h2 id="analytics-consent-title" data-ar="اختياري: قياس استخدام الموقع">Optional website analytics</h2>
-      <p data-ar="إذا وافقت، سنحمّل Meta Pixel لإرسال مشاهدة الصفحة وحدث Lead بعد إرسال طلب عرض تجريبي بنجاح. قد تتلقى Meta عنوان الصفحة ومعلومات المتصفح ومعرّفات تقنية. لن نرسل إجابات النموذج أو بيانات الاتصال أو نستخدم المطابقة المتقدمة. يمكنك الرفض أو تغيير اختيارك لاحقاً.">If you agree, we will load Meta Pixel to send a page view and a Lead event after a demo request is successfully submitted. Meta may receive the page URL, browser information and technical identifiers. We will not send form answers or contact details, and we will not use Advanced Matching. You can reject or change your choice later.</p>
-      <p class="analytics-consent-policy"><a href="/website/meta-privacy.html" data-ar="اقرأ إشعار Meta Pixel">Read the Meta Pixel notice</a></p>
+    <aside
+      class="analytics-consent"
+      id="analytics-consent"
+      aria-labelledby="analytics-consent-title"
+      hidden
+    >
+      <h2 id="analytics-consent-title" data-ar="قياس إعلانات OpenAI (اختياري)">
+        Optional OpenAI ad measurement
+      </h2>
+      <p
+        data-ar="يساعدنا ذلك على معرفة الإعلانات التي تجلب طلبات العروض التجريبية. إذا وافقت، لن نرسل حدثاً إلا بعد حفظ طلبك بنجاح. قد يعالج OpenAI حقول الاتصال المدعومة ويجزّئها في متصفحك لمطابقة الحدث. يمكنك تغيير اختيارك في أي وقت."
+      >
+        This helps us understand which ads bring demo enquiries. If you allow it,
+        we send a conversion event only after your request is saved successfully.
+        OpenAI may process and hash supported contact fields in your browser to
+        match the event. You can change your choice at any time.
+      </p>
+      <div class="analytics-consent-options">
+        <label class="analytics-consent-choice" for="openai-analytics-choice">
+          <input id="openai-analytics-choice" type="checkbox" />
+          <span
+            class="analytics-consent-choice-copy"
+            data-ar="السماح بقياس إعلانات OpenAI"
+            >Allow OpenAI ad measurement</span
+          >
+        </label>
+      </div>
+      <p class="analytics-consent-policy">
+        <a
+          href="/website/meta-privacy.html"
+          data-ar="اقرأ إشعار الخصوصية لقياس OpenAI"
+          >Read the OpenAI measurement privacy notice</a
+        >
+      </p>
       <div class="analytics-consent-actions">
-        <button class="analytics-consent-reject" id="analytics-reject" type="button" data-ar="رفض الاختياري">Reject optional</button>
-        <button class="analytics-consent-accept" id="analytics-accept" type="button" data-ar="موافقة">Allow</button>
+        <button
+          class="analytics-consent-reject"
+          id="analytics-reject"
+          type="button"
+          data-ar="رفض القياس الاختياري"
+        >
+          Reject optional measurement
+        </button>
+        <button
+          class="analytics-consent-accept"
+          id="analytics-accept"
+          type="button"
+          data-ar="حفظ الاختيار"
+        >
+          Save choice
+        </button>
       </div>
     </aside>
-    <button class="analytics-settings" id="analytics-settings" type="button" data-ar="إعدادات الخصوصية">Privacy settings</button>
+    <button
+      class="analytics-settings"
+      id="analytics-settings"
+      type="button"
+      data-ar="إعدادات الخصوصية"
+    >
+      Privacy settings
+    </button>
   </body>
 </html>

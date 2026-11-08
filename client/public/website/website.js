@@ -1,86 +1,209 @@
 (() => {
   "use strict";
   const root = document.documentElement;
-  const META_PIXEL_ID = "2358924724926862";
-  const CONSENT_KEY = "7network_meta_analytics_consent_v1";
+  const OPENAI_PIXEL_ID = "7f1xi4bh2i2PvmUAM8RNCh";
+  const OPENAI_CONSENT_KEY = "7network_openai_ads_measurement_consent_v1";
   const consentPanel = document.getElementById("analytics-consent");
-  const consentAccept = document.getElementById("analytics-accept");
+  const consentSave = document.getElementById("analytics-accept");
   const consentReject = document.getElementById("analytics-reject");
   const consentSettings = document.getElementById("analytics-settings");
-  let analyticsConsent = null;
-  let metaPixelLoaded = false;
-  try {
-    const savedConsent = localStorage.getItem(CONSENT_KEY);
-    if (savedConsent === "granted" || savedConsent === "denied")
-      analyticsConsent = savedConsent;
-  } catch (_) {
-    // Keep the banner available when browser storage is disabled.
-  }
-  function showConsentPanel(focusAccept = true) {
-    consentPanel.hidden = false;
-    if (focusAccept) consentAccept.focus({ preventScroll: true });
-  }
-  function persistConsent(value) {
-    analyticsConsent = value;
+  const openAiConsentChoice = document.getElementById("openai-analytics-choice");
+  let openAiConsent = readOpenAiConsent();
+  let openAiPixelLoaded = false;
+  function readOpenAiConsent() {
     try {
-      localStorage.setItem(CONSENT_KEY, value);
+      const value = localStorage.getItem(OPENAI_CONSENT_KEY);
+      return value === "granted" || value === "denied" ? value : null;
     } catch (_) {
-      // Consent applies to this page session even if persistence is unavailable.
+      return null;
     }
   }
-  function loadMetaPixel() {
-    if (analyticsConsent !== "granted" || metaPixelLoaded) return;
-    metaPixelLoaded = true;
-    !(function (f, b, e, v, n, t, s) {
-      if (f.fbq) return;
-      n = f.fbq = function () {
-        n.callMethod ? n.callMethod.apply(n, arguments) : n.queue.push(arguments);
+  function persistOpenAiConsent(value) {
+    openAiConsent = value;
+    try {
+      localStorage.setItem(OPENAI_CONSENT_KEY, value);
+    } catch (_) {
+      // The choice remains active for this page even if storage is unavailable.
+    }
+  }
+  function showConsentPanel(focusSave = true) {
+    openAiConsentChoice.checked = openAiConsent === "granted";
+    consentSettings.hidden = true;
+    consentPanel.hidden = false;
+    if (focusSave) consentSave.focus({ preventScroll: true });
+  }
+  function loadOpenAiPixel() {
+    if (openAiConsent !== "granted" || openAiPixelLoaded) return;
+    openAiPixelLoaded = true;
+    if (!window.oaiq) {
+      const queue = function () {
+        queue.q.push(arguments);
       };
-      if (!f._fbq) f._fbq = n;
-      n.push = n;
-      n.loaded = true;
-      n.version = "2.0";
-      n.queue = [];
-      t = b.createElement(e);
-      t.async = true;
-      t.src = v;
-      s = b.getElementsByTagName(e)[0];
-      s.parentNode.insertBefore(t, s);
-    })(window, document, "script", "https://connect.facebook.net/en_US/fbevents.js");
-    window.fbq("consent", "grant");
-    window.fbq("init", META_PIXEL_ID);
-    window.fbq("track", "PageView");
+      queue.q = [];
+      window.oaiq = queue;
+      const script = document.createElement("script");
+      script.async = true;
+      script.src = "https://bzrcdn.openai.com/sdk/oaiq.min.js";
+      document.head.appendChild(script);
+    }
+    window.oaiq("consent", true);
+    window.oaiq("init", { pixelId: OPENAI_PIXEL_ID });
   }
-  function sendMetaLead() {
-    if (analyticsConsent === "granted" && metaPixelLoaded && window.fbq)
-      window.fbq("track", "Lead");
+  function saveOpenAiConsent(value) {
+    persistOpenAiConsent(value);
+    if (value === "granted") {
+      loadOpenAiPixel();
+    } else if (window.oaiq) {
+      window.oaiq("consent", false);
+    }
+    consentPanel.hidden = true;
+    consentSettings.hidden = false;
+    consentSettings.focus({ preventScroll: true });
   }
-  if (analyticsConsent === "granted") loadMetaPixel();
-  if (analyticsConsent === null)
-    window.addEventListener("load", () => showConsentPanel(false), { once: true });
-  consentAccept.addEventListener("click", () => {
-    persistConsent("granted");
-    consentPanel.hidden = true;
-    consentSettings.focus({ preventScroll: true });
-    if (metaPixelLoaded && window.fbq) {
-      window.fbq("consent", "grant");
-      window.fbq("track", "PageView");
-    } else loadMetaPixel();
-  });
-  consentReject.addEventListener("click", () => {
-    persistConsent("denied");
-    if (metaPixelLoaded && window.fbq) window.fbq("consent", "revoke");
-    consentPanel.hidden = true;
-    consentSettings.focus({ preventScroll: true });
-  });
-  consentSettings.addEventListener("click", showConsentPanel);
+  function sendOpenAiLead(eventId) {
+    if (openAiConsent !== "granted" || !openAiPixelLoaded || !window.oaiq)
+      return;
+    window.oaiq(
+      "measure",
+      "lead_created",
+      { type: "customer_action" },
+      { event_id: eventId },
+    );
+  }
+  // Keep ad measurement opt-in available from Privacy settings, without
+  // interrupting every first-time visitor with a tracking prompt.
+  consentSettings.hidden = false;
+  if (openAiConsent === "granted") loadOpenAiPixel();
+  consentSave.addEventListener("click", () =>
+    saveOpenAiConsent(openAiConsentChoice.checked ? "granted" : "denied"),
+  );
+  consentReject.addEventListener("click", () => saveOpenAiConsent("denied"));
+  consentSettings.addEventListener("click", () => showConsentPanel());
   let language =
     new URLSearchParams(location.search).get("lang") === "ar" ? "ar" : "en";
   const headlineMiddle = document.getElementById("hero-headline-middle");
+  const hero = document.querySelector(".hero");
+  const prefersReducedPointerMotion = matchMedia("(prefers-reduced-motion: reduce)");
+  const rippleCanvas = hero?.querySelector(".hero-water");
+  const rippleContext = rippleCanvas?.getContext("2d", { alpha: true });
+  if (hero && rippleCanvas && rippleContext) {
+    const ripples = [];
+    const rippleLife = 1250;
+    const rippleLimit = 8;
+    let rippleFrame = 0;
+    let lastRipple = null;
+    let lastRippleAt = 0;
+    let canvasWidth = 0;
+    let canvasHeight = 0;
+    const resizeRippleCanvas = () => {
+      if (rippleFrame) cancelAnimationFrame(rippleFrame);
+      rippleFrame = 0;
+      const bounds = hero.getBoundingClientRect();
+      const pixelRatio = Math.min(window.devicePixelRatio || 1, 1.5);
+      canvasWidth = bounds.width;
+      canvasHeight = bounds.height;
+      rippleCanvas.width = Math.max(1, Math.round(canvasWidth * pixelRatio));
+      rippleCanvas.height = Math.max(1, Math.round(canvasHeight * pixelRatio));
+      rippleContext.setTransform(pixelRatio, 0, 0, pixelRatio, 0, 0);
+      drawRipples(performance.now());
+    };
+    const drawWaveRing = (x, y, radius, alpha, phase) => {
+      const points = 64;
+      const wave = rippleContext.createLinearGradient(x, y - radius, x, y + radius);
+      wave.addColorStop(0, `rgba(255,255,255,${0.82 * alpha})`);
+      wave.addColorStop(0.34, `rgba(86,190,157,${0.58 * alpha})`);
+      wave.addColorStop(0.68, `rgba(76,92,143,${0.38 * alpha})`);
+      wave.addColorStop(1, `rgba(255,255,255,${0.72 * alpha})`);
+      rippleContext.beginPath();
+      for (let point = 0; point <= points; point += 1) {
+        const angle = (point / points) * Math.PI * 2;
+        const wobble = 1 + Math.sin(angle * 5 + phase) * 0.012 + Math.sin(angle * 9 - phase * 1.4) * 0.006;
+        const px = x + Math.cos(angle) * radius * wobble;
+        const py = y + Math.sin(angle) * radius * wobble * 0.88;
+        if (point === 0) rippleContext.moveTo(px, py);
+        else rippleContext.lineTo(px, py);
+      }
+      rippleContext.closePath();
+      rippleContext.strokeStyle = wave;
+      rippleContext.lineWidth = Math.max(0.8, 1.7 - radius / 180);
+      rippleContext.shadowColor = `rgba(46,142,121,${0.42 * alpha})`;
+      rippleContext.shadowBlur = 7 * alpha;
+      rippleContext.stroke();
+      rippleContext.shadowBlur = 0;
+    };
+    function drawRipples(now, staticFrame = false) {
+      rippleContext.clearRect(0, 0, canvasWidth, canvasHeight);
+      const reduced = prefersReducedPointerMotion.matches;
+      const active = [];
+      for (const ripple of ripples) {
+        const age = Math.max(0, now - ripple.started);
+        if (!reduced && age >= rippleLife) continue;
+        const progress = reduced ? 0.48 : age / rippleLife;
+        const strength = reduced ? 0.72 : Math.pow(1 - progress, 1.25);
+        const radius = reduced ? 58 : 8 + progress * 150;
+        drawWaveRing(ripple.x, ripple.y, radius, strength, ripple.phase);
+        drawWaveRing(ripple.x, ripple.y, radius * 0.78, strength * 0.48, ripple.phase + 1.2);
+        drawWaveRing(ripple.x, ripple.y, radius * 1.2, strength * 0.32, ripple.phase - 0.8);
+        if (!reduced) active.push(ripple);
+      }
+      ripples.splice(0, ripples.length, ...active);
+      if (!reduced && ripples.length && !staticFrame) rippleFrame = requestAnimationFrame((time) => drawRipples(time));
+      else rippleFrame = 0;
+    }
+    const addRipple = (event, force = false) => {
+      if (document.hidden) return;
+      const bounds = hero.getBoundingClientRect();
+      const x = event.clientX - bounds.left;
+      const y = event.clientY - bounds.top;
+      const now = performance.now();
+      if (!force && lastRipple) {
+        const distance = Math.hypot(x - lastRipple.x, y - lastRipple.y);
+        if (distance < 34 || now - lastRippleAt < 90) return;
+      }
+      lastRipple = { x, y };
+      lastRippleAt = now;
+      ripples.push({ x, y, started: now, phase: Math.random() * Math.PI * 2 });
+      if (ripples.length > rippleLimit) ripples.shift();
+      if (prefersReducedPointerMotion.matches) drawRipples(now, true);
+      else if (!rippleFrame) rippleFrame = requestAnimationFrame((time) => drawRipples(time));
+    };
+    if (matchMedia("(hover: hover) and (pointer: fine)").matches) {
+      hero.addEventListener("pointermove", (event) => addRipple(event), { passive: true });
+    }
+    hero.addEventListener("pointerdown", (event) => addRipple(event, true), { passive: true });
+    hero.addEventListener("pointerleave", () => {
+      lastRipple = null;
+      if (prefersReducedPointerMotion.matches) {
+        ripples.length = 0;
+        drawRipples(performance.now(), true);
+      }
+    }, { passive: true });
+    document.addEventListener("visibilitychange", () => {
+      if (document.hidden && rippleFrame) {
+        cancelAnimationFrame(rippleFrame);
+        rippleFrame = 0;
+        ripples.length = 0;
+        drawRipples(performance.now(), true);
+      }
+    });
+    if ("ResizeObserver" in window) new ResizeObserver(resizeRippleCanvas).observe(hero);
+    else window.addEventListener("resize", resizeRippleCanvas, { passive: true });
+    resizeRippleCanvas();
+  }
   const enquiryDialog = document.getElementById("enquiry-dialog");
   const enquiryForm = document.getElementById("enquiry-form");
+  const demoPromptKey = "7network.website-demo-prompt.v1";
+  let autoOpenedDemo = false;
+  function saveDemoPromptState(action) {
+    try {
+      localStorage.setItem(demoPromptKey, JSON.stringify({ action, at: Date.now() }));
+    } catch (_) {
+      // The form remains usable when browser storage is unavailable.
+    }
+  }
   document.querySelectorAll("[data-open-enquiry]").forEach((button) =>
     button.addEventListener("click", () => {
+      saveDemoPromptState("engaged");
       if (!enquiryDialog?.open) enquiryDialog?.showModal();
       enquiryForm?.elements.name?.focus();
     }),
@@ -91,36 +214,40 @@
   enquiryDialog?.addEventListener("click", (event) => {
     if (event.target === enquiryDialog) enquiryDialog.close();
   });
+  enquiryDialog?.addEventListener("close", () => {
+    if (autoOpenedDemo) saveDemoPromptState("dismissed");
+    autoOpenedDemo = false;
+  });
   const headlineStates = [
     {
       en: "Team Inbox",
       ar: "صندوق محادثات الفريق",
-      gradient: "linear-gradient(100deg, #12629b, #3254a4)",
+      gradient: "linear-gradient(100deg, #65b8ff, #a2d8ff)",
     },
     {
       en: "WhatsApp Campaigns",
       ar: "حملات واتساب",
-      gradient: "linear-gradient(100deg, #137146, #1d8055)",
+      gradient: "linear-gradient(100deg, #48dfa8, #a1f4ce)",
     },
     {
       en: "Business Management",
       ar: "إدارة الأعمال",
-      gradient: "linear-gradient(100deg, #5d358f, #7950aa)",
+      gradient: "linear-gradient(100deg, #bf99ff, #e0caff)",
     },
     {
       en: "Sales CRM",
       ar: "نظام CRM للمبيعات",
-      gradient: "linear-gradient(100deg, #bc1f3d, #cc4c43)",
+      gradient: "linear-gradient(100deg, #ff8097, #ffc08f)",
     },
     {
       en: "Lead Management",
       ar: "إدارة العملاء المحتملين",
-      gradient: "linear-gradient(100deg, #8b5a00, #a36a00)",
+      gradient: "linear-gradient(100deg, #ffc455, #ffe5a2)",
     },
     {
       en: "Workflow Automation",
       ar: "أتمتة سير العمل",
-      gradient: "linear-gradient(100deg, #0c6e71, #117e6c)",
+      gradient: "linear-gradient(100deg, #48ded4, #a3f3e8)",
     },
   ];
   const reducedHeadlineMotion = matchMedia("(prefers-reduced-motion: reduce)");
@@ -141,7 +268,7 @@
   }
   function startHeadlineRotation() {
     window.clearInterval(headlineTimer);
-    if (reducedHeadlineMotion.matches || document.hidden) return;
+    if (document.hidden) return;
     headlineTimer = window.setInterval(() => {
       headlineIndex = (headlineIndex + 1) % headlineStates.length;
       renderHeadline(headlineIndex, true);
@@ -155,18 +282,37 @@
     (node) => [node, node.textContent, node.dataset.ar],
   );
   const languageButton = document.getElementById("language");
+  const floatingWhatsApp = document.querySelector(".floating-cta");
+  const openAiPrivacyLink = document.querySelector(".analytics-consent-policy a");
   const status = document.getElementById("form-status");
   let statusMessage = null;
+  function updateFloatingWhatsApp() {
+    if (!floatingWhatsApp) return;
+    const message = language === "ar"
+      ? "مرحباً 7Network، أنا مهتم بنظام CRM. هل يمكنكم مشاركة المزيد من التفاصيل؟"
+      : "Hello 7Network, I’m interested in your CRM. Could you share more details?";
+    floatingWhatsApp.href = `https://wa.me/97455160323?text=${encodeURIComponent(message)}`;
+    floatingWhatsApp.setAttribute(
+      "aria-label",
+      language === "ar" ? "تواصل مع 7Network عبر واتساب" : "Chat with 7Network on WhatsApp",
+    );
+  }
   function applyLanguage() {
     root.lang = language;
     root.dir = language === "ar" ? "rtl" : "ltr";
+    updateFloatingWhatsApp();
+    if (openAiPrivacyLink)
+      openAiPrivacyLink.href =
+        "/website/meta-privacy.html" + (language === "ar" ? "?lang=ar" : "");
     translations.forEach(([node, en, ar]) => {
       node.textContent = language === "ar" ? ar : en;
     });
-    const metaPrivacyLink = document.querySelector(".analytics-consent-policy a");
-    if (metaPrivacyLink)
-      metaPrivacyLink.href =
-        "/website/meta-privacy.html" + (language === "ar" ? "?lang=ar" : "");
+    document.getElementById("training-demo-video")?.setAttribute(
+      "aria-label",
+      language === "ar"
+        ? "جولة مرئية في نظام 7Network Training Centre باللغة الإنجليزية"
+        : "7Network Training Centre product walkthrough, in English",
+    );
     renderHeadline(headlineIndex);
     document
       .querySelector("[data-close-enquiry]")
@@ -372,6 +518,23 @@
       planGrid.classList.add("plan-error");
     });
   applyLanguage();
+  window.addEventListener("load", () => {
+    let promptState = null;
+    try { promptState = JSON.parse(localStorage.getItem(demoPromptKey) || "null"); } catch (_) {}
+    const age = Date.now() - Number(promptState?.at || 0);
+    const suppressed =
+      (promptState?.action === "dismissed" && age < 30 * 24 * 60 * 60 * 1000) ||
+      (promptState?.action === "shown" && age < 24 * 60 * 60 * 1000) ||
+      ((promptState?.action === "engaged" || promptState?.action === "submitted") && age < 365 * 24 * 60 * 60 * 1000);
+    if (suppressed || document.hidden || enquiryDialog?.open) return;
+    window.setTimeout(() => {
+      if (document.hidden || enquiryDialog?.open) return;
+      autoOpenedDemo = true;
+      saveDemoPromptState("shown");
+      enquiryDialog?.showModal();
+      enquiryForm?.elements.name?.focus({ preventScroll: true });
+    }, 6500);
+  }, { once: true });
   languageButton.addEventListener("click", () => {
     language = language === "en" ? "ar" : "en";
     applyLanguage();
@@ -439,6 +602,7 @@
   document.querySelectorAll("[data-solution]").forEach((link) =>
     link.addEventListener("click", (event) => {
       event.preventDefault();
+      saveDemoPromptState("engaged");
       document.getElementById("solution").value = link.dataset.solution;
       const industry = document.getElementById("industry");
       industry.value = link.dataset.solution === "training"
@@ -474,52 +638,63 @@
     );
   }
   const funnelCards = [...document.querySelectorAll(".funnel-card")];
-  if (!reduceMotion.matches && funnelCards.length) {
-    root.classList.add("funnel-motion-ready");
-    if ("IntersectionObserver" in window) {
-      const funnelReveal = new IntersectionObserver(
-        (entries) =>
-          entries.forEach((entry) => {
-            if (entry.isIntersecting) {
-              entry.target.classList.add("is-entered");
-              funnelReveal.unobserve(entry.target);
-            }
-          }),
-        { threshold: 0.14, rootMargin: "0px 0px -7% 0px" },
-      );
-      funnelCards.forEach((card) => funnelReveal.observe(card));
-    } else {
-      const revealVisibleFunnelCards = () => {
+  if (funnelCards.length) {
+    const stackMode = matchMedia("(min-width: 901px), (max-width: 760px)");
+    if (!reduceMotion.matches) root.classList.add("funnel-motion-ready");
+    let scheduled = false;
+    const updateFunnelStack = () => {
+      scheduled = false;
+      if (!stackMode.matches) {
+        root.classList.remove("funnel-stack-ready", "funnel-motion-ready");
         funnelCards.forEach((card) => {
-          const bounds = card.getBoundingClientRect();
-          if (bounds.top < innerHeight * 0.9 && bounds.bottom > innerHeight * 0.1)
-            card.classList.add("is-entered");
+          card.classList.add("is-active");
+          card.classList.remove("is-peeking", "is-stacked-away");
         });
-      };
-      window.addEventListener("scroll", revealVisibleFunnelCards, { passive: true });
-      window.addEventListener("resize", revealVisibleFunnelCards, { passive: true });
-      revealVisibleFunnelCards();
-    }
-    window.addEventListener("beforeprint", () =>
-      funnelCards.forEach((card) => card.classList.add("is-entered")),
-    );
+        return;
+      }
+      root.classList.add("funnel-stack-ready");
+      root.classList.toggle("funnel-motion-ready", !reduceMotion.matches);
+      // Advance as a new card reaches the prior card's lower edge. This clears
+      // old copy before the incoming card can cover it during the sticky climb.
+      let activeIndex = 0;
+      for (let index = 1; index < funnelCards.length; index += 1) {
+        const current = funnelCards[index].getBoundingClientRect();
+        const previous = funnelCards[index - 1].getBoundingClientRect();
+        if (current.top < previous.bottom - 2) activeIndex = index;
+      }
+      funnelCards.forEach((card, index) => {
+        card.classList.toggle("is-active", index === activeIndex);
+        card.classList.toggle("is-peeking", index === activeIndex - 1);
+        card.classList.toggle("is-stacked-away", index < activeIndex - 1);
+      });
+    };
+    const requestFunnelUpdate = () => {
+      if (scheduled) return;
+      scheduled = true;
+      requestAnimationFrame(updateFunnelStack);
+    };
+    window.addEventListener("scroll", requestFunnelUpdate, { passive: true });
+    window.addEventListener("resize", requestFunnelUpdate, { passive: true });
+    stackMode.addEventListener?.("change", requestFunnelUpdate);
+    reduceMotion.addEventListener?.("change", () => {
+      root.classList.toggle("funnel-motion-ready", !reduceMotion.matches);
+      requestFunnelUpdate();
+    });
+    window.addEventListener("beforeprint", () => {
+      root.classList.remove("funnel-stack-ready", "funnel-motion-ready");
+      funnelCards.forEach((card) => card.classList.remove("is-peeking", "is-stacked-away"));
+    });
+    updateFunnelStack();
   }
   const floating = document.querySelector(".floating-cta");
-  if ("IntersectionObserver" in window) {
-    let heroVisible = true,
-      contactVisible = false;
-    new IntersectionObserver((entries) => {
-      entries.forEach((entry) => {
-        if (entry.target.classList.contains("hero"))
-          heroVisible = entry.isIntersecting;
-        else contactVisible = entry.isIntersecting;
-      });
-      floating.classList.toggle("visible", !heroVisible && !contactVisible);
-    }).observe(document.querySelector(".hero"));
-    new IntersectionObserver((entries) => {
-      contactVisible = entries[0].isIntersecting;
-      floating.classList.toggle("visible", !heroVisible && !contactVisible);
-    }).observe(document.getElementById("contact"));
+  if (floating) {
+    // Keep the contact shortcut available through the contact section and footer.
+    floating.classList.add("visible");
+    if ("IntersectionObserver" in window) {
+      new IntersectionObserver(([entry]) => {
+        floating.classList.toggle("visible", !entry.isIntersecting);
+      }).observe(document.querySelector(".hero"));
+    }
   }
   document.getElementById("year").textContent = String(
     new Date().getFullYear(),
@@ -568,8 +743,11 @@
           throw Object.assign(new Error(), { type: "validation" });
         throw new Error("unavailable");
       }
+      const conversionEventId = submissionToken;
+      sendOpenAiLead(conversionEventId);
+      saveDemoPromptState("submitted");
+      autoOpenedDemo = false;
       form.reset();
-      sendMetaLead();
       submissionToken = crypto.randomUUID();
       submittedPayload = null;
       message(
