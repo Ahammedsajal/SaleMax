@@ -93,8 +93,8 @@ def deploy(stage, commit):
     if not files or not env_files or not all(Path(p).is_file() for p in files + env_files):
         raise RuntimeError('Active Compose inputs are incomplete')
 
-    release = ROOT / 'releases' / f'website-funnel-stack-{commit[:12]}-20261107'
-    backup = ROOT / 'shared' / f'rollback-website-funnel-stack-{commit[:12]}-20261107'
+    release = ROOT / 'releases' / f'website-funnel-stack-{commit[:12]}-20261108'
+    backup = ROOT / 'shared' / f'rollback-website-funnel-stack-{commit[:12]}-20261108'
     if release.exists() or backup.exists():
         raise RuntimeError('Release or rollback path already exists')
     release.mkdir(mode=0o755)
