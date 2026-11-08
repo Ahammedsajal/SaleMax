@@ -1,3 +1,7 @@
+## Public website phone journey stack — deployed, 8 November 2026
+
+The customer-journey cards now use the same sticky stack and alternating corner page-turn entrance on phones (up to 760px). The cards remain one-column with copy and photo together; short screens use tighter spacing and a smaller image. Tablet widths keep the ordinary card list, desktop remains unchanged, and reduced-motion preference disables the entrance. Source `c6ea9beb74e73655def5f98128e31cd02e14ac21` is deployed as a guarded app-only overlay. Public health, cache key, versioned assets and running hashes were verified; no database/API change or migration occurred. Physical-phone, tablet and Arabic/RTL acceptance remain open. See `DEPLOYMENT.md` for release and rollback details.
+
 ## Public website customer-journey card motion — deployed, 7 November 2026
 
 Active cards now use a quiet corner-led page-turn entrance: copy and photo lift in from alternating lower corners, then settle flat. The sticky card shell stays stable and prefers-reduced-motion disables the entrance. Source `005f9782e08422dd1711d88e8badafb4e3b6325e` is live as a guarded app-only overlay. Public health, page cache key, stylesheet response and runtime hashes were verified; no database/API change or migration occurred. See `DEPLOYMENT.md` for hashes and rollback steps. Physical-device, intermediate-motion and Arabic/RTL acceptance remain open.
