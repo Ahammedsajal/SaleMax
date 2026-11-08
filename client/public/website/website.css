@@ -2515,6 +2515,7 @@ nav {
   .hero-footnote { font-size: 9px; }
 }
 @media (prefers-reduced-motion: reduce) {
+  .hero-water { display: none; }
   .hero-headline-middle { transition: none; }
   .hero-headline-middle.is-changing { opacity: 1; transform: none; filter: none; }
 }
@@ -2912,6 +2913,21 @@ nav {
   background-image: radial-gradient(rgba(68, 100, 84, 0.09) 1px, transparent 1px);
   mask-image: linear-gradient(to right, transparent, rgba(0, 0, 0, 0.65));
 }
+.hero-water {
+  position: absolute;
+  z-index: 0;
+  inset: -12%;
+  pointer-events: none;
+  opacity: 0;
+  background:
+    radial-gradient(ellipse 300px 230px at var(--water-x, 50%) var(--water-y, 50%), rgba(104, 220, 172, 0.22), transparent 72%),
+    radial-gradient(ellipse 420px 300px at var(--water-x, 50%) var(--water-y, 50%), rgba(161, 131, 226, 0.13), transparent 74%);
+  filter: blur(22px);
+  transform: scale(1.04);
+  transition: opacity 480ms ease;
+}
+.hero.has-water .hero-water { opacity: 1; }
+.hero-water { mix-blend-mode: multiply; }
 .hero .orb-one {
   background: #b4e3c2;
   opacity: 0.38;

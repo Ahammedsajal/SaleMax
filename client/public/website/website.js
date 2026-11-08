@@ -82,6 +82,29 @@
   let language =
     new URLSearchParams(location.search).get("lang") === "ar" ? "ar" : "en";
   const headlineMiddle = document.getElementById("hero-headline-middle");
+  const hero = document.querySelector(".hero");
+  if (
+    hero &&
+    matchMedia("(hover: hover) and (pointer: fine)").matches &&
+    !matchMedia("(prefers-reduced-motion: reduce)").matches
+  ) {
+    let pointerFrame = 0;
+    let pointerX = 50;
+    let pointerY = 50;
+    hero.addEventListener("pointermove", (event) => {
+      const bounds = hero.getBoundingClientRect();
+      pointerX = ((event.clientX - bounds.left) / bounds.width) * 100;
+      pointerY = ((event.clientY - bounds.top) / bounds.height) * 100;
+      if (pointerFrame) return;
+      pointerFrame = requestAnimationFrame(() => {
+        hero.style.setProperty("--water-x", `${pointerX}%`);
+        hero.style.setProperty("--water-y", `${pointerY}%`);
+        hero.classList.add("has-water");
+        pointerFrame = 0;
+      });
+    }, { passive: true });
+    hero.addEventListener("pointerleave", () => hero.classList.remove("has-water"), { passive: true });
+  }
   const enquiryDialog = document.getElementById("enquiry-dialog");
   const enquiryForm = document.getElementById("enquiry-form");
   const demoPromptKey = "7network.website-demo-prompt.v1";
