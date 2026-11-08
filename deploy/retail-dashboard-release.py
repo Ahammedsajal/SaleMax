@@ -33,6 +33,7 @@ RUNTIME_FILES = (
 STAGE_FILES = RUNTIME_FILES + ('deploy/retail-dashboard-release.py',)
 RELEASE_SLUG = 'retail-dashboard'
 SHELL_PATH = '/user?page=dashboard'
+SHELL_MARKER = None
 ANONYMOUS_API_PATH = '/api/workspace/retail/orders/overview?days=7'
 PUBLIC_ASSETS = tuple(zip((
     '/business-dashboard/',
@@ -370,10 +371,12 @@ def deploy(stage_dir, commit):
                 raise RuntimeError('Runtime source hash mismatch: ' + name)
 
         health, _ = http_status('/healthz')
-        shell_status, _ = http_status(SHELL_PATH)
+        shell_status, shell_body = http_status(SHELL_PATH)
         api_status, _ = http_status(ANONYMOUS_API_PATH)
         if health != 200 or shell_status != 200 or api_status not in (401, 403):
             raise RuntimeError('Health, dashboard shell or anonymous Retail API boundary check failed')
+        if SHELL_MARKER and SHELL_MARKER not in shell_body:
+            raise RuntimeError('The business shell does not load the reviewed Retail script')
         smoke = json.loads(run('docker', 'exec', APP, 'node', '-e', ROUTER_SMOKE.replace('/* SMOKE_CASES */', SMOKE_CASES)))
         for url, name in PUBLIC_ASSETS:
             code, body = http_status(url)

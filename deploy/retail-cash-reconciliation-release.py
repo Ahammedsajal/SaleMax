@@ -28,9 +28,10 @@ release.OLD_HASHES = dict(zip(release.RUNTIME_FILES, (
     '3021616dc7258efe11e261e3e0c45804b03fd1697fa7d6c6c26dd9baba844ddf',
 )))
 release.SHELL_PATH = '/user?page=retail-finance'
+release.SHELL_MARKER = b'/retail-workspace.js?v=20261108-cash-ui1'
 release.ANONYMOUS_API_PATH = '/api/workspace/retail/finance'
 release.PUBLIC_ASSETS = tuple(zip((
-    release.SHELL_PATH,
+    '/index.html',
     '/retail-workspace.js?v=20261108-cash-ui1',
     '/retail-workspace.css?v=20261108-cash-ui1',
 ), release.RUNTIME_FILES))
