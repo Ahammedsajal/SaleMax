@@ -405,7 +405,9 @@ function workspaceRouter({pool,authenticate}) {
       COUNT(*) OVER(PARTITION BY r.collector_membership_id) AS orderCount
       FROM sx_retail_cash_receipts r JOIN sx_retail_orders o ON o.tenant_id=r.tenant_id AND o.id=r.order_id
       JOIN sx_memberships m ON m.tenant_id=r.tenant_id AND m.id=r.collector_membership_id
-      JOIN sx_identities i ON i.id=m.identity_id WHERE r.tenant_id=? AND r.settlement_id IS NULL AND o.fulfillment='delivery'
+      JOIN sx_identities i ON i.id=m.identity_id WHERE r.tenant_id=? AND r.settlement_id IS NULL
+        AND o.fulfillment='delivery' AND o.status IN ('completed','partially_returned','returned')
+        AND m.role='agent' AND o.driver_id=r.collector_membership_id
       ORDER BY i.display_name,r.received_at,o.id LIMIT 1000`,[c.tenant.id]);
     const drivers=new Map();
     for(const row of receipts){

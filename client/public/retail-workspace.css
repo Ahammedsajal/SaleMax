@@ -78,3 +78,77 @@ html[data-sx-theme=dark] #sx-retail-workspace .sx-retail-status-completed{color:
 html[data-sx-theme=dark] #sx-retail-workspace .sx-retail-status-cancelled,html[data-sx-theme=dark] #sx-retail-workspace .sx-retail-status-returned{color:#fda29b;background:#472525;border-color:#803d39}
 @media(max-width:1100px){#sx-retail-workspace .sx-retail-order-filters{grid-template-columns:repeat(2,minmax(0,1fr))}#sx-retail-workspace .sx-retail-filter-customer{grid-column:span 2}#sx-retail-workspace .sx-retail-order-summary{grid-template-columns:minmax(135px,.9fr) minmax(180px,1.3fr) minmax(100px,.65fr)}#sx-retail-workspace .sx-retail-order-badges{grid-column:1/-1}}
 @media(max-width:650px){#sx-retail-workspace .sx-retail-page-subtitle{margin:-10px 0 16px}#sx-retail-workspace section.sx-retail-filter-panel{padding:14px}#sx-retail-workspace .sx-retail-order-filters{grid-template-columns:1fr 1fr;gap:10px}#sx-retail-workspace .sx-retail-filter-customer{grid-column:1/-1}#sx-retail-workspace .sx-retail-filter-actions{grid-column:1/-1}#sx-retail-workspace .sx-retail-filter-actions button{flex:1;min-height:46px;margin:0}#sx-retail-workspace .sx-retail-order-summary{grid-template-columns:minmax(0,1fr) auto;gap:8px 12px;padding:13px}#sx-retail-workspace .sx-retail-order-reference,#sx-retail-workspace .sx-retail-order-buyer{grid-column:1/-1}#sx-retail-workspace .sx-retail-order-total{grid-column:1;grid-row:3}#sx-retail-workspace .sx-retail-order-badges{grid-column:2;grid-row:3;justify-content:flex-end}#sx-retail-workspace .sx-retail-order-details{padding-inline:13px}#sx-retail-workspace .sx-retail-empty{padding:22px 14px}}
+
+#sx-retail-workspace.sx-retail-finance { --finance-width: 1280px; }
+#sx-retail-workspace.sx-retail-finance :is(h1,h2,h3) { color: var(--retail-text); }
+#sx-retail-workspace.sx-retail-finance > .sx-retail-finance-status {
+  max-width: var(--finance-width);
+  min-height: 0;
+  margin: 0 auto 12px;
+}
+#sx-retail-workspace.sx-retail-finance > .sx-retail-finance-status:empty { margin-block: 0; }
+#sx-retail-workspace .sx-retail-finance-layout {
+  display: grid;
+  grid-template-columns: minmax(0,1.7fr) minmax(0,1fr);
+  align-items: start;
+  gap: 16px;
+  max-width: var(--finance-width);
+  margin-inline: auto;
+}
+#sx-retail-workspace .sx-retail-finance-layout section { margin: 0 0 16px; }
+#sx-retail-workspace .sx-retail-finance-layout section:last-child { margin-block-end: 0; }
+#sx-retail-workspace .sx-retail-finance-empty {
+  padding: 20px;
+  border-radius: 10px;
+  background: var(--retail-bg);
+}
+#sx-retail-workspace .sx-retail-finance-layout form {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: end;
+  gap: 10px;
+  margin-block-start: 14px;
+}
+#sx-retail-workspace .sx-retail-finance-layout form label {
+  flex: 1 1 130px;
+  min-width: 0;
+  margin: 0;
+}
+#sx-retail-workspace .sx-retail-finance-layout form input { width: 100%; }
+#sx-retail-workspace .sx-retail-finance-layout form button { margin: 0; }
+#sx-retail-workspace .sx-retail-finance-layout [role=status]:empty { display: none; }
+#sx-retail-workspace .sx-retail-finance-row {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 5px 12px;
+}
+#sx-retail-workspace .sx-retail-finance-row h3 { margin: 0; }
+#sx-retail-workspace article.sx-retail-finance-history {
+  margin: 0;
+  padding: 12px 0;
+  border: 0;
+  border-radius: 0;
+  border-block-start: 1px solid var(--retail-border);
+  box-shadow: none;
+}
+#sx-retail-workspace .sx-retail-finance-badge {
+  padding: 3px 9px;
+  border-radius: 20px;
+  font-size: 12px;
+  font-weight: 650;
+  color: var(--retail-text);
+  background: var(--retail-bg);
+}
+#sx-retail-workspace .sx-retail-finance-badge[data-matched=false] { color: var(--retail-brand); }
+html[data-sx-theme=dark] #sx-retail-workspace.sx-retail-finance button { color: #201320; }
+@media(max-width: 1050px) {
+  #sx-retail-workspace .sx-retail-finance-layout { grid-template-columns: minmax(0,1fr); }
+}
+@media(max-width: 899px) {
+  #sx-retail-workspace.sx-retail-finance { inset-inline: 0; }
+}
+@media(max-width: 767px) {
+  #sx-retail-workspace.sx-retail-finance > .sx-retail-page-subtitle { margin-inline: 0; }
+}

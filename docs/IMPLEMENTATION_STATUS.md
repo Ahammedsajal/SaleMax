@@ -1,3 +1,9 @@
+## Retail Cash reconciliation — source verified, 8 November 2026
+
+The Retail finance screen aligns the breadcrumb, pending driver handovers, recent handover history, and accounting download within the existing shell. Pending receipts now meet the settlement service's eligibility rules before they reach the screen. The form requires a counted amount, preserves the request identifier for a retry after a network failure, and keeps the result visible while it refreshes the queue. The export validates the date range and distinguishes empty downloads from errors.
+
+Disposable MariaDB verified eligible status filtering, isolation, denied agent access, matched and difference handovers, and replay without duplicate records. The business shell passed English and Arabic, light and dark, and six viewport checks with synthetic data, including a simulated 503 followed by a retry and valid, empty, and invalid CSV requests. Source only. Production rollout and signed-in live verification are pending.
+
 ## Retail and E-commerce dashboard — deployed and signed-in verified, 8 November 2026
 
 The existing Business Dashboard selects an order-focused view for the Retail category. It defaults to the last seven days and shows total orders, total order value, orders to fulfill, completed orders, six recent orders, and status and failed-delivery counts. Total order value excludes cancelled orders and uses the original order totals before returns. The Manage orders action opens the existing Retail Orders screen. The shared Retail API uses the current tenant, entitlement, Retail Orders permission and assigned navigation.

@@ -205,43 +205,162 @@
     more.onclick=()=>runSearch(false,page+1);
     await runSearch(true);
   }
-  async function finance(root,status){
-    const data=await api('/finance');
-    add(root,'p',t('Record each driver handover against completed cash on delivery orders. A mismatch stays open for review. This does not transfer or refund money.','سجّل تسليم كل سائق مقابل طلبات الدفع النقدي المكتملة. يبقى أي فرق مفتوحاً للمراجعة. لا ينفذ هذا تحويل الأموال أو ردها.'));
-    if(!data.drivers.length)add(root,'p',t('No driver cash is waiting for reconciliation.','لا توجد مبالغ نقدية من السائقين بانتظار التسوية.'));
-    for(const driverRow of data.drivers){
-      const selected=driverRow.orders.slice(0,100);
-      const batchExpected=selected.reduce((sum,order)=>sum+order.amountMinor,0);
-      const section=add(root,'section');add(section,'h2',driverRow.name+' · '+money(batchExpected));
-      for(const order of selected){const detail=add(section,'p');add(detail,'bdi',order.id).dir='ltr';add(detail,'span',' · '+money(order.amountMinor));}
-      if(driverRow.hasMore)add(section,'p',t('This batch covers 100 open orders. Reconcile it, then review the next batch.','تشمل هذه الدفعة 100 طلب مفتوح. سوِّها ثم راجع الدفعة التالية.'));
-      const counted=input(section,t('Cash handed over (QAR)','النقد المسلّم (ريال)'),(batchExpected/100).toFixed(2),'number');
-      counted.min=0;counted.step=0.01;
-      action(section,t('Record handover','تسجيل التسليم'),async()=>{
-        const result=await api('/finance/settlements','POST',{requestId:crypto.randomUUID(),driverId:driverRow.id,orderIds:selected.map(order=>order.id),countedMinor:Math.round(counted.valueAsNumber*100)});
-        return result.status==='matched'?t('Handover matched and recorded.','تمت مطابقة التسليم وتسجيله.'):t('Difference recorded for review. The orders remain open.','تم تسجيل الفرق للمراجعة. ما زالت الطلبات مفتوحة.');
-      },status,()=>location.reload());
+  function finance(root,status){
+    root.classList.add('sx-retail-finance');
+    root.querySelector('h1').after(Object.assign(document.createElement('p'),{
+      className:'sx-retail-page-subtitle',
+      textContent:t('Match cash handed over by drivers to completed deliveries.','طابق النقد الذي سلّمه السائقون مع عمليات التوصيل المكتملة.')
+    }));
+    status.className='sx-retail-finance-status';
+    const layout=add(root,'div');layout.className='sx-retail-finance-layout';
+    const work=add(layout,'div');
+    const pending=add(work,'section');
+    add(pending,'h2',t('Pending handovers','عمليات التسليم المعلّقة'));
+    const batches=add(pending,'div');
+    const history=add(work,'section');
+    add(history,'h2',t('Recent handovers','عمليات التسليم الأخيرة'));
+    const recent=add(history,'div');
+    const exports=add(layout,'section');
+    add(exports,'h2',t('Download accounting data','تنزيل بيانات المحاسبة'));
+    add(exports,'p',t('Export cash receipts and returned item values for your records.','صدّر إيصالات النقد وقيم المنتجات المرتجعة لسجلاتك.'));
+    const exportForm=add(exports,'form');
+    const today=new Date().toISOString().slice(0,10);
+    const from=input(exportForm,t('From date (UTC)','من تاريخ (UTC)'),today.slice(0,7)+'-01','date');
+    const to=input(exportForm,t('To date (UTC)','إلى تاريخ (UTC)'),today,'date');
+    from.required=to.required=true;
+    const download=add(exportForm,'button',t('Download CSV','تنزيل CSV'));
+    download.type='submit';
+    const exportStatus=add(exports,'p');exportStatus.setAttribute('role','status');
+    const refresh=add(pending,'button',t('Retry loading handovers','إعادة تحميل عمليات التسليم'));
+    refresh.type='button';refresh.hidden=true;
+    let saving=false;
+
+    exportForm.onsubmit=async event=>{
+      event.preventDefault();
+      const range={from:from.value,to:to.value};
+      if(range.from>range.to){
+        exportStatus.textContent=t('The start date must be on or before the end date.','يجب أن يكون تاريخ البداية قبل تاريخ النهاية أو مساوياً له.');
+        return;
+      }
+      if(to.valueAsNumber-from.valueAsNumber>92*86400000){
+        exportStatus.textContent=t('Choose a range of 93 calendar days or fewer.','اختر نطاقاً لا يتجاوز 93 يوماً تقويمياً.');
+        return;
+      }
+      download.disabled=true;
+      exportStatus.textContent=t('Preparing CSV…','جارٍ تجهيز ملف CSV…');
+      try{
+        const headers=await window.SaleMaxWorkspace.headers(false,false);
+        const response=await fetch('/api/workspace/retail/finance/accounting-export.csv?'+new URLSearchParams(range),{credentials:'same-origin',cache:'no-store',headers});
+        if(response.status===413){
+          exportStatus.textContent=t('This export is too large. Choose a shorter date range.','حجم التصدير كبير. اختر نطاقاً زمنياً أقصر.');
+          return;
+        }
+        if(!response.ok)throw Error('ACCOUNTING_EXPORT_FAILED');
+        if(response.headers.get('X-Export-Row-Count')==='0'){
+          exportStatus.textContent=t('No cash receipts or returns in this date range.','لا توجد إيصالات نقدية أو مرتجعات خلال هذه الفترة.');
+          return;
+        }
+        const url=URL.createObjectURL(await response.blob());
+        const anchor=add(document.body,'a');anchor.hidden=true;anchor.href=url;
+        anchor.download='7network-retail-source-'+range.from+'-'+range.to+'.csv';
+        anchor.click();anchor.remove();
+        setTimeout(()=>URL.revokeObjectURL(url),1000);
+        exportStatus.textContent=t('CSV download started.','بدأ تنزيل ملف CSV.');
+      }catch{
+        exportStatus.textContent=t('Could not download the CSV. Try again.','تعذر تنزيل ملف CSV. حاول مرة أخرى.');
+      }finally{download.disabled=false;}
+    };
+
+    function renderBatch(driver){
+      const selected=driver.orders.slice(0,100);
+      const expected=selected.reduce((total,order)=>total+order.amountMinor,0);
+      const batch=add(batches,'article');batch.className='sx-retail-finance-batch';
+      const heading=add(batch,'div');heading.className='sx-retail-finance-row';
+      add(heading,'h3',driver.name);
+      add(heading,'strong',t('Expected','المتوقع')+' '+money(expected));
+      const details=add(batch,'details');
+      const count=new Intl.NumberFormat(t('en-QA','ar-QA')).format(selected.length);
+      add(details,'summary',t('View orders','عرض الطلبات')+' ('+count+')');
+      for(const order of selected){
+        const row=add(details,'p');row.className='sx-retail-finance-row';
+        add(row,'bdi',order.id).dir='ltr';add(row,'span',money(order.amountMinor));
+      }
+      if(driver.orderCount>selected.length || driver.orders.length>selected.length || driver.hasMore){
+        add(batch,'p',t('More orders are waiting for this driver. Record this batch to load the next one.','توجد طلبات إضافية لهذا السائق. سجّل هذه الدفعة لتحميل الدفعة التالية.'));
+      }
+      const form=add(batch,'form');
+      const counted=input(form,t('Cash counted (QAR)','النقد المعدود (ريال قطري)'),'','number');
+      counted.required=true;counted.min=0;counted.step=0.01;counted.inputMode='decimal';
+      const submit=add(form,'button',t('Record handover','تسجيل التسليم'));submit.type='submit';
+      const feedback=add(batch,'p');feedback.setAttribute('role','status');
+      let attempt;
+      form.onsubmit=async event=>{
+        event.preventDefault();
+        if(saving)return;
+        const countedMinor=Math.round(counted.valueAsNumber*100);
+        if(!Number.isSafeInteger(countedMinor)||countedMinor<0){
+          feedback.textContent=t('Enter a valid counted amount.','أدخل مبلغاً معدوداً صالحاً.');
+          return;
+        }
+        if(attempt&&attempt.countedMinor!==countedMinor){
+          feedback.textContent=t('Retry the original amount to confirm the previous attempt.','أعد المحاولة بالمبلغ الأصلي لتأكيد المحاولة السابقة.');
+          return;
+        }
+        attempt??={countedMinor,requestId:crypto.randomUUID()};
+        saving=true;
+        const buttons=batches.querySelectorAll('button[type=submit]');
+        buttons.forEach(button=>button.disabled=true);
+        counted.disabled=true;
+        feedback.textContent=t('Recording handover…','جارٍ تسجيل التسليم…');
+        try{
+          const result=await api('/finance/settlements','POST',{...attempt,driverId:driver.id,orderIds:selected.map(order=>order.id)});
+          const message=result.status==='matched'?t('Handover recorded and matched.','تم تسجيل التسليم ومطابقته.'):
+            t('Difference recorded. These orders remain open.','تم تسجيل الفرق. تظل هذه الطلبات مفتوحة.');
+          await load(message);
+        }catch(error){
+          if(['SETTLEMENT_ORDERS_UNAVAILABLE','DRIVER_UNAVAILABLE'].includes(error.message)){
+            await load(t('This batch changed. Review the updated orders.','تغيّرت هذه الدفعة. راجع الطلبات المحدّثة.'));
+          }else{
+            feedback.textContent=t('Could not confirm the handover. Retry the same amount.','تعذر تأكيد تسجيل التسليم. أعد المحاولة بالمبلغ نفسه.');
+          }
+        }finally{
+          saving=false;
+          counted.disabled=false;
+          buttons.forEach(button=>button.disabled=false);
+        }
+      };
     }
-    add(root,'h2',t('Recent handovers','عمليات التسليم الأخيرة'));
-    if(!data.settlements.length)add(root,'p',t('No handovers recorded yet.','لم يتم تسجيل عمليات تسليم بعد.'));
-    for(const settlement of data.settlements){
-      const row=add(root,'article');
-      add(row,'strong',settlement.driverName+' · '+t(settlement.status==='matched'?'Matched':'Difference',settlement.status==='matched'?'مطابق':'فرق'));
-      add(row,'p',t('Expected','المتوقع')+' '+money(settlement.expectedMinor)+' · '+t('Counted','المعدود')+' '+money(settlement.countedMinor));
+
+    async function load(message=''){
+      refresh.hidden=true;batches.replaceChildren();recent.replaceChildren();
+      status.textContent=t('Loading handovers…','جارٍ تحميل عمليات التسليم…');
+      try{
+        const data=await api('/finance');
+        if(!data.drivers.length){
+          const empty=add(batches,'div');empty.className='sx-retail-finance-empty';
+          add(empty,'strong',t('No cash waiting to be reconciled','لا يوجد نقد بانتظار التسوية'));
+          add(empty,'p',t('Completed cash-on-delivery orders appear here when a cash receipt has been recorded.','تظهر هنا طلبات الدفع عند الاستلام المكتملة بعد تسجيل إيصال النقد.'));
+        }
+        for(const driver of data.drivers)renderBatch(driver);
+        if(!data.settlements.length)add(recent,'p',t('Recorded handovers will appear here.','ستظهر هنا عمليات التسليم المسجلة.'));
+        for(const settlement of data.settlements){
+          const row=add(recent,'article');row.className='sx-retail-finance-history';
+          const heading=add(row,'div');heading.className='sx-retail-finance-row';
+          add(heading,'strong',settlement.driverName);
+          const matched=settlement.status==='matched';
+          const badge=add(heading,'span',matched?t('Matched','مطابق'):t('Difference','فرق'));
+          badge.className='sx-retail-finance-badge';badge.dataset.matched=String(matched);
+          add(row,'p',t('Expected','المتوقع')+' '+money(settlement.expectedMinor)+' · '+t('Counted','المعدود')+' '+money(settlement.countedMinor));
+          if(settlement.createdAt)add(row,'time',orderDate(settlement.createdAt)).dateTime=settlement.createdAt;
+        }
+        status.textContent=message;
+      }catch{
+        status.textContent=[message,t('Could not load handovers. Try again.','تعذر تحميل عمليات التسليم. حاول مرة أخرى.')].filter(Boolean).join(' ');
+        refresh.hidden=false;
+      }
     }
-    const exportSection=add(root,'section');add(exportSection,'h2',t('Accounting source export','تصدير بيانات المحاسبة'));
-    add(exportSection,'p',t('Download cash receipts and returned item values for a date range. This file contains operational source data; it does not post a journal, map tax or accounts, or represent refunds paid. Connect a provider only after its account and refund mappings are reviewed.','نزّل إيصالات النقد وقيم المنتجات المرتجعة ضمن فترة محددة. يحتوي الملف على بيانات تشغيلية ولا ينشئ قيوداً محاسبية أو يحدد الحسابات والضرائب ولا يمثل مبالغ مستردة مدفوعة. اربط مزوداً بعد مراجعة الحسابات والمرتجعات.'));
-    const from=input(exportSection,t('From (UTC)','من (UTC)'),new Date(Date.now()-new Date().getUTCDate()*86400000+86400000).toISOString().slice(0,10),'date');
-    const to=input(exportSection,t('To (UTC)','إلى (UTC)'),new Date().toISOString().slice(0,10),'date');
-    action(exportSection,t('Download CSV','تنزيل CSV'),async()=>{
-      const query=new URLSearchParams({from:from.value,to:to.value});
-      const headers=await window.SaleMaxWorkspace.headers(false,false);
-      const response=await fetch('/api/workspace/retail/finance/accounting-export.csv?'+query,{credentials:'same-origin',cache:'no-store',headers});
-      if(!response.ok)throw Error('ACCOUNTING_EXPORT_FAILED');
-      const blob=await response.blob(),url=URL.createObjectURL(blob),anchor=document.createElement('a');
-      anchor.href=url;anchor.download=`7network-retail-source-${from.value}-${to.value}.csv`;anchor.click();URL.revokeObjectURL(url);
-      return t('Operational CSV downloaded.','تم تنزيل ملف CSV التشغيلي.');
-    },status);
+    refresh.onclick=()=>load();
+    return load();
   }
   function showCode(status,error){status.textContent=t('Could not complete this action.','تعذر إكمال هذا الإجراء.')+(error?.message?' '+String(error.message).replace(/[^A-Z0-9_ -]/gi,'').slice(0,64):'');}
   async function connectedStores(root,status){
@@ -438,22 +557,31 @@
       }
     };
     let navQueued=false;
-    const scheduleNav=()=>{if(navQueued)return;navQueued=true;queueMicrotask(()=>{navQueued=false;nav();});};
+    const financeAllowed=active==='retail-finance'&&allowed.some(([key])=>key===active);
+    function syncFinanceBreadcrumb(){
+      if(!financeAllowed)return;
+      const label=[...document.querySelectorAll('#root .MuiTypography-root')].find(node=>
+        !node.childElementCount&&['Dashboard','لوحة التحكم','لوحة المعلومات'].includes(node.textContent.trim())&&
+        !node.closest('.MuiDrawer-root')&&node.getBoundingClientRect().top<90);
+      if(label)label.textContent=t('Cash reconciliation','تسوية النقد');
+    }
+    const scheduleNav=()=>{if(navQueued)return;navQueued=true;queueMicrotask(()=>{navQueued=false;nav();syncFinanceBreadcrumb();});};
     new MutationObserver(scheduleNav).observe(document.body,{childList:true,subtree:true});
     nav();
+    syncFinanceBreadcrumb();
     const page=allowed.find(([key])=>key===active);
     if(!page)return;
     const root=add(document.body,'main');root.id='sx-retail-workspace';
     root.className='sx-retail-workspace';
     root.dir=t('ltr','rtl');
     syncTheme();
-    if(!document.querySelector('[data-retail-workspace-css]')){const css=document.createElement('link');css.rel='stylesheet';css.href='/retail-workspace.css?v=20261107-orders-ui1';css.dataset.retailWorkspaceCss='';document.head.append(css);}
+    if(!document.querySelector('[data-retail-workspace-css]')){const css=document.createElement('link');css.rel='stylesheet';css.href='/retail-workspace.css?v=20261108-cash-ui1';css.dataset.retailWorkspaceCss='';document.head.append(css);}
     new MutationObserver(syncTheme).observe(document.documentElement,{attributes:true,attributeFilter:['data-sx-theme']});
     window.addEventListener('storage',syncTheme);
     add(root,'h1',page[2]);
     const status=add(root,'p',t('Loading…','جار التحميل…'));status.setAttribute('role','status');
     try {
-      if(active==='retail-finance')await finance(root,status);
+      if(active==='retail-finance')return await finance(root,status);
       else if(active==='retail-connected-stores')await connectedStores(root,status);
       else {
         await orders(root,status,active==='retail-deliveries',access.role==='owner'&&access.permissions['leads.manage']);
