@@ -83,10 +83,10 @@
     new URLSearchParams(location.search).get("lang") === "ar" ? "ar" : "en";
   const headlineMiddle = document.getElementById("hero-headline-middle");
   const hero = document.querySelector(".hero");
+  const prefersReducedPointerMotion = matchMedia("(prefers-reduced-motion: reduce)");
   if (
     hero &&
-    matchMedia("(hover: hover) and (pointer: fine)").matches &&
-    !matchMedia("(prefers-reduced-motion: reduce)").matches
+    matchMedia("(hover: hover) and (pointer: fine)").matches
   ) {
     let pointerFrame = 0;
     let pointerX = 50;
@@ -112,6 +112,16 @@
       const bounds = hero.getBoundingClientRect();
       pointerX = Math.max(0, Math.min(100, ((event.clientX - bounds.left) / bounds.width) * 100));
       pointerY = Math.max(0, Math.min(100, ((event.clientY - bounds.top) / bounds.height) * 100));
+      if (prefersReducedPointerMotion.matches) {
+        if (pointerFrame) cancelAnimationFrame(pointerFrame);
+        pointerFrame = 0;
+        waterX = pointerX;
+        waterY = pointerY;
+        hero.style.setProperty("--water-x", `${waterX}%`);
+        hero.style.setProperty("--water-y", `${waterY}%`);
+        hero.classList.add("has-water");
+        return;
+      }
       if (pointerFrame) return;
       hero.classList.add("has-water");
       pointerFrame = requestAnimationFrame(easeWater);

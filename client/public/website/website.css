@@ -2515,7 +2515,7 @@ nav {
   .hero-footnote { font-size: 9px; }
 }
 @media (prefers-reduced-motion: reduce) {
-  .hero-water { display: none; }
+  .hero-water { filter: none; transition: none; }
   .hero-headline-middle { transition: none; }
   .hero-headline-middle.is-changing { opacity: 1; transform: none; filter: none; }
 }

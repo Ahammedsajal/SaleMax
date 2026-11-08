@@ -22,9 +22,9 @@ SOURCE_FILES = (
     'client/public/website/website.js',
 )
 OLD_HASHES = {
-    'client/public/website/index.html': '8de4e8796c2c65f5b60e77c4a0d66c54a39640f55eb6269840714565360c09ae',
+    'client/public/website/index.html': '59a3c363ac60fa2b0931f6298bf9753eea9be6be918d2c44c2c861f7d0cdeeec',
     'client/public/website/website.css': '93eb753a88204ab176509073e246f91f62d9bdc9f9ad781bd3d8b42437b54df8',
-    'client/public/website/website.js': 'f4e9e82ab8603d8bf8e1cbf8e16f9f8ee5b9a4a33a9ef2f1351d59a85e38dc9f',
+    'client/public/website/website.js': '5e1958324d03597a3a80e06acd187326f498ed7092cba487ef841eca3655a52b',
 }
 NEW_FILES = ()
 EXPECTED_IMAGE = 'sha256:c756899fdbf63edc71d45de0c71cffe1f063244d91378d90b15a2c98fc1d5135'
