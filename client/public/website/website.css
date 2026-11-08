@@ -2950,6 +2950,10 @@ nav {
 .funnel-section {
   position: relative;
   isolation: isolate;
+  width: 100%;
+  max-width: none;
+  margin: 0;
+  box-sizing: border-box;
   background: none;
   padding: clamp(76px, 10vw, 140px) max(24px, calc((100vw - 1240px) / 2));
 }
@@ -2974,7 +2978,8 @@ nav {
 .funnel-heading > p { max-width: 360px; }
 .funnel-deck {
   position: relative;
-  max-width: 1120px;
+  width: 100%;
+  max-width: 1240px;
   margin: 0 auto;
   padding-bottom: 32vh;
   isolation: isolate;
@@ -2984,12 +2989,12 @@ nav {
   position: relative;
   z-index: auto;
   display: grid;
-  grid-template-columns: minmax(0, .88fr) minmax(340px, 1.12fr);
+  grid-template-columns: minmax(0, 1.04fr) minmax(0, .96fr);
   align-items: center;
-  gap: clamp(24px, 5vw, 76px);
-  min-height: clamp(370px, 34vw, 450px);
+  gap: clamp(28px, 3.5vw, 52px);
+  min-height: clamp(390px, 32vw, 460px);
   margin-bottom: clamp(92px, 13vw, 160px);
-  padding: clamp(30px, 5vw, 70px);
+  padding: clamp(30px, 4vw, 56px);
   overflow: hidden;
   border: 1px solid color-mix(in srgb, var(--stage), white 40%);
   border-inline-start: 5px solid color-mix(in srgb, var(--stage), white 10%);
@@ -3040,7 +3045,7 @@ nav {
   pointer-events: none;
 }
 .funnel-card-copy, .funnel-visual { position: relative; z-index: 1; }
-.funnel-card-copy { max-width: 510px; }
+.funnel-card-copy { width: 100%; max-width: none; }
 .funnel-stage {
   display: flex;
   align-items: center;
@@ -3064,7 +3069,7 @@ nav {
   letter-spacing: 0;
 }
 .funnel-card h3 {
-  max-width: 500px;
+  max-width: 15ch;
   margin: 0 0 17px;
   color: #fff;
   font-size: clamp(30px, 4vw, 48px);
@@ -3072,7 +3077,7 @@ nav {
   letter-spacing: -.045em;
 }
 .funnel-card-copy > p:not(.funnel-stage) {
-  max-width: 500px;
+  max-width: 56ch;
   margin: 0;
   color: #e2e7f4;
   font-size: clamp(14px, 1.25vw, 17px);
@@ -3184,7 +3189,7 @@ nav {
   .funnel-visual { min-height: 280px; aspect-ratio: 1.9; }
 }
 @media (max-width: 760px) {
-  .funnel-section { padding: 72px 16px; }
+  .funnel-section { width: 100%; padding: 72px 16px; }
   .funnel-heading { display: block; margin-bottom: 42px; }
   .funnel-heading > p { margin-top: 18px; }
   .funnel-deck { padding-bottom: 20vh; }
