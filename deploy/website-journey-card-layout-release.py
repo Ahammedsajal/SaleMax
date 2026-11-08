@@ -16,15 +16,15 @@ import time
 ROOT = Path('/opt/salemax')
 APP = 'salemax-app-1'
 BASE = '/opt/salemax/releases/training-pipeline-correction-v3-9867ca72-20261104'
-ACTIVE_OVERLAY = '/opt/salemax/releases/website-hero-bg-motion-8f6185db0122-20261108/compose.website-hero-bg-motion.json'
+ACTIVE_OVERLAY = '/opt/salemax/releases/website-journey-card-layout-be0a2641f007-20261108/compose.website-journey-card-layout.json'
 PRIOR_VARS = ROOT / 'shared/rollback-private-inventory-84644fdfebee/compose-manual-vars.json'
 SOURCE_FILES = (
     'client/public/website/index.html',
     'client/public/website/website.css',
 )
 REPLACED_FILES = {
-    'client/public/website/index.html': '96c3a35aea641b5ff93eab80fdd6dce72df9dd54a8fc1aa04efb31235e6490d8',
-    'client/public/website/website.css': 'f77e05a507a8fab3d4f151b5bb8a3fb247c001dcdbe173a7249d275717c29f4b',
+    'client/public/website/index.html': '6aa676129ba92f41df0e02c4f82f0cd402d2e415e67a3de50054c9baf0e67348',
+    'client/public/website/website.css': '4414455e93e2fcc88e6517e2fd31b8a9ab072f2fba682a1e3105cf6af06d3cbd',
 }
 NEW_FILES = tuple(name for name in SOURCE_FILES if name not in REPLACED_FILES)
 EXPECTED_IMAGE = 'sha256:c756899fdbf63edc71d45de0c71cffe1f063244d91378d90b15a2c98fc1d5135'
