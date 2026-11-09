@@ -1,3 +1,7 @@
+## Direct Inbox links from Pro Catalyst follow-ups — production, 9 November 2026
+
+Follow-up cards now open the linked WhatsApp conversation in a new Inbox tab. Production resolved all 20 reviewed leads to an exact chat. Bilingual responsive browser fixtures exercised the new tab and selection. Signed-in production browser acceptance remains open. `DEPLOYMENT.md` records the release and rollback.
+
 ## Pro Catalyst private follow-up pilot — production, 9 November 2026
 
 Live Reply Mockup now has an owner-only Follow-ups view with 20 reviewed pairs. New enquiries are evaluated for day 2 and day 7 drafts based on customer inactivity, course interest, lead progress and staff activity. The AI selector uses a bounded summary to choose between 15 English and Arabic variants. Day 7 remains a held preview. Focused tests, local database permissions, bilingual browser fixtures and a production synthetic AI selection passed. Signed-in browser acceptance, the first prospective due preview and live provider delivery remain separate gates. `DEPLOYMENT.md` records the release and rollback.
