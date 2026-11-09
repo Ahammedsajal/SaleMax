@@ -1,6 +1,10 @@
+## Pro Catalyst conversation continuity and QR test audience — production, 9 November 2026
+
+The existing Live Reply Mockup recognizes informal greetings, offers discovery based on published courses and keeps the selected course and intake state across repeat greetings. Repeated fee and duration answers use verified facts and skip an intake question already awaiting a reply. Name lookup uses the linked lead, matching contact and phonebook as applicable. The six saved test numbers can receive real replies on the assigned QR number. Other conversations continue producing private drafts for staff review. Production verified audience enforcement and synthetic replies. English and Arabic browser fixtures verified the live-test label. Actual WhatsApp delivery needs a fresh inbound from a tester. Scheduled follow-ups remain private drafts. `DEPLOYMENT.md` records the release and rollback.
+
 ## Ad-aware Pro Catalyst replies and AI-written drafts — production, 9 November 2026
 
-The scoped QR handler retains click-to-WhatsApp context when supplied. Private replies use verified ad context to answer about the matching published course, or ask the customer which course they mean when the evidence is unavailable. AI writes future follow-up pairs from bounded conversation topics and the verified course. The reviewed cohort is retained. Synthetic production verification passed and device-level ad and scheduled draft acceptance remain open. Customer sending remains disabled. Release details are in `DEPLOYMENT.md`.
+The scoped QR handler retains click-to-WhatsApp context when supplied. Private replies use verified ad context to answer about the matching published course, or ask the customer which course they mean when the evidence is unavailable. AI writes future follow-up pairs from bounded conversation topics and the verified course. The reviewed cohort is retained. Synthetic production verification passed and device-level ad and scheduled draft acceptance remain open. Automated follow-up delivery remains disabled. Release details are in `DEPLOYMENT.md`.
 
 ## Direct Inbox links from Pro Catalyst follow-ups — production, 9 November 2026
 
