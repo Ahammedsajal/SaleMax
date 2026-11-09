@@ -1,4 +1,4 @@
-"""Apply or roll back the guarded app-only Pro Catalyst handoff overlay."""
+"""Apply or roll back the guarded app-only Pro Catalyst chatbot overlays."""
 import hashlib
 import json
 import os
@@ -18,6 +18,22 @@ REPLACED_FILES = {
     'modules/platform/chatbot-runtime.js': '3ba8d087ca748c16cd403c9ae560aec5f5f263460c5250e13f4c1b4e78966ba6',
 }
 SCOPE_ENV = 'SALEMAX_CHATBOT_ONE_HOUR_HANDOFF_TENANT_ID'
+SLUG = 'pro-catalyst-handover'
+NEW_FILES = ()
+
+def configure_admissions():
+    global ACTIVE_OVERLAY, REPLACED_FILES, SCOPE_ENV, SLUG, NEW_FILES
+    ACTIVE_OVERLAY = '/opt/salemax/releases/pro-catalyst-handover-55da66d08022-20261109/compose.pro-catalyst-handover.json'
+    REPLACED_FILES = {
+        'modules/platform/chatbot-runtime.js': '3e8330fb217fc6eabdbe4bb161ad9bda6bfd103bf4ac9c42e6086bda597ecc87',
+        'modules/platform/chatbot-lead-capture.js': 'c03dc43fcd428f6f3309ea0b03a67c61c137d8932ba8896431691d681296c6c5',
+        'modules/platform/chatbot-ai-prompt.js': '16835d7be66d52851650ea53a36a95b628c36894fe1aef9b79a561240fb909b0',
+    }
+    SCOPE_ENV = 'SALEMAX_CHATBOT_ADMISSIONS_INTAKE_TENANT_ID'
+    SLUG = 'pro-catalyst-admissions'
+    NEW_FILES = ('modules/platform/chatbot-admissions-intake.js',)
+
+
 EXPECTED_IMAGE = 'sha256:c756899fdbf63edc71d45de0c71cffe1f063244d91378d90b15a2c98fc1d5135'
 SUPPORT = (
     'salemax-db-1', 'salemax-report-worker-1', 'salemax-libretranslate-1',
@@ -71,7 +87,7 @@ def deploy(stage, commit):
     require_production_lock()
     if not re.fullmatch(r'[a-f0-9]{40}', commit):
         raise RuntimeError('Invalid source commit')
-    if not all((stage / name).is_file() for name in REPLACED_FILES):
+    if not all((stage / name).is_file() for name in (*REPLACED_FILES, *NEW_FILES)):
         raise RuntimeError('Staging directory is missing reviewed chatbot files')
     os.umask(0o077)
     app = inspect(APP)
@@ -86,8 +102,8 @@ def deploy(stage, commit):
     if not env_files or not all(Path(p).is_file() for p in files + env_files):
         raise RuntimeError('Active Compose inputs are incomplete')
 
-    release = ROOT / 'releases' / f'pro-catalyst-handover-{commit[:12]}-20261109'
-    backup = ROOT / 'shared' / f'rollback-pro-catalyst-handover-{commit[:12]}-20261109'
+    release = ROOT / 'releases' / f'{SLUG}-{commit[:12]}-20261109'
+    backup = ROOT / 'shared' / f'rollback-{SLUG}-{commit[:12]}-20261109'
     if release.exists() or backup.exists():
         raise RuntimeError('Release or rollback path already exists')
     release.mkdir(mode=0o755)
@@ -134,6 +150,15 @@ def deploy(stage, commit):
         output.chmod(0o644)
         changed[name] = data
 
+    for name in NEW_FILES:
+        run('docker', 'exec', APP, 'test', '!', '-e', '/app/' + name)
+        data = (stage / name).read_bytes()
+        output = runtime / name
+        output.parent.mkdir(parents=True, exist_ok=True, mode=0o755)
+        output.write_bytes(data)
+        output.chmod(0o644)
+        changed[name] = data
+
     tenant_id = (stage / 'tenant-id').read_text().strip()
     if not re.fullmatch(r'[a-f0-9-]{36}', tenant_id):
         raise RuntimeError('Invalid tenant scope')
@@ -143,11 +168,13 @@ def deploy(stage, commit):
       .catch(() => { process.exitCode = 1; }).finally(() => db.end());"""
     run('docker', 'exec', APP, 'node', '-e', tenant_check, tenant_id)
     if SCOPE_ENV in live_env:
-        raise RuntimeError('Handoff scope is already configured')
+        raise RuntimeError('Tenant scope is already configured')
+    if NEW_FILES and live_env.get('SALEMAX_CHATBOT_ONE_HOUR_HANDOFF_TENANT_ID') != tenant_id:
+        raise RuntimeError('Admissions tenant differs from the active handoff tenant')
 
     mounts = [{'type': 'bind', 'source': str(runtime / name), 'target': '/app/' + name,
                'read_only': True, 'bind': {'create_host_path': False}} for name in changed]
-    overlay = release / 'compose.pro-catalyst-handover.json'
+    overlay = release / f'compose.{SLUG}.json'
     overlay.write_text(json.dumps({'services': {'app': {'image': app['Config']['Image'], 'environment': {SCOPE_ENV: tenant_id}, 'volumes': mounts}}}))
     overlay.chmod(0o644)
     common = compose_args(files, env_files, workdir)
@@ -178,9 +205,10 @@ def deploy(stage, commit):
     helper.write_bytes(Path(__file__).read_bytes())
     helper.chmod(0o644)
 
-    reset_script = release / 'deploy/pro-catalyst-handover-reset.cjs'
-    reset_script.write_bytes((stage / 'deploy/pro-catalyst-handover-reset.cjs').read_bytes())
-    reset_script.chmod(0o644)
+    if not NEW_FILES:
+        reset_script = release / 'deploy/pro-catalyst-handover-reset.cjs'
+        reset_script.write_bytes((stage / 'deploy/pro-catalyst-handover-reset.cjs').read_bytes())
+        reset_script.chmod(0o644)
 
     if any(sha(Path(name).read_bytes()) != digest for name, digest in input_hashes.items()) or inspect(APP)['Id'] != app['Id']:
         raise RuntimeError('Running app or Compose inputs changed during preparation')
@@ -213,7 +241,7 @@ def restore(backup):
     files = (backup / 'compose-files.before.txt').read_text().splitlines()
     env_files = (backup / 'compose-env-files.before.txt').read_text().splitlines()
     release = Path((backup / 'release-path.txt').read_text().strip())
-    overlay = release / 'compose.pro-catalyst-handover.json'
+    overlay = release / f'compose.{SLUG}.json'
     if inspect(APP)['Config']['Labels']['com.docker.compose.project.config_files'] != ','.join(files + [str(overlay)]):
         raise RuntimeError('A later release is active; roll it back first')
     for name, digest in json.loads((backup / 'compose-input-hashes.json').read_text()).items():
@@ -229,6 +257,8 @@ def restore(backup):
     for name, expected in REPLACED_FILES.items():
         if run('docker', 'exec', APP, 'sha256sum', '/app/' + name).split()[0] != expected:
             raise RuntimeError('Rollback file hash mismatch: ' + name)
+    for name in NEW_FILES:
+        run('docker', 'exec', APP, 'test', '!', '-e', '/app/' + name)
     for name, identity in json.loads((backup / 'support-services.json').read_text()).items():
         if inspect(name)['Id'] != identity:
             raise RuntimeError('Rollback support service changed')
@@ -238,7 +268,7 @@ def restore(backup):
 def reset(backup):
     require_production_lock()
     release = Path((backup / 'release-path.txt').read_text().strip())
-    overlay = release / 'compose.pro-catalyst-handover.json'
+    overlay = release / f'compose.{SLUG}.json'
     if inspect(APP)['Config']['Labels']['com.docker.compose.project.config_files'].split(',')[-1] != str(overlay):
         raise RuntimeError('Expected handoff overlay is not active')
     source = (release / 'deploy/pro-catalyst-handover-reset.cjs').read_text()
@@ -264,11 +294,15 @@ def reset(backup):
 
 
 if __name__ == '__main__':
-    if len(sys.argv) == 4 and sys.argv[1] == 'deploy':
+    if len(sys.argv) == 4 and sys.argv[1] in ('deploy', 'deploy-admissions'):
+        if sys.argv[1] == 'deploy-admissions':
+            configure_admissions()
         deploy(Path(sys.argv[2]), sys.argv[3])
     elif len(sys.argv) == 3 and sys.argv[1] == 'reset':
         reset(Path(sys.argv[2]))
-    elif len(sys.argv) == 3 and sys.argv[1] == 'restore':
+    elif len(sys.argv) == 3 and sys.argv[1] in ('restore', 'restore-admissions'):
+        if sys.argv[1] == 'restore-admissions':
+            configure_admissions()
         restore(Path(sys.argv[2]))
     else:
-        raise SystemExit('Usage: pro-catalyst-handover-release.py deploy <stage> <commit> | reset <backup> | restore <backup>')
+        raise SystemExit('Usage: pro-catalyst-handover-release.py deploy[-admissions] <stage> <commit> | reset <backup> | restore[-admissions] <backup>')

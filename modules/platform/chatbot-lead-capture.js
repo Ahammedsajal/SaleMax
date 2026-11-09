@@ -1,6 +1,7 @@
 'use strict';
 const crypto = require('node:crypto');
 const context = require('./chatbot-business-context');
+const admissions = require('./chatbot-admissions-intake');
 const { recipientAllowed } = require('./chatbot-audience');
 const parse = value => typeof value === 'string' ? JSON.parse(value) : value || {};
 
@@ -62,8 +63,15 @@ async function captureLead(pool, { ctx, profile, uid, chatId, origin, message, f
       const selected = facts.find(item => item.code === code);
       if (selected) courses = [{ kind: 'course', code: selected.code, name: retrieval.language === 'ar' ? selected.nameAr || selected.nameEn : selected.nameEn || selected.nameAr }];
     }
-    const name = customerName(text, prior.waitingFor === 'name' && !courses.length);
+    const useIntake = admissions.enabled(ctx.tenant.id);
+    const intakeScope = useIntake ? context.fingerprint([profile.channelKind, profile.channelRef, chatId]).slice(0, 24) : null;
+    const priorIntake = prior.admissions?.scope === intakeScope && Date.now() - Number(prior.admissions.lastSeen || 0) < 24 * 60 * 60 * 1000
+      ? prior.admissions : { scope: intakeScope };
+    const waitingForName = useIntake ? ['name', 'confirmName'].includes(priorIntake.waiting) : prior.waitingFor === 'name';
+    let name = customerName(text, waitingForName && !courses.length);
+    const simpleName = name && ['', 'my name is ', 'my name s ', 'call me ', 'اسمي ', 'انا اسمي '].some(prefix => context.normalized(text) === prefix + context.normalized(name));
     const details = qualificationFromText(text);
+    if (useIntake && !details.courseInterest) details.courseInterest = admissions.courseInterest(text);
     if (!alreadyCaptured && courses.length) qualification.courseInterest = courses.map(item => item.name).join('; ').slice(0, 180);
     else if (!alreadyCaptured && details.courseInterest) qualification.courseInterest = details.courseInterest;
     for (const key of ['preferredSchedule', 'learningGoal']) if (!alreadyCaptured && details[key]) qualification[key] = details[key];
@@ -72,20 +80,55 @@ async function captureLead(pool, { ctx, profile, uid, chatId, origin, message, f
     if (!alreadyCaptured && courses.length) meta.courseConfirmed = true;
     if (!alreadyCaptured && /^(?:reset bot|restart bot|إعادة ضبط الروبوت)$/iu.test(text)) meta = { ...meta, waitingFor: null, nameAsked: false, courseAsked: false };
     if (!alreadyCaptured) meta.inboundKeys = [...previousKeys, inboundKey].slice(-25);
-    const language = context.languageFor(text);
-    const questionKey = !meta.nameConfirmed && !meta.nameAsked ? 'collectNameMessage' : !qualification.courseInterest && !meta.courseAsked ? 'collectCourseMessage' : null;
+    const language = context.languageFor(text, guidedState);
+    let intake = null;
+    if (useIntake) {
+      const storedName = customerName(lead.learner_name, true);
+      // captureBotInbound selects this lead under the account's normalized
+      // WhatsApp number lock. An imported contact may predate that lock.
+      const phone = require('../../helper/pipeline/leadPipeline').normalizePhone(message.senderMobile);
+      let existingName = null;
+      if (!name && !priorIntake.nameConfirmed && !prior.nameConfirmed) {
+        const [[matchedContact]] = await db.query(`SELECT display_name AS name FROM pipeline_contacts
+          WHERE uid_hash=? AND uid=? AND normalized_phone=? AND id<>?
+          ORDER BY created_at DESC,id LIMIT 1`, [uidHash, uid, phone, lead.contact_id || '']);
+        existingName = customerName(matchedContact?.name, true);
+      }
+      const fullSavedName = existingName || storedName;
+      const savedName = fullSavedName?.split(/\s+/u)[0];
+      const savedStart = admissions.savedStartLabel(qualification, language);
+      const enquiryChanged = priorIntake.courseInterest && qualification.courseInterest !== priorIntake.courseInterest;
+      const currentIntake = enquiryChanged
+        ? { ...priorIntake, startConfirmed: false, startAsked: 0, confirmStartAsked: 0, replaceStart: false, waiting: null }
+        : priorIntake;
+      intake = admissions.advance({ prior: currentIntake, text, name, nameOnly: !!simpleName && !retrieval.explicitCourses,
+        savedName, savedStart, language });
+      if (!alreadyCaptured) {
+        if (!name && !priorIntake.nameConfirmed && intake.state.nameConfirmed) name = fullSavedName;
+        if (name) meta.nameConfirmed = true;
+        if (intake.start) {
+          qualification.preferredStartDetail = intake.start.detail;
+          if (intake.start.window) qualification.preferredStartWindow = intake.start.window;
+          else delete qualification.preferredStartWindow;
+        }
+        meta.admissions = { ...intake.state, courseInterest: qualification.courseInterest || null, lastSeen: Date.now() };
+      }
+      intake.session = guidedState;
+      intake.name = intake.state.nameConfirmed ? name || storedName : null;
+      intake.preferredStart = intake.state.startConfirmed ? admissions.savedStartLabel(qualification, language) : null;
+    }
+    const questionKey = useIntake ? null : !meta.nameConfirmed && !meta.nameAsked ? 'collectNameMessage' : !qualification.courseInterest && !meta.courseAsked ? 'collectCourseMessage' : null;
     qualification.botCapture = meta;
     const changed = !alreadyCaptured && (JSON.stringify(qualification) !== JSON.stringify(parse(lead.qualification_data)) || (name && name !== lead.learner_name) || !!details.email);
     if (changed) {
       await db.query('UPDATE pipeline_leads SET qualification_data=?,learner_name=COALESCE(?,learner_name),contact_name=COALESCE(?,contact_name),last_activity_at=UTC_TIMESTAMP(3) WHERE uid_hash=? AND uid=? AND id=?', [JSON.stringify(qualification), name, name, uidHash, uid, lead.id]);
       if (lead.contact_id && (name || details.email)) await db.query('UPDATE pipeline_contacts SET display_name=COALESCE(?,display_name),normalized_email=COALESCE(?,normalized_email) WHERE uid_hash=? AND uid=? AND id=?', [name, details.email || null, uidHash, uid, lead.contact_id]);
       const old = parse(lead.qualification_data);
-      const fields = [...(name && (name !== lead.learner_name || !prior.nameConfirmed) ? ['learnerName'] : []), ...['courseInterest','preferredSchedule','learningGoal'].filter(key => qualification[key] !== old[key]), ...(details.email ? ['email'] : [])];
+      const fields = [...(name && (name !== lead.learner_name || !prior.nameConfirmed) ? ['learnerName'] : []), ...['courseInterest','preferredSchedule','preferredStartWindow','preferredStartDetail','learningGoal'].filter(key => qualification[key] !== old[key]), ...(details.email ? ['email'] : [])];
       if (fields.length) await db.query(`INSERT INTO pipeline_activity(uid_hash,lead_id,actor_type,activity_type,summary,details,created_at) VALUES (?,?,'system','lead_updated','Bot saved learner enquiry details',?,UTC_TIMESTAMP(3))`, [uidHash, lead.id, JSON.stringify({ origin: 'chatbot', profileId: profile.id, fields, ...(fields.includes('courseInterest') ? { courseInterest: qualification.courseInterest } : {}) })]);
     }
     await db.commit();
-    const simpleName = name && ['','my name is ','my name s ','call me ','اسمي ','انا اسمي '].some(prefix => context.normalized(text) === prefix + context.normalized(name));
-    return { leadId: lead.id, uidHash, facts, questionKey, language, nameCaptured: !!name, nameOnly: !!simpleName && !retrieval.explicitCourses, courseInterest: qualification.courseInterest || null };
+    return { leadId: lead.id, uidHash, facts, questionKey, language, nameCaptured: !!name, nameOnly: !!simpleName && !retrieval.explicitCourses, courseInterest: qualification.courseInterest || null, intake };
   } catch (error) { await db.rollback(); throw error; }
   finally { db.release(); }
 }
@@ -102,13 +145,30 @@ async function captureGenericLead(pool, { ctx, profile, uid, chatId, origin, mes
 }
 
 function addQuestion(reply, info, config, defaults) {
+  if (info?.intake) {
+    if (!info.intake.prompt || (!info.courseInterest && !info.intake.session.admissionsEscalation)) return reply;
+    return appendPrompt(reply, info.intake.prompt);
+  }
   if (!info?.questionKey) return reply;
   const text = config?.guidedContent?.messages?.[info.questionKey]?.[info.language] || defaults?.messages?.[info.questionKey]?.[info.language];
   if (!text) return reply;
-  return reply.replace(/[^\n.!?؟]*[?؟]\s*$/u, '').trim() + '\n\n' + text;
+  return appendPrompt(reply, text);
+}
+
+function appendPrompt(reply, text) {
+  return [reply.replace(/[^\n.!?؟]*[?؟]\s*$/u, '').trim(), text].filter(Boolean).join('\n\n');
 }
 
 async function markAsked(pool, info, uid) {
+  if (info?.intake) {
+    if (!info.intake.key || (!info.courseInterest && !info.intake.session.admissionsEscalation)) return;
+    const counter = '$.botCapture.admissions.' + info.intake.key + 'Asked';
+    await pool.query(`UPDATE pipeline_leads SET qualification_data=JSON_SET(qualification_data,
+      '$.botCapture.admissions.waiting', ?, ?, COALESCE(JSON_EXTRACT(qualification_data, ?),0)+1)
+      WHERE uid_hash=? AND uid=? AND id=? AND JSON_UNQUOTE(JSON_EXTRACT(qualification_data,'$.botCapture.admissions.scope'))=?`,
+    [info.intake.key, counter, counter, info.uidHash, uid, info.leadId, info.intake.state.scope]);
+    return;
+  }
   if (!info?.questionKey) return;
   const key = info.questionKey === 'collectNameMessage' ? 'name' : 'course';
   const db = await pool.getConnection();

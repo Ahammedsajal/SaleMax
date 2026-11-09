@@ -10,7 +10,7 @@ function summarizeConversation(history) {
     .join('\n').slice(0, 700);
 }
 
-function buildAiPrompt({ pack, profile, customerMessage, facts, history, courseOverview = false }) {
+function buildAiPrompt({ pack, profile, customerMessage, facts, history, courseOverview = false, admissionsIntake = false }) {
   const firstGreeting = isOpeningGreeting(customerMessage);
   const courseListRequest = /^(?:courses|course list|show courses|available courses|what courses do you have|الدورات|دورات|عرض الدورات|قائمة الدورات)[!.؟\s]*$/iu.test(String(customerMessage || '').trim());
   const overviewSystem = [
@@ -32,6 +32,7 @@ function buildAiPrompt({ pack, profile, customerMessage, facts, history, courseO
     'Output only JSON: {"can_answer": boolean, "confidence": number from 0 to 1, "reply": string, "source_ids": string[]}.',
   ].join(' ');
   const system = courseOverview ? overviewSystem : [generalSystem,
+    ...(admissionsIntake ? ['For admissions, answer in at most three short sentences. The application handles the learner’s name and preferred start separately. Ask a follow-up only if the course itself is ambiguous.'] : []),
     'When firstGreeting is true, the customer has greeted you on the first turn: greet briefly and invite one useful question; do not append a menu.',
     'When courseListRequest is true, the customer explicitly asked for the course list: provide the available names from course_index compactly, with no numbering, prices or schedules unless separately supported by evidence.',
   ].join(' ');

@@ -83,6 +83,7 @@ async function main() {
     await connection.query("CREATE TABLE user (id INT AUTO_INCREMENT PRIMARY KEY,uid VARCHAR(999),name VARCHAR(200),plan LONGTEXT,plan_expire VARCHAR(80),role VARCHAR(20)) ENGINE=InnoDB");
     const schemaEvidence=await require('./chatbot-migration-integration.cjs')(connection,{t1,t2,i1,i2});
     const handoffEvidence=await require('./chatbot-handoff-expiry.integration.cjs')(connection,pool,{t1,t2,i1,i2});
+    const intakeEvidence=await require('./chatbot-admissions-intake.integration.cjs')(connection,pool,{t1,t2});
     const runtimeEvidence=await require('./chatbot-api-integration.cjs')(connection,pool,{t1,t2,i1,i2,m1,m2});
     const store=require('../modules/platform/chatbot-conversation-store');
     const data={type:'text',metaChatId:'synthetic-echo-race',msgContext:JSON.stringify({text:{body:'One provider message'}}),route:'OUTGOING',timestamp:1};
@@ -92,7 +93,7 @@ async function main() {
     await store.persistConversationMessage({pool,uid:'synthetic-echo-user',chatId:'synthetic-other-channel',data});
     const [[channelsCount]]=await connection.query("SELECT COUNT(*) AS n FROM beta_conversation WHERE uid='synthetic-echo-user' AND metaChatId='synthetic-echo-race'");
     assert.equal(Number(channelsCount.n),2);
-    console.log(JSON.stringify({disposableDatabase:true,atomicQrEchoDeduplication:true,migrations:migrations.length,...schemaEvidence,...handoffEvidence,...runtimeEvidence}));
+    console.log(JSON.stringify({disposableDatabase:true,atomicQrEchoDeduplication:true,migrations:migrations.length,...schemaEvidence,...handoffEvidence,...intakeEvidence,...runtimeEvidence}));
   } catch(error) {
     if(connection) {
       try {
