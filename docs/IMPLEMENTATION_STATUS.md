@@ -1,3 +1,7 @@
+## Pro Catalyst admissions qualification — production, 9 November 2026
+
+The existing Pro Catalyst Hybrid bot now looks up the sender's normalized WhatsApp number in Lead Pipeline. It confirms or captures the learner's name and preferred start, saves the course interest and preferences in the existing record, and adds those details to routine staff handovers. AI replies stay grounded in approved business facts, with short deterministic intake when the provider fails. Direct staff requests still route immediately. Focused and disposable MariaDB tests pass, the production smoke passed, and there are zero active Pro Catalyst handovers after release. A live WhatsApp exchange remains open. Source, release and rollback evidence are in DEPLOYMENT.md. The wider upgrade remains in progress.
+
 ## Pro Catalyst handover timeout and reset — production, 9 November 2026
 
 New Pro Catalyst bot handovers expire after 60 minutes from creation, including if staff claims them. The existing notification worker and next inbound turn release the chatbot pause, clear conversational state, close the linked active task and suppress queued handover alerts. Independently set manual pauses are preserved. The requested tenant reset cleared both existing handovers and verified zero active flags. The disposable MariaDB handover fixture passed. Live WhatsApp reply and elapsed-hour device acceptance remain open. The production overlay, rollback and verification limits are recorded in DEPLOYMENT.md.
