@@ -122,23 +122,32 @@ async function handoffConversation(ctx, chatId, channelKind, channelRef, reason,
   const db = await dbPool.getConnection();
   try {
     await db.beginTransaction();
-    await db.query(`INSERT INTO sx_chatbot_conversation_controls(id,tenant_id,channel_kind,channel_ref,conversation_id,mode,pause_until,reason,revision,updated_by_kind,updated_by_identity_id)
-      VALUES (?,?,?,?,?,'paused',DATE_ADD(UTC_TIMESTAMP(3),INTERVAL 24 HOUR),?,1,'system',NULL)
-      ON DUPLICATE KEY UPDATE mode='paused',pause_until=DATE_ADD(UTC_TIMESTAMP(3),INTERVAL 24 HOUR),reason=VALUES(reason),revision=revision+1,updated_by_kind='system',updated_by_identity_id=NULL`,
-    [crypto.randomUUID(), ctx.tenant.id, channelKind, channelRef, chatId, String(reason || 'human-review').slice(0, 240)]);
-    await db.query(`INSERT INTO sx_audit_events(id,tenant_id,actor_identity_id,actor_kind,action,resource_type,resource_id,changes,correlation_id)
-      VALUES (?,?,NULL,'system','chatbot.conversation-auto-handoff','chatbot-conversation',?,?,?)`,
-    [crypto.randomUUID(), ctx.tenant.id, chatId, JSON.stringify({ mode: 'paused', reason: String(reason || 'human-review').slice(0, 240) }), crypto.randomUUID()]);
+    const handoffs = require('./chatbot-handoff-claims');
+    const minutes = handoffs.holdMinutes(ctx.tenant.id);
     let claim = null;
     if (profile && uid) {
-      const handoffs = require('./chatbot-handoff-claims');
       const brief = await buildHandoffBrief(db, { ctx, profile, uid, chatId, channelKind, channelRef });
       claim = await handoffs.open(db, { ctx, profile, uid, chatId, channelKind, channelRef, reason, brief });
-      if (claim.created) {
-        const taskId = await require('./chatbot-handoff-task').assignHandoffTask(db, { ctx, profile, uid, chatId, channelKind, channelRef, reason });
-        if (taskId) await db.query('UPDATE sx_chatbot_handoff_claims SET handoff_task_id=? WHERE tenant_id=? AND id=?', [taskId, ctx.tenant.id, claim.id]);
-        await handoffs.queue(db, ctx.tenant.id, claim);
+      if (minutes === 60 && claim.status === 'claimed') {
+        await db.commit();
+        return claim;
       }
+    }
+    const controlReason = String((minutes === 60 && claim?.reason) || reason || 'human-review').slice(0, minutes === 60 ? 120 : 240);
+    await db.query(`INSERT INTO sx_chatbot_conversation_controls(id,tenant_id,channel_kind,channel_ref,conversation_id,mode,pause_until,reason,revision,updated_by_kind,updated_by_identity_id)
+      VALUES (?,?,?,?,?,'paused',COALESCE(
+        (SELECT expires_at FROM sx_chatbot_handoff_claims WHERE tenant_id=? AND id=?),
+        TIMESTAMPADD(MINUTE,?,UTC_TIMESTAMP(3))),?,1,'system',NULL)
+      ON DUPLICATE KEY UPDATE mode='paused',pause_until=VALUES(pause_until),reason=VALUES(reason),revision=revision+1,updated_by_kind='system',updated_by_identity_id=NULL`,
+    [crypto.randomUUID(), ctx.tenant.id, channelKind, channelRef, chatId, ctx.tenant.id,
+      minutes === 60 ? claim?.id ?? null : null, minutes, controlReason]);
+    await db.query(`INSERT INTO sx_audit_events(id,tenant_id,actor_identity_id,actor_kind,action,resource_type,resource_id,changes,correlation_id)
+      VALUES (?,?,NULL,'system','chatbot.conversation-auto-handoff','chatbot-conversation',?,?,?)`,
+    [crypto.randomUUID(), ctx.tenant.id, chatId, JSON.stringify({ mode: 'paused', reason: controlReason }), crypto.randomUUID()]);
+    if (claim?.created) {
+      const taskId = await require('./chatbot-handoff-task').assignHandoffTask(db, { ctx, profile, uid, chatId, channelKind, channelRef, reason });
+      if (taskId) await db.query('UPDATE sx_chatbot_handoff_claims SET handoff_task_id=? WHERE tenant_id=? AND id=?', [taskId, ctx.tenant.id, claim.id]);
+      await handoffs.queue(db, ctx.tenant.id, claim);
     }
     if (profile?.config?.assignHandoffsToInbox === true && profile.config.handoffAssigneeIdentityId && uid) {
       await require('./team-conversation-assignment').assignConversation(db, { ctx, uid, chatId, identityId: profile.config.handoffAssigneeIdentityId, reason: 'bot-human-handover' });

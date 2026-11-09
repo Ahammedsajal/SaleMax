@@ -65,3 +65,38 @@ test('concurrent eligible YES replies assign an open conversation exactly once',
     assert.equal(state.status, 'claimed');
   } finally { qr.staff = oldStaff; assignment.eligibleStaff = oldEligible; assignment.assignConversation = oldAssign; }
 });
+
+test('new and reopened handoffs use one hour only for the configured tenant', async () => {
+  const key = 'SALEMAX_CHATBOT_ONE_HOUR_HANDOFF_TENANT_ID';
+  const previous = process.env[key];
+  process.env[key] = 'pilot';
+  try {
+    for (const [tenantId, expected] of [['pilot', 60], ['another-tenant', 1440]]) {
+      for (const existing of [null, { id: 'previous', status: 'expired', revision: 1 }]) {
+        let write;
+        const db = { query: async (sql, args) => {
+          if (sql.includes('FOR UPDATE')) return [[existing]];
+          write = { sql, args };
+          return [{ affectedRows: 1 }];
+        } };
+        const result = await claims.open(db, { ctx: { tenant: { id: tenantId } }, profile: { id: 'profile' },
+          uid: 'owner', chatId: 'chat', channelKind: 'whatsapp_qr', channelRef: 'qr', reason: 'needs-staff' });
+        assert.equal(result.created, true);
+        assert.match(write.sql, /TIMESTAMPADD\(MINUTE,\?,UTC_TIMESTAMP\(3\)\)/);
+        assert.equal(write.args[write.args.indexOf('needs-staff') + 1], expected);
+      }
+    }
+    const claimed = { id: 'previous', status: 'claimed', revision: 1, isActive: 1 };
+    const db = { query: async sql => {
+      assert.match(sql, /FOR UPDATE/);
+      return [[claimed]];
+    } };
+    const result = await claims.open(db, { ctx: { tenant: { id: 'pilot' } }, profile: { id: 'profile' },
+      uid: 'owner', chatId: 'chat', channelKind: 'whatsapp_qr', channelRef: 'qr', reason: 'needs-staff' });
+    assert.deepEqual(result, { ...claimed, created: false });
+    await assert.rejects(claims.expireDue(null, { tenantId: 'another-tenant', resetAll: true }), { code: 'HANDOFF_RESET_SCOPE_REQUIRED' });
+  } finally {
+    if (previous === undefined) delete process.env[key];
+    else process.env[key] = previous;
+  }
+});
