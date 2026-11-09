@@ -121,8 +121,15 @@ async function main() {
     assert.deepEqual(await search('%'), []);
     assert.equal((await fetch(url + '?search=a&search=b', { headers: { 'x-role': 'owner' } })).status, 400);
     await pool.query('CREATE TABLE pipeline_leads (id CHAR(36) PRIMARY KEY,uid_hash CHAR(64),uid VARCHAR(191),learner_name VARCHAR(255),contact_name VARCHAR(255))');
+    await pool.query('CREATE TABLE pipeline_conversations (id INT AUTO_INCREMENT PRIMARY KEY,uid_hash CHAR(64),lead_id CHAR(36),chat_id VARCHAR(255),origin VARCHAR(10),last_inbound_at DATETIME)');
+    await pool.query('CREATE TABLE beta_chats (uid VARCHAR(191),chat_id VARCHAR(255),origin VARCHAR(10)) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci');
     const lead = randomUUID();
     await pool.query('INSERT INTO pipeline_leads VALUES (?,?,?,?,?)', [lead, hash, uid, null, 'Synthetic learner']);
+    await pool.query(`INSERT INTO pipeline_conversations (uid_hash,lead_id,chat_id,origin,last_inbound_at) VALUES
+      (?,?,'older-chat','qr','2026-11-01'),(?,?,'current-chat','meta','2026-11-02'),
+      (?,?,'removed-chat','qr','2026-11-03'),(?,?,'qrgroup_fixture','qr','2026-11-04')`, [hash,lead,hash,lead,hash,lead,hash,lead]);
+    await pool.query(`INSERT INTO beta_chats VALUES (?, 'older-chat','qr'),(?, 'current-chat','meta'),
+      ('other-owner','removed-chat','qr'),(?, 'qrgroup_fixture','qr')`, [uid,uid,uid]);
     await pool.query(`INSERT INTO sx_chatbot_followup_previews
       (tenant_id,lead_id,source,status,first_draft,second_draft,checked_at,created_at)
       VALUES (?,?,'reviewed','ready','First follow-up','Held follow-up',UTC_TIMESTAMP(3),UTC_TIMESTAMP(3))`, [tenant, lead]);
@@ -132,7 +139,12 @@ async function main() {
     assert.equal((await fetch(followups, { headers: { 'x-role': 'owner', 'x-other': 'yes' } })).status, 404);
     const privateDrafts = await fetch(followups, { headers: { 'x-role': 'owner' } });
     assert.equal(privateDrafts.headers.get('cache-control'), 'private, no-store');
-    assert.deepEqual((await privateDrafts.json()).data.items.map(item => item.firstDraft), ['First follow-up']);
+    const [followup] = (await privateDrafts.json()).data.items;
+    assert.equal(followup.firstDraft, 'First follow-up');
+    assert.equal(followup.chatId, 'current-chat');
+    await pool.query('DELETE FROM beta_chats WHERE uid=?', [uid]);
+    const unavailable = await fetch(followups, { headers: { 'x-role': 'owner' } });
+    assert.equal((await unavailable.json()).data.items[0].chatId, null);
     await pool.query("UPDATE sx_chatbot_followup_previews SET status='skipped' WHERE tenant_id=? AND lead_id=?", [tenant, lead]);
     const skipped = await fetch(followups, { headers: { 'x-role': 'owner' } });
     assert.equal((await skipped.json()).data.items[0].firstDraft, null);

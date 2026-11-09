@@ -20,7 +20,7 @@ business feature. Add future changes to that implementation once.
 | Business profile | `/api/workspace/profile` | `/api/user/training/profile` |
 | Shared tenant AI settings | `/api/workspace/ai/settings` | `/api/user/chatbots/settings/provider` |
 | Private chatbot reply mockup conversations and drafts | `/api/workspace/chatbots/mockup` with optional `search` by customer label | None. Enabled tenants only, owner access. |
-| Private day 2 and day 7 follow-up drafts | `/api/workspace/chatbots/mockup/followups` with optional `search=reviewed` or `search=scheduled` and `before` cursor | None. Enabled tenant owners only. Read-only preview. |
+| Private day 2 and day 7 follow-up drafts | `/api/workspace/chatbots/mockup/followups` with optional `search=reviewed` or `search=scheduled` and `before` cursor | None. Enabled tenant owners only. Read-only preview with a nullable `chatId` for the latest linked Inbox conversation. |
 | Tenant customization | `/api/workspace/customization` | `/api/crm/customization` |
 | Forms | `/api/workspace/forms` | `/api/user/training/forms` |
 

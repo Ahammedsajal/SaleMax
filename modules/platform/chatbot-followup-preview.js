@@ -295,6 +295,12 @@ async function list(pool, tenant, before, source = '') {
   const hash = createHash('sha256').update(uid).digest('hex');
   const [rows] = await pool.query(`SELECT CAST(p.id AS CHAR) AS id,p.lead_id AS leadId,p.course_name AS course,p.status,p.reason,
     p.source,p.draft_source AS draftSource,COALESCE(l.learner_name,l.contact_name) AS label,
+    (SELECT c.chat_id FROM pipeline_conversations c
+      WHERE c.uid_hash=l.uid_hash AND c.lead_id=l.id AND c.origin IN ('qr','meta')
+        AND c.chat_id<>'' AND LEFT(c.chat_id,8)<>'qrgroup_'
+        AND EXISTS(SELECT 1 FROM beta_chats b WHERE b.uid=l.uid COLLATE utf8mb4_unicode_ci
+          AND b.chat_id=c.chat_id COLLATE utf8mb4_unicode_ci AND BINARY b.origin=BINARY c.origin)
+      ORDER BY c.last_inbound_at DESC,c.id DESC LIMIT 1) AS chatId,
     CAST(p.last_customer_at AS CHAR) AS lastCustomerAt,CAST(p.day_two_at AS CHAR) AS dayTwoAt,
     CAST(p.day_seven_at AS CHAR) AS daySevenAt,
     CASE WHEN p.status IN ('ready','review') THEN p.first_draft END AS firstDraft,

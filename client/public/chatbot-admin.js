@@ -285,6 +285,8 @@
       #sx-live-reply-mockup .sx-followup-control[aria-pressed=true]{background:var(--mock-tint);color:var(--mock-accent)}
       #sx-live-reply-mockup .sx-followup-card{margin-block:12px;padding:14px;border:1px solid var(--mock-line);border-radius:12px;background:var(--mock-surface);overflow-wrap:anywhere}
       #sx-live-reply-mockup .sx-followup-card a{color:var(--mock-accent);font-weight:600}
+      #sx-live-reply-mockup .sx-followup-links{display:flex;align-items:center;flex-wrap:wrap;gap:8px 16px}
+      #sx-live-reply-mockup .sx-followup-links a{display:inline-flex;align-items:center;min-height:44px}
       #sx-live-reply-mockup .sx-followup-pair{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin-block-start:10px}
       #sx-live-reply-mockup .sx-followup-pair section{padding:11px;border-radius:10px;background:var(--mock-canvas)}
       #sx-live-reply-mockup .sx-followup-pair p[dir=auto]{white-space:pre-wrap;margin-block-start:5px}
@@ -402,9 +404,11 @@
         const copy = value => value ? `<p dir="auto">${esc(value)}</p>` : '';
         const rows = data.items.map(item => {
           const lead = '/pipeline/?view=detail&lead=' + encodeURIComponent(item.leadId);
+          const chat = item.chatId ? '/user?' + new URLSearchParams({ page: 'inbox', chatId: item.chatId }).toString() : '';
           return `<article class="sx-followup-card"><div class="sx-followup-heading"><div><strong dir="auto">${esc(item.label || tr('Customer','العميل'))}</strong>
             <p dir="auto" class="sx-mockup-muted">${esc(item.course || tr('Course to be confirmed','الدورة بحاجة إلى تأكيد'))}</p></div>
-            <a href="${esc(lead)}" target="_blank" rel="noopener">${esc(tr('Open lead','فتح العميل المحتمل'))}</a></div>
+            <div class="sx-followup-links">${chat ? `<a href="${esc(chat)}" target="_blank" rel="noopener noreferrer">${esc(tr('Open chat','فتح المحادثة'))}</a>` : ''}
+            <a href="${esc(lead)}" target="_blank" rel="noopener">${esc(tr('Open lead','فتح العميل المحتمل'))}</a></div></div>
             <p class="sx-mockup-tag" data-status="${esc(item.status)}">${esc(followupReason(item.reason))}</p>
             ${item.draftSource && item.status !== 'skipped' ? `<span class="sx-mockup-muted"> · ${esc(({
               reviewed: tr('Reviewed copy','نص تمت مراجعته'), ai_selection: tr('AI-selected variant','صيغة اختارها الذكاء الاصطناعي'),

@@ -137,6 +137,22 @@ def configure_followup_preview():
     ADD_SCOPE = False
 
 
+def configure_followup_chat_link():
+    global ACTIVE_OVERLAY, REPLACED_FILES, SCOPE_ENV, SLUG, ADD_SCOPE, LIVE_SOURCE_EDITS
+    ACTIVE_OVERLAY = '/opt/salemax/releases/pro-catalyst-followup-preview-f342a3fee066-20261109/compose.pro-catalyst-followup-preview.json'
+    REPLACED_FILES = {
+        'modules/platform/chatbot-followup-preview.js': 'e002a271b4f37152fa4720ba559d9a0a55d8946cce33cd976607db08debac763',
+        'client/public/chatbot-admin.js': 'beb618d71e6a0e245f17ae7d34251f4153bba886270e80160fff47c77aa9476e',
+        'client/public/training-sidebar.js': '7d266e3b8cb438b920004efa41a581e5a8deb3980065667d7b67cb7706c63a74',
+    }
+    LIVE_SOURCE_EDITS = {
+        'client/public/training-sidebar.js': (b'/chatbot-admin.js?v=20261109-followup-preview1', b'/chatbot-admin.js?v=20261109-followup-open-chat1'),
+    }
+    SCOPE_ENV = 'SALEMAX_CHATBOT_MOCKUP_TENANT_ID'
+    SLUG = 'pro-catalyst-followup-chat-link'
+    ADD_SCOPE = False
+
+
 def apply_mockup_migration(source):
     script = """const fs = require('node:fs');
     const crypto = require('node:crypto');
@@ -449,7 +465,7 @@ def reset(backup):
 
 
 if __name__ == '__main__':
-    if len(sys.argv) == 4 and sys.argv[1] in ('deploy', 'deploy-admissions', 'deploy-name-question', 'deploy-knowledge', 'deploy-mockup', 'deploy-mockup-inbox', 'deploy-lead-report-period', 'deploy-followup-preview'):
+    if len(sys.argv) == 4 and sys.argv[1] in ('deploy', 'deploy-admissions', 'deploy-name-question', 'deploy-knowledge', 'deploy-mockup', 'deploy-mockup-inbox', 'deploy-lead-report-period', 'deploy-followup-preview', 'deploy-followup-chat-link'):
         if sys.argv[1] == 'deploy-admissions':
             configure_admissions()
         elif sys.argv[1] == 'deploy-name-question':
@@ -464,10 +480,12 @@ if __name__ == '__main__':
             configure_lead_report_period()
         elif sys.argv[1] == 'deploy-followup-preview':
             configure_followup_preview()
+        elif sys.argv[1] == 'deploy-followup-chat-link':
+            configure_followup_chat_link()
         deploy(Path(sys.argv[2]), sys.argv[3])
     elif len(sys.argv) == 3 and sys.argv[1] == 'reset':
         reset(Path(sys.argv[2]))
-    elif len(sys.argv) == 3 and sys.argv[1] in ('restore', 'restore-admissions', 'restore-name-question', 'restore-knowledge', 'restore-mockup', 'restore-mockup-inbox', 'restore-lead-report-period', 'restore-followup-preview'):
+    elif len(sys.argv) == 3 and sys.argv[1] in ('restore', 'restore-admissions', 'restore-name-question', 'restore-knowledge', 'restore-mockup', 'restore-mockup-inbox', 'restore-lead-report-period', 'restore-followup-preview', 'restore-followup-chat-link'):
         if sys.argv[1] == 'restore-admissions':
             configure_admissions()
         elif sys.argv[1] == 'restore-name-question':
@@ -482,6 +500,8 @@ if __name__ == '__main__':
             configure_lead_report_period()
         elif sys.argv[1] == 'restore-followup-preview':
             configure_followup_preview()
+        elif sys.argv[1] == 'restore-followup-chat-link':
+            configure_followup_chat_link()
         restore(Path(sys.argv[2]))
     else:
-        raise SystemExit('Usage: pro-catalyst-handover-release.py deploy[-admissions|-name-question|-knowledge|-mockup|-mockup-inbox|-lead-report-period|-followup-preview] <stage> <commit> | reset <backup> | restore[-admissions|-name-question|-knowledge|-mockup|-mockup-inbox|-lead-report-period|-followup-preview] <backup>')
+        raise SystemExit('Usage: pro-catalyst-handover-release.py deploy[-admissions|-name-question|-knowledge|-mockup|-mockup-inbox|-lead-report-period|-followup-preview|-followup-chat-link] <stage> <commit> | reset <backup> | restore[-admissions|-name-question|-knowledge|-mockup|-mockup-inbox|-lead-report-period|-followup-preview|-followup-chat-link] <backup>')
