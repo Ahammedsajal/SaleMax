@@ -87,6 +87,22 @@ def configure_mockup():
     ADD_SCOPE = False
 
 
+def configure_mockup_inbox():
+    global ACTIVE_OVERLAY, REPLACED_FILES, SCOPE_ENV, SLUG, ADD_SCOPE, LIVE_SOURCE_EDITS
+    ACTIVE_OVERLAY = '/opt/salemax/releases/pro-catalyst-mockup-562c5d8df75c-20261109/compose.pro-catalyst-mockup.json'
+    REPLACED_FILES = {
+        'client/public/chatbot-admin.js': 'f97e3fce8dc4345cb156882ea74932d5fa1cfb8179a59f4a9892f5ece5392d85',
+        'client/public/training-sidebar.js': '07a1901f89e073282a48bda292a19deec00256e4a60d32411b0f2b6fdcf334f9',
+        'modules/platform/chatbot-mockup.js': '2724dbf75fc79d1c23e861e6c17b182c46c3df1d4d58833718bbb47bff8594d1',
+    }
+    LIVE_SOURCE_EDITS = {
+        'client/public/training-sidebar.js': (b'/chatbot-admin.js?v=20261109-live-reply-mockup1', b'/chatbot-admin.js?v=20261109-mockup-inbox1'),
+    }
+    SCOPE_ENV = 'SALEMAX_CHATBOT_MOCKUP_TENANT_ID'
+    SLUG = 'pro-catalyst-mockup-inbox'
+    ADD_SCOPE = False
+
+
 def apply_mockup_migration(source):
     script = """const fs = require('node:fs');
     const crypto = require('node:crypto');
@@ -397,7 +413,7 @@ def reset(backup):
 
 
 if __name__ == '__main__':
-    if len(sys.argv) == 4 and sys.argv[1] in ('deploy', 'deploy-admissions', 'deploy-name-question', 'deploy-knowledge', 'deploy-mockup'):
+    if len(sys.argv) == 4 and sys.argv[1] in ('deploy', 'deploy-admissions', 'deploy-name-question', 'deploy-knowledge', 'deploy-mockup', 'deploy-mockup-inbox'):
         if sys.argv[1] == 'deploy-admissions':
             configure_admissions()
         elif sys.argv[1] == 'deploy-name-question':
@@ -406,10 +422,12 @@ if __name__ == '__main__':
             configure_knowledge()
         elif sys.argv[1] == 'deploy-mockup':
             configure_mockup()
+        elif sys.argv[1] == 'deploy-mockup-inbox':
+            configure_mockup_inbox()
         deploy(Path(sys.argv[2]), sys.argv[3])
     elif len(sys.argv) == 3 and sys.argv[1] == 'reset':
         reset(Path(sys.argv[2]))
-    elif len(sys.argv) == 3 and sys.argv[1] in ('restore', 'restore-admissions', 'restore-name-question', 'restore-knowledge', 'restore-mockup'):
+    elif len(sys.argv) == 3 and sys.argv[1] in ('restore', 'restore-admissions', 'restore-name-question', 'restore-knowledge', 'restore-mockup', 'restore-mockup-inbox'):
         if sys.argv[1] == 'restore-admissions':
             configure_admissions()
         elif sys.argv[1] == 'restore-name-question':
@@ -418,6 +436,8 @@ if __name__ == '__main__':
             configure_knowledge()
         elif sys.argv[1] == 'restore-mockup':
             configure_mockup()
+        elif sys.argv[1] == 'restore-mockup-inbox':
+            configure_mockup_inbox()
         restore(Path(sys.argv[2]))
     else:
-        raise SystemExit('Usage: pro-catalyst-handover-release.py deploy[-admissions|-name-question|-knowledge|-mockup] <stage> <commit> | reset <backup> | restore[-admissions|-name-question|-knowledge|-mockup] <backup>')
+        raise SystemExit('Usage: pro-catalyst-handover-release.py deploy[-admissions|-name-question|-knowledge|-mockup|-mockup-inbox] <stage> <commit> | reset <backup> | restore[-admissions|-name-question|-knowledge|-mockup|-mockup-inbox] <backup>')

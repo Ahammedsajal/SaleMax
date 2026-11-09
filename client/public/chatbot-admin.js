@@ -182,110 +182,312 @@
     dialog.id = 'sx-live-reply-mockup';
     dialog.dir = ar() ? 'rtl' : 'ltr';
     dialog.setAttribute('aria-labelledby', 'sx-mockup-title');
+    const icons = {
+      chat: 'M20 11.5a7.5 7.5 0 0 1-7.5 7.5H5l1.5-3A7.5 7.5 0 1 1 20 11.5ZM9 10h6m-6 3h4',
+      search: 'm20 20-4-4m1-5a6 6 0 1 1-12 0 6 6 0 0 1 12 0Z',
+      refresh: 'M20 7v5h-5m4.5 0a7.5 7.5 0 1 0-2 5.5',
+      close: 'm6 6 12 12M18 6 6 18',
+      back: 'm14 6-6 6 6 6',
+      lock: 'M8 10V7a4 4 0 0 1 8 0v3m-8 0h8a2 2 0 0 1 2 2v6a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2v-6a2 2 0 0 1 2-2Z',
+    };
+    const icon = name => '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="' + icons[name] + '"/></svg>';
+    const button = (action, glyph, label, extra = '') => '<button type="button" class="sx-mockup-icon" data-mockup-' + action
+      + ' aria-label="' + esc(label) + '" title="' + esc(label) + '" ' + extra + '>' + icon(glyph) + '</button>';
     dialog.innerHTML = `<style>
-      #sx-live-reply-mockup{width:min(960px,calc(100% - 24px));max-height:calc(100dvh - 24px);padding:0;border:1px solid #d0d5dd;border-radius:14px;background:#fff;color:#182230;box-sizing:border-box;font:14px Roboto,Arial,sans-serif}
-      #sx-live-reply-mockup::backdrop{background:#10182899}
-      #sx-live-reply-mockup header{padding:16px;display:flex;justify-content:space-between;align-items:flex-start;gap:12px;border-bottom:1px solid #e4e7ec}
-      #sx-live-reply-mockup h2{font-size:20px;margin:0 0 5px}
-      #sx-live-reply-mockup p{margin:4px 0;overflow-wrap:anywhere}
-      #sx-live-reply-mockup button{min-height:44px;padding:8px 12px;border:1px solid #d0d5dd;border-radius:8px;background:transparent;color:inherit;font:inherit;cursor:pointer}
-      #sx-live-reply-mockup button:focus-visible{outline:2px solid #1570ef;outline-offset:2px}
-      #sx-live-reply-mockup button[aria-current=true]{background:#eaf3ff;border-color:#1570ef}
-      #sx-live-reply-mockup .sx-mockup-layout{display:grid;grid-template-columns:minmax(180px,28%) minmax(0,1fr);min-height:320px}
-      #sx-live-reply-mockup .sx-mockup-list,#sx-live-reply-mockup .sx-mockup-thread{padding:12px;max-height:65dvh;overflow:auto;min-width:0}
-      #sx-live-reply-mockup .sx-mockup-list{border-inline-end:1px solid #e4e7ec}
-      #sx-live-reply-mockup .sx-mockup-list button{display:block;width:100%;text-align:start;margin-bottom:6px;overflow-wrap:anywhere}
-      #sx-live-reply-mockup .sx-mockup-turn{padding:12px;border:1px solid #e4e7ec;border-radius:10px;margin-block:10px}
-      #sx-live-reply-mockup .sx-mockup-copy{white-space:pre-wrap;overflow-wrap:anywhere}
-      #sx-live-reply-mockup .sx-mockup-muted{color:#475467;font-size:12px}
-      #sx-live-reply-mockup [hidden]{display:none!important}
-      html[data-sx-chatbot-theme=dark] #sx-live-reply-mockup{background:#191b22;color:#f2f4f7;border-color:#475467}
-      html[data-sx-chatbot-theme=dark] #sx-live-reply-mockup button[aria-current=true]{background:#193754}
-      html[data-sx-chatbot-theme=dark] #sx-live-reply-mockup .sx-mockup-muted{color:#b4bdca}
-      @media(max-width:650px){
-        #sx-live-reply-mockup .sx-mockup-layout{display:block;min-height:0}
-        #sx-live-reply-mockup .sx-mockup-list{max-height:23dvh;border-inline-end:0;border-bottom:1px solid #e4e7ec}
-        #sx-live-reply-mockup .sx-mockup-thread{max-height:50dvh}
-        #sx-live-reply-mockup header{padding:12px}
+      #sx-live-reply-mockup{
+        --mock-surface:#fff;--mock-canvas:#f5f7f8;--mock-line:var(--sx-border,#e3e9f1);--mock-text:#182230;
+        --mock-muted:#526174;--mock-accent:#087560;--mock-tint:#e8f5ef;--mock-draft:#d6f1e5;--mock-review:#854512;
+        position:fixed;inset:0;margin:auto;box-sizing:border-box;width:min(1440px,calc(100% - 48px));height:min(900px,calc(100dvh - 48px));
+        max-width:none;max-height:none;padding:0;overflow:hidden;border:1px solid var(--mock-line);border-radius:18px;
+        background:var(--mock-surface);color:var(--mock-text);box-shadow:0 24px 80px #1018283b;font:14px/1.45 Roboto,Arial,sans-serif
       }
-    </style><header><div><h2 id="sx-mockup-title">${esc(tr('Live Reply Mockup','محاكاة الردود المباشرة'))}</h2><p class="sx-mockup-muted">${esc(tr('Private drafts for new incoming messages. Staff send replies from Inbox.','مسودات خاصة للرسائل الواردة الجديدة. يرسل الموظفون الردود من صندوق الوارد.'))}</p></div><button type="button" data-mockup-close autofocus>${esc(tr('Close','إغلاق'))}</button></header>
-    <div class="sx-mockup-layout"><div class="sx-mockup-list" aria-label="${esc(tr('Conversations','المحادثات'))}"><button type="button" data-mockup-refresh>${esc(tr('Refresh','تحديث'))}</button><div data-mockup-list aria-live="polite"></div><button type="button" data-mockup-more hidden>${esc(tr('Older conversations','محادثات أقدم'))}</button></div>
-    <div class="sx-mockup-thread" aria-label="${esc(tr('Draft conversation','مسودات المحادثة'))}"><button type="button" data-mockup-older hidden>${esc(tr('Older messages','رسائل أقدم'))}</button><div data-mockup-thread aria-live="polite"></div></div></div>`;
+      html[data-sx-chatbot-theme=dark] #sx-live-reply-mockup{
+        color-scheme:dark;--mock-surface:#191d23;--mock-canvas:#101318;--mock-line:#343c45;--mock-text:#edf2f6;
+        --mock-muted:#afbbc8;--mock-accent:#80d8b9;--mock-tint:#21362f;--mock-draft:#183c30;--mock-review:#ffbf85
+      }
+      #sx-live-reply-mockup::backdrop{background:#10182891}
+      #sx-live-reply-mockup *{box-sizing:border-box}
+      #sx-live-reply-mockup h2,#sx-live-reply-mockup p{margin:0}
+      #sx-live-reply-mockup [hidden]{display:none!important}
+      #sx-live-reply-mockup svg{width:20px;height:20px;flex:none}
+      #sx-live-reply-mockup button,#sx-live-reply-mockup input{color:inherit;font:inherit}
+      #sx-live-reply-mockup button{cursor:pointer}
+      #sx-live-reply-mockup button:disabled{cursor:wait;opacity:.6}
+      #sx-live-reply-mockup :is(button,input):focus-visible{outline:2px solid var(--mock-accent);outline-offset:2px}
+      #sx-live-reply-mockup .sx-mockup-frame{height:100%;display:grid;grid-template-rows:auto minmax(0,1fr)}
+      #sx-live-reply-mockup .sx-mockup-top{display:flex;align-items:center;gap:12px;padding:13px 18px;border-bottom:1px solid var(--mock-line)}
+      #sx-live-reply-mockup .sx-mockup-brand,#sx-live-reply-mockup .sx-mockup-empty-icon{
+        display:grid;place-items:center;flex:none;width:44px;height:44px;border-radius:12px;background:var(--mock-tint);color:var(--mock-accent)
+      }
+      #sx-live-reply-mockup .sx-mockup-title-block{flex:1;min-width:0}
+      #sx-live-reply-mockup h2{font-size:19px;font-weight:700;line-height:1.25;overflow-wrap:anywhere}
+      #sx-live-reply-mockup .sx-mockup-muted{color:var(--mock-muted);font-size:12px}
+      #sx-live-reply-mockup .sx-mockup-icon{
+        flex:none;display:grid;place-items:center;width:44px;height:44px;border:1px solid var(--mock-line);
+        border-radius:10px;background:var(--mock-surface);padding:0
+      }
+      #sx-live-reply-mockup .sx-mockup-icon:hover,#sx-live-reply-mockup .sx-mockup-more:hover{background:var(--mock-tint)}
+      #sx-live-reply-mockup .sx-mockup-layout{display:grid;grid-template-columns:clamp(260px,29%,340px) minmax(0,1fr);min-height:0}
+      #sx-live-reply-mockup .sx-mockup-list-pane{display:grid;grid-template-rows:auto minmax(0,1fr);min-width:0;border-inline-end:1px solid var(--mock-line)}
+      #sx-live-reply-mockup .sx-mockup-tools{padding:14px 14px 11px;border-bottom:1px solid var(--mock-line)}
+      #sx-live-reply-mockup .sx-mockup-search-row{display:flex;gap:8px;margin-top:9px}
+      #sx-live-reply-mockup .sx-mockup-search{
+        display:flex;align-items:center;gap:7px;flex:1;min-width:0;padding-inline:9px;
+        border:1px solid var(--mock-line);border-radius:10px;background:var(--mock-canvas);color:var(--mock-muted)
+      }
+      #sx-live-reply-mockup .sx-mockup-search input{width:100%;min-width:0;height:42px;border:0;background:transparent}
+      #sx-live-reply-mockup .sx-mockup-search input::placeholder{color:var(--mock-muted)}
+      #sx-live-reply-mockup .sx-mockup-list,#sx-live-reply-mockup .sx-mockup-history{min-width:0;min-height:0;overflow:auto;overscroll-behavior:contain}
+      #sx-live-reply-mockup .sx-mockup-contact{
+        display:grid;grid-template-columns:40px minmax(0,1fr);align-items:center;gap:10px;width:100%;text-align:start;
+        padding:12px 12px;border:0;border-inline-start:3px solid transparent;border-block-end:1px solid var(--mock-line);background:var(--mock-surface)
+      }
+      #sx-live-reply-mockup .sx-mockup-contact:is(:hover,[aria-current=true]){background:var(--mock-tint)}
+      #sx-live-reply-mockup .sx-mockup-contact[aria-current=true]{border-inline-start-color:var(--mock-accent)}
+      #sx-live-reply-mockup .sx-mockup-contact:focus-visible{outline-offset:-3px}
+      #sx-live-reply-mockup .sx-mockup-avatar{display:grid;place-items:center;flex:none;width:40px;height:40px;border-radius:50%;background:#267b77;color:#fff;font-weight:700;font-size:16px}
+      #sx-live-reply-mockup .sx-mockup-contact-title{display:flex;justify-content:space-between;align-items:baseline;gap:8px;min-width:0}
+      #sx-live-reply-mockup .sx-mockup-truncate{display:block;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+      #sx-live-reply-mockup .sx-mockup-contact-title time{white-space:nowrap}
+      #sx-live-reply-mockup .sx-mockup-tag{display:inline-flex;margin-block-start:4px;border-radius:999px;padding:1px 7px;background:var(--mock-tint);color:var(--mock-accent);font-size:11px;font-weight:600}
+      #sx-live-reply-mockup .sx-mockup-tag:is([data-status=review],[data-status=failed]){background:var(--mock-canvas);color:var(--mock-review)}
+      #sx-live-reply-mockup .sx-mockup-thread-pane{display:grid;grid-template-rows:auto minmax(0,1fr) auto;min-width:0;min-height:0}
+      #sx-live-reply-mockup .sx-mockup-thread-head{display:flex;align-items:center;gap:10px;min-height:66px;padding:9px 16px;border-bottom:1px solid var(--mock-line)}
+      #sx-live-reply-mockup .sx-mockup-back{display:none}
+      #sx-live-reply-mockup[dir=rtl] .sx-mockup-back svg{transform:scaleX(-1)}
+      #sx-live-reply-mockup .sx-mockup-thread-person{flex:1;min-width:0}
+      #sx-live-reply-mockup [data-mockup-name]:focus{outline:none}
+      #sx-live-reply-mockup .sx-mockup-history{padding:16px clamp(14px,3vw,34px) 22px;background:var(--mock-canvas)}
+      #sx-live-reply-mockup .sx-mockup-thread-items{display:grid;gap:12px}
+      #sx-live-reply-mockup .sx-mockup-thread-items.sx-mockup-centered{min-height:100%}
+      #sx-live-reply-mockup .sx-mockup-turn{display:grid;gap:8px;min-width:0}
+      #sx-live-reply-mockup .sx-mockup-bubble{
+        justify-self:start;min-width:0;width:fit-content;max-width:min(85%,660px);padding:9px 13px;background:var(--mock-surface);
+        border:1px solid var(--mock-line);border-radius:14px;border-end-start-radius:4px;box-shadow:0 1px 2px #1018280b
+      }
+      #sx-live-reply-mockup .sx-mockup-draft{justify-self:end;background:var(--mock-draft);border-end-start-radius:14px;border-end-end-radius:4px}
+      #sx-live-reply-mockup .sx-mockup-copy{white-space:pre-wrap;overflow-wrap:anywhere;margin-block:3px}
+      #sx-live-reply-mockup .sx-mockup-meta{display:flex;flex-wrap:wrap;align-items:center;gap:3px 8px;color:var(--mock-muted);font-size:11px}
+      #sx-live-reply-mockup .sx-mockup-meta strong{color:var(--mock-accent)}
+      #sx-live-reply-mockup .sx-mockup-meta[data-status=review] strong,#sx-live-reply-mockup .sx-mockup-meta[data-status=failed] strong{color:var(--mock-review)}
+      #sx-live-reply-mockup .sx-mockup-more{
+        display:block;min-height:44px;margin:10px auto;padding:7px 12px;border:1px solid var(--mock-line);
+        border-radius:9px;background:var(--mock-surface)
+      }
+      #sx-live-reply-mockup .sx-mockup-empty{display:grid;justify-items:center;align-content:center;gap:7px;min-height:150px;text-align:center;padding:18px;color:var(--mock-muted)}
+      #sx-live-reply-mockup .sx-mockup-empty strong{color:var(--mock-text)}
+      #sx-live-reply-mockup .sx-mockup-empty.sx-mockup-centered{min-height:100%}
+      #sx-live-reply-mockup .sx-mockup-footer{display:flex;align-items:center;gap:8px;min-height:49px;padding:10px 16px;border-top:1px solid var(--mock-line)}
+      #sx-live-reply-mockup .sx-mockup-footer svg{width:16px;height:16px;color:var(--mock-accent)}
+      @media(max-width:720px){
+        #sx-live-reply-mockup{width:100%;height:100dvh;border:0;border-radius:0}
+        #sx-live-reply-mockup .sx-mockup-top{padding:10px 12px;padding-block-start:max(10px,env(safe-area-inset-top));gap:8px}
+        #sx-live-reply-mockup .sx-mockup-brand{display:none}
+        #sx-live-reply-mockup .sx-mockup-layout{display:grid;grid-template-columns:minmax(0,1fr)}
+        #sx-live-reply-mockup .sx-mockup-list-pane{border:0}
+        #sx-live-reply-mockup:not([data-thread-open]) .sx-mockup-thread-pane,
+        #sx-live-reply-mockup[data-thread-open] .sx-mockup-list-pane{display:none}
+        #sx-live-reply-mockup .sx-mockup-back{display:grid}
+        #sx-live-reply-mockup .sx-mockup-thread-head{padding-inline:12px}
+        #sx-live-reply-mockup .sx-mockup-bubble{max-width:92%}
+        #sx-live-reply-mockup .sx-mockup-footer{padding-block-end:max(10px,env(safe-area-inset-bottom))}
+      }
+    </style>
+    <div class="sx-mockup-frame">
+      <header class="sx-mockup-top"><span class="sx-mockup-brand">${icon('chat')}</span><div class="sx-mockup-title-block">
+        <h2 id="sx-mockup-title">${esc(tr('Live Reply Mockup','محاكاة الردود المباشرة'))}</h2>
+        <p class="sx-mockup-muted">${esc(tr('Private WhatsApp draft inbox','صندوق خاص لمسودات واتساب'))}</p>
+      </div>${button('close','close',tr('Close','إغلاق'),'autofocus')}</header>
+      <div class="sx-mockup-layout">
+        <section class="sx-mockup-list-pane" aria-label="${esc(tr('Conversations','المحادثات'))}">
+          <div class="sx-mockup-tools"><strong>${esc(tr('Conversations','المحادثات'))}</strong>
+            <div class="sx-mockup-search-row"><label class="sx-mockup-search">${icon('search')}<input type="search" maxlength="80"
+              aria-label="${esc(tr('Search by customer name','البحث باسم العميل'))}"
+              placeholder="${esc(tr('Search conversations','البحث في المحادثات'))}"></label>
+              ${button('refresh','refresh',tr('Refresh conversations','تحديث المحادثات'))}
+            </div>
+          </div>
+          <div class="sx-mockup-list"><div data-mockup-list aria-live="polite"></div><button class="sx-mockup-more" type="button" data-mockup-more hidden>${esc(tr('Older conversations','محادثات أقدم'))}</button></div>
+        </section>
+        <section class="sx-mockup-thread-pane" aria-label="${esc(tr('Draft conversation','مسودات المحادثة'))}">
+          <header class="sx-mockup-thread-head">
+            ${button('back','back',tr('Back to conversations','العودة إلى المحادثات'))}
+            <span class="sx-mockup-avatar" data-mockup-avatar hidden aria-hidden="true"></span>
+            <div class="sx-mockup-thread-person">
+              <strong class="sx-mockup-truncate" dir="auto" data-mockup-name tabindex="-1">${esc(tr('Conversation','المحادثة'))}</strong>
+              <p class="sx-mockup-muted" data-mockup-channel hidden>WhatsApp</p>
+            </div>
+            ${button('thread-refresh','refresh',tr('Refresh drafts','تحديث المسودات'),'hidden')}
+          </header>
+          <div class="sx-mockup-history"><button class="sx-mockup-more" type="button" data-mockup-older hidden>${esc(tr('Older messages','رسائل أقدم'))}</button>
+            <div class="sx-mockup-thread-items" data-mockup-thread aria-live="polite"></div>
+          </div>
+          <div class="sx-mockup-footer sx-mockup-muted">${icon('lock')}<span>${esc(tr('Private drafts. Staff reply in Inbox.','مسودات خاصة. يرد الموظفون من صندوق الوارد.'))}</span></div>
+        </section>
+      </div>
+    </div>`;
+    dialog.querySelector('[data-mockup-back]').classList.add('sx-mockup-back');
     document.body.append(dialog);
-    dialog.addEventListener('close', () => dialog.remove(), { once: true });
-    dialog.querySelector('[data-mockup-close]').onclick = () => dialog.close();
-    dialog.showModal();
-
-    const list = dialog.querySelector('[data-mockup-list]');
-    const thread = dialog.querySelector('[data-mockup-thread]');
-    const more = dialog.querySelector('[data-mockup-more]');
-    const older = dialog.querySelector('[data-mockup-older]');
-    const refresh = dialog.querySelector('[data-mockup-refresh]');
+    const element = name => dialog.querySelector('[data-mockup-' + name + ']');
+    const list = element('list');
+    const thread = element('thread');
+    const history = thread.parentElement;
+    const search = dialog.querySelector('input[type=search]');
+    const more = element('more');
+    const older = element('older');
+    const refresh = element('refresh');
+    const mobile = matchMedia('(max-width:720px)');
     const request = async path => (await window.SaleMaxWorkspace.request('chatbots', '/mockup' + path)).data;
-    const show = (element, value) => { element.textContent = value; };
-    const localDate = value => {
+    const contact = item => item.label || tr('Customer','العميل');
+    const initial = value => Array.from(value.trim())[0]?.toLocaleUpperCase() || '?';
+    const timestamp = (value, dateOnly = false) => {
       const raw = String(value || '').replace(' ', 'T');
       const date = new Date(/(?:Z|[+-]\d{2}:\d{2})$/i.test(raw) ? raw : raw + 'Z');
-      return Number.isNaN(date.valueOf()) ? '' : date.toLocaleString(ar() ? 'ar-QA' : 'en-QA', { timeZone: 'Asia/Qatar', dateStyle: 'short', timeStyle: 'short' });
+      if (Number.isNaN(date.valueOf())) return '';
+      const format = dateOnly ? { dateStyle: 'short' } : { dateStyle: 'short', timeStyle: 'short' };
+      return date.toLocaleString(ar() ? 'ar-QA' : 'en-QA', { ...format, timeZone: 'Asia/Qatar' });
     };
     const status = value => ({
       queued: tr('Queued','في قائمة الانتظار'), processing: tr('Preparing draft','جار إعداد المسودة'),
       ready: tr('Draft ready','المسودة جاهزة'), review: tr('Staff review','مراجعة الموظفين'), failed: tr('Draft failed','تعذر إعداد المسودة'),
     })[value] || '';
-    let selected = '', listCursor = null, threadCursor = null, threadRequest = 0;
-    const updateSelection = () => list.querySelectorAll('button[data-conversation]').forEach(button =>
-      button.setAttribute('aria-current', String(button.dataset.conversation === selected)));
-
-    async function openThread(key, appendOlder = false) {
-      selected = key;
+    const empty = (title, detail = '', centered = false) => '<div class="sx-mockup-empty' + (centered ? ' sx-mockup-centered' : '') + '">'
+      + '<span class="sx-mockup-empty-icon">' + icon('chat') + '</span><strong>' + esc(title) + '</strong>'
+      + (detail ? '<p>' + esc(detail) + '</p>' : '') + '</div>';
+    const conversations = new Map();
+    let selected = '', listCursor = null, threadCursor = null, listRequest = 0, threadRequest = 0, searchTimer;
+    const updateSelection = () => list.querySelectorAll('[data-conversation]').forEach(row =>
+      row.setAttribute('aria-current', String(row.dataset.conversation === selected)));
+    const setThreadHeader = label => {
+      element('avatar').hidden = element('channel').hidden = element('thread-refresh').hidden = !label;
+      element('avatar').textContent = label ? initial(label) : '';
+      element('name').textContent = label || tr('Conversation','المحادثة');
+    };
+    const clearThread = (hasConversations = true) => {
+      ++threadRequest;
+      selected = '';
+      threadCursor = null;
+      older.hidden = true;
+      delete dialog.dataset.threadOpen;
+      setThreadHeader('');
+      thread.classList.add('sx-mockup-centered');
+      thread.innerHTML = empty(
+        hasConversations ? tr('Choose a conversation','اختر محادثة') : tr('Waiting for WhatsApp messages','بانتظار رسائل واتساب'),
+        hasConversations ? tr('The customer messages and bot drafts will appear here.','ستظهر هنا رسائل العميل ومسودات الروبوت.')
+          : tr('New incoming messages will appear in this private inbox.','ستظهر الرسائل الواردة الجديدة في هذا الصندوق الخاص.'), true);
       updateSelection();
+    };
+    async function openThread(key, { append = false, enter = false } = {}) {
+      const item = conversations.get(key);
+      if (!item) return;
+      selected = key;
+      setThreadHeader(contact(item));
+      if (enter) dialog.dataset.threadOpen = '';
+      updateSelection();
+      if (enter && mobile.matches) element('name').focus({ preventScroll: true });
       const version = ++threadRequest;
-      const cursor = appendOlder && threadCursor ? '?before=' + encodeURIComponent(threadCursor) : '';
-      if (!appendOlder) { show(thread, tr('Loading drafts…','جار تحميل المسودات…')); older.hidden = true; }
+      const cursor = append && threadCursor ? '?before=' + encodeURIComponent(threadCursor) : '';
+      if (!append) {
+        older.hidden = true;
+        thread.classList.add('sx-mockup-centered');
+        thread.innerHTML = empty(tr('Loading drafts…','جار تحميل المسودات…'), '', true);
+      }
       older.disabled = true;
       try {
         const result = await request('/conversations/' + encodeURIComponent(key) + cursor);
         if (version !== threadRequest || !dialog.open) return;
-        const rows = result.items.map(item => `<article class="sx-mockup-turn"><p class="sx-mockup-muted">${esc(localDate(item.createdAt))} · ${esc(status(item.status))}</p>
-          <strong>${esc(tr('Customer','العميل'))}</strong><p dir="auto" class="sx-mockup-copy">${esc(item.customerText || tr('Attachment or non-text message','مرفق أو رسالة غير نصية'))}</p>
-          <strong>${esc(tr('Bot draft','مسودة الروبوت'))}</strong><p dir="auto" class="sx-mockup-copy">${esc(item.replyText || status(item.status))}</p>
-          ${item.reason ? `<p class="sx-mockup-muted">${esc(mockupReasonLabel(item.reason))}</p>` : ''}</article>`).join('');
-        if (appendOlder) thread.insertAdjacentHTML('afterbegin', rows);
-        else thread.innerHTML = rows;
+        const rows = result.items.map(turn => `<article class="sx-mockup-turn">
+          <div class="sx-mockup-bubble"><div class="sx-mockup-meta"><span>${esc(tr('Customer','العميل'))}</span><time>${esc(timestamp(turn.createdAt))}</time></div>
+            <p class="sx-mockup-copy" dir="auto">${esc(turn.customerText || tr('Attachment or non-text message','مرفق أو رسالة غير نصية'))}</p>
+          </div><div class="sx-mockup-bubble sx-mockup-draft">
+            <div class="sx-mockup-meta" data-status="${esc(turn.status)}"><strong>${esc(tr('Bot draft','مسودة الروبوت'))}</strong><span>${esc(status(turn.status))}</span></div>
+            ${turn.replyText ? `<p class="sx-mockup-copy" dir="auto">${esc(turn.replyText)}</p>` : ''}
+            ${turn.reason ? `<p class="sx-mockup-muted">${esc(mockupReasonLabel(turn.reason))}</p>` : ''}
+          </div></article>`).join('');
+        const previousHeight = history.scrollHeight;
+        const previousScroll = history.scrollTop;
+        thread.classList.remove('sx-mockup-centered');
+        if (append) thread.insertAdjacentHTML('afterbegin', rows);
+        else thread.innerHTML = rows || empty(tr('No drafts in this conversation','لا توجد مسودات في هذه المحادثة'));
         threadCursor = result.next;
         older.hidden = !threadCursor;
-        if (!appendOlder) thread.parentElement.scrollTop = thread.parentElement.scrollHeight;
+        history.scrollTop = append ? previousScroll + history.scrollHeight - previousHeight : history.scrollHeight;
       } catch (error) {
-        if (version === threadRequest && dialog.open) show(thread, mockupReasonLabel(error.message));
+        if (version !== threadRequest || !dialog.open) return;
+        const message = empty(mockupReasonLabel(error.message));
+        if (append) thread.insertAdjacentHTML('afterbegin', message);
+        else thread.innerHTML = message;
       } finally { if (version === threadRequest) older.disabled = false; }
     }
 
     async function loadList(append = false) {
+      clearTimeout(searchTimer);
+      const version = ++listRequest;
+      const phrase = search.value.trim();
+      const query = new URLSearchParams();
+      if (phrase) query.set('search', phrase);
+      if (append && listCursor) query.set('before', listCursor);
+      const params = query.toString();
       more.disabled = refresh.disabled = true;
-      if (!append) show(list, tr('Loading conversations…','جار تحميل المحادثات…'));
+      if (!append) {
+        more.hidden = true;
+        list.innerHTML = empty(tr('Loading conversations…','جار تحميل المحادثات…'));
+      }
       try {
-        const data = await request(append && listCursor ? '?before=' + encodeURIComponent(listCursor) : '');
-        if (!dialog.open) return;
-        const existing = new Set([...list.querySelectorAll('[data-conversation]')].map(node => node.dataset.conversation));
-        const buttons = data.items.filter(item => !existing.has(item.conversationKey)).map(item =>
-          `<button type="button" data-conversation="${esc(item.conversationKey)}"><strong dir="auto">${esc(item.label || tr('Customer','العميل'))}</strong><p class="sx-mockup-muted">${esc(localDate(item.createdAt))} · ${esc(status(item.status))}</p></button>`).join('');
-        if (append) list.insertAdjacentHTML('beforeend', buttons);
-        else list.innerHTML = buttons;
+        const data = await request(params ? '?' + params : '');
+        if (version !== listRequest || !dialog.open) return;
+        if (!append) conversations.clear();
+        const rows = data.items.filter(item => !conversations.has(item.conversationKey)).map(item => {
+          conversations.set(item.conversationKey, item);
+          return `<button class="sx-mockup-contact" type="button" data-conversation="${esc(item.conversationKey)}">
+            <span class="sx-mockup-avatar" aria-hidden="true">${esc(initial(contact(item)))}</span><span>
+              <span class="sx-mockup-contact-title"><strong class="sx-mockup-truncate" dir="auto">${esc(contact(item))}</strong><time class="sx-mockup-muted">${esc(timestamp(item.createdAt, true))}</time></span>
+              <span class="sx-mockup-truncate sx-mockup-muted" dir="auto">${esc(item.preview || tr('Attachment or non-text message','مرفق أو رسالة غير نصية'))}</span>
+              <span class="sx-mockup-tag" data-status="${esc(item.status)}">${esc(status(item.status))}</span>
+            </span></button>`;
+        }).join('');
+        if (append) list.insertAdjacentHTML('beforeend', rows);
+        else list.innerHTML = rows || empty(
+          phrase ? tr('No matching conversations','لا توجد محادثات مطابقة') : tr('No conversations yet','لا توجد محادثات بعد'),
+          phrase ? tr('Try another name.','جرّب اسمًا آخر.') : tr('New WhatsApp chats will show up here.','ستظهر محادثات واتساب الجديدة هنا.'));
         listCursor = data.next;
         more.hidden = !listCursor;
-        if (!append && !data.items.length) show(list, tr('New WhatsApp conversations will appear here.','ستظهر محادثات واتساب الجديدة هنا.'));
-        if (!append && (selected || data.items.length)) await openThread(selected || data.items[0].conversationKey);
+        if (!append) {
+          if (!mobile.matches && data.items.length) {
+            openThread(conversations.has(selected) ? selected : data.items[0].conversationKey);
+          } else clearThread(Boolean(phrase || data.items.length));
+        }
         updateSelection();
-      } catch (error) { if (dialog.open) show(list, mockupReasonLabel(error.message)); }
-      finally { more.disabled = refresh.disabled = false; }
+      } catch (error) {
+        if (version !== listRequest || !dialog.open) return;
+        if (append) list.insertAdjacentHTML('beforeend', empty(mockupReasonLabel(error.message)));
+        else list.innerHTML = empty(mockupReasonLabel(error.message));
+      } finally { if (version === listRequest) more.disabled = refresh.disabled = false; }
     }
-    list.onclick = event => { const button = event.target.closest('button[data-conversation]'); if (button) openThread(button.dataset.conversation); };
-    older.onclick = () => { if (selected && threadCursor) openThread(selected, true); };
+    dialog.addEventListener('close', () => { clearTimeout(searchTimer); dialog.remove(); }, { once: true });
+    element('close').onclick = () => dialog.close();
+    element('back').onclick = () => {
+      delete dialog.dataset.threadOpen;
+      list.querySelector('[aria-current=true]')?.focus();
+    };
+    list.onclick = event => {
+      const row = event.target.closest('[data-conversation]');
+      if (row) openThread(row.dataset.conversation, { enter: true });
+    };
+    older.onclick = () => { if (selected && threadCursor) openThread(selected, { append: true }); };
+    element('thread-refresh').onclick = () => { if (selected) openThread(selected); };
     more.onclick = () => { if (listCursor) loadList(true); };
     refresh.onclick = () => loadList();
+    search.oninput = () => {
+      clearTimeout(searchTimer);
+      ++listRequest;
+      more.hidden = true;
+      searchTimer = setTimeout(loadList, 250);
+    };
+    dialog.showModal();
+    clearThread();
     loadList();
   }
-
   function mockupReasonLabel(code) {
     const reasons = {
       MOCKUP_PROFILE_UNAVAILABLE: tr('No active bot is assigned to this number.','لا يوجد روبوت نشط معيّن لهذا الرقم.'),

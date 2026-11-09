@@ -41,7 +41,7 @@ async function main() {
     await pool.query("INSERT INTO sx_legacy_ownership(source_table,source_id,tenant_id,membership_id,legacy_uid_hash,verified_at) VALUES ('user','1',?,?,?,UTC_TIMESTAMP())", [tenant, member, hash]);
 
     const event = (id, chatId, body, route = 'INCOMING') => ({ uid, origin: 'qr', sessionId: 'qr-1', chatId,
-      message: { type: 'text', route, metaChatId: id, senderName: 'Synthetic learner', msgContext: { text: { body } } } });
+      message: { type: 'text', route, metaChatId: id, senderName: chatId === 'chat-b' ? 'متعلم تجريبي' : 'Synthetic learner', msgContext: { text: { body } } } });
     assert.equal(mockup.ownsInbox(uid, 'qr'), true);
     assert.equal(mockup.ownsInbox('other', 'qr'), false);
     assert.equal(mockup.ownsInbox(uid, 'telegram'), false);
@@ -107,6 +107,18 @@ async function main() {
     assert.equal(response.status, 200);
     assert.equal(response.headers.get('cache-control'), 'private, no-store');
     assert.equal((await response.json()).data.items[0].replyText, 'First draft');
+    const search = async query => {
+      const result = await fetch(url + '?search=' + encodeURIComponent(query), { headers: { 'x-role': 'owner' } });
+      assert.equal(result.status, 200);
+      return (await result.json()).data.items;
+    };
+    const matched = await search('SYNTHETIC');
+    assert.equal(matched.length, 1);
+    assert.equal(matched[0].conversationKey, conversation);
+    assert.equal(matched[0].preview, 'Email: [email omitted]');
+    assert.equal((await search('متعلم')).length, 1);
+    assert.deepEqual(await search('%'), []);
+    assert.equal((await fetch(url + '?search=a&search=b', { headers: { 'x-role': 'owner' } })).status, 400);
     console.log('Mockup migration, deduplication, ordered draft state, tenant boundary and owner read API verified.');
   } finally {
     if (server) await new Promise(resolve => server.close(resolve));

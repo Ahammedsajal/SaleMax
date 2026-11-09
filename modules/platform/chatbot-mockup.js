@@ -110,13 +110,14 @@ function start(pool) {
   setTimeout(next, 1000).unref();
 }
 
-async function list(pool, tenantId, before) {
+async function list(pool, tenantId, before, search = '') {
   const [rows] = await pool.query(`SELECT CAST(t.id AS CHAR) AS id,t.conversation_key AS conversationKey,
-    t.sender_label AS label,t.status,t.message_type AS messageType,CAST(t.created_at AS CHAR) AS createdAt,g.turnCount
+    t.sender_label AS label,t.status,t.message_type AS messageType,LEFT(t.customer_text,160) AS preview,
+    CAST(t.created_at AS CHAR) AS createdAt,g.turnCount
     FROM (SELECT MAX(id) AS last_id,COUNT(*) AS turnCount FROM sx_chatbot_mockup_turns
-      WHERE tenant_id=? GROUP BY conversation_key HAVING (? IS NULL OR MAX(id)<?)
-      ORDER BY last_id DESC LIMIT 41) g
-    JOIN sx_chatbot_mockup_turns t ON t.tenant_id=? AND t.id=g.last_id ORDER BY g.last_id DESC`, [tenantId, before, before, tenantId]);
+      WHERE tenant_id=? GROUP BY conversation_key HAVING (? IS NULL OR MAX(id)<?)) g
+    JOIN sx_chatbot_mockup_turns t ON t.tenant_id=? AND t.id=g.last_id
+    WHERE (?='' OR LOCATE(?, t.sender_label)>0) ORDER BY g.last_id DESC LIMIT 41`, [tenantId, before, before, tenantId, search, search]);
   const items = rows.slice(0, 40);
   return { items, next: rows.length > 40 ? items.at(-1).id : null };
 }
@@ -145,8 +146,12 @@ function createRouter({ pool, authenticate }) {
     if (before !== null && (typeof before !== 'string' || !/^[1-9]\d{0,15}$/.test(before))) {
       return res.status(400).json({ success: false, code: 'MOCKUP_INVALID_CURSOR' });
     }
+    const search = req.query.search ?? '';
+    if (typeof search !== 'string' || search.length > 80) {
+      return res.status(400).json({ success: false, code: 'MOCKUP_INVALID_SEARCH' });
+    }
     try {
-      const data = await callback(ctx.tenant.id, before, req.params.key);
+      const data = await callback(ctx.tenant.id, before, req.params.key, search.trim());
       if (!data) return res.status(404).json({ success: false, code: 'MOCKUP_CONVERSATION_NOT_FOUND' });
       return res.json({ success: true, data });
     } catch (error) {
@@ -154,7 +159,7 @@ function createRouter({ pool, authenticate }) {
       return res.status(503).json({ success: false, code: 'MOCKUP_UNAVAILABLE' });
     }
   };
-  router.get('/', read((tenantId, before) => list(pool, tenantId, before)));
+  router.get('/', read((tenantId, before, _key, search) => list(pool, tenantId, before, search)));
   router.get('/conversations/:key', read(async (tenantId, before, key) => {
     if (!/^[a-f0-9]{64}$/.test(key)) return null;
     const data = await thread(pool, tenantId, key, before);
