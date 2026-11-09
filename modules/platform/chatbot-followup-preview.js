@@ -2,8 +2,8 @@
 
 const { createHash } = require('node:crypto');
 const { getDomainPack } = require('./chatbot-domain-packs');
-const { languageFor, retrieveContext } = require('./chatbot-business-context');
-const { acknowledgement } = require('./chatbot-admissions-intake');
+const { languageFor, retrieveContext, normalized, courseFromVerifiedReferral } = require('./chatbot-business-context');
+const { acknowledgement, startPreference } = require('./chatbot-admissions-intake');
 const { variants, render } = require('./chatbot-followup-library');
 
 const DAY = 86400000;
@@ -132,9 +132,10 @@ async function evidence(db, uid, row, facts) {
   const saved = match(String(parse(row.qualification_data).courseInterest || ''));
   let inferred = null;
   if (!courses.size && !saved && inboundTexts.some(text => /more (?:info|details)|interested|معلومات|تفاصيل|مهتم/iu.test(text))) {
-    const [ads] = await db.query(`SELECT headline,body FROM pipeline_attributions WHERE uid_hash=? AND lead_id=? AND is_verified_ad=1
+    const [ads] = await db.query(`SELECT source_type,source_id,ctwa_clid,headline,body,source_url FROM pipeline_attributions WHERE uid_hash=? AND lead_id=? AND is_verified_ad=1
       ORDER BY event_at DESC LIMIT 3`, [hash, row.id]);
-    const adMatches = new Set(ads.map(item => match([item.headline, item.body].filter(Boolean).join(' '))).filter(Boolean));
+    const referrals = [...inbound.map(item => parse(item.msgContext).referral).filter(Boolean), ...ads];
+    const adMatches = new Set(referrals.map(item => courseFromVerifiedReferral(facts, item)?.code).filter(Boolean));
     if (adMatches.size === 1) inferred = [...adMatches][0];
   }
   const code = courses.size === 1 ? [...courses][0] : courses.size === 0 ? (saved || inferred) : null;
@@ -151,26 +152,43 @@ function summary(messages, inboundTexts) {
   const outstanding = asked.filter(id => !answered.includes(id));
   const first = [...new Set([...outstanding, ...(shared ? ['F11'] : []), ...asked, 'F01','F04'])];
   const second = [...new Set(['F14','F15', ...outstanding, 'F04'])];
-  return { asked, answered, first, second, language: languageFor(inbound[0] || '', { language: languageFor(inboundTexts.join(' '), {}) }) };
+  const topics = text => Object.keys(cues).filter(id => cues[id].test(text));
+  const recentTopics = messages.slice(-6).map(row => ({ role: row.route === 'INCOMING' ? 'customer' : 'staff', topics: topics(textOf(row)) }));
+  const start = inbound.map(text => startPreference(text)?.window).find(Boolean) || null;
+  return { asked, answered, first, second, recentTopics, preferredStart: start,
+    language: languageFor(inbound[0] || '', { language: languageFor(inboundTexts.join(' '), {}) }) };
 }
 
-async function choose(pool, tenant, info, aiAllowed) {
-  const fallback = [info.first[0], info.second.find(id => id !== info.first[0])];
-  if (!aiAllowed) return { ids: fallback, source: 'library' };
+function validatedDraftPair(value, name, language) {
+  const pair = parse(value);
+  const texts = [pair.day2, pair.day7];
+  if (texts.some(text => typeof text !== 'string' || text.trim().length < 25 || text.length > 320
+    || text.split('{course}').length !== 2 || (text.match(/[?؟]/gu) || []).length !== 1
+    || /[\p{N}<>\r\n]|https?:|www\.|\b(?:guaranteed?|discount|booked|reserved|limited seats|last chance|you clicked)\b|مضمون|خصم|تم حجز/iu.test(text)
+    || (language === 'ar' && !/[\u0600-\u06ff]/u.test(text)))
+    || normalized(texts[0]) === normalized(texts[1])) return null;
+  return { first: texts[0].trim().replace('{course}', () => name), second: texts[1].trim().replace('{course}', () => name) };
+}
+
+async function draftPair(pool, tenant, info, course, aiAllowed) {
+  const name = info.language === 'ar' ? course.nameAr || course.nameEn : course.nameEn;
+  const firstId = info.first[0], secondId = info.second.find(id => id !== firstId);
+  const fallback = { first: render(firstId, name, info.language), second: render(secondId, name, info.language), source: 'library' };
+  if (!aiAllowed) return fallback;
   const settingsApi = require('./tenant-ai-settings');
   let reservation, settings, response;
   try {
     settings = await settingsApi.forRuntime(pool, tenant);
-    if (!settings) return { ids: fallback, source: 'library' };
-    reservation = await settingsApi.reserveTokens(pool, tenant, settings.daily_token_limit, 900);
+    if (!settings) return fallback;
+    reservation = await settingsApi.reserveTokens(pool, tenant, settings.daily_token_limit, 1800);
     response = await require('./chatbot-provider').generate({
-      provider: settings.provider, model: settings.model, apiKey: settings.apiKey, maxOutputTokens: 85,
-      system: 'Select two different follow-up variant IDs from the supplied lists for a quiet training enquiry. Prefer the unanswered topic for day 2 and a low-pressure next step for day 7. Output JSON with can_answer true, confidence 0 to 1, and reply containing only two IDs separated by one space.',
-      user: JSON.stringify({ ...info, intents: Object.fromEntries(Object.entries(variants).map(([id, value]) => [id, value[0]])) }),
+      provider: settings.provider, model: settings.model, apiKey: settings.apiKey, maxOutputTokens: 450,
+      system: 'Write two distinct, soft WhatsApp drafts from Pro Catalyst Training Center in the requested language. Use one short question in each, and the exact placeholder {course} once in each. Day 2 should address an unresolved topic from the summary. Day 7 should offer a different low-pressure next step. Use the examples only for tone. Use no links, digits, factual promises, discounts, names of other courses, or references to clicking an ad. Output JSON with can_answer true, confidence 0 to 1, and reply as a JSON-encoded string containing day2 and day7 fields.',
+      user: JSON.stringify({ ...info, intents: Object.fromEntries(Object.entries(variants).map(([id, value]) => [id, value[0]])),
+        examples: [render(firstId, '{course}', info.language), render(secondId, '{course}', info.language)] }),
     });
-    const ids = response.reply.split(/\s+/);
-    if (response.canAnswer && response.confidence >= 0.65 && ids.length === 2 && ids[0] !== ids[1]
-      && info.first.includes(ids[0]) && info.second.includes(ids[1])) return { ids, source: 'ai_selection' };
+    const pair = response.canAnswer && response.confidence >= 0.65 && validatedDraftPair(response.reply, name, info.language);
+    if (pair) return { ...pair, source: 'ai_selection' };
   } catch (error) {
     response = error.usage;
   } finally {
@@ -178,7 +196,7 @@ async function choose(pool, tenant, info, aiAllowed) {
       response ? (response.inputTokens || 0) + (response.outputTokens || 0) : null,
       { ...response, provider: settings.provider, model: settings.model }).catch(() => {});
   }
-  return { ids: fallback, source: 'library' };
+  return fallback;
 }
 
 async function save(db, tenant, row, result, drafts) {
@@ -234,9 +252,7 @@ async function tick(pool, tenant) {
         drafts = { first: row.prior_draft, second: row.prior_second, source: row.draft_source };
       } else if (result.status === 'ready') {
         const info = summary(messages, inboundTexts);
-        const picked = await choose(pool, tenant, info, aiAllowed);
-        const name = info.language === 'ar' ? course.nameAr || course.nameEn : course.nameEn;
-        drafts = { first: render(picked.ids[0], name, info.language), second: render(picked.ids[1], name, info.language), source: picked.source };
+        drafts = await draftPair(pool, tenant, info, course, aiAllowed);
       }
       await save(db, tenant, row, result, drafts);
     }
@@ -312,4 +328,4 @@ async function list(pool, tenant, before, source = '') {
   return { items, next: rows.length > 30 ? items.at(-1).id : null };
 }
 
-module.exports = { enabled, start, tick, seedPilot, list, classify, schedule, summary };
+module.exports = { enabled, start, tick, seedPilot, list, classify, schedule, summary, validatedDraftPair };

@@ -2,7 +2,7 @@
 
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { classify, schedule, summary } = require('../modules/platform/chatbot-followup-preview');
+const { classify, schedule, summary, validatedDraftPair } = require('../modules/platform/chatbot-followup-preview');
 const { variants, render } = require('../modules/platform/chatbot-followup-library');
 
 const first = Date.parse('2026-11-02T08:00:00Z');
@@ -50,4 +50,16 @@ test('variant selection sees topic codes only and renders the confirmed course i
   assert.equal(Object.keys(variants).length, 15);
   assert.match(render('F02', 'مساعد بحري', 'ar'), /مساعد بحري/);
   assert.match(render('F07', 'Marine Deckhand', 'en'), /Marine Deckhand/);
+});
+
+test('accepts two original AI drafts only when both can use the verified course safely', () => {
+  const draft = { day2: 'Would it help to see what the fee covers for {course}?', day7: 'Which month works best if you still plan to take {course}?' };
+  assert.deepEqual(validatedDraftPair(JSON.stringify(draft), 'Marine Deckhand', 'en'), {
+    first: 'Would it help to see what the fee covers for Marine Deckhand?',
+    second: 'Which month works best if you still plan to take Marine Deckhand?',
+  });
+  assert.equal(validatedDraftPair({ ...draft, day7: draft.day2 }, 'Marine Deckhand', 'en'), null);
+  assert.equal(validatedDraftPair({ ...draft, day7: 'Would you like the QAR 1200 discount on {course}?' }, 'Marine Deckhand', 'en'), null);
+  assert.equal(validatedDraftPair({ ...draft, day7: 'Would you like to visit https://example.com for {course}?' }, 'Marine Deckhand', 'en'), null);
+  assert.equal(validatedDraftPair(draft, 'Marine Deckhand', 'ar'), null);
 });

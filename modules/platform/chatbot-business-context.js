@@ -109,9 +109,23 @@ function score(query, text) {
   return tokens(query).reduce((sum, word) => sum + (words.has(word) ? 3 : value.includes(word) ? 1 : 0), 0);
 }
 
-function courseFromVerifiedReferral(facts, message, referral) {
-  if (!isGenericAdInterest(message) || referral?.source_type !== 'ad'
-    || !(referral.source_id || referral.ctwa_clid)) return null;
+function qrAdReferral(message) {
+  const bounded = (value, limit) => typeof value === 'string' ? value.trim().slice(0, limit) : '';
+  for (let depth = 0; message && depth < 5; depth++) {
+    const ad = Object.values(message).find(item => item?.contextInfo?.externalAdReply)?.contextInfo.externalAdReply;
+    const sourceId = bounded(ad?.sourceId, 191);
+    const clickId = bounded(ad?.ctwaClid, 255);
+    if (clickId || (sourceId && bounded(ad?.sourceType, 32).toLowerCase() === 'ad')) {
+      return { source_type: 'ad', source_id: sourceId, ctwa_clid: clickId,
+        headline: bounded(ad.title, 500), body: bounded(ad.body, 1000), source_url: bounded(ad.sourceUrl, 2000) };
+    }
+    message = message.ephemeralMessage?.message || message.viewOnceMessage?.message || message.viewOnceMessageV2?.message;
+  }
+  return null;
+}
+
+function courseFromVerifiedReferral(facts, referral) {
+  if (referral?.source_type !== 'ad' || !(referral.source_id || referral.ctwa_clid)) return null;
   const fields = [referral.headline, referral.body, referral.source_url]
     .filter(value => typeof value === 'string' && value.trim())
     .map(value => normalized(decodeURIComponentSafe(value)));
@@ -119,7 +133,7 @@ function courseFromVerifiedReferral(facts, message, referral) {
   const courses = (Array.isArray(facts) ? facts : []).filter(item => item?.code && !item.kind);
   const matches = courses.filter(course => {
     const names = [course.code, course.nameEn, course.nameAr].filter(Boolean).map(normalized);
-    return names.some(name => name.length >= 3 && fields.some(field => field.includes(name)));
+    return names.some(name => name.length >= 3 && fields.some(field => (` ${field} `).includes(` ${name} `)));
   });
   return matches.length === 1 ? matches[0] : null;
 }
@@ -134,13 +148,14 @@ function retrieveContext({ facts, knowledgeEntries = [], message, state = {}, pr
   const nameWords = new Map(courses.map(item => [item.code, new Set(tokens([item.nameEn, item.nameAr].join(' ')).filter(word => word.length >= 4))]));
   const direct = courses.filter(item => [item.code, item.nameEn, item.nameAr].some(name => name && normalized(message).includes(normalized(name)))
     || [...nameWords.get(item.code)].some(word => tokens(message).includes(word) && courses.filter(other => nameWords.get(other.code).has(word)).length === 1));
-  const referralCourse = direct.length ? null : courseFromVerifiedReferral(facts, message, referral);
+  const genericAdInterest = isGenericAdInterest(message);
+  const referralCourse = direct.length || !genericAdInterest ? null : courseFromVerifiedReferral(facts, referral);
   const ranked = courses.map(item => ({ item, score: score(message, [item.code, item.nameEn, item.nameAr, item.descriptionEn, item.descriptionAr, item.outcomesEn, item.outcomesAr].join(' ')) }))
     .sort((a, b) => b.score - a.score);
   const generalBusinessQuestion = /where|location|address|refund|policy|discount|اين|عنوان|موقع|استرداد|استرجاع|سياسة|خصم/i.test(message);
-  let selected = direct.length ? direct.slice(0, 3) : referralCourse ? [referralCourse] : generalBusinessQuestion ? [] : ranked.filter(row => row.score >= 3).slice(0, 3).map(row => row.item);
+  let selected = direct.length ? direct.slice(0, 3) : referralCourse ? [referralCourse] : generalBusinessQuestion || genericAdInterest ? [] : ranked.filter(row => row.score >= 3).slice(0, 3).map(row => row.item);
   const followUp = /\b(?:that|this|it|its|the course|how much|how long|when does|when is|certificate|certification|online|offline|in person|face to face|classroom|remote|hybrid|delivery|study mode|course format)\b|هذه|تلك|مدتها|رسومها|موعدها|كم الرسوم|كم مدتها|متى تبدأ|شهادة|الشهادة|اعتماد|اونلاين|عن بعد|حضوري|طريقة الدراسة|طريقة التقديم/iu.test(message);
-  if (!direct.length && followUp && state.selectedCourseCode) selected = courses.filter(item => item.code === state.selectedCourseCode);
+  if (!direct.length && !referralCourse && followUp && state.selectedCourseCode) selected = courses.filter(item => item.code === state.selectedCourseCode);
   if (!selected.length && state.selectedCourseCode) selected = courses.filter(item => item.code === state.selectedCourseCode);
   const recommendation = /recommend|compare|difference|best|improve|career|beginner|توصي|تنصح|افضل|مقارن|الفرق|مبتدئ/i.test(message);
   if (!selected.length && recommendation) selected = ranked.slice(0, 3).map(row => row.item);
@@ -425,4 +440,4 @@ function polishGuidedReply({ result, profile, message, state, defaults }) {
   return result;
 }
 
-module.exports = { normalized, fingerprint, languageFor, controlRoute, isScheduleQuestion, hasPublishedSchedule, courseDetailNeedsCoordinator, trainingCenterCoordinatorReason, publishedDurationRange, retrieveContext, validateAnswer, clarification, unavailableReply, publishedTrainingReply, simpleFactualReply, isCourseOverviewRequest, shouldSkipApprovedFaq, isGenericAdInterest, shouldClarifyGenericCourseInterest, isBareCourseSelection, previewState, redactCustomerText, polishGuidedReply };
+module.exports = { normalized, fingerprint, languageFor, controlRoute, isScheduleQuestion, hasPublishedSchedule, courseDetailNeedsCoordinator, trainingCenterCoordinatorReason, publishedDurationRange, retrieveContext, validateAnswer, clarification, unavailableReply, publishedTrainingReply, simpleFactualReply, isCourseOverviewRequest, shouldSkipApprovedFaq, isGenericAdInterest, shouldClarifyGenericCourseInterest, isBareCourseSelection, previewState, redactCustomerText, polishGuidedReply, qrAdReferral, courseFromVerifiedReferral };

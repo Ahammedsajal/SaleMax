@@ -81,7 +81,7 @@ async function tick(pool, { generate = input => require('./chatbot-runtime').pre
     [tenantId, job.conversation_key, job.id, job.created_at]);
     const state = typeof previous?.state_json === 'string' ? JSON.parse(previous.state_json) : previous?.state_json;
     result = await generate({ uid, tenantId, chatId: job.chat_id, channelKind: job.channel_kind,
-      channelRef: job.channel_ref, message: job.customer_text, messageType: job.message_type, state });
+      channelRef: job.channel_ref, message: job.customer_text, messageType: job.message_type, state, receivedAt: job.created_at });
   } catch (error) {
     result = { error: true, reason: error.code || 'MOCKUP_GENERATION_ERROR' };
     console.warn('[chatbot mockup] draft generation failed', safeCode(result.reason));

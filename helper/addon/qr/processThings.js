@@ -257,7 +257,8 @@ async function processBaileysMsg({ body, uid, userFromMysql, chatId }) {
   try {
     if (!body) return null;
     const groupMessage = groups.isGroupJid(body.key?.remoteJid);
-    if (groupMessage && body.message) {
+    const mockupQr = !groupMessage && !body.key?.fromMe && require('../../../modules/platform/chatbot-mockup').ownsInbox(uid, 'qr');
+    if ((groupMessage || mockupQr) && body.message) {
       let content = body.message;
       for (let depth = 0; depth < 5; depth++) {
         const wrapped = content.ephemeralMessage?.message;
@@ -470,6 +471,11 @@ async function processBaileysMsg({ body, uid, userFromMysql, chatId }) {
       }
       const participantJid = groups.cleanJid(body.key?.participant || body.participant || '');
       msgContext.group = { jid: body.key.remoteJid, participantJid, participantName: body.key.fromMe ? 'You' : body.pushName || participantJid || 'Member' };
+    }
+
+    if (mockupQr) {
+      const referral = require('../../../modules/platform/chatbot-business-context').qrAdReferral(body.message);
+      if (referral) msgContext.referral = referral;
     }
 
     // Create the new message object

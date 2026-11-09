@@ -831,7 +831,7 @@ async function previewConfiguredBot({ ctx, profile, uid, message, state = null }
   return { canAnswer: true, confidence: answer.confidence, reply: answer.reply, wouldHandoff: false, reason: answer.reason || null, route: answer.route, state: answer.state, metrics: answer.metrics };
 }
 
-async function previewMockupTurn({ uid, tenantId, chatId, channelKind, channelRef, message, messageType, state }) {
+async function previewMockupTurn({ uid, tenantId, chatId, channelKind, channelRef, message, messageType, state, receivedAt = null }) {
   const mockup = require('./chatbot-mockup');
   const origin = channelKind === 'whatsapp_qr' ? 'qr' : 'meta';
   if (!mockup.enabled(tenantId) || !mockup.ownsInbox(uid, origin)) return { reason: 'MOCKUP_DISABLED' };
@@ -854,16 +854,24 @@ async function previewMockupTurn({ uid, tenantId, chatId, channelKind, channelRe
   const db = await dbPool.getConnection();
   let facts;
   let lead;
+  let referral;
   try {
     facts = await pack.loadFacts({ db, tenantId, platformOrigin: process.env.SALEMAX_PLATFORM_ORIGIN, config: profile.config });
     [[lead]] = await db.query(`SELECT l.learner_name,l.contact_name,l.qualification_data
       FROM pipeline_conversations c JOIN pipeline_leads l ON l.uid_hash=c.uid_hash AND l.id=c.lead_id
       WHERE c.uid_hash=? AND l.uid=? AND c.chat_id=? AND c.origin=? ORDER BY c.id DESC LIMIT 1`,
     [crypto.createHash('sha256').update(uid).digest('hex'), uid, chatId, origin]);
+    if (businessContext.isGenericAdInterest(message)) {
+      const [rows] = await db.query(`SELECT CASE WHEN JSON_VALID(m.msgContext) THEN JSON_EXTRACT(m.msgContext,'$.referral') END AS referral
+        FROM beta_conversation m WHERE m.uid=? AND m.chat_id=? AND m.origin=? AND m.route='INCOMING'
+        AND (? IS NULL OR m.createdAt<=?) ORDER BY m.id DESC LIMIT 30`, [uid, chatId, origin, receivedAt, receivedAt]);
+      const current = rows.find(row => row.referral)?.referral;
+      referral = typeof current === 'string' ? JSON.parse(current) : current;
+    }
   } finally { db.release(); }
   const capture = require('./chatbot-lead-capture');
   const prior = isOpeningGreeting(message) ? { language, mockupIntake: state?.mockupIntake } : { ...state, language };
-  const context = businessContext.retrieveContext({ facts, message, state: prior });
+  const context = businessContext.retrieveContext({ facts, message, state: prior, referral });
   const course = facts.find(item => item.code === context.selectedCourseCode);
   const qualification = typeof lead?.qualification_data === 'string' ? JSON.parse(lead.qualification_data) : lead?.qualification_data || {};
   const courseInterest = (course?.nameEn || course?.nameAr) || admissions.courseInterest(message)
@@ -878,6 +886,10 @@ async function previewMockupTurn({ uid, tenantId, chatId, channelKind, channelRe
   const intake = admissions.advance({ prior: previousIntake, text: message, name, nameOnly, savedName: storedName,
     savedStart: admissions.savedStartLabel(qualification, language), language, recognizeImmediate: true });
   const route = businessContext.controlRoute(message, profile.config, prior, facts);
+  if (route === 'answer' && businessContext.shouldClarifyGenericCourseInterest(message, context, prior)) {
+    const reply = language === 'ar' ? 'أكيد، عن أي دورة ترغب في معرفة المزيد؟' : 'Of course. Which course would you like to know more about?';
+    return { revision, reply, route: 'clarification', state: { ...prior, greeted: true } };
+  }
   const localReply = route === 'answer' && (acknowledgement || intake.answerOnly);
   const guided = !localReply && (profile.engine === 'guided' || route !== 'answer' ||
     acceptsRegistrationForm(prior, message) || businessContext.isBareCourseSelection(message, context) || profile.config.aiFallback === false);
@@ -885,7 +897,8 @@ async function previewMockupTurn({ uid, tenantId, chatId, channelKind, channelRe
   if (guided) {
     const knowledgeEntries = mergeKnowledgeEntries(profile.config.knowledgeEntries || [], await loadApprovedFaqs(tenantId));
     const result = pack.guidedReply({
-      message: ['human', 'handoff'].includes(route) ? (language === 'ar' ? 'موظف' : 'agent') : message,
+      message: ['human', 'handoff'].includes(route) ? (language === 'ar' ? 'موظف' : 'agent')
+        : context.courseContextSource === 'meta_referral' ? `${message} ${language === 'ar' ? course.nameAr || course.nameEn : course.nameEn || course.nameAr}` : message,
       state: prior, facts, config: { ...(profile.config.guidedContent || {}), knowledgeEntries },
     });
     const polished = businessContext.polishGuidedReply({ result, profile, message, state: prior, defaults: pack.guidedContentDefaults });
@@ -899,7 +912,7 @@ async function previewMockupTurn({ uid, tenantId, chatId, channelKind, channelRe
   } else if (profile.config.aiDataProcessingConfirmed !== true) {
     return { revision, reason: 'AI_DATA_PROCESSING_ACK_REQUIRED' };
   } else {
-    answer = await generateAiAnswer({ ctx, profile, customerMessage: message, state: prior, factsOverride: facts,
+    answer = await generateAiAnswer({ ctx, profile, customerMessage: message, state: prior, factsOverride: facts, referral,
       admissionsIntake: true, intakeCourse: courseInterest });
   }
   const leadInfo = { language, courseInterest, intake: { ...intake, session: prior } };

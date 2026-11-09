@@ -202,6 +202,18 @@ test('an explicitly named first-message course takes precedence over a conflicti
  assert.equal(context.courseContextSource,'message');
 });
 
+test('QR click-to-WhatsApp metadata can replace stale context with the verified advertised course',()=>{
+ const {qrAdReferral}=require('../modules/platform/chatbot-business-context');
+ const referral=qrAdReferral({ephemeralMessage:{message:{extendedTextMessage:{contextInfo:{externalAdReply:{
+  sourceType:'ad',sourceId:'campaign-1',title:'Business English course',thumbnailUrl:'ignored'
+ }}}}}});
+ assert.equal(referral.headline,'Business English course');
+ assert.equal(referral.thumbnailUrl,undefined);
+ const result=retrieveContext({facts,message:'Hello! Can I get more info on this?',state:{selectedCourseCode:'EXCEL'},referral});
+ assert.equal(result.selectedCourseCode,'ENG');
+ assert.equal(qrAdReferral({extendedTextMessage:{contextInfo:{externalAdReply:{sourceType:'post',sourceId:'link-1',title:'Business English course'}}}}),null);
+});
+
 test('natural course-overview follow-ups use the previously selected course and localize the response',()=>{
  const message='tell me more about this course';
  const context=retrieveContext({facts,message,state:{selectedCourseCode:'ENG',language:'en'}});

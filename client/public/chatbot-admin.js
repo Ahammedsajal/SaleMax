@@ -411,7 +411,7 @@
             <a href="${esc(lead)}" target="_blank" rel="noopener">${esc(tr('Open lead','فتح العميل المحتمل'))}</a></div></div>
             <p class="sx-mockup-tag" data-status="${esc(item.status)}">${esc(followupReason(item.reason))}</p>
             ${item.draftSource && item.status !== 'skipped' ? `<span class="sx-mockup-muted"> · ${esc(({
-              reviewed: tr('Reviewed copy','نص تمت مراجعته'), ai_selection: tr('AI-selected variant','صيغة اختارها الذكاء الاصطناعي'),
+              reviewed: tr('Reviewed copy','نص تمت مراجعته'), ai_selection: tr('AI-assisted draft','مسودة بمساعدة الذكاء الاصطناعي'),
               library: tr('Library variant','صيغة من المكتبة'),
             })[item.draftSource] || '')}</span>` : ''}
             ${item.dayTwoAt && item.status !== 'skipped' ? `<div class="sx-followup-pair">
