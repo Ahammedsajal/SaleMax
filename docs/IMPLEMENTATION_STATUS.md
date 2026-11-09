@@ -1,3 +1,7 @@
+## Pro Catalyst answers from published information — production, 9 November 2026
+
+The existing bot now treats short acknowledgements as conversational replies and answers simple questions from populated course and public business fields. Related approved FAQs can supply supporting evidence for AI answers. Production verified ten active course sources, three bilingual FAQs, one business profile and one selected published form. Dedicated prerequisite and certificate fields and upcoming batch dates have no entries. Focused tests and a read-only smoke test passed. A device-level WhatsApp exchange remains open. DEPLOYMENT.md records the release and rollback.
+
 ## Pro Catalyst standalone name question — production, 9 November 2026
 
 The existing bot now sends the name question or saved-name confirmation in its own WhatsApp message after the course details and attachments. The number lookup includes linked Lead Pipeline contacts and saved Phonebook entries. Focused tests and disposable MariaDB verification passed. Production is healthy and a synthetic test against the deployed source verified ordering. A device-level WhatsApp exchange remains open. DEPLOYMENT.md records the release and rollback.
