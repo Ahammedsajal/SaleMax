@@ -1,3 +1,7 @@
+## Ad-aware Pro Catalyst replies and AI-written drafts — production, 9 November 2026
+
+The scoped QR handler retains click-to-WhatsApp context when supplied. Private replies use verified ad context to answer about the matching published course, or ask the customer which course they mean when the evidence is unavailable. AI writes future follow-up pairs from bounded conversation topics and the verified course. The reviewed cohort is retained. Synthetic production verification passed and device-level ad and scheduled draft acceptance remain open. Customer sending remains disabled. Release details are in `DEPLOYMENT.md`.
+
 ## Direct Inbox links from Pro Catalyst follow-ups — production, 9 November 2026
 
 Follow-up cards now open the linked WhatsApp conversation in a new Inbox tab. Production resolved all 20 reviewed leads to an exact chat. Bilingual responsive browser fixtures exercised the new tab and selection. Signed-in production browser acceptance remains open. `DEPLOYMENT.md` records the release and rollback.
