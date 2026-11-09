@@ -36,6 +36,7 @@ function mountExistingUpgrade(app,{pool,key,origin,insecureLoopback=false,legacy
   agentIdentity.get('/me',(req,res,next)=>req.get('X-Salemax-Actor')==='agent'?agentIdentityGuard(req,res,next):next());
   app.use('/api/user/business-auth',agentIdentity,businessBoundary.router);
   const featureSession=require('./business-feature-session').createBusinessFeatureSession({pool,origin,userGuard,agentGuard:require('../../middlewares/agent'),canonicalGuard:businessBoundary.guard,resolveBusinessContext:businessBoundary.resolveContext});
+  app.use('/api/workspace/chatbots/mockup',require('./chatbot-mockup').createRouter({pool,authenticate:featureSession.guard}));
   app.use('/api/workspace/chatgpt',require('./chatgpt-mcp/workspace-router').createWorkspaceRouter({pool,sessionGuard:featureSession.guard,origin:require('./chatgpt-mcp/oauth').publicOrigin()}));
   const featureAccess=require('express').Router();featureAccess.use(featureSession.guard);
   featureAccess.get('/',(req,res,next)=>require('./feature-contract').describeWithNavigation(pool,req.featureSession).then(data=>res.json({success:true,data})).catch(next));

@@ -233,6 +233,7 @@ async function processHandoffPriorityForProfile({ ctx, profile, uid, message, us
 }
 
 async function handleHandoffPriorityMessage({ uid, message, user, sessionId, origin, chatId }) {
+  if (require('./chatbot-mockup').ownsInbox(uid, origin)) return { handled: true };
   if (!uid || !chatId || message?.route !== 'INCOMING' || require('./qr-inbox-groups').isGroup({ ...message, chatId })) return { handled: false };
   const access = await currentOwnerAccess(uid);
   const ctx = access.context;
@@ -518,6 +519,7 @@ async function saveConversationalState({ ctx, profile, chatId, channelKind, chan
 }
 
 async function canSendNow({ ctx, profile, uid, origin, sessionId, chatId, message, checkPause=true }) {
+  if (require('./chatbot-mockup').ownsInbox(uid, origin)) return false;
   const access=await currentOwnerAccess(uid);
   if(!require('./chatbot-runtime-access').sameBoundary(ctx,access.context))return false;
   const current = await profileFor(access.context, uid, origin, sessionId);
@@ -696,6 +698,10 @@ async function resetOpeningGreetingState({ ctx, profile, uid, chatId, sessionId,
   } finally { db.release(); }
 }
 
+function acceptsRegistrationForm(session, incoming) {
+  return session?.step === 'course_detail' && /^(?:yes(?:[,.! ]+(?:please(?:\s+(?:send it|send me|share it))?|send it|send me|share it))?|sure|please do|send it|send me|share it|i'm interested|im interested|اي|نعم|نعم من فضلك|أرسلها|ارسلها|أرسل النموذج|ارسل النموذج)$/iu.test(incoming.trim());
+}
+
 async function aiTurn({ ctx, profile, uid, message, user, sessionId, origin, chatId, leadInfo, onStage = null }) {
   onStage?.('bot-routing');
   const incomingText = textOf(message);
@@ -743,7 +749,7 @@ async function aiTurn({ ctx, profile, uid, message, user, sessionId, origin, cha
       const selectionContext = businessContext.retrieveContext({ facts: selectionFacts || [], message: incoming, state: session || {}, referral: message?.msgContext?.referral || null });
       bareCourseSelection = businessContext.isBareCourseSelection(incoming, selectionContext);
     }
-    const applicationAccepted = session?.step === 'course_detail' && /^(?:yes(?:[,.! ]+(?:please(?:\s+(?:send it|send me|share it))?|send it|send me|share it))?|sure|please do|send it|send me|share it|i'm interested|im interested|اي|نعم|نعم من فضلك|أرسلها|ارسلها|أرسل النموذج|ارسل النموذج)$/iu.test(incoming.trim());
+    const applicationAccepted = acceptsRegistrationForm(session, incoming);
     if (route !== 'answer' || leadInfo?.nameOnly || applicationAccepted || bareCourseSelection || (profile.engine === 'hybrid' && profile.config.aiFallback === false)) {
       onStage?.('training-center-guided-reply');
       const handoffIntent = route === 'human' || route === 'handoff'
@@ -825,6 +831,96 @@ async function previewConfiguredBot({ ctx, profile, uid, message, state = null }
   return { canAnswer: true, confidence: answer.confidence, reply: answer.reply, wouldHandoff: false, reason: answer.reason || null, route: answer.route, state: answer.state, metrics: answer.metrics };
 }
 
+async function previewMockupTurn({ uid, tenantId, chatId, channelKind, channelRef, message, messageType, state }) {
+  const mockup = require('./chatbot-mockup');
+  const origin = channelKind === 'whatsapp_qr' ? 'qr' : 'meta';
+  if (!mockup.enabled(tenantId) || !mockup.ownsInbox(uid, origin)) return { reason: 'MOCKUP_DISABLED' };
+  const { context: ctx } = await currentOwnerAccess(uid);
+  if (ctx?.tenant.id !== tenantId || ctx.category.key !== 'training_center') return { reason: 'MOCKUP_ACCESS_UNAVAILABLE' };
+  const profile = await profileFor(ctx, uid, origin, channelRef);
+  if (!profile) return { reason: 'MOCKUP_PROFILE_UNAVAILABLE' };
+  const revision = Number(profile.revision);
+  if (profile.config.guidedMode !== 'domain_default' || profile.config.introFlowId) {
+    return { revision, reason: 'MOCKUP_CUSTOM_FLOW_REVIEW' };
+  }
+  const language = businessContext.languageFor(message, state || {});
+  const handoff = (reason, next = state) => ({
+    reply: handoffText({}, language), wouldHandoff: true, route: 'handoff', reason, revision, state: next,
+  });
+  if (!message || !['text', 'interactive', 'button'].includes(messageType)) {
+    return handoff('UNSUPPORTED_MESSAGE_TYPE');
+  }
+  const pack = getDomainPack(ctx.category.key, ctx.category.version);
+  const db = await dbPool.getConnection();
+  let facts;
+  let lead;
+  try {
+    facts = await pack.loadFacts({ db, tenantId, platformOrigin: process.env.SALEMAX_PLATFORM_ORIGIN, config: profile.config });
+    [[lead]] = await db.query(`SELECT l.learner_name,l.contact_name,l.qualification_data
+      FROM pipeline_conversations c JOIN pipeline_leads l ON l.uid_hash=c.uid_hash AND l.id=c.lead_id
+      WHERE c.uid_hash=? AND l.uid=? AND c.chat_id=? AND c.origin=? ORDER BY c.id DESC LIMIT 1`,
+    [crypto.createHash('sha256').update(uid).digest('hex'), uid, chatId, origin]);
+  } finally { db.release(); }
+  const capture = require('./chatbot-lead-capture');
+  const prior = isOpeningGreeting(message) ? { language, mockupIntake: state?.mockupIntake } : { ...state, language };
+  const context = businessContext.retrieveContext({ facts, message, state: prior });
+  const course = facts.find(item => item.code === context.selectedCourseCode);
+  const qualification = typeof lead?.qualification_data === 'string' ? JSON.parse(lead.qualification_data) : lead?.qualification_data || {};
+  const courseInterest = (course?.nameEn || course?.nameAr) || admissions.courseInterest(message)
+    || prior.mockupCourseInterest || qualification.courseInterest || null;
+  const previousIntake = prior.mockupIntake || {};
+  const acknowledgement = admissions.acknowledgement(message, language);
+  const name = acknowledgement ? null : capture.customerName(message,
+    ['name', 'confirmName'].includes(previousIntake.waiting) && !context.explicitCourses);
+  const nameOnly = name && ['', 'my name is ', 'my name s ', 'call me ', 'اسمي ', 'انا اسمي ']
+    .some(prefix => businessContext.normalized(message) === prefix + businessContext.normalized(name));
+  const storedName = capture.customerName(lead?.learner_name || lead?.contact_name, true)?.split(/\s+/u)[0];
+  const intake = admissions.advance({ prior: previousIntake, text: message, name, nameOnly, savedName: storedName,
+    savedStart: admissions.savedStartLabel(qualification, language), language });
+  const route = businessContext.controlRoute(message, profile.config, prior, facts);
+  const localReply = route === 'answer' && (acknowledgement || intake.answerOnly);
+  const guided = !localReply && (profile.engine === 'guided' || route !== 'answer' ||
+    acceptsRegistrationForm(prior, message) || businessContext.isBareCourseSelection(message, context) || profile.config.aiFallback === false);
+  let answer;
+  if (guided) {
+    const knowledgeEntries = mergeKnowledgeEntries(profile.config.knowledgeEntries || [], await loadApprovedFaqs(tenantId));
+    const result = pack.guidedReply({
+      message: ['human', 'handoff'].includes(route) ? (language === 'ar' ? 'موظف' : 'agent') : message,
+      state: prior, facts, config: { ...(profile.config.guidedContent || {}), knowledgeEntries },
+    });
+    const polished = businessContext.polishGuidedReply({ result, profile, message, state: prior, defaults: pack.guidedContentDefaults });
+    answer = { ...polished, route: route === 'answer' ? 'guided' : route, handedOff: polished.handoff };
+    if (polished.handoff) return { ...handoff(polished.handoffReason || 'HUMAN_REVIEW_REQUIRED', polished.state), reply: polished.reply };
+  } else if (localReply) {
+    answer = { reply: acknowledgement || (language === 'ar' ? 'شكرا، تم تسجيل ردك.' : 'Thanks, I’ve noted your answer.'), state: prior, route: 'admissions-intake' };
+  } else if (profile.config.aiDataProcessingConfirmed !== true) {
+    return { revision, reason: 'AI_DATA_PROCESSING_ACK_REQUIRED' };
+  } else {
+    answer = await generateAiAnswer({ ctx, profile, customerMessage: message, state: prior, factsOverride: facts,
+      admissionsIntake: true, intakeCourse: courseInterest });
+  }
+  const leadInfo = { language, courseInterest, intake: { ...intake, session: prior } };
+  if (!acknowledgement) answer = admissions.planReply(answer, leadInfo);
+  if (answer.handedOff) return handoff(answer.code || 'HUMAN_REVIEW_REQUIRED', answer.state || prior);
+  if (!answer.reply) return { revision, reason: 'MOCKUP_EMPTY_REPLY' };
+  const next = { ...answer.state, greeted: true, mockupCourseInterest: courseInterest, mockupIntake: intake.state };
+  const question = (guided && !prior.greeted) || (acknowledgement && previousIntake.waiting)
+    ? null : { ...leadInfo, intake: { ...intake, session: next } };
+  const standalone = capture.standaloneNamePrompt(question);
+  const main = capture.addQuestion(answer.reply, question, profile.config, pack.guidedContentDefaults);
+  if (standalone || main !== answer.reply) {
+    const key = intake.key + 'Asked';
+    next.mockupIntake = { ...intake.state, waiting: intake.key, [key]: Number(intake.state[key] || 0) + 1 };
+  }
+  if (!localReply) next.recentConversation = [...(prior.recentConversation || []),
+    { role: 'user', text: message.slice(0, 400) }, { role: 'assistant', text: answer.reply.slice(0, 500) }].slice(-4);
+  const pdfs = localReply ? [] : require('./chatbot-course-media').coursePdfs(facts, next.selectedCourseCode, message, prior.sentCoursePdfIds || []);
+  const attachments = [...pdfs, ...(answer.media || []).filter(item => item.kind !== 'document')].slice(0, 2);
+  next.sentCoursePdfIds = [...new Set([...(prior.sentCoursePdfIds || []), ...pdfs.map(item => item.id)])].slice(-20);
+  return { revision, reply: [main, ...attachments.map(item => language === 'ar' ? `[مرفق: ${item.filename || item.kind}]` : `[Attachment: ${item.filename || item.kind}]`), standalone]
+    .filter(Boolean).join('\n\n'), route: answer.route, reason: answer.reason, state: next };
+}
+
 async function finishRecruitmentChat({ctx,profile,uid,message,sessionId,origin,chatId,completion,action}){
   const module=require('./recruitment-chat-completion'),channelKind=channelFor(origin);
   const current=await profileFor(ctx,uid,origin,sessionId);
@@ -856,6 +952,7 @@ async function finishRecruitmentChat({ctx,profile,uid,message,sessionId,origin,c
 }
 
 async function runConfiguredBot({ uid, message, user, sessionId, origin, chatId }) {
+  if (require('./chatbot-mockup').ownsInbox(uid, origin)) return { handled: true };
   if (require('./qr-inbox-groups').isGroup({ ...message, chatId })) return { handled: true, paused: true, code: 'GROUP_AUTOMATION_DISABLED' };
   if (!uid || !chatId || message?.route !== 'INCOMING') return { handled: false };
   const access=await currentOwnerAccess(uid),ctx=access.context;
@@ -964,4 +1061,4 @@ async function runConfiguredBot({ uid, message, user, sessionId, origin, chatId 
   }
 }
 
-module.exports = { canSendNow, handleHandoffPriorityMessage, runConfiguredBot, previewConfiguredBot, resolveTenant, loadGuidedFlow, parseGuidedFlow, executionFlowId };
+module.exports = { canSendNow, handleHandoffPriorityMessage, runConfiguredBot, previewConfiguredBot, previewMockupTurn, resolveTenant, loadGuidedFlow, parseGuidedFlow, executionFlowId };

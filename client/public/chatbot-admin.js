@@ -90,7 +90,7 @@
   }
   function mountNativeProfileList() {
     if (!isAssignmentPage()) return;
-    const heading = [...document.querySelectorAll('h1,h2,h3,h4,h5,h6')].find(node => node.textContent.trim() === 'WA Chatbot');
+    const heading = [...document.querySelectorAll('h1,h2,h3,h4,h5,h6')].find(node => /^(?:WA Chatbot|روبوت واتساب|روبوت المحادثة)$/i.test(node.textContent.trim()));
     if (!heading) return;
     const header = heading.parentElement?.parentElement?.parentElement;
     if (!header) return;
@@ -108,14 +108,21 @@
       const channelNames = new Map((connected || []).map(channel => [`${channel.kind}|${channel.reference}`, channel.label || channelLabel(channel)]));
       if (!section.isConnected) { nativeProfileListRequest = null; window.setTimeout(mountNativeProfileList, 0); return; }
       nativeProfileListRequest = null;
-      if (!bots.length) { section.remove(); return; }
+      if (!bots.length && !result.mockupEnabled) { section.remove(); return; }
       const numberFor = bot => (bot.channels || []).map(channel => channel.kind === 'whatsapp_meta' ? tr('Meta WhatsApp','واتساب ميتا') : channelNames.get(`${channel.kind}|${channel.reference}`) || tr('Number label unavailable','اسم الرقم غير متاح')).join(', ') || tr('Not assigned','غير معيّن');
       section.innerHTML = `<div class="sx-native-profile-card"><div class="sx-native-profile-heading">${esc(tr('Chatbots','روبوتات المحادثة'))}</div><div>${bots.map(bot => {
         const toggleAction = bot.status === 'live' ? 'pause' : bot.status === 'paused' ? 'resume' : '';
         const toggleLabel = toggleAction === 'pause' ? tr('Pause','إيقاف') : tr('Resume','استئناف');
         const deleteUnavailable = bot.status === 'live';
-        return `<article class="sx-native-profile-row"><div class="sx-native-profile-info"><div class="sx-native-profile-name">${esc(bot.name)}</div><div class="sx-native-profile-channel">${esc(numberFor(bot))}</div></div><div class="sx-native-profile-actions"><span class="sx-native-profile-status" data-status="${esc(bot.status)}">${esc(engineLabel(bot.engine))} · ${esc(statusLabel(bot.status))}</span><button type="button" class="sx-native-profile-action" data-sx-manage-profile="${esc(bot.id)}" aria-label="${esc(tr(`Assign number for ${bot.name}`,`تعيين رقم لـ ${bot.name}`))}">${esc(tr('Assign','تعيين'))}</button>${toggleAction ? `<button type="button" class="sx-native-profile-action" data-sx-profile-action="${toggleAction}" data-profile-id="${esc(bot.id)}" aria-label="${esc(tr(`${toggleLabel} ${bot.name}`,`${toggleLabel} ${bot.name}`))}">${esc(toggleLabel)}</button>` : ''}<button type="button" class="sx-native-profile-action" data-action="delete" data-sx-profile-action="delete" data-profile-id="${esc(bot.id)}" aria-label="${esc(tr(`Delete ${bot.name}`,`حذف ${bot.name}`))}" ${deleteUnavailable ? `disabled title="${esc(tr('Pause this bot before deleting','أوقف الروبوت قبل حذفه'))}"` : ''}>${esc(tr('Delete','حذف'))}</button></div></article>`;
+        return `<article class="sx-native-profile-row"><div class="sx-native-profile-info"><div class="sx-native-profile-name">${esc(bot.name)}</div><div class="sx-native-profile-channel">${esc(numberFor(bot))}</div></div><div class="sx-native-profile-actions"><span class="sx-native-profile-status" data-status="${esc(bot.status)}">${esc(engineLabel(bot.engine))} · ${esc(result.mockupEnabled && bot.status === 'live' ? tr('Mockup only','محاكاة فقط') : statusLabel(bot.status))}</span><button type="button" class="sx-native-profile-action" data-sx-manage-profile="${esc(bot.id)}" aria-label="${esc(tr(`Assign number for ${bot.name}`,`تعيين رقم لـ ${bot.name}`))}">${esc(tr('Assign','تعيين'))}</button>${toggleAction ? `<button type="button" class="sx-native-profile-action" data-sx-profile-action="${toggleAction}" data-profile-id="${esc(bot.id)}" aria-label="${esc(tr(`${toggleLabel} ${bot.name}`,`${toggleLabel} ${bot.name}`))}">${esc(toggleLabel)}</button>` : ''}<button type="button" class="sx-native-profile-action" data-action="delete" data-sx-profile-action="delete" data-profile-id="${esc(bot.id)}" aria-label="${esc(tr(`Delete ${bot.name}`,`حذف ${bot.name}`))}" ${deleteUnavailable ? `disabled title="${esc(tr('Pause this bot before deleting','أوقف الروبوت قبل حذفه'))}"` : ''}>${esc(tr('Delete','حذف'))}</button></div></article>`;
       }).join('')}</div><div class="sx-native-profile-feedback" data-profile-feedback role="status" aria-live="polite" hidden></div></div>`;
+      if (result.mockupEnabled) {
+        const controls = document.createElement('div');
+        controls.className = 'sx-native-profile-card sx-native-profile-row';
+        controls.innerHTML = `<div class="sx-native-profile-info"><strong>${esc(tr('Live Reply Mockup','محاكاة الردود المباشرة'))}</strong><div class="sx-native-profile-channel">${esc(tr('Private drafts from new WhatsApp messages. Staff reply in Inbox.','مسودات خاصة من رسائل واتساب الجديدة. يرد الموظفون من صندوق الوارد.'))}</div></div><button type="button" class="sx-native-profile-action">${esc(tr('Open mockup','فتح المحاكاة'))}</button>`;
+        section.prepend(controls);
+        controls.querySelector('button').onclick = openLiveReplyMockup;
+      }
       const emptyHeading = [...document.querySelectorAll('h6')].find(node => node.textContent.trim() === 'No Chatbots Yet');
       if (emptyHeading?.parentElement) emptyHeading.parentElement.style.display = 'none';
       section.dataset.loaded = '1';
@@ -168,6 +175,126 @@
       nativeProfileListRequest = null;
       if (section.isConnected) section.innerHTML = `<div role="alert" style="margin-top:16px;color:#b42318">${esc(errorLabel(error.message))}</div>`;
     });
+  }
+  function openLiveReplyMockup() {
+    if (document.getElementById('sx-live-reply-mockup')) return;
+    const dialog = document.createElement('dialog');
+    dialog.id = 'sx-live-reply-mockup';
+    dialog.dir = ar() ? 'rtl' : 'ltr';
+    dialog.setAttribute('aria-labelledby', 'sx-mockup-title');
+    dialog.innerHTML = `<style>
+      #sx-live-reply-mockup{width:min(960px,calc(100% - 24px));max-height:calc(100dvh - 24px);padding:0;border:1px solid #d0d5dd;border-radius:14px;background:#fff;color:#182230;box-sizing:border-box;font:14px Roboto,Arial,sans-serif}
+      #sx-live-reply-mockup::backdrop{background:#10182899}
+      #sx-live-reply-mockup header{padding:16px;display:flex;justify-content:space-between;align-items:flex-start;gap:12px;border-bottom:1px solid #e4e7ec}
+      #sx-live-reply-mockup h2{font-size:20px;margin:0 0 5px}
+      #sx-live-reply-mockup p{margin:4px 0;overflow-wrap:anywhere}
+      #sx-live-reply-mockup button{min-height:44px;padding:8px 12px;border:1px solid #d0d5dd;border-radius:8px;background:transparent;color:inherit;font:inherit;cursor:pointer}
+      #sx-live-reply-mockup button:focus-visible{outline:2px solid #1570ef;outline-offset:2px}
+      #sx-live-reply-mockup button[aria-current=true]{background:#eaf3ff;border-color:#1570ef}
+      #sx-live-reply-mockup .sx-mockup-layout{display:grid;grid-template-columns:minmax(180px,28%) minmax(0,1fr);min-height:320px}
+      #sx-live-reply-mockup .sx-mockup-list,#sx-live-reply-mockup .sx-mockup-thread{padding:12px;max-height:65dvh;overflow:auto;min-width:0}
+      #sx-live-reply-mockup .sx-mockup-list{border-inline-end:1px solid #e4e7ec}
+      #sx-live-reply-mockup .sx-mockup-list button{display:block;width:100%;text-align:start;margin-bottom:6px;overflow-wrap:anywhere}
+      #sx-live-reply-mockup .sx-mockup-turn{padding:12px;border:1px solid #e4e7ec;border-radius:10px;margin-block:10px}
+      #sx-live-reply-mockup .sx-mockup-copy{white-space:pre-wrap;overflow-wrap:anywhere}
+      #sx-live-reply-mockup .sx-mockup-muted{color:#475467;font-size:12px}
+      #sx-live-reply-mockup [hidden]{display:none!important}
+      html[data-sx-chatbot-theme=dark] #sx-live-reply-mockup{background:#191b22;color:#f2f4f7;border-color:#475467}
+      html[data-sx-chatbot-theme=dark] #sx-live-reply-mockup button[aria-current=true]{background:#193754}
+      html[data-sx-chatbot-theme=dark] #sx-live-reply-mockup .sx-mockup-muted{color:#b4bdca}
+      @media(max-width:650px){
+        #sx-live-reply-mockup .sx-mockup-layout{display:block;min-height:0}
+        #sx-live-reply-mockup .sx-mockup-list{max-height:23dvh;border-inline-end:0;border-bottom:1px solid #e4e7ec}
+        #sx-live-reply-mockup .sx-mockup-thread{max-height:50dvh}
+        #sx-live-reply-mockup header{padding:12px}
+      }
+    </style><header><div><h2 id="sx-mockup-title">${esc(tr('Live Reply Mockup','محاكاة الردود المباشرة'))}</h2><p class="sx-mockup-muted">${esc(tr('Private drafts for new incoming messages. Staff send replies from Inbox.','مسودات خاصة للرسائل الواردة الجديدة. يرسل الموظفون الردود من صندوق الوارد.'))}</p></div><button type="button" data-mockup-close autofocus>${esc(tr('Close','إغلاق'))}</button></header>
+    <div class="sx-mockup-layout"><div class="sx-mockup-list" aria-label="${esc(tr('Conversations','المحادثات'))}"><button type="button" data-mockup-refresh>${esc(tr('Refresh','تحديث'))}</button><div data-mockup-list aria-live="polite"></div><button type="button" data-mockup-more hidden>${esc(tr('Older conversations','محادثات أقدم'))}</button></div>
+    <div class="sx-mockup-thread" aria-label="${esc(tr('Draft conversation','مسودات المحادثة'))}"><button type="button" data-mockup-older hidden>${esc(tr('Older messages','رسائل أقدم'))}</button><div data-mockup-thread aria-live="polite"></div></div></div>`;
+    document.body.append(dialog);
+    dialog.addEventListener('close', () => dialog.remove(), { once: true });
+    dialog.querySelector('[data-mockup-close]').onclick = () => dialog.close();
+    dialog.showModal();
+
+    const list = dialog.querySelector('[data-mockup-list]');
+    const thread = dialog.querySelector('[data-mockup-thread]');
+    const more = dialog.querySelector('[data-mockup-more]');
+    const older = dialog.querySelector('[data-mockup-older]');
+    const refresh = dialog.querySelector('[data-mockup-refresh]');
+    const request = async path => (await window.SaleMaxWorkspace.request('chatbots', '/mockup' + path)).data;
+    const show = (element, value) => { element.textContent = value; };
+    const localDate = value => {
+      const raw = String(value || '').replace(' ', 'T');
+      const date = new Date(/(?:Z|[+-]\d{2}:\d{2})$/i.test(raw) ? raw : raw + 'Z');
+      return Number.isNaN(date.valueOf()) ? '' : date.toLocaleString(ar() ? 'ar-QA' : 'en-QA', { timeZone: 'Asia/Qatar', dateStyle: 'short', timeStyle: 'short' });
+    };
+    const status = value => ({
+      queued: tr('Queued','في قائمة الانتظار'), processing: tr('Preparing draft','جار إعداد المسودة'),
+      ready: tr('Draft ready','المسودة جاهزة'), review: tr('Staff review','مراجعة الموظفين'), failed: tr('Draft failed','تعذر إعداد المسودة'),
+    })[value] || '';
+    let selected = '', listCursor = null, threadCursor = null, threadRequest = 0;
+    const updateSelection = () => list.querySelectorAll('button[data-conversation]').forEach(button =>
+      button.setAttribute('aria-current', String(button.dataset.conversation === selected)));
+
+    async function openThread(key, appendOlder = false) {
+      selected = key;
+      updateSelection();
+      const version = ++threadRequest;
+      const cursor = appendOlder && threadCursor ? '?before=' + encodeURIComponent(threadCursor) : '';
+      if (!appendOlder) { show(thread, tr('Loading drafts…','جار تحميل المسودات…')); older.hidden = true; }
+      older.disabled = true;
+      try {
+        const result = await request('/conversations/' + encodeURIComponent(key) + cursor);
+        if (version !== threadRequest || !dialog.open) return;
+        const rows = result.items.map(item => `<article class="sx-mockup-turn"><p class="sx-mockup-muted">${esc(localDate(item.createdAt))} · ${esc(status(item.status))}</p>
+          <strong>${esc(tr('Customer','العميل'))}</strong><p dir="auto" class="sx-mockup-copy">${esc(item.customerText || tr('Attachment or non-text message','مرفق أو رسالة غير نصية'))}</p>
+          <strong>${esc(tr('Bot draft','مسودة الروبوت'))}</strong><p dir="auto" class="sx-mockup-copy">${esc(item.replyText || status(item.status))}</p>
+          ${item.reason ? `<p class="sx-mockup-muted">${esc(mockupReasonLabel(item.reason))}</p>` : ''}</article>`).join('');
+        if (appendOlder) thread.insertAdjacentHTML('afterbegin', rows);
+        else thread.innerHTML = rows;
+        threadCursor = result.next;
+        older.hidden = !threadCursor;
+        if (!appendOlder) thread.parentElement.scrollTop = thread.parentElement.scrollHeight;
+      } catch (error) {
+        if (version === threadRequest && dialog.open) show(thread, mockupReasonLabel(error.message));
+      } finally { if (version === threadRequest) older.disabled = false; }
+    }
+
+    async function loadList(append = false) {
+      more.disabled = refresh.disabled = true;
+      if (!append) show(list, tr('Loading conversations…','جار تحميل المحادثات…'));
+      try {
+        const data = await request(append && listCursor ? '?before=' + encodeURIComponent(listCursor) : '');
+        if (!dialog.open) return;
+        const existing = new Set([...list.querySelectorAll('[data-conversation]')].map(node => node.dataset.conversation));
+        const buttons = data.items.filter(item => !existing.has(item.conversationKey)).map(item =>
+          `<button type="button" data-conversation="${esc(item.conversationKey)}"><strong dir="auto">${esc(item.label || tr('Customer','العميل'))}</strong><p class="sx-mockup-muted">${esc(localDate(item.createdAt))} · ${esc(status(item.status))}</p></button>`).join('');
+        if (append) list.insertAdjacentHTML('beforeend', buttons);
+        else list.innerHTML = buttons;
+        listCursor = data.next;
+        more.hidden = !listCursor;
+        if (!append && !data.items.length) show(list, tr('New WhatsApp conversations will appear here.','ستظهر محادثات واتساب الجديدة هنا.'));
+        if (!append && (selected || data.items.length)) await openThread(selected || data.items[0].conversationKey);
+        updateSelection();
+      } catch (error) { if (dialog.open) show(list, mockupReasonLabel(error.message)); }
+      finally { more.disabled = refresh.disabled = false; }
+    }
+    list.onclick = event => { const button = event.target.closest('button[data-conversation]'); if (button) openThread(button.dataset.conversation); };
+    older.onclick = () => { if (selected && threadCursor) openThread(selected, true); };
+    more.onclick = () => { if (listCursor) loadList(true); };
+    refresh.onclick = () => loadList();
+    loadList();
+  }
+
+  function mockupReasonLabel(code) {
+    const reasons = {
+      MOCKUP_PROFILE_UNAVAILABLE: tr('No active bot is assigned to this number.','لا يوجد روبوت نشط معيّن لهذا الرقم.'),
+      MOCKUP_CUSTOM_FLOW_REVIEW: tr('This flow needs manual review.','يحتاج هذا التدفق إلى مراجعة يدوية.'),
+      UNSUPPORTED_MESSAGE_TYPE: tr('This message needs staff review.','تحتاج هذه الرسالة إلى مراجعة الموظفين.'),
+      MOCKUP_UNAVAILABLE: tr('Drafts are temporarily unavailable. Try refreshing.','المسودات غير متاحة مؤقتًا. حاول التحديث.'),
+      MOCKUP_RETRY_LIMIT: tr('Draft generation could not be completed.','تعذر إكمال إعداد المسودة.'),
+    };
+    return reasons[code] || previewReasonLabel(code);
   }
   function mountNativeAssignmentButton() {
     const addButton = [...document.querySelectorAll('button')].find(button => visible(button) && /^(?:Add Chatbot|إضافة روبوت محادثة)$/i.test(button.textContent.trim()));
@@ -502,6 +629,7 @@
     // Keep the existing WA Chatbot page and Add Chatbot layout, and populate
     // its picker with the shared bot profiles.
     if (isAssignmentPage()) { state.mounted = false; closeViews(); addStyle(); mountNativeAssignmentButton(); mountNativeProfileList(); return false; }
+    document.getElementById('sx-live-reply-mockup')?.close();
     if (!isFlowPage()) { state.mounted = false; closeViews(); document.getElementById('sx-native-chatbot-profiles')?.remove(); nativeProfileListRequest = null; return false; }
     addStyle();
     const pos = bounds(); let tabs = document.getElementById('sx-chatbot-tabs');

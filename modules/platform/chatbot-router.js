@@ -104,6 +104,7 @@ function createChatbotRouter({ pool, origin, userGuard, canonicalGuard }) {
         WHERE m.tenant_id=? AND m.status='active' AND m.role IN ('owner','manager','team_leader')
         ORDER BY FIELD(m.role,'owner','manager','team_leader'),i.display_name,m.identity_id`, [ctx.tenant.id]);
       return {
+        mockupEnabled: ctx.membership.role === 'owner' && require('./chatbot-mockup').enabled(ctx.tenant.id),
         category: ctx.category.key,
         categoryTitle: ctx.category.title,
         categoryVersion: ctx.category.version,

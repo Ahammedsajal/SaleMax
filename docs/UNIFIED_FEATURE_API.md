@@ -18,6 +18,7 @@ business feature. Add future changes to that implementation once.
 | Students | `/api/workspace/students` | `/api/user/training/students` |
 | Business profile | `/api/workspace/profile` | `/api/user/training/profile` |
 | Shared tenant AI settings | `/api/workspace/ai/settings` | `/api/user/chatbots/settings/provider` |
+| Private chatbot reply mockup conversations and drafts | `/api/workspace/chatbots/mockup` | None. Enabled tenants only, owner access. |
 | Tenant customization | `/api/workspace/customization` | `/api/crm/customization` |
 | Forms | `/api/workspace/forms` | `/api/user/training/forms` |
 

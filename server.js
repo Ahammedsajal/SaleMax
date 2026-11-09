@@ -282,6 +282,7 @@ app.get("*", function (request, response) {
 const server = app.listen(process.env.PORT || 3010, process.env.HOST || "127.0.0.1", () => {
   console.log(`7Network server is running on port ${process.env.PORT}`);
   businessNotificationRuntime = require('./modules/platform/business-notifications').start();
+  require('./modules/platform/chatbot-mockup').start(require('./database/config').promise());
   receiptWorkerProcess = receiptWorkerRuntime.start();
   if (receiptWorkerProcess) {
     receiptWorkerProcess.once("error", () => console.error("Receipt email worker could not start."));

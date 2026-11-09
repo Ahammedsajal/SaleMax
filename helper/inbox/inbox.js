@@ -330,6 +330,13 @@ async function processMessage({
       // Group traffic stays in Inbox and never enters lead/contact/bot paths.
       if (require('../../modules/platform/qr-inbox-groups').isGroup({ ...msg, chatId: latestConversation?.chatId })) return;
 
+      const mockup = require('../../modules/platform/chatbot-mockup');
+      const mockupOnly = mockup.ownsInbox(uid, origin);
+      const inboundContext = {
+        uid, message: msg, origin, chatId: latestConversation?.chatId,
+        sessionId: latestConversation?.channelExternalId || sessionId,
+      };
+
       // Meta messages are captured by the webhook path. QR messages enter the
       // same lead pipeline here after the Inbox has persisted the message.
       if (origin === 'qr' && msg?.route === 'INCOMING' && latestConversation?.chatId) {
@@ -348,6 +355,12 @@ async function processMessage({
         } catch (error) {
           console.warn('Training lead capture failed; Inbox processing continues.', error.code || error.name || 'PIPELINE_CAPTURE_ERROR');
         }
+      }
+
+      if (mockupOnly && msg.route === 'INCOMING') {
+        // A queue failure must still leave the customer-facing bot disabled.
+        try { await mockup.enqueue(require('../../database/config').promise(), inboundContext); }
+        catch (error) { console.warn('Chatbot mockup could not queue inbound message.', error.code || 'MOCKUP_QUEUE_ERROR'); }
       }
 
       if (["qr", "meta"].includes(origin) && ["INCOMING", "OUTGOING"].includes(msg?.route)) {
@@ -400,50 +413,22 @@ async function processMessage({
         console.warn('Phonebook opening routing unavailable', error.code || 'PHONEBOOK_ROUTING_ERROR');
       }
 
-      // Handoff claims and paused-chat acknowledgements take priority over
-      // Flow Builder so staff YES replies cannot be consumed as customer input.
-      let handoffPriority = { handled: false };
-      try {
-        handoffPriority = await require('../../modules/platform/chatbot-runtime').handleHandoffPriorityMessage({
-          uid,
-          message: msg,
-          user,
-          sessionId: latestConversation?.channelExternalId || sessionId,
-          origin,
-          chatId: latestConversation?.chatId,
-        });
-      } catch (error) {
-        console.warn('Chatbot handoff priority unavailable; preserving legacy flow dispatch.', error.code || 'CHATBOT_HANDOFF_PRIORITY_ERROR');
-      }
-
       let configuredBot = { handled: false };
-      if (!handoffPriority?.handled) {
-        // Process the message through Flow Builder
-        await processWebhook(latestConversation?.newMessage, user);
-        try {
-          configuredBot = await runConfiguredBot({
-            uid,
-            message: msg,
-            user,
-            sessionId: latestConversation?.channelExternalId || sessionId,
-            origin,
-            chatId: latestConversation?.chatId,
-          });
-        } catch (error) {
-          // A missing/unavailable additive chatbot schema must never interrupt
-          // the legacy automation flow for existing accounts.
-          console.warn('Configured chatbot runtime unavailable; preserving legacy flow dispatch.', error.code || 'CHATBOT_RUNTIME_ERROR');
+      if (!mockupOnly) {
+        const botInput = { ...inboundContext, user };
+        // Handoff claims and paused-chat acknowledgements take priority.
+        let handoffPriority = { handled: false };
+        try { handoffPriority = await require('../../modules/platform/chatbot-runtime').handleHandoffPriorityMessage(botInput); }
+        catch (error) {
+          console.warn('Chatbot handoff priority unavailable; preserving legacy flow dispatch.', error.code || 'CHATBOT_HANDOFF_PRIORITY_ERROR');
         }
-
-        if (!configuredBot?.handled) {
-          await processAutomation({
-          uid,
-          message: msg,
-          user,
-          sessionId,
-          origin,
-          chatId: latestConversation?.chatId,
-          });
+        if (!handoffPriority?.handled) {
+          await processWebhook(latestConversation?.newMessage, user);
+          try { configuredBot = await runConfiguredBot(botInput); }
+          catch (error) {
+            console.warn('Configured chatbot runtime unavailable; preserving legacy flow dispatch.', error.code || 'CHATBOT_RUNTIME_ERROR');
+          }
+          if (!configuredBot?.handled) await processAutomation({ ...botInput, sessionId });
         }
       }
 

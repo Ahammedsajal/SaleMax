@@ -21,6 +21,8 @@ SCOPE_ENV = 'SALEMAX_CHATBOT_ONE_HOUR_HANDOFF_TENANT_ID'
 SLUG = 'pro-catalyst-handover'
 NEW_FILES = ()
 ADD_SCOPE = True
+LIVE_SOURCE_EDITS = {}
+MOCKUP_MIGRATION = None
 
 def configure_admissions():
     global ACTIVE_OVERLAY, REPLACED_FILES, SCOPE_ENV, SLUG, NEW_FILES
@@ -59,6 +61,52 @@ def configure_knowledge():
     SCOPE_ENV = 'SALEMAX_CHATBOT_ADMISSIONS_INTAKE_TENANT_ID'
     SLUG = 'pro-catalyst-knowledge'
     ADD_SCOPE = False
+
+def configure_mockup():
+    global ACTIVE_OVERLAY, REPLACED_FILES, NEW_FILES, SCOPE_ENV, SLUG, ADD_SCOPE, LIVE_SOURCE_EDITS, MOCKUP_MIGRATION
+    ACTIVE_OVERLAY = '/opt/salemax/releases/pro-catalyst-knowledge-4df98d3072f5-20261109/compose.pro-catalyst-knowledge.json'
+    REPLACED_FILES = {
+        'server.js': 'c880f87da53017f0bd9ea01ebf5c1caf19d485710294c96b36f6ed0438558bc0',
+        'helper/inbox/inbox.js': '0eb7df3361c2981f5ffa4f9189db380f9bcaa9e0e2e748e150eb6101cf0834bf',
+        'modules/platform/chatbot-runtime.js': '239f3436448eabf55b33a53d6aba40d3bf9c5feb419c7ba89459b7dcfd1506be',
+        'modules/platform/chatbot-router.js': '0c0161e869e8ec306451e5e5e56a1eb104b911d875db16c97fc3d04e7d4e920b',
+        'modules/platform/mount-existing-upgrade.js': '5fa48001eb09b4969b234c04695221a223852fd5ab6e9e622f773f3a2ed5a941',
+        'client/public/chatbot-admin.js': 'b077c0ca36e6774f3795cc1706e5c80d44c326f71648690fbad9716a505b2ccc',
+        'client/public/training-sidebar.js': '48b30ebb477945aee82e695cb135668e64b5e2c2e48d0bf6f85416e93e4d7413',
+    }
+    mount = b"  app.use('/api/workspace/chatgpt',"
+    mockup = b"  app.use('/api/workspace/chatbots/mockup',require('./chatbot-mockup').createRouter({pool,authenticate:featureSession.guard}));\n"
+    LIVE_SOURCE_EDITS = {
+        'modules/platform/mount-existing-upgrade.js': (mount, mockup + mount),
+        'client/public/training-sidebar.js': (b'/chatbot-admin.js?v=20261104-ai-provider-profiles2', b'/chatbot-admin.js?v=20261109-live-reply-mockup1'),
+    }
+    MOCKUP_MIGRATION = 'database/migrations/20270130_chatbot_mockup_turns.sql'
+    NEW_FILES = ('modules/platform/chatbot-mockup.js', MOCKUP_MIGRATION)
+    SCOPE_ENV = 'SALEMAX_CHATBOT_ADMISSIONS_INTAKE_TENANT_ID'
+    SLUG = 'pro-catalyst-mockup'
+    ADD_SCOPE = False
+
+
+def apply_mockup_migration(source):
+    script = """const fs = require('node:fs');
+    const crypto = require('node:crypto');
+    const runner = require('/app/database/migration-runner');
+    const pool = require('/app/database/config').promise();
+    const file = process.argv[1];
+    const source = fs.readFileSync(0, 'utf8');
+    (async () => {
+      const migrations = runner.discover('/app/database/migrations');
+      migrations.push({ file, checksum: crypto.createHash('sha256').update(source).digest('hex'), statements: runner.splitSql(source) });
+      const db = await pool.getConnection();
+      try { console.log(JSON.stringify(await runner.applyMigrations(db, migrations, { only: file }))); }
+      finally { db.release(); }
+    })().catch(error => { console.error(error.code || 'MIGRATION_FAILED'); process.exitCode = 1; }).finally(() => pool.end());"""
+    result = subprocess.run(['docker', 'exec', '-i', APP, 'node', '-e', script, Path(MOCKUP_MIGRATION).name],
+                            input=source.decode('utf8'), capture_output=True, text=True)
+    if result.returncode:
+        code = result.stderr.strip()
+        raise RuntimeError('Mockup migration failed: ' + (code if re.fullmatch(r'[A-Z0-9_]{1,80}', code) else 'MIGRATION_FAILED'))
+    return json.loads(result.stdout.splitlines()[-1])
 
 
 EXPECTED_IMAGE = 'sha256:c756899fdbf63edc71d45de0c71cffe1f063244d91378d90b15a2c98fc1d5135'
@@ -171,6 +219,12 @@ def deploy(stage, commit):
         if sha(saved.read_bytes()) != expected:
             raise RuntimeError('Preimage copy changed: ' + name)
         data = (stage / name).read_bytes()
+        if name in LIVE_SOURCE_EDITS:
+            old, new = LIVE_SOURCE_EDITS[name]
+            live = saved.read_bytes()
+            if live.count(old) != 1 or new not in data:
+                raise RuntimeError('Cannot apply reviewed live source edit: ' + name)
+            data = live.replace(old, new)
         output = runtime / name
         output.parent.mkdir(parents=True, exist_ok=True, mode=0o755)
         output.write_bytes(data)
@@ -205,8 +259,21 @@ def deploy(stage, commit):
                'read_only': True, 'bind': {'create_host_path': False}} for name in changed]
     overlay = release / f'compose.{SLUG}.json'
     overlay_app = {'image': app['Config']['Image'], 'volumes': mounts}
-    if ADD_SCOPE:
-        overlay_app['environment'] = {SCOPE_ENV: tenant_id}
+    extra_env = {SCOPE_ENV: tenant_id} if ADD_SCOPE else {}
+    if MOCKUP_MIGRATION:
+        owner_check = """console.log = () => {};
+        const db = require('/app/database/config').promise();
+        require('/app/modules/platform/chatbot-owner-uid').legacyOwnerUidForTenant(db, process.argv[1])
+          .then(uid => process.stdout.write(require('node:crypto').createHash('sha256').update(uid).digest('hex')))
+          .catch(() => { process.exitCode = 1; }).finally(() => db.end());"""
+        owner_hash = run('docker', 'exec', APP, 'node', '-e', owner_check, tenant_id).strip()
+        if not re.fullmatch(r'[a-f0-9]{64}', owner_hash):
+            raise RuntimeError('Active owner scope could not be verified')
+        extra_env.update(SALEMAX_CHATBOT_MOCKUP_TENANT_ID=tenant_id, SALEMAX_CHATBOT_MOCKUP_OWNER_HASH=owner_hash)
+    if extra_env:
+        if set(extra_env) & live_env.keys():
+            raise RuntimeError('A target environment override already exists')
+        overlay_app['environment'] = extra_env
     overlay.write_text(json.dumps({'services': {'app': overlay_app}}))
     overlay.chmod(0o644)
     common = compose_args(files, env_files, workdir)
@@ -225,8 +292,9 @@ def deploy(stage, commit):
             raise RuntimeError('Unexpected app mount: ' + target)
     old_app.pop('volumes')
     new_app.pop('volumes')
-    if ADD_SCOPE and new_app['environment'].pop(SCOPE_ENV, None) != tenant_id:
-        raise RuntimeError('Expected handoff tenant scope is missing')
+    for key, value in extra_env.items():
+        if new_app['environment'].pop(key, None) != value:
+            raise RuntimeError('Expected tenant scope is missing')
     if before != after:
         raise RuntimeError('Candidate changes non-mount Compose configuration')
     services = {name: inspect(name)['Id'] for name in SUPPORT}
@@ -244,12 +312,15 @@ def deploy(stage, commit):
 
     if any(sha(Path(name).read_bytes()) != digest for name, digest in input_hashes.items()) or inspect(APP)['Id'] != app['Id']:
         raise RuntimeError('Running app or Compose inputs changed during preparation')
+    if MOCKUP_MIGRATION:
+        migration = apply_mockup_migration(changed[MOCKUP_MIGRATION])
+        (backup / 'mockup-migration.json').write_text(json.dumps(migration) + '\n')
     try:
         run(*candidate, 'up', '-d', '--no-deps', '--no-build', '--force-recreate', 'app', env=env)
         current = wait_healthy()
         if current['Image'] != app['Image'] or current['Config']['Labels']['com.docker.compose.project.config_files'] != ','.join(files + [str(overlay)]):
             raise RuntimeError('App image or Compose chain changed')
-        if SCOPE_ENV + '=' + tenant_id not in current['Config']['Env']:
+        if any(key + '=' + value not in current['Config']['Env'] for key, value in {SCOPE_ENV: tenant_id, **extra_env}.items()):
             raise RuntimeError('Live app is missing the handoff tenant scope')
         if any(inspect(name)['Id'] != identity for name, identity in services.items()):
             raise RuntimeError('Support service identity changed')
@@ -326,23 +397,27 @@ def reset(backup):
 
 
 if __name__ == '__main__':
-    if len(sys.argv) == 4 and sys.argv[1] in ('deploy', 'deploy-admissions', 'deploy-name-question', 'deploy-knowledge'):
+    if len(sys.argv) == 4 and sys.argv[1] in ('deploy', 'deploy-admissions', 'deploy-name-question', 'deploy-knowledge', 'deploy-mockup'):
         if sys.argv[1] == 'deploy-admissions':
             configure_admissions()
         elif sys.argv[1] == 'deploy-name-question':
             configure_name_question()
         elif sys.argv[1] == 'deploy-knowledge':
             configure_knowledge()
+        elif sys.argv[1] == 'deploy-mockup':
+            configure_mockup()
         deploy(Path(sys.argv[2]), sys.argv[3])
     elif len(sys.argv) == 3 and sys.argv[1] == 'reset':
         reset(Path(sys.argv[2]))
-    elif len(sys.argv) == 3 and sys.argv[1] in ('restore', 'restore-admissions', 'restore-name-question', 'restore-knowledge'):
+    elif len(sys.argv) == 3 and sys.argv[1] in ('restore', 'restore-admissions', 'restore-name-question', 'restore-knowledge', 'restore-mockup'):
         if sys.argv[1] == 'restore-admissions':
             configure_admissions()
         elif sys.argv[1] == 'restore-name-question':
             configure_name_question()
         elif sys.argv[1] == 'restore-knowledge':
             configure_knowledge()
+        elif sys.argv[1] == 'restore-mockup':
+            configure_mockup()
         restore(Path(sys.argv[2]))
     else:
-        raise SystemExit('Usage: pro-catalyst-handover-release.py deploy[-admissions|-name-question|-knowledge] <stage> <commit> | reset <backup> | restore[-admissions|-name-question|-knowledge] <backup>')
+        raise SystemExit('Usage: pro-catalyst-handover-release.py deploy[-admissions|-name-question|-knowledge|-mockup] <stage> <commit> | reset <backup> | restore[-admissions|-name-question|-knowledge|-mockup] <backup>')
