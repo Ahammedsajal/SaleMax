@@ -1,3 +1,7 @@
+## Pro Catalyst Live Reply Mockup — production, 9 November 2026
+
+Pro Catalyst's owner can review private drafts in the existing WA Chatbot screen. The mockup captures new individual WhatsApp messages from rollout, uses the assigned Hybrid bot's current published knowledge, and retains drafts for 30 days. Staff reply in Inbox while automated replies are suppressed for the scoped owner. Focused tests, isolated MariaDB, English and Arabic browser fixtures, and the production no-send smoke test passed. The first real inbound draft and signed-in owner browser acceptance remain open. The source, migration, release and rollback are in `DEPLOYMENT.md`.
+
 ## Pro Catalyst answers from published information — production, 9 November 2026
 
 The existing bot now treats short acknowledgements as conversational replies and answers simple questions from populated course and public business fields. Related approved FAQs can supply supporting evidence for AI answers. Production verified ten active course sources, three bilingual FAQs, one business profile and one selected published form. Dedicated prerequisite and certificate fields and upcoming batch dates have no entries. Focused tests and a read-only smoke test passed. A device-level WhatsApp exchange remains open. DEPLOYMENT.md records the release and rollback.
