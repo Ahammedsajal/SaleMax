@@ -302,3 +302,43 @@ test('related FAQ entries can supply evidence without becoming automatic answers
   const result = retrieveContext({ facts: [], message, knowledgeEntries, includeRelatedFaqs: true });
   assert.deepEqual(result.evidence.filter(x => x.kind === 'approved_faq').map(x => x.sourceId), ['faq:0']);
 });
+
+test('informal training greetings continue discovery and preserve known course and intake', () => {
+ const { isTrainingGreeting, trainingGreeting } = require('../modules/platform/chatbot-business-context');
+ const { customerName } = require('../modules/platform/chatbot-lead-capture');
+ for (const message of ['hlo', 'sir', 'Hi', 'مرحبا']) {
+  assert.equal(isTrainingGreeting(message), true);
+  assert.equal(customerName(message, true), null);
+ }
+ assert.equal(isTrainingGreeting('hello sir, what is the fee?'), false);
+ const first = trainingGreeting({ message: 'hlo', state: {}, facts, welcome: 'Welcome to Northstar.' });
+ assert.match(first.reply, /^Welcome to Northstar.*course in mind/);
+ const second = trainingGreeting({ message: 'sir', state: first.state, facts });
+ assert.match(second.reply, /Business English.*Excel Essentials/);
+ const third = trainingGreeting({ message: 'Hi', state: second.state, facts });
+ assert.notEqual(third.reply, second.reply);
+ const intake = { waiting: 'name', nameAsked: 1 };
+ const known = trainingGreeting({ message: 'مرحبا', state: { greeted: true, selectedCourseCode: 'ENG', mockupIntake: intake }, facts });
+ assert.match(known.reply, /الإنجليزية للأعمال/);
+ assert.deepEqual(known.state.mockupIntake, intake);
+ assert.equal(known.state.selectedCourseCode, 'ENG');
+});
+
+test('repeat fee and duration questions use fresh phrasing with the same published values', () => {
+ const { repeatQuestion, repeatedCourseFact } = require('../modules/platform/chatbot-business-context');
+ const state = { selectedCourseCode: 'ENG', language: 'en',
+  recentConversation: [{ role: 'user', text: 'What is the Business English course fee?' },
+   { role: 'assistant', text: 'The course fee is 350.00 QAR. The registration fee is 25.00 QAR.' }] };
+ const contextFor = message => retrieveContext({ facts, message, state });
+ const again = 'How much does it cost?';
+ const context = contextFor(again);
+ const reply = repeatedCourseFact(repeatQuestion(again, context, state), context);
+ assert.match(reply.reply, /Tuition for Business English is 350.00 QAR.*25.00 QAR/);
+ assert.equal(repeatQuestion('How much is Excel Essentials?', contextFor('How much is Excel Essentials?'), state), null);
+ assert.equal(repeatQuestion('What is the registration fee?', contextFor('What is the registration fee?'), state), null);
+ assert.equal(repeatQuestion('How much time does it take?', contextFor('How much time does it take?'), state), null);
+ state.recentConversation[0].text = 'What is the course duration?';
+ state.recentConversation[1].text = 'Business English takes 8 weeks.';
+ const length = 'How long is it?';
+ assert.equal(repeatedCourseFact(repeatQuestion(length, contextFor(length), state), contextFor(length)).reply, 'It runs for 8 weeks.');
+});

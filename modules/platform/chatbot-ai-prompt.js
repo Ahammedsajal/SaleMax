@@ -10,7 +10,7 @@ function summarizeConversation(history) {
     .join('\n').slice(0, 700);
 }
 
-function buildAiPrompt({ pack, profile, customerMessage, facts, history, courseOverview = false, admissionsIntake = false }) {
+function buildAiPrompt({ pack, profile, customerMessage, facts, history, courseOverview = false, admissionsIntake = false, repeat = false }) {
   const firstGreeting = isOpeningGreeting(customerMessage);
   const courseListRequest = /^(?:courses|course list|show courses|available courses|what courses do you have|الدورات|دورات|عرض الدورات|قائمة الدورات)[!.؟\s]*$/iu.test(String(customerMessage || '').trim());
   const overviewSystem = [
@@ -31,11 +31,13 @@ function buildAiPrompt({ pack, profile, customerMessage, facts, history, courseO
     'Reply in the customer\'s language (English or Arabic). Aim for 25 to 45 words; use up to 60 only to cover several questions. Answer the main question first, without repeating the customer goal or listing unrelated features. Ask at most one follow-up question. A null structured duration or delivery field does not contradict details explicitly stated in the course description. Use those published details when available. A certificate of completion does not establish accreditation or guaranteed employment. For unknown schedules, say you do not have a confirmed schedule rather than referring to database records or published information.',
     'Output only JSON: {"can_answer": boolean, "confidence": number from 0 to 1, "reply": string, "source_ids": string[]}.',
   ].join(' ');
-  const system = courseOverview ? overviewSystem : [generalSystem,
+  const system = [courseOverview ? overviewSystem : [generalSystem,
     ...(admissionsIntake ? ['For admissions, answer in at most three short sentences. The application handles the learner’s name and preferred start separately. Ask a follow-up only if the course itself is ambiguous.'] : []),
     'When firstGreeting is true, the customer has greeted you on the first turn: greet briefly and invite one useful question; do not append a menu.',
     'When courseListRequest is true, the customer explicitly asked for the course list: provide the available names from course_index compactly, with no numbering, prices or schedules unless separately supported by evidence.',
-  ].join(' ');
+  ].join(' '),
+    repeat ? 'The customer is asking again. Use the preceding answer for context and the current evidence for facts. Give a shorter, freshly worded answer that addresses the question directly. Do not restart discovery, repeat an onboarding question or invent anything to vary the reply.' : '',
+  ].filter(Boolean).join(' ');
   // Separate reusable, freshly fetched evidence from each changing customer turn.
   // Both remain untrusted user data; no catalogue text becomes system instructions.
   const context = JSON.stringify({

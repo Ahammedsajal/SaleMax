@@ -5,6 +5,7 @@ const { query } = require('../../database/dbpromise');
 const tenantAiSettings = require('./tenant-ai-settings');
 const provider = require('./chatbot-provider');
 const admissions = require('./chatbot-admissions-intake');
+const mockup = require('./chatbot-mockup');
 const { shouldPause } = require('./chatbot-conversation-control');
 const { parseGuidedFlow, executionFlowId, inboundMessageKey } = require('./chatbot-profile-utils');
 const { getDomainPack } = require('./chatbot-domain-packs');
@@ -211,10 +212,16 @@ async function processHandoffPriorityForProfile({ ctx, profile, uid, message, us
       else if (claimed.outcome === 'already_claimed') staffReply = 'Another team member has already claimed that conversation.';
       else if (claimed.outcome === 'chat_missing') staffReply = 'That conversation is no longer available in the Inbox.';
       else if (claimed.outcome === 'error') staffReply = 'I could not assign that conversation. Please open it from the Inbox.';
-      await sendBotText({ origin, sessionId, message, uid, chatId, body: staffReply }).catch(() => false);
+      const pilot = mockup.ownsInbox(uid, origin);
+      if (!pilot || await canSendNow({ ctx, profile, uid, origin, sessionId, chatId, message, checkPause: false })) {
+        await sendBotText({ origin, sessionId, message, uid, chatId, body: staffReply }).catch(() => false);
+      }
       if (claimed.outcome === 'claimed' && claimed.customerChat?.senderMobile) {
         const customerMessage = { ...message, senderMobile: claimed.customerChat.senderMobile, senderName: claimed.customerChat.senderName || '', metaChatId: `handoff-accepted:${claimed.conversationId}`, timestamp: Date.now() };
-        await sendBotText({ origin: claimed.customerChat.origin || origin, sessionId, message: customerMessage, uid, chatId: claimed.conversationId, body: handoffText(customerMessage, null, true) }).catch(() => false);
+        const target = { origin: claimed.customerChat.origin || origin, sessionId, message: customerMessage, uid, chatId: claimed.conversationId };
+        if (!pilot || await canSendNow({ ...target, ctx, profile, checkPause: false })) {
+          await sendBotText({ ...target, body: handoffText(customerMessage, null, true) }).catch(() => false);
+        }
       }
       return { handled: true, handoffClaim: claimed.outcome };
     }
@@ -233,12 +240,12 @@ async function processHandoffPriorityForProfile({ ctx, profile, uid, message, us
 }
 
 async function handleHandoffPriorityMessage({ uid, message, user, sessionId, origin, chatId }) {
-  if (require('./chatbot-mockup').ownsInbox(uid, origin)) return { handled: true };
   if (!uid || !chatId || message?.route !== 'INCOMING' || require('./qr-inbox-groups').isGroup({ ...message, chatId })) return { handled: false };
   const access = await currentOwnerAccess(uid);
   const ctx = access.context;
   if (!ctx) return { handled: false };
   const profile = await profileFor(ctx, uid, origin, sessionId);
+  if (mockup.ownsInbox(uid, origin) && !mockup.testRecipientAllowed(profile?.config, origin, message.senderMobile)) return { handled: true };
   if (!profile) return { handled: false };
   const claims = require('./chatbot-handoff-claims');
   await claims.expireDue(dbPool, { tenantId: ctx.tenant.id, channelKind: channelFor(origin), channelRef: sessionId, conversationId: chatId }).catch(error => {
@@ -420,7 +427,9 @@ async function trainingCenterGuidedTurn({ ctx, profile, uid, message, sessionId,
     else if (row) { try { priorState = typeof row.state === 'string' ? JSON.parse(row.state) : row.state; } catch { priorState = null; } }
     if(priorState&&typeof message.senderMobile==='string')priorState.whatsappNumber=message.senderMobile;
     if (profile.engine !== 'guided' && priorState) priorState.language = businessContext.languageFor(intent || textOf(message), priorState);
-    const openingGreeting = isOpeningGreeting(intent || textOf(message));
+    const pilotGreeting = !intent && mockup.ownsInbox(uid, origin) && !profile.config?.flowId && !profile.config?.introFlowId
+      && businessContext.isTrainingGreeting(textOf(message));
+    const openingGreeting = pilotGreeting || isOpeningGreeting(intent || textOf(message));
     deferLeadQuestion = openingGreeting || !priorState?.greeted;
     if(cvSubmission){
       const success= cvSubmission.repeated
@@ -430,7 +439,12 @@ async function trainingCenterGuidedTurn({ ctx, profile, uid, message, sessionId,
     }else if(cvError){
       const invalid=cvError==='CV_TYPE_NOT_ALLOWED'||cvError==='INVALID_CV_FILE';
       reply={reply:priorState?.language==='ar'?(invalid?'يرجى إرسال السيرة الذاتية كملف PDF أو DOCX حتى 8 ميغابايت.':'تعذر حفظ الملف الآن. يرجى المحاولة مرة أخرى بعد قليل.'):(invalid?'Please send your CV as a PDF or DOCX file up to 8 MB.':'I couldn’t save that file just now. Please try sending it again shortly.'),state:priorState,buttons:[]};
-    }else {
+    } else if (pilotGreeting) {
+      const state = priorState || {};
+      const language = businessContext.languageFor(textOf(message), state);
+      reply = businessContext.trainingGreeting({ message: textOf(message), state, facts, welcome:
+        profile.config?.guidedContent?.messages?.greeting?.[language] || pack.guidedContentDefaults.messages.greeting[language] });
+    } else {
       const referral = message?.msgContext?.referral || null;
       const referralContext = businessContext.retrieveContext({ facts, message: intent || textOf(message), state: priorState || {}, referral });
       const referralCourse = referralContext.courseContextSource === 'meta_referral'
@@ -454,7 +468,7 @@ async function trainingCenterGuidedTurn({ ctx, profile, uid, message, sessionId,
       return false;
     }
     onStage?.('training-guide-polish');
-    reply = businessContext.polishGuidedReply({ result: reply, profile, message: textOf(message), state: priorState, defaults: pack.guidedContentDefaults });
+    if (!pilotGreeting) reply = businessContext.polishGuidedReply({ result: reply, profile, message: textOf(message), state: priorState, defaults: pack.guidedContentDefaults });
     const questionLeadInfo = deferLeadQuestion ? null : leadInfo;
     if (!reply.handoff) reply.reply = require('./chatbot-lead-capture').addQuestion(reply.reply, questionLeadInfo, profile.config, pack.guidedContentDefaults);
     reply.state.sentCoursePdfIds = priorState?.sentCoursePdfIds || [];
@@ -519,12 +533,14 @@ async function saveConversationalState({ ctx, profile, chatId, channelKind, chan
 }
 
 async function canSendNow({ ctx, profile, uid, origin, sessionId, chatId, message, checkPause=true }) {
-  if (require('./chatbot-mockup').ownsInbox(uid, origin)) return false;
+  const pilot = mockup.ownsInbox(uid, origin);
+  if (pilot && !mockup.testRecipientAllowed(profile?.config, origin, message?.senderMobile)) return false;
   const access=await currentOwnerAccess(uid);
   if(!require('./chatbot-runtime-access').sameBoundary(ctx,access.context))return false;
   const current = await profileFor(access.context, uid, origin, sessionId);
   return current?.id === profile.id && Number(current.revision) === Number(profile.revision)
     && recipientAllowed(current.config, message?.senderMobile, current.id)
+    && (!pilot || mockup.testRecipientAllowed(current.config, origin, message?.senderMobile))
     && (!checkPause||!await shouldPause(uid, chatId, channelFor(origin), sessionId));
 }
 
@@ -545,7 +561,7 @@ function guidedFlowNodeGuard({ctx,profile,uid,origin,sessionId,chatId,message}){
   };
 }
 
-async function generateAiAnswer({ ctx, profile, uid, customerMessage, chatId = null, channelKind = null, channelRef = null, state = null, factsOverride = null, referral = null, intakeCourse = null, admissionsIntake = false, onStage = null }) {
+async function generateAiAnswer({ ctx, profile, uid, customerMessage, chatId = null, channelKind = null, channelRef = null, state = null, factsOverride = null, referral = null, intakeCourse = null, admissionsIntake = false, continuity = false, onStage = null }) {
   if (uid && chatId && await shouldPause(uid, chatId, channelKind, channelRef)) return { paused: true };
   if (!customerMessage) return { handedOff: true, code: 'UNSUPPORTED_MESSAGE_TYPE' };
   const pack = getDomainPack(ctx.category.key, ctx.category.version);
@@ -573,7 +589,12 @@ async function generateAiAnswer({ ctx, profile, uid, customerMessage, chatId = n
     // the prior single-course context so the next follow-up cannot mix it in.
     selectedCourseCode: context.explicitCourses ? context.selectedCourseCode : session.selectedCourseCode || null,
   };
+  const repeat = continuity ? businessContext.repeatQuestion(customerMessage, context, session) : null;
   if (typeof businessContext.shouldClarifyGenericCourseInterest === 'function' && businessContext.shouldClarifyGenericCourseInterest(customerMessage, context, session)) {
+    if (continuity) {
+      const discovery = businessContext.trainingGreeting({ message: customerMessage, state: { ...nextState, greeted: true }, facts });
+      return { ...discovery, canAnswer: true, confidence: 1, route: 'clarification' };
+    }
     const reply = context.language === 'ar'
       ? 'بكل سرور — عن أي دورة تسأل؟ إذا وصلت من إعلان، أرسل اسم الدورة الظاهر فيه وسأشاركك التفاصيل المناسبة.'
       : 'Of course — which course are you asking about? If you came from an ad, share the course name shown there and I’ll send the right details.';
@@ -581,12 +602,15 @@ async function generateAiAnswer({ ctx, profile, uid, customerMessage, chatId = n
   }
   const courseOverview = profile.engine === 'hybrid' && profile.config?.aiFallback !== false && businessContext.isCourseOverviewRequest(customerMessage, context);
   const published = admissionsIntake ? businessContext.publishedTrainingReply(customerMessage, context) : null;
-  if (published) return { canAnswer: true, confidence: 1, reply: published.reply, state: nextState, route: 'facts',
+  if (published) return { canAnswer: true, confidence: 1, reply: published.reply, state: nextState, route: 'facts', repeat: Boolean(repeat),
     metrics: { inputTokens: 0, outputTokens: 0, cacheHit: false, sources: context.sources.filter(source => published.sourceIds.includes(source.id)) } };
   if (ctx.category.key === 'training_center') {
     const handoffReason = businessContext.trainingCenterCoordinatorReason(customerMessage, facts, context.selectedCourseCode || session.selectedCourseCode);
     if (handoffReason) return { handedOff: true, code: handoffReason, state: nextState };
   }
+  const repeatedFact = businessContext.repeatedCourseFact(repeat, context);
+  if (repeatedFact) return { canAnswer: true, confidence: 1, reply: repeatedFact.reply, state: nextState, route: 'facts', repeat: true,
+    metrics: { inputTokens: 0, outputTokens: 0, cacheHit: false, sources: context.sources.filter(source => repeatedFact.sourceIds.includes(source.id)) } };
   const factualOverviewFallback = sourceContext => {
     const simple = businessContext.simpleFactualReply(customerMessage, sourceContext, profile.config);
     return simple ? { canAnswer: true, confidence: 1, reply: simple.reply, state: nextState, route: 'facts', metrics: { inputTokens: 0, outputTokens: 0, cacheHit: false, sources: sourceContext.sources } } : null;
@@ -618,7 +642,7 @@ async function generateAiAnswer({ ctx, profile, uid, customerMessage, chatId = n
     }))
     : context.evidence;
   const compactEvidence = aiEvidence.map((item, index) => { const alias = 's' + index; sourceAliases.set(alias, item.sourceId); return { ...item, sourceId: alias }; });
-  const { system, context: promptContext, user: input, inputBytes } = buildAiPrompt({ pack, profile, customerMessage: businessContext.redactCustomerText(customerMessage), facts: compactEvidence, history: historySafe, courseOverview, admissionsIntake });
+  const { system, context: promptContext, user: input, inputBytes } = buildAiPrompt({ pack, profile, customerMessage: businessContext.redactCustomerText(customerMessage), facts: compactEvidence, history: historySafe, courseOverview, admissionsIntake, repeat: Boolean(repeat) });
   if (inputBytes > 12000) return factualOverviewFallback(context) || { canAnswer: true, reply: businessContext.clarification(profile.config, context.language), confidence: 0, state: nextState, route: 'clarification' };
   const prompt = `${system}\n\n${promptContext}\n\n${input}`;
   const estimate = tokenEstimate(prompt);
@@ -668,7 +692,7 @@ async function generateAiAnswer({ ctx, profile, uid, customerMessage, chatId = n
   if (fresh.revision !== context.revision) return factualOverviewFallback(fresh) || { canAnswer: true, confidence: 0, reply: businessContext.clarification(profile.config, context.language), state: nextState, route: 'clarification', reason: 'BUSINESS_DATA_CHANGED', metrics };
   const usedCourses = context.evidence.filter(item => item.kind === 'course' && response.sourceIds.includes(item.sourceId));
   if (usedCourses.length === 1 && businessContext.normalized(response.reply).includes(businessContext.normalized(usedCourses[0].name))) nextState.selectedCourseCode = usedCourses[0].code;
-  const answer = { canAnswer: true, confidence: response.confidence, reply: response.reply, state: nextState, route: 'ai', metrics };
+  const answer = { canAnswer: true, confidence: response.confidence, reply: response.reply, state: nextState, route: 'ai', repeat: Boolean(repeat), metrics };
   // Cache only answers without customer history or contact/private identifiers.
   if (!historySafe.length && customerMessage.length <= 180 && /fee|price|duration|schedule|centre|center|location|address|رسوم|سعر|مدة|عنوان|موقع/i.test(customerMessage) && !/[0-9]{7,}|@|my name|اسمي/i.test(customerMessage)) {
     if (replyCache.size >= CACHE_MAX) replyCache.delete(replyCache.keys().next().value);
@@ -705,6 +729,12 @@ function acceptsRegistrationForm(session, incoming) {
 async function aiTurn({ ctx, profile, uid, message, user, sessionId, origin, chatId, leadInfo, onStage = null }) {
   onStage?.('bot-routing');
   const incomingText = textOf(message);
+  const continuity = mockup.ownsInbox(uid, origin);
+  if (ctx.category.key === 'training_center' && continuity && !profile.config?.flowId && !profile.config?.introFlowId
+    && businessContext.isTrainingGreeting(incomingText)) {
+    const dispatched = await trainingCenterGuidedTurn({ ctx, profile, uid, message, sessionId, origin, chatId, leadInfo, onStage });
+    return dispatched ? { flowDispatched: true, route: 'greeting' } : { handedOff: true, code: 'OPENING_GREETING_UNAVAILABLE' };
+  }
   if (ctx.category.key === 'training_center' && isOpeningGreeting(incomingText)) {
     onStage?.('opening-greeting-reset');
     try {
@@ -774,13 +804,13 @@ async function aiTurn({ ctx, profile, uid, message, user, sessionId, origin, cha
         state: leadInfo.intake.session, route: 'admissions-intake' }
     : await generateAiAnswer({ ctx, profile, uid, customerMessage: incomingText, chatId, channelKind: channelFor(origin),
         channelRef: sessionId, factsOverride: leadInfo?.facts, referral: message?.msgContext?.referral || null,
-        admissionsIntake: !!leadInfo?.intake, intakeCourse: leadInfo?.intake ? leadInfo.courseInterest : null, onStage });
+        admissionsIntake: !!leadInfo?.intake, intakeCourse: leadInfo?.intake ? leadInfo.courseInterest : null, continuity, onStage });
   if (leadInfo?.intake && !acknowledgement && !answer.paused) answer = admissions.planReply(answer, leadInfo);
   if (answer.handedOff || answer.paused) return answer;
   const pack = getDomainPack(ctx.category.key, ctx.category.version);
   const onboarding = ctx.tenant.categoryKey === 'training_center' && !answer.state?.greeted;
   if (onboarding) answer.state = { ...(answer.state || {}), greeted: true };
-  const questionLeadInfo = acknowledgement && leadInfo.intake.state.waiting ? null : leadInfo?.intake
+  const questionLeadInfo = (answer.route === 'clarification' && continuity) || ((acknowledgement || answer.repeat) && leadInfo?.intake?.state.waiting) ? null : leadInfo?.intake
     ? { ...leadInfo, intake: { ...leadInfo.intake, session: answer.state || {} } }
     : onboarding ? null : leadInfo;
   const answerBeforeIntake = answer.reply;
@@ -832,7 +862,6 @@ async function previewConfiguredBot({ ctx, profile, uid, message, state = null }
 }
 
 async function previewMockupTurn({ uid, tenantId, chatId, channelKind, channelRef, message, messageType, state, receivedAt = null }) {
-  const mockup = require('./chatbot-mockup');
   const origin = channelKind === 'whatsapp_qr' ? 'qr' : 'meta';
   if (!mockup.enabled(tenantId) || !mockup.ownsInbox(uid, origin)) return { reason: 'MOCKUP_DISABLED' };
   const { context: ctx } = await currentOwnerAccess(uid);
@@ -852,15 +881,27 @@ async function previewMockupTurn({ uid, tenantId, chatId, channelKind, channelRe
   }
   const pack = getDomainPack(ctx.category.key, ctx.category.version);
   const db = await dbPool.getConnection();
+  const capture = require('./chatbot-lead-capture');
   let facts;
   let lead;
+  let savedName;
   let referral;
   try {
     facts = await pack.loadFacts({ db, tenantId, platformOrigin: process.env.SALEMAX_PLATFORM_ORIGIN, config: profile.config });
-    [[lead]] = await db.query(`SELECT l.learner_name,l.contact_name,l.qualification_data
-      FROM pipeline_conversations c JOIN pipeline_leads l ON l.uid_hash=c.uid_hash AND l.id=c.lead_id
-      WHERE c.uid_hash=? AND l.uid=? AND c.chat_id=? AND c.origin=? ORDER BY c.id DESC LIMIT 1`,
-    [crypto.createHash('sha256').update(uid).digest('hex'), uid, chatId, origin]);
+    if (!businessContext.isTrainingGreeting(message)) {
+      const uidHash = crypto.createHash('sha256').update(uid).digest('hex');
+      [[lead]] = await db.query(`SELECT l.contact_id,l.learner_name,l.contact_name,l.qualification_data,p.display_name AS linkedContactName
+        FROM pipeline_conversations c JOIN pipeline_leads l ON l.uid_hash=c.uid_hash AND l.id=c.lead_id
+        LEFT JOIN pipeline_contacts p ON p.uid_hash=l.uid_hash AND p.uid=l.uid AND p.id=l.contact_id
+        WHERE c.uid_hash=? AND l.uid=? AND c.chat_id=? AND c.origin=? ORDER BY c.id DESC LIMIT 1`,
+      [uidHash, uid, chatId, origin]);
+      if (!state?.mockupIntake?.nameConfirmed && !state?.mockupIntake?.replaceName) {
+        const [[chat]] = await db.query(`SELECT sender_mobile FROM beta_chats WHERE uid=? AND chat_id=? AND origin=?
+          AND (?<>'qr' OR origin_instance_unique_id=?) LIMIT 1`, [uid, chatId, origin, origin, channelRef]);
+        const phone = require('../../helper/pipeline/leadPipeline').normalizePhone(chat?.sender_mobile);
+        savedName = await capture.savedContactName(db, { uid, uidHash, category: ctx.tenant.categoryKey, phone, lead, checkByPhone: true });
+      }
+    }
     if (businessContext.isGenericAdInterest(message)) {
       const [rows] = await db.query(`SELECT CASE WHEN JSON_VALID(m.msgContext) THEN JSON_EXTRACT(m.msgContext,'$.referral') END AS referral
         FROM beta_conversation m WHERE m.uid=? AND m.chat_id=? AND m.origin=? AND m.route='INCOMING'
@@ -869,8 +910,10 @@ async function previewMockupTurn({ uid, tenantId, chatId, channelKind, channelRe
       referral = typeof current === 'string' ? JSON.parse(current) : current;
     }
   } finally { db.release(); }
-  const capture = require('./chatbot-lead-capture');
-  const prior = isOpeningGreeting(message) ? { language, mockupIntake: state?.mockupIntake } : { ...state, language };
+  const prior = { ...state, language };
+  const discovery = () => businessContext.trainingGreeting({ message, state: prior, facts, welcome:
+    profile.config?.guidedContent?.messages?.greeting?.[language] || pack.guidedContentDefaults.messages.greeting[language] });
+  if (businessContext.isTrainingGreeting(message)) return { revision, route: 'greeting', ...discovery() };
   const context = businessContext.retrieveContext({ facts, message, state: prior, referral });
   const course = facts.find(item => item.code === context.selectedCourseCode);
   const qualification = typeof lead?.qualification_data === 'string' ? JSON.parse(lead.qualification_data) : lead?.qualification_data || {};
@@ -882,15 +925,15 @@ async function previewMockupTurn({ uid, tenantId, chatId, channelKind, channelRe
     ['name', 'confirmName'].includes(previousIntake.waiting) && !context.explicitCourses);
   const nameOnly = name && ['', 'my name is ', 'my name s ', 'call me ', 'اسمي ', 'انا اسمي ']
     .some(prefix => businessContext.normalized(message) === prefix + businessContext.normalized(name));
-  const storedName = capture.customerName(lead?.learner_name || lead?.contact_name, true)?.split(/\s+/u)[0];
+  const storedName = savedName?.split(/\s+/u)[0];
   const intake = admissions.advance({ prior: previousIntake, text: message, name, nameOnly, savedName: storedName,
     savedStart: admissions.savedStartLabel(qualification, language), language, recognizeImmediate: true });
   const route = businessContext.controlRoute(message, profile.config, prior, facts);
   if (route === 'answer' && businessContext.shouldClarifyGenericCourseInterest(message, context, prior)) {
-    const reply = language === 'ar' ? 'أكيد، عن أي دورة ترغب في معرفة المزيد؟' : 'Of course. Which course would you like to know more about?';
-    return { revision, reply, route: 'clarification', state: { ...prior, greeted: true } };
+    return { revision, route: 'clarification', ...discovery() };
   }
   const localReply = route === 'answer' && (acknowledgement || intake.answerOnly);
+  const repeat = route === 'answer' && !localReply && businessContext.repeatQuestion(message, context, state || {});
   const guided = !localReply && (profile.engine === 'guided' || route !== 'answer' ||
     acceptsRegistrationForm(prior, message) || businessContext.isBareCourseSelection(message, context) || profile.config.aiFallback === false);
   const advertisedOverview = route === 'answer' && context.courseContextSource === 'meta_referral'
@@ -917,7 +960,7 @@ async function previewMockupTurn({ uid, tenantId, chatId, channelKind, channelRe
     return { revision, reason: 'AI_DATA_PROCESSING_ACK_REQUIRED' };
   } else {
     answer = await generateAiAnswer({ ctx, profile, customerMessage: message, state: prior, factsOverride: facts, referral,
-      admissionsIntake: true, intakeCourse: courseInterest });
+      admissionsIntake: true, intakeCourse: courseInterest, continuity: true });
   }
   const leadInfo = { language, courseInterest, intake: { ...intake, session: prior } };
   if (!acknowledgement) answer = admissions.planReply(answer, leadInfo);
@@ -925,7 +968,7 @@ async function previewMockupTurn({ uid, tenantId, chatId, channelKind, channelRe
   if (!answer.reply) return { revision, reason: 'MOCKUP_EMPTY_REPLY' };
   const next = { ...answer.state, greeted: true, mockupCourseInterest: courseInterest,
     mockupIntake: { ...intake.state, ...(intake.start ? { preferredStart: intake.start } : {}) } };
-  const question = (guided && !prior.greeted) || (acknowledgement && previousIntake.waiting)
+  const question = (guided && !prior.greeted) || ((acknowledgement || repeat) && previousIntake.waiting)
     ? null : { ...leadInfo, intake: { ...intake, session: next } };
   const standalone = capture.standaloneNamePrompt(question);
   const main = capture.addQuestion(answer.reply, question, profile.config, pack.guidedContentDefaults);
@@ -936,7 +979,8 @@ async function previewMockupTurn({ uid, tenantId, chatId, channelKind, channelRe
   if (!localReply) next.recentConversation = [...(prior.recentConversation || []),
     { role: 'user', text: message.slice(0, 400) }, { role: 'assistant', text: answer.reply.slice(0, 500) }].slice(-4);
   const pdfs = localReply ? [] : require('./chatbot-course-media').coursePdfs(facts, next.selectedCourseCode, message, prior.sentCoursePdfIds || []);
-  const attachments = [...pdfs, ...(answer.media || []).filter(item => item.kind !== 'document')].slice(0, 2);
+  const images = repeat ? [] : (answer.media || []).filter(item => item.kind !== 'document');
+  const attachments = [...pdfs, ...images].slice(0, 2);
   next.sentCoursePdfIds = [...new Set([...(prior.sentCoursePdfIds || []), ...pdfs.map(item => item.id)])].slice(-20);
   return { revision, reply: [main, ...attachments.map(item => language === 'ar' ? `[مرفق: ${item.filename || item.kind}]` : `[Attachment: ${item.filename || item.kind}]`), standalone]
     .filter(Boolean).join('\n\n'), route: answer.route, reason: answer.reason, state: next };
@@ -973,15 +1017,17 @@ async function finishRecruitmentChat({ctx,profile,uid,message,sessionId,origin,c
 }
 
 async function runConfiguredBot({ uid, message, user, sessionId, origin, chatId }) {
-  if (require('./chatbot-mockup').ownsInbox(uid, origin)) return { handled: true };
   if (require('./qr-inbox-groups').isGroup({ ...message, chatId })) return { handled: true, paused: true, code: 'GROUP_AUTOMATION_DISABLED' };
   if (!uid || !chatId || message?.route !== 'INCOMING') return { handled: false };
+  const pilot = mockup.ownsInbox(uid, origin);
   const access=await currentOwnerAccess(uid),ctx=access.context;
   if(!ctx){
+    if (pilot) return { handled: true, paused: true };
     const blocked=await require('./chatbot-runtime-access').blocksFallback(dbPool,access,channelFor(origin),sessionId);
     return blocked?{handled:true,paused:true,code:access.code||'BUSINESS_ACCESS_INACTIVE'}:{handled:false};
   }
   const profile = await profileFor(ctx, uid, origin, sessionId);
+  if (pilot && !mockup.testRecipientAllowed(profile?.config, origin, message.senderMobile)) return { handled: true, paused: true, code: 'RECIPIENT_NOT_ENABLED' };
   if (!profile) return { handled: false };
   const priority = await handleHandoffPriorityMessage({ uid, message, user, sessionId, origin, chatId });
   if (priority.handled) return priority;
@@ -1052,7 +1098,7 @@ async function runConfiguredBot({ uid, message, user, sessionId, origin, chatId 
     }
     let result;
     if (completionAction) result = await finishRecruitmentChat({ctx,profile,uid,message,sessionId,origin,chatId,completion,action:completionAction});
-    else if (profile.engine === 'guided' && ctx.category.key === 'training_center' && isOpeningGreeting(textOf(message))) result = await aiTurn({ ctx, profile, uid, message, user, sessionId, origin, chatId, leadInfo, onStage: setStage });
+    else if (profile.engine === 'guided' && ctx.category.key === 'training_center' && (isOpeningGreeting(textOf(message)) || (pilot && businessContext.isTrainingGreeting(textOf(message))))) result = await aiTurn({ ctx, profile, uid, message, user, sessionId, origin, chatId, leadInfo, onStage: setStage });
     else if (profile.engine === 'guided') { const guided=await guidedTurn({ ctx, profile, uid, message, user, sessionId, origin, chatId, leadInfo });result=guided?.paused?{paused:true}:guided?{sent:true}:{handedOff:true,code:'GUIDED_FLOW_UNAVAILABLE'}; }
     else result = await aiTurn({ ctx, profile, uid, message, user, sessionId, origin, chatId, leadInfo, onStage: setStage });
     setStage('turn-metrics');

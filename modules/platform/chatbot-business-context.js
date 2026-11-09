@@ -309,6 +309,70 @@ function publishedTrainingReply(message, context) {
   };
 }
 
+function isTrainingGreeting(message) {
+  return isOpeningGreeting(message) || /^(?:(?:hlo|helo|hii+|hiya|hi|hello|hey)(?: (?:sir|ma am|madam))?|sir|madam|يا استاذ)$/u.test(normalized(message));
+}
+
+function trainingGreeting({ message, state, facts, welcome }) {
+  const language = languageFor(message, state);
+  const ar = language === 'ar';
+  const course = facts.find(item => !item.kind && item.code === state.selectedCourseCode);
+  const name = course && local(course, 'name', language);
+  const examples = facts.filter(item => !item.kind && item.code).map(item => local(item, 'name', language)).filter(Boolean).slice(0, 3);
+  const exampleList = examples.join(ar ? '، ' : ', ');
+  const nextQuestion = name
+    ? (ar ? `ما الذي تود معرفته عن ${name}؟` : `What would you like to know about ${name}?`)
+    : (ar ? 'هل تبحث عن دورة معينة، أم تود الاطلاع على الدورات المتاحة؟' : 'Do you have a course in mind, or would you like to see what’s available?');
+  const nudges = name
+    ? [nextQuestion, ar ? 'هل أساعدك في معرفة الرسوم أو مدة الدورة؟' : 'Would it help to go over the fee or how long the course takes?']
+    : [exampleList ? (ar ? `من دوراتنا ${exampleList}. أي مجال يهمك؟` : `We offer courses such as ${exampleList}. What would you like to learn?`) : nextQuestion,
+      ar ? 'ما المهارة التي ترغب في تعلمها؟' : 'What skill would you like to pick up?'];
+  const count = Number(state.trainingGreetingNudges) || 0;
+  return {
+    reply: state.greeted ? nudges[count % nudges.length] : `${welcome} ${nextQuestion}`,
+    state: { ...state, language, greeted: true, trainingGreetingNudges: state.greeted ? count + 1 : 0 },
+  };
+}
+
+function repeatQuestion(message, context, state) {
+  const [previous, answer] = (state.recentConversation || []).slice(-2);
+  if (!previous || previous.role !== 'user' || answer?.role !== 'assistant'
+    || context.language !== state.language || context.selectedCourseCode !== (state.selectedCourseCode || null)
+    || Number(context.explicitCourses) > 1) return null;
+  const topic = value => {
+    const text = normalized(value);
+    if (/\b(?:and|also|or|registration|installments?|discount|certificate|schedule|batch|location|compare|online|prerequisites?)\b|رسوم التسجيل|تقسيط|خصم|شهادة|جدول|دفعة|عنوان|مقارن/u.test(text)) return null;
+    const duration = /\b(?:duration|how long|how much time)\b|مدة|مدتها/u.test(text);
+    const fee = /\b(?:fee|fees|price|cost|how much(?! time))\b|رسوم|سعر|تكلفة/u.test(text);
+    return fee === duration ? null : fee ? 'fee' : 'duration';
+  };
+  const requested = topic(message);
+  if (requested && requested === topic(previous.text) && context.selectedCourseCode) return { topic: requested, previousReply: answer.text };
+  if (normalized(message) === normalized(previous.text)) return { previousReply: answer.text };
+  return null;
+}
+
+function repeatedCourseFact(repeat, context) {
+  if (!repeat?.topic) return null;
+  const course = context.evidence.find(item => item.kind === 'course' && item.code === context.selectedCourseCode);
+  if (!course) return null;
+  const ar = context.language === 'ar';
+  const offer = course.offer;
+  const fee = offer?.priceAmount != null && offer.currency ? `${offer.priceAmount} ${offer.currency}` : null;
+  const registration = Number(offer?.registrationFeeAmount) > 0
+    ? (ar ? ` رسوم التسجيل ${offer.registrationFeeAmount} ${offer.currency}.` : ` The registration fee is ${offer.registrationFeeAmount} ${offer.currency}.`)
+    : '';
+  let choices;
+  if (repeat.topic === 'fee' && fee) {
+    choices = ar ? [`رسوم الدورة ${fee}.`, `تكلفة الدراسة ${fee}.`] : [`The course fee is ${fee}.`, `Tuition for ${course.name} is ${fee}.`];
+    choices = choices.map(text => text + registration);
+  } else if (repeat.topic === 'duration' && course.duration) {
+    choices = ar ? [`تستغرق الدورة ${course.duration}.`, `مدة الدراسة ${course.duration}.`]
+      : [`It runs for ${course.duration}.`, `${course.name} takes ${course.duration} to complete.`];
+  } else return null;
+  return { reply: choices.find(text => normalized(text) !== normalized(repeat.previousReply)) || choices[0], sourceIds: [course.sourceId] };
+}
+
 function simpleFactualReply(message, context, config = {}) {
   const text = normalized(message), ar = context.language === 'ar';
   const courses = context.evidence.filter(item => item.kind === 'course');
@@ -440,4 +504,4 @@ function polishGuidedReply({ result, profile, message, state, defaults }) {
   return result;
 }
 
-module.exports = { normalized, fingerprint, languageFor, controlRoute, isScheduleQuestion, hasPublishedSchedule, courseDetailNeedsCoordinator, trainingCenterCoordinatorReason, publishedDurationRange, retrieveContext, validateAnswer, clarification, unavailableReply, publishedTrainingReply, simpleFactualReply, isCourseOverviewRequest, shouldSkipApprovedFaq, isGenericAdInterest, shouldClarifyGenericCourseInterest, isBareCourseSelection, previewState, redactCustomerText, polishGuidedReply, qrAdReferral, courseFromVerifiedReferral };
+module.exports = { normalized, fingerprint, languageFor, controlRoute, isScheduleQuestion, hasPublishedSchedule, courseDetailNeedsCoordinator, trainingCenterCoordinatorReason, publishedDurationRange, retrieveContext, validateAnswer, clarification, unavailableReply, publishedTrainingReply, simpleFactualReply, isCourseOverviewRequest, shouldSkipApprovedFaq, isGenericAdInterest, shouldClarifyGenericCourseInterest, isBareCourseSelection, previewState, redactCustomerText, polishGuidedReply, qrAdReferral, courseFromVerifiedReferral, isTrainingGreeting, trainingGreeting, repeatQuestion, repeatedCourseFact };

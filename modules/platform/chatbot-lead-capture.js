@@ -14,6 +14,7 @@ function customerName(text, waitingForName = false) {
   const explicit = String(text || '').match(/(?:^|[.!?،]\s*)(?:my name is|my name's|call me|اسمي|انا اسمي)\s+([^.!?؟،\n]+)/iu);
   let value = explicit?.[1]?.split(/\s+(?:and\b|(?:و?اريد|و?أريد|و?مهتم)(?=\s|$)|interested\b|looking\b|i want\b)/iu)[0]?.trim();
   const candidate = String(text || '').trim();
+  if (!value && context.isTrainingGreeting(candidate)) return null;
   const questionOrCourseQuery = /[?؟]|^(?:which|what|how|when|where|why|who|can|could|will|would|is|are|do|does|did|should)\b|^(?:ما|ماذا|هل|كيف|متى|اين|أين|ايش)|\b(?:certificate|certification|accredited|accreditation|syllabus|curriculum|module|topic|duration|fee|price|cost|schedule|timing|location|online|class|course|training)\b|(?:شهاد|اعتماد|منهج|مدة|رسوم|سعر|مواعيد|جدول|موقع|دورة|تدريب)/iu.test(candidate);
   if (!value && waitingForName && !questionOrCourseQuery && /^[\p{L}\p{M} .'-]{2,80}$/u.test(candidate)) value = candidate;
   if (/^(?:i |i'm |can |do |is |the |انا |أنا |هل |عندي |ممكن )/iu.test(value || '')) return null;
@@ -31,6 +32,21 @@ function qualificationFromText(text) {
   const goal = String(text).match(/(?:i want to|my goal is|اريد ان|أريد أن)\s+([^.!?؟\n]+)/iu)?.[1];
   if (goal) data.learningGoal = context.redactCustomerText(goal).slice(0, 500);
   return data;
+}
+
+async function savedContactName(db, { uid, uidHash, category, phone, lead, checkByPhone }) {
+  const storedName = [lead?.learner_name, lead?.linkedContactName, lead?.contact_name].map(value => customerName(value, true)).find(Boolean);
+  if (!phone || !checkByPhone) return storedName;
+  const [[matchedContact]] = await db.query(`SELECT display_name AS name FROM pipeline_contacts
+    WHERE uid_hash=? AND uid=? AND normalized_phone=? AND id<>?
+    ORDER BY created_at DESC,id LIMIT 1`, [uidHash, uid, phone, lead?.contact_id || '']);
+  const existingName = customerName(matchedContact?.name, true) || storedName;
+  if (existingName) return existingName;
+  const { contacts, truncated } = await require('./phonebook-workspace').contactsByMobile(db,
+    { uid, hash: uidHash, category, manage: true }, { mobile: phone });
+  const names = new Map(contacts.map(row => customerName(row.name, true)).filter(Boolean)
+    .map(value => [context.normalized(value), value]));
+  return !truncated && names.size === 1 ? names.values().next().value : null;
 }
 
 async function captureLead(pool, { ctx, profile, uid, chatId, origin, message, facts }) {
@@ -85,25 +101,11 @@ async function captureLead(pool, { ctx, profile, uid, chatId, origin, message, f
     const language = context.languageFor(text, guidedState);
     let intake = null;
     if (useIntake) {
-      const storedName = [lead.learner_name, lead.linkedContactName, lead.contact_name].map(value => customerName(value, true)).find(Boolean);
-      // captureBotInbound selects this lead under the account's normalized
-      // WhatsApp number lock. An imported contact may predate that lock.
+      // The linked lead is selected under the normalized WhatsApp number lock.
+      const storedName = await savedContactName(db, { lead });
       const phone = require('../../helper/pipeline/leadPipeline').normalizePhone(message.senderMobile);
-      let existingName = null;
-      if (!name && !priorIntake.nameConfirmed && !prior.nameConfirmed) {
-        const [[matchedContact]] = await db.query(`SELECT display_name AS name FROM pipeline_contacts
-          WHERE uid_hash=? AND uid=? AND normalized_phone=? AND id<>?
-          ORDER BY created_at DESC,id LIMIT 1`, [uidHash, uid, phone, lead.contact_id || '']);
-        existingName = customerName(matchedContact?.name, true);
-      }
-      let fullSavedName = existingName || storedName;
-      if (!fullSavedName && !name && !priorIntake.nameConfirmed && !priorIntake.replaceName) {
-        const { contacts, truncated } = await require('./phonebook-workspace').contactsByMobile(db,
-          { uid, hash: uidHash, category: ctx.tenant.categoryKey, manage: true }, { mobile: phone });
-        const names = new Map(contacts.map(row => customerName(row.name, true)).filter(Boolean)
-          .map(value => [context.normalized(value), value]));
-        if (!truncated && names.size === 1) fullSavedName = names.values().next().value;
-      }
+      const fullSavedName = await savedContactName(db, { uid, uidHash, category: ctx.tenant.categoryKey, phone, lead,
+        checkByPhone: !name && !priorIntake.nameConfirmed && !prior.nameConfirmed && !priorIntake.replaceName });
       const savedName = fullSavedName?.split(/\s+/u)[0];
       const savedStart = admissions.savedStartLabel(qualification, language);
       const enquiryChanged = priorIntake.courseInterest && qualification.courseInterest !== priorIntake.courseInterest;
@@ -190,4 +192,4 @@ async function markAsked(pool, info, uid) {
     await db.query(`UPDATE pipeline_leads SET qualification_data=JSON_SET(COALESCE(qualification_data,JSON_OBJECT()),?,true,'$.botCapture.waitingFor',?) WHERE uid_hash=? AND uid=? AND id=?`, ['$.botCapture.' + key + 'Asked', key, info.uidHash, uid, info.leadId]);
   } finally { db.release(); }
 }
-module.exports = { captureLead, captureGenericLead, genericCaptureEnabled, customerName, qualificationFromText, addQuestion, standaloneNamePrompt, markAsked };
+module.exports = { savedContactName, captureLead, captureGenericLead, genericCaptureEnabled, customerName, qualificationFromText, addQuestion, standaloneNamePrompt, markAsked };

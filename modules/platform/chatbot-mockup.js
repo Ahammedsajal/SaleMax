@@ -2,6 +2,7 @@
 
 const { createHash, randomUUID } = require('node:crypto');
 const { channelFor } = require('./chatbot-channels');
+const { recipientPhone } = require('./chatbot-audience');
 const { redactCustomerText } = require('./chatbot-business-context');
 
 const digest = parts => createHash('sha256').update(parts.join('\0')).digest('hex');
@@ -10,6 +11,11 @@ const tenant = () => process.env.SALEMAX_CHATBOT_MOCKUP_TENANT_ID;
 const ownerHash = () => process.env.SALEMAX_CHATBOT_MOCKUP_OWNER_HASH;
 const enabled = id => Boolean(id && id === tenant() && /^[a-f0-9]{64}$/.test(ownerHash() || ''));
 const ownsInbox = (uid, origin) => Boolean(enabled(tenant()) && channelFor(origin) && typeof uid === 'string' && digest([uid]) === ownerHash());
+function testRecipientAllowed(config, origin, recipient) {
+  const phone = origin === 'qr' && recipientPhone(recipient);
+  return Boolean(phone && Array.isArray(config?.testRecipientPhones) && config.testRecipientPhones.includes(phone)
+    && Array.isArray(config?.allowedRecipientPhones) && config.allowedRecipientPhones.includes(phone));
+}
 const safeCode = value => String(value || '').match(/^[a-zA-Z0-9_-]{1,100}$/)?.[0] || null;
 
 async function enqueue(pool, { uid, message, origin, sessionId, chatId }) {
@@ -174,4 +180,4 @@ function createRouter({ pool, authenticate }) {
   return router;
 }
 
-module.exports = { enabled, ownsInbox, enqueue, start, tick, list, thread, createRouter };
+module.exports = { enabled, ownsInbox, testRecipientAllowed, enqueue, start, tick, list, thread, createRouter };

@@ -182,6 +182,27 @@ def configure_ad_overview():
     ADD_SCOPE = False
 
 
+def configure_test_replies():
+    global ACTIVE_OVERLAY, REPLACED_FILES, SCOPE_ENV, SLUG, ADD_SCOPE, LIVE_SOURCE_EDITS
+    ACTIVE_OVERLAY = '/opt/salemax/releases/pro-catalyst-ad-overview-905d035678c2-20261109/compose.pro-catalyst-ad-overview.json'
+    REPLACED_FILES = {
+        'client/public/chatbot-admin.js': '23b4de2f6c4640a297597560c0457ca222da6375894041a7fc350d65168bd66f',
+        'client/public/training-sidebar.js': 'c73c6df27b6831630238b99458c5e1b56ad74c314a3f7de9ca453885d44092ed',
+        'helper/inbox/inbox.js': 'eae5db58f750a47f7f9c3f2e772bd876f0bc9d9968b72828d63f4170154cae00',
+        'modules/platform/chatbot-ai-prompt.js': '5f1437b936effc026f1be12f6c8012ad6001036c2ce098feb8f26ddeb7cb26e6',
+        'modules/platform/chatbot-business-context.js': '7bdf501bf6a2a88110d5c12af36fe4c111c233c9e196efa574d2cf1b82fb4d8c',
+        'modules/platform/chatbot-lead-capture.js': '820bdcff2817dfdefd2c66c3ce4825db346346c262486da648878596b5bc7fda',
+        'modules/platform/chatbot-mockup.js': '6ed4ee0ad1a32cc7c28a4dfac2632c3a011fa31b57600a277fc9d918cf46178f',
+        'modules/platform/chatbot-runtime.js': 'b510d3ec50cad28b1194ef28f0ccd7692cec8708b72dc42f7cdf05c1b8efb1d3',
+    }
+    LIVE_SOURCE_EDITS = {
+        'client/public/training-sidebar.js': (b'/chatbot-admin.js?v=20261109-ad-aware-followup1', b'/chatbot-admin.js?v=20261109-test-replies1'),
+    }
+    SCOPE_ENV = 'SALEMAX_CHATBOT_MOCKUP_TENANT_ID'
+    SLUG = 'pro-catalyst-test-replies'
+    ADD_SCOPE = False
+
+
 def apply_mockup_migration(source):
     script = """const fs = require('node:fs');
     const crypto = require('node:crypto');
@@ -494,7 +515,7 @@ def reset(backup):
 
 
 if __name__ == '__main__':
-    if len(sys.argv) == 4 and sys.argv[1] in ('deploy', 'deploy-admissions', 'deploy-name-question', 'deploy-knowledge', 'deploy-mockup', 'deploy-mockup-inbox', 'deploy-lead-report-period', 'deploy-followup-preview', 'deploy-followup-chat-link', 'deploy-ad-aware-followups', 'deploy-ad-overview'):
+    if len(sys.argv) == 4 and sys.argv[1] in ('deploy', 'deploy-admissions', 'deploy-name-question', 'deploy-knowledge', 'deploy-mockup', 'deploy-mockup-inbox', 'deploy-lead-report-period', 'deploy-followup-preview', 'deploy-followup-chat-link', 'deploy-ad-aware-followups', 'deploy-ad-overview', 'deploy-test-replies'):
         if sys.argv[1] == 'deploy-admissions':
             configure_admissions()
         elif sys.argv[1] == 'deploy-name-question':
@@ -515,10 +536,12 @@ if __name__ == '__main__':
             configure_ad_aware_followups()
         elif sys.argv[1] == 'deploy-ad-overview':
             configure_ad_overview()
+        elif sys.argv[1] == 'deploy-test-replies':
+            configure_test_replies()
         deploy(Path(sys.argv[2]), sys.argv[3])
     elif len(sys.argv) == 3 and sys.argv[1] == 'reset':
         reset(Path(sys.argv[2]))
-    elif len(sys.argv) == 3 and sys.argv[1] in ('restore', 'restore-admissions', 'restore-name-question', 'restore-knowledge', 'restore-mockup', 'restore-mockup-inbox', 'restore-lead-report-period', 'restore-followup-preview', 'restore-followup-chat-link', 'restore-ad-aware-followups', 'restore-ad-overview'):
+    elif len(sys.argv) == 3 and sys.argv[1] in ('restore', 'restore-admissions', 'restore-name-question', 'restore-knowledge', 'restore-mockup', 'restore-mockup-inbox', 'restore-lead-report-period', 'restore-followup-preview', 'restore-followup-chat-link', 'restore-ad-aware-followups', 'restore-ad-overview', 'restore-test-replies'):
         if sys.argv[1] == 'restore-admissions':
             configure_admissions()
         elif sys.argv[1] == 'restore-name-question':
@@ -539,6 +562,8 @@ if __name__ == '__main__':
             configure_ad_aware_followups()
         elif sys.argv[1] == 'restore-ad-overview':
             configure_ad_overview()
+        elif sys.argv[1] == 'restore-test-replies':
+            configure_test_replies()
         restore(Path(sys.argv[2]))
     else:
-        raise SystemExit('Usage: pro-catalyst-handover-release.py deploy[-admissions|-name-question|-knowledge|-mockup|-mockup-inbox|-lead-report-period|-followup-preview|-followup-chat-link|-ad-aware-followups|-ad-overview] <stage> <commit> | reset <backup> | restore[-admissions|-name-question|-knowledge|-mockup|-mockup-inbox|-lead-report-period|-followup-preview|-followup-chat-link|-ad-aware-followups|-ad-overview] <backup>')
+        raise SystemExit('Usage: pro-catalyst-handover-release.py deploy[-admissions|-name-question|-knowledge|-mockup|-mockup-inbox|-lead-report-period|-followup-preview|-followup-chat-link|-ad-aware-followups|-ad-overview|-test-replies] <stage> <commit> | reset <backup> | restore[-admissions|-name-question|-knowledge|-mockup|-mockup-inbox|-lead-report-period|-followup-preview|-followup-chat-link|-ad-aware-followups|-ad-overview|-test-replies] <backup>')

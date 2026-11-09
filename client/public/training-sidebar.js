@@ -7,7 +7,7 @@
   if (!window.__sxChatbotAdminLoader) {
     window.__sxChatbotAdminLoader = true;
     const chatbotScript = document.createElement('script');
-    chatbotScript.src = '/chatbot-admin.js?v=20261109-ad-aware-followup1';
+    chatbotScript.src = '/chatbot-admin.js?v=20261109-test-replies1';
     chatbotScript.defer = true;
     document.head.append(chatbotScript);
   }

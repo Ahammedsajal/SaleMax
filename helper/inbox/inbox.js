@@ -358,7 +358,7 @@ async function processMessage({
       }
 
       if (mockupOnly && msg.route === 'INCOMING') {
-        // A queue failure must still leave the customer-facing bot disabled.
+        // Private draft generation is independent of the approved live test audience.
         try { await mockup.enqueue(require('../../database/config').promise(), inboundContext); }
         catch (error) { console.warn('Chatbot mockup could not queue inbound message.', error.code || 'MOCKUP_QUEUE_ERROR'); }
       }
@@ -414,7 +414,13 @@ async function processMessage({
       }
 
       let configuredBot = { handled: false };
-      if (!mockupOnly) {
+      const qrPhone = origin === 'qr' && /^([1-9]\d{7,14})@s\.whatsapp\.net$/.exec(body?.key?.remoteJid || '')?.[1];
+      if (mockupOnly && msg.route === 'INCOMING' && qrPhone && qrPhone === msg.senderMobile) {
+        // The configured runtime verifies the saved test audience. Never fall
+        // through to webhook or legacy automation for this Inbox.
+        try { configuredBot = await runConfiguredBot({ ...inboundContext, user }); }
+        catch (error) { console.warn('Chatbot test reply unavailable.', error.code || 'CHATBOT_RUNTIME_ERROR'); }
+      } else if (!mockupOnly) {
         const botInput = { ...inboundContext, user };
         // Handoff claims and paused-chat acknowledgements take priority.
         let handoffPriority = { handled: false };

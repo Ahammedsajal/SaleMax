@@ -71,3 +71,16 @@ test('short course enquiries resolve approved names, clarify ambiguity and trunc
   assert.match(run('Excel').reply, /word…/);
   assert.equal(run('unlisted aviation').state.selectedCourseCode, undefined);
 });
+
+test('mockup live replies require the exact recipient on both saved lists and the QR channel', () => {
+ const { testRecipientAllowed } = require('../modules/platform/chatbot-mockup');
+ const tester = '97455550001', testOnly = '97455550002', allowedOnly = '97455550003';
+ const config = { testRecipientPhones: [tester, testOnly], allowedRecipientPhones: [tester, allowedOnly], rolloutPercent: 100 };
+ assert.equal(testRecipientAllowed(config, 'qr', '+' + tester), true);
+ assert.equal(testRecipientAllowed(config, 'qr', tester + '@s.whatsapp.net'), true);
+ for (const phone of [testOnly, allowedOnly, tester + '@lid', tester + '@g.us', '97455550004', null]) {
+  assert.equal(testRecipientAllowed(config, 'qr', phone), false);
+ }
+ assert.equal(testRecipientAllowed(config, 'meta', tester), false);
+ assert.equal(testRecipientAllowed({ testRecipientPhones: [tester] }, 'qr', tester), false);
+});
