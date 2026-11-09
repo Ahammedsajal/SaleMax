@@ -20,6 +20,7 @@ REPLACED_FILES = {
 SCOPE_ENV = 'SALEMAX_CHATBOT_ONE_HOUR_HANDOFF_TENANT_ID'
 SLUG = 'pro-catalyst-handover'
 NEW_FILES = ()
+ADD_SCOPE = True
 
 def configure_admissions():
     global ACTIVE_OVERLAY, REPLACED_FILES, SCOPE_ENV, SLUG, NEW_FILES
@@ -32,6 +33,18 @@ def configure_admissions():
     SCOPE_ENV = 'SALEMAX_CHATBOT_ADMISSIONS_INTAKE_TENANT_ID'
     SLUG = 'pro-catalyst-admissions'
     NEW_FILES = ('modules/platform/chatbot-admissions-intake.js',)
+
+
+def configure_name_question():
+    global ACTIVE_OVERLAY, REPLACED_FILES, SCOPE_ENV, SLUG, ADD_SCOPE
+    ACTIVE_OVERLAY = '/opt/salemax/releases/pro-catalyst-admissions-bf5f7f99f1e5-20261109/compose.pro-catalyst-admissions.json'
+    REPLACED_FILES = {
+        'modules/platform/chatbot-runtime.js': 'f718d06af7e65fe19d43e4ec1fd4386fea540e5fc45ee6f4aaacce21a545abfe',
+        'modules/platform/chatbot-lead-capture.js': '3e759f54f7c7a45f088cadff842d2839d87d80a792d3dcc25f43d0a3ac62524b',
+    }
+    SCOPE_ENV = 'SALEMAX_CHATBOT_ADMISSIONS_INTAKE_TENANT_ID'
+    SLUG = 'pro-catalyst-name-question'
+    ADD_SCOPE = False
 
 
 EXPECTED_IMAGE = 'sha256:c756899fdbf63edc71d45de0c71cffe1f063244d91378d90b15a2c98fc1d5135'
@@ -167,15 +180,20 @@ def deploy(stage, commit):
       .then(([[row]]) => { if (Number(row.n) !== 1) process.exitCode = 1; })
       .catch(() => { process.exitCode = 1; }).finally(() => db.end());"""
     run('docker', 'exec', APP, 'node', '-e', tenant_check, tenant_id)
-    if SCOPE_ENV in live_env:
+    if ADD_SCOPE and SCOPE_ENV in live_env:
         raise RuntimeError('Tenant scope is already configured')
+    if not ADD_SCOPE and live_env.get(SCOPE_ENV) != tenant_id:
+        raise RuntimeError('Active admissions tenant differs from the reviewed scope')
     if NEW_FILES and live_env.get('SALEMAX_CHATBOT_ONE_HOUR_HANDOFF_TENANT_ID') != tenant_id:
         raise RuntimeError('Admissions tenant differs from the active handoff tenant')
 
     mounts = [{'type': 'bind', 'source': str(runtime / name), 'target': '/app/' + name,
                'read_only': True, 'bind': {'create_host_path': False}} for name in changed]
     overlay = release / f'compose.{SLUG}.json'
-    overlay.write_text(json.dumps({'services': {'app': {'image': app['Config']['Image'], 'environment': {SCOPE_ENV: tenant_id}, 'volumes': mounts}}}))
+    overlay_app = {'image': app['Config']['Image'], 'volumes': mounts}
+    if ADD_SCOPE:
+        overlay_app['environment'] = {SCOPE_ENV: tenant_id}
+    overlay.write_text(json.dumps({'services': {'app': overlay_app}}))
     overlay.chmod(0o644)
     common = compose_args(files, env_files, workdir)
     candidate = common + ['-f', str(overlay)]
@@ -193,7 +211,7 @@ def deploy(stage, commit):
             raise RuntimeError('Unexpected app mount: ' + target)
     old_app.pop('volumes')
     new_app.pop('volumes')
-    if new_app['environment'].pop(SCOPE_ENV, None) != tenant_id:
+    if ADD_SCOPE and new_app['environment'].pop(SCOPE_ENV, None) != tenant_id:
         raise RuntimeError('Expected handoff tenant scope is missing')
     if before != after:
         raise RuntimeError('Candidate changes non-mount Compose configuration')
@@ -205,7 +223,7 @@ def deploy(stage, commit):
     helper.write_bytes(Path(__file__).read_bytes())
     helper.chmod(0o644)
 
-    if not NEW_FILES:
+    if SLUG == 'pro-catalyst-handover':
         reset_script = release / 'deploy/pro-catalyst-handover-reset.cjs'
         reset_script.write_bytes((stage / 'deploy/pro-catalyst-handover-reset.cjs').read_bytes())
         reset_script.chmod(0o644)
@@ -294,15 +312,19 @@ def reset(backup):
 
 
 if __name__ == '__main__':
-    if len(sys.argv) == 4 and sys.argv[1] in ('deploy', 'deploy-admissions'):
+    if len(sys.argv) == 4 and sys.argv[1] in ('deploy', 'deploy-admissions', 'deploy-name-question'):
         if sys.argv[1] == 'deploy-admissions':
             configure_admissions()
+        elif sys.argv[1] == 'deploy-name-question':
+            configure_name_question()
         deploy(Path(sys.argv[2]), sys.argv[3])
     elif len(sys.argv) == 3 and sys.argv[1] == 'reset':
         reset(Path(sys.argv[2]))
-    elif len(sys.argv) == 3 and sys.argv[1] in ('restore', 'restore-admissions'):
+    elif len(sys.argv) == 3 and sys.argv[1] in ('restore', 'restore-admissions', 'restore-name-question'):
         if sys.argv[1] == 'restore-admissions':
             configure_admissions()
+        elif sys.argv[1] == 'restore-name-question':
+            configure_name_question()
         restore(Path(sys.argv[2]))
     else:
-        raise SystemExit('Usage: pro-catalyst-handover-release.py deploy[-admissions] <stage> <commit> | reset <backup> | restore[-admissions] <backup>')
+        raise SystemExit('Usage: pro-catalyst-handover-release.py deploy[-admissions|-name-question] <stage> <commit> | reset <backup> | restore[-admissions|-name-question] <backup>')

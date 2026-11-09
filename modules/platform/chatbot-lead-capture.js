@@ -42,7 +42,9 @@ async function captureLead(pool, { ctx, profile, uid, chatId, origin, message, f
   try {
     await db.beginTransaction();
     const uidHash = crypto.createHash('sha256').update(uid).digest('hex');
-    const [[lead]] = await db.query('SELECT id,contact_id,learner_name,qualification_data FROM pipeline_leads WHERE uid_hash=? AND uid=? AND id=? FOR UPDATE', [uidHash, uid, captured.leadId]);
+    const [[lead]] = await db.query(`SELECT l.id,l.contact_id,l.learner_name,l.contact_name,l.qualification_data,c.display_name AS linkedContactName
+      FROM pipeline_leads l LEFT JOIN pipeline_contacts c ON c.uid_hash=l.uid_hash AND c.uid=l.uid AND c.id=l.contact_id
+      WHERE l.uid_hash=? AND l.uid=? AND l.id=? FOR UPDATE`, [uidHash, uid, captured.leadId]);
     if (!lead) throw Object.assign(new Error('BOT_LEAD_NOT_FOUND'), { code: 'BOT_LEAD_NOT_FOUND' });
     const qualification = parse(lead.qualification_data);
     const prior = qualification.botCapture || {};
@@ -83,7 +85,7 @@ async function captureLead(pool, { ctx, profile, uid, chatId, origin, message, f
     const language = context.languageFor(text, guidedState);
     let intake = null;
     if (useIntake) {
-      const storedName = customerName(lead.learner_name, true);
+      const storedName = [lead.learner_name, lead.linkedContactName, lead.contact_name].map(value => customerName(value, true)).find(Boolean);
       // captureBotInbound selects this lead under the account's normalized
       // WhatsApp number lock. An imported contact may predate that lock.
       const phone = require('../../helper/pipeline/leadPipeline').normalizePhone(message.senderMobile);
@@ -94,7 +96,14 @@ async function captureLead(pool, { ctx, profile, uid, chatId, origin, message, f
           ORDER BY created_at DESC,id LIMIT 1`, [uidHash, uid, phone, lead.contact_id || '']);
         existingName = customerName(matchedContact?.name, true);
       }
-      const fullSavedName = existingName || storedName;
+      let fullSavedName = existingName || storedName;
+      if (!fullSavedName && !name && !priorIntake.nameConfirmed && !priorIntake.replaceName) {
+        const { contacts, truncated } = await require('./phonebook-workspace').contactsByMobile(db,
+          { uid, hash: uidHash, category: ctx.tenant.categoryKey, manage: true }, { mobile: phone });
+        const names = new Map(contacts.map(row => customerName(row.name, true)).filter(Boolean)
+          .map(value => [context.normalized(value), value]));
+        if (!truncated && names.size === 1) fullSavedName = names.values().next().value;
+      }
       const savedName = fullSavedName?.split(/\s+/u)[0];
       const savedStart = admissions.savedStartLabel(qualification, language);
       const enquiryChanged = priorIntake.courseInterest && qualification.courseInterest !== priorIntake.courseInterest;
@@ -144,9 +153,14 @@ async function captureGenericLead(pool, { ctx, profile, uid, chatId, origin, mes
   return { leadId: captured.leadId, duplicate: captured.duplicate === true };
 }
 
+function standaloneNamePrompt(info) {
+  if (!['name', 'confirmName'].includes(info?.intake?.key)) return null;
+  return info.courseInterest || info.intake.session.admissionsEscalation ? info.intake.prompt : null;
+}
+
 function addQuestion(reply, info, config, defaults) {
   if (info?.intake) {
-    if (!info.intake.prompt || (!info.courseInterest && !info.intake.session.admissionsEscalation)) return reply;
+    if (standaloneNamePrompt(info) || !info.intake.prompt || (!info.courseInterest && !info.intake.session.admissionsEscalation)) return reply;
     return appendPrompt(reply, info.intake.prompt);
   }
   if (!info?.questionKey) return reply;
@@ -176,4 +190,4 @@ async function markAsked(pool, info, uid) {
     await db.query(`UPDATE pipeline_leads SET qualification_data=JSON_SET(COALESCE(qualification_data,JSON_OBJECT()),?,true,'$.botCapture.waitingFor',?) WHERE uid_hash=? AND uid=? AND id=?`, ['$.botCapture.' + key + 'Asked', key, info.uidHash, uid, info.leadId]);
   } finally { db.release(); }
 }
-module.exports = { captureLead, captureGenericLead, genericCaptureEnabled, customerName, qualificationFromText, addQuestion, markAsked };
+module.exports = { captureLead, captureGenericLead, genericCaptureEnabled, customerName, qualificationFromText, addQuestion, standaloneNamePrompt, markAsked };

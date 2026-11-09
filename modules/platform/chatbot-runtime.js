@@ -79,9 +79,9 @@ async function finishTurn(turn, status, resultClass, diagnostic = null) {
     [status, resultClass, diagnostic?.stage || null, diagnostic?.code || null, turn.id]);
 }
 
-async function sendBotText({ origin, sessionId, message, uid, chatId, body }) {
+async function sendBotText({ origin, sessionId, message, uid, chatId, body, bypassBotPause = true }) {
   const content = { type: 'text', text: { preview_url: false, body: String(body || '').slice(0, 1200) } };
-  const id = await require('../../automation/functions').sendWaMessage({ origin, sessionId, message, uid, chatId, content, bypassBotPause: true });
+  const id = await require('../../automation/functions').sendWaMessage({ origin, sessionId, message, uid, chatId, content, bypassBotPause });
   if (!id) return false;
   const data = { type: 'text', metaChatId: id, msgContext: content, reaction: '', timestamp: Math.trunc(Date.now() / 1000),
     senderName: message?.senderName || '7Network', senderMobile: message?.senderMobile || '', star: 0, route: 'OUTGOING', context: null, origin, sentBy: 'bot' };
@@ -89,9 +89,8 @@ async function sendBotText({ origin, sessionId, message, uid, chatId, body }) {
     await require('./chatbot-conversation-store').persistConversationMessage({ uid, chatId, data: { ...data, msgContext: JSON.stringify(content), context: null } });
     await query('UPDATE beta_chats SET last_message=? WHERE uid=? AND chat_id=?', [JSON.stringify(data), uid, chatId]);
   } catch (error) {
-    // The provider accepted the message; retain the ack throttle to avoid a
-    // duplicate send if local history persistence is temporarily unavailable.
-    console.warn('[chatbot] handoff message accepted but local history update failed', error.code || 'HANDOFF_HISTORY_UPDATE_FAILED');
+    // Treat a provider-accepted message as sent even if local history is unavailable.
+    console.warn('[chatbot] bot message accepted but local history update failed', error.code || 'HANDOFF_HISTORY_UPDATE_FAILED');
   }
   return true;
 }
@@ -362,6 +361,23 @@ async function sendTurnCourseMedia({ ctx, profile, uid, chatId, sessionId, messa
   await query(`UPDATE sx_chatbot_guided_sessions SET state=JSON_SET(state,'$.sentCoursePdfIds',JSON_EXTRACT(?,'$')) WHERE tenant_id=? AND profile_id=? AND channel_kind=? AND channel_ref=? AND conversation_id=?`, [JSON.stringify(recorded.slice(-20)), ctx.tenant.id, profile.id, channelFor(origin), sessionId, chatId]);
 }
 
+async function sendCourseReplyFollowups({ ctx, profile, uid, origin, sessionId, chatId, message, leadInfo, media, state }) {
+  const capture = require('./chatbot-lead-capture');
+  const namePrompt = capture.standaloneNamePrompt(leadInfo);
+  if (!namePrompt) await capture.markAsked(dbPool, leadInfo, uid);
+  if (media?.length) {
+    try {
+      await sendTurnCourseMedia({ ctx, profile, uid, origin, sessionId, chatId, message, media, state });
+    } catch (error) { console.warn('[chatbot] course attachment unavailable', error.code || 'COURSE_MEDIA_ERROR'); }
+  }
+  if (!namePrompt) return;
+  try {
+    if (!await canSendNow({ ctx, profile, uid, origin, sessionId, chatId, message })) return;
+    const sent = await sendBotText({ origin, sessionId, message, uid, chatId, body: namePrompt, bypassBotPause: false });
+    if (sent) await capture.markAsked(dbPool, leadInfo, uid);
+  } catch (error) { console.warn('[chatbot] name question unavailable', error.code || 'NAME_QUESTION_FAILED'); }
+}
+
 async function trainingCenterGuidedTurn({ ctx, profile, uid, message, sessionId, origin, chatId, intent = null, leadInfo, onStage = null }) {
   onStage?.('training-channel-and-pack');
   const channelKind = channelFor(origin);
@@ -481,12 +497,8 @@ async function trainingCenterGuidedTurn({ ctx, profile, uid, message, sessionId,
   onStage?.('training-conversation-persist');
   await require('./chatbot-conversation-store').persistConversationMessage({ uid, chatId, data: { ...messageData, msgContext: JSON.stringify(messageData.msgContext), context: null } });
   await query(`UPDATE beta_chats SET last_message=? WHERE uid=? AND chat_id=?`, [JSON.stringify(messageData), uid, chatId]);
-  if (!reply.handoff && !deferLeadQuestion) await require('./chatbot-lead-capture').markAsked(dbPool, leadInfo, uid);
-  if (!reply.handoff && reply.media?.length) {
-    try {
-      await sendTurnCourseMedia({ ctx, profile, uid, chatId, sessionId, message, origin, media: reply.media, state: reply.state });
-    } catch (error) { console.warn('[chatbot] course attachment unavailable', error.code || 'COURSE_MEDIA_ERROR'); }
-  }
+  if (!reply.handoff) await sendCourseReplyFollowups({ ctx, profile, uid, origin, sessionId, chatId, message,
+    leadInfo: deferLeadQuestion ? null : leadInfo, media: reply.media, state: reply.state });
   return true;
 }
 
@@ -778,9 +790,8 @@ async function aiTurn({ ctx, profile, uid, message, user, sessionId, origin, cha
   if (answer.state) await saveConversationalState({ ctx, profile, chatId, channelKind: channelFor(origin), channelRef: sessionId, state: { ...answer.state, recentConversation: intakeAnswer ? answer.state.recentConversation || [] : [...(answer.state.recentConversation || []),
     { role: 'user', text: incomingText.slice(0, 400) },
     { role: 'assistant', text: (leadInfo?.intake ? answerBeforeIntake : answer.reply).slice(0, 500) }].slice(-4) } });
-  await require('./chatbot-lead-capture').markAsked(dbPool, questionLeadInfo, uid);
   const media = require('./chatbot-course-media').coursePdfs(leadInfo?.facts || [], answer.state?.selectedCourseCode, textOf(message), answer.state?.sentCoursePdfIds || []);
-  if (media.length) await sendTurnCourseMedia({ ctx, profile, uid, chatId, sessionId, message, origin, media, state: answer.state }).catch(error => console.warn('[chatbot] course attachment unavailable', error.code || 'COURSE_MEDIA_ERROR'));
+  await sendCourseReplyFollowups({ ctx, profile, uid, origin, sessionId, chatId, message, leadInfo: questionLeadInfo, media, state: answer.state });
   return { sent: true, route: answer.route, reason: answer.reason, metrics: answer.metrics };
 }
 

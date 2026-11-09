@@ -1,7 +1,7 @@
 'use strict';
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { customerName, qualificationFromText, addQuestion } = require('../modules/platform/chatbot-lead-capture');
+const { customerName, qualificationFromText, addQuestion, standaloneNamePrompt } = require('../modules/platform/chatbot-lead-capture');
 const { coursePdfs } = require('../modules/platform/chatbot-course-media');
 const { getDomainPack } = require('../modules/platform/chatbot-domain-packs');
 test('English and Arabic names are captured from declarations or a requested name response',()=>{
@@ -38,4 +38,18 @@ test('a certificate follow-up is not captured as a customer name after the bot g
 });
 test('Arabic certificate questions are not captured as customer names', () => {
   assert.equal(customerName('ما الشهادة التي سأحصل عليها', true), null);
+});
+
+
+test('Pro Catalyst sends name questions and confirmations as standalone text', () => {
+  const body = 'Marine Deckhand course. Duration: two months.';
+  for (const [key, prompt] of [['name', 'May I have your name?'], ['confirmName', 'هل اسمك نورا؟']]) {
+    const info = { courseInterest: 'Marine Deckhand', intake: { key, prompt, session: {} } };
+    assert.equal(addQuestion(body, info, {}, {}), body);
+    assert.equal(standaloneNamePrompt(info), prompt);
+    assert.equal(standaloneNamePrompt({ ...info, courseInterest: null }), null);
+  }
+  const start = { courseInterest: 'Marine Deckhand', intake: { key: 'start', prompt: 'When would you like to start?', session: {} } };
+  assert.equal(standaloneNamePrompt(start), null);
+  assert.equal(addQuestion(body, start, {}, {}), body + '\n\nWhen would you like to start?');
 });

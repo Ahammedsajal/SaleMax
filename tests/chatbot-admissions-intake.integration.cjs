@@ -55,7 +55,24 @@ module.exports = async function admissionsIntakeIntegration(db, pool, { t1, t2 }
     assert.equal(qualification.preferredStartDetail, 'Next week');
     assert.equal(qualification.botCapture.admissions.confirmNameAsked, 1);
     assert.equal(qualification.botCapture.admissions.confirmStartAsked, 1);
-    return { admissionsNumberLookup: true, admissionsConfirmAndSave: true, admissionsDuplicateProtection: true };
+    await db.query('CREATE TABLE IF NOT EXISTS phonebook (id INT PRIMARY KEY,uid VARCHAR(999),name VARCHAR(255))');
+    await db.query(`CREATE TABLE IF NOT EXISTS contact (id INT AUTO_INCREMENT PRIMARY KEY,uid VARCHAR(999),phonebook_id INT,
+      phonebook_name VARCHAR(255),name VARCHAR(255),mobile VARCHAR(64),var1 TEXT,var2 TEXT,var3 TEXT,var4 TEXT,var5 TEXT,var6 TEXT,createdAt DATETIME(3))`);
+    await db.query(`CREATE TABLE IF NOT EXISTS sx_phonebook_settings (owner_hash CHAR(64),category_key VARCHAR(80),config_json JSON,revision INT)`);
+    await db.query(`UPDATE pipeline_leads SET learner_name=NULL,contact_name=NULL,qualification_data=JSON_OBJECT() WHERE id=?`, [leadId]);
+    await db.query("UPDATE pipeline_contacts SET display_name='' WHERE uid_hash=?", [uidHash]);
+    await db.query('INSERT INTO phonebook(id,uid,name) VALUES (901,?,?),(902,?,?)', [uid,'Saved contacts',otherUid,'Other business']);
+    await db.query('INSERT INTO contact(uid,phonebook_id,name,mobile) VALUES (?,901,?,?),(?,902,?,?)',
+      [uid,'Leila Example','5555 0002',otherUid,'Unrelated Tenant','5555 0002']);
+    const phonebook = await turn('I want to know about marine course');
+    assert.equal(phonebook.intake.prompt, 'Is your name Leila?');
+    await db.query('INSERT INTO contact(uid,phonebook_id,name,mobile) VALUES (?,901,?,?)', [uid,'Amina Example',normalizedPhone]);
+    assert.equal((await turn('I want to know about marine course')).intake.prompt, 'May I have your name?');
+
+    await db.query("UPDATE pipeline_contacts SET display_name='Linked Learner' WHERE id=?", [contactId]);
+    assert.equal((await turn('I want to know about marine course')).intake.prompt, 'Is your name Linked?');
+    return { admissionsNumberLookup: true, admissionsConfirmAndSave: true, admissionsDuplicateProtection: true,
+      admissionsLinkedContactAndPhonebookLookup: true };
   } finally {
     pipeline.captureBotInbound = originalCapture;
     if (previous === undefined) delete process.env[env];
