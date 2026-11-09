@@ -1,3 +1,7 @@
+## Lead Reports period totals and Pro Catalyst draft intake — production, 9 November 2026
+
+The existing Lead Reports filter displays a total that follows its date, assignment and QR filters. Activity and journey use the same selected period, and the UUID and collation fixes restore the Team Journey results for Pro Catalyst. The private mockup now acknowledges an immediate start preference even when earlier chat context is unavailable. Focused tests, bilingual browser fixtures and production smoke checks passed. Signed-in browser and a new device-level mockup turn remain open. `DEPLOYMENT.md` records the deployment and rollback.
+
 ## Pro Catalyst mockup Inbox layout — production, 9 November 2026
 
 The existing owner-only mockup uses an Inbox-style conversation list, searchable customer labels, latest-message previews and separate customer and draft bubbles. Mobile switches between the list and thread. Light and dark, English and Arabic, and desktop, tablet and phone fixtures passed. Production serves the versioned asset and the owner-only review API. Signed-in production browser acceptance remains open. `DEPLOYMENT.md` records the release and rollback.
