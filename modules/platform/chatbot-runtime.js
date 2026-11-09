@@ -893,8 +893,12 @@ async function previewMockupTurn({ uid, tenantId, chatId, channelKind, channelRe
   const localReply = route === 'answer' && (acknowledgement || intake.answerOnly);
   const guided = !localReply && (profile.engine === 'guided' || route !== 'answer' ||
     acceptsRegistrationForm(prior, message) || businessContext.isBareCourseSelection(message, context) || profile.config.aiFallback === false);
+  const advertisedOverview = route === 'answer' && context.courseContextSource === 'meta_referral'
+    ? businessContext.simpleFactualReply(message, context, profile.config) : null;
   let answer;
-  if (guided) {
+  if (advertisedOverview) {
+    answer = { reply: advertisedOverview.reply, route: 'facts', state: { ...prior, selectedCourseCode: course.code } };
+  } else if (guided) {
     const knowledgeEntries = mergeKnowledgeEntries(profile.config.knowledgeEntries || [], await loadApprovedFaqs(tenantId));
     const result = pack.guidedReply({
       message: ['human', 'handoff'].includes(route) ? (language === 'ar' ? 'موظف' : 'agent')
