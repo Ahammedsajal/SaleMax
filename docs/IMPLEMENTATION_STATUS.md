@@ -1,3 +1,7 @@
+## Pro Catalyst standalone name question — production, 9 November 2026
+
+The existing bot now sends the name question or saved-name confirmation in its own WhatsApp message after the course details and attachments. The number lookup includes linked Lead Pipeline contacts and saved Phonebook entries. Focused tests and disposable MariaDB verification passed. Production is healthy and a synthetic test against the deployed source verified ordering. A device-level WhatsApp exchange remains open. DEPLOYMENT.md records the release and rollback.
+
 ## Pro Catalyst admissions qualification — production, 9 November 2026
 
 The existing Pro Catalyst Hybrid bot now looks up the sender's normalized WhatsApp number in Lead Pipeline. It confirms or captures the learner's name and preferred start, saves the course interest and preferences in the existing record, and adds those details to routine staff handovers. AI replies stay grounded in approved business facts, with short deterministic intake when the provider fails. Direct staff requests still route immediately. Focused and disposable MariaDB tests pass, the production smoke passed, and there are zero active Pro Catalyst handovers after release. A live WhatsApp exchange remains open. Source, release and rollback evidence are in DEPLOYMENT.md. The wider upgrade remains in progress.
