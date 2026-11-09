@@ -1,3 +1,7 @@
+## Pro Catalyst mockup Inbox layout — production, 9 November 2026
+
+The existing owner-only mockup uses an Inbox-style conversation list, searchable customer labels, latest-message previews and separate customer and draft bubbles. Mobile switches between the list and thread. Light and dark, English and Arabic, and desktop, tablet and phone fixtures passed. Production serves the versioned asset and the owner-only review API. Signed-in production browser acceptance remains open. `DEPLOYMENT.md` records the release and rollback.
+
 ## Pro Catalyst Live Reply Mockup — production, 9 November 2026
 
 Pro Catalyst's owner can review private drafts in the existing WA Chatbot screen. The mockup captures new individual WhatsApp messages from rollout, uses the assigned Hybrid bot's current published knowledge, and retains drafts for 30 days. Staff reply in Inbox while automated replies are suppressed for the scoped owner. Focused tests, isolated MariaDB, English and Arabic browser fixtures, and the production no-send smoke test passed. The first real inbound draft and signed-in owner browser acceptance remain open. The source, migration, release and rollback are in `DEPLOYMENT.md`.
