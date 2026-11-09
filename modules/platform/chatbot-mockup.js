@@ -92,6 +92,7 @@ async function tick(pool, { generate = input => require('./chatbot-runtime').pre
 
 function start(pool) {
   if (!enabled(tenant())) return;
+  require('./chatbot-followup-preview').start(pool);
   let lastCleanup = 0;
   const next = async () => {
     try {
@@ -160,6 +161,11 @@ function createRouter({ pool, authenticate }) {
     }
   };
   router.get('/', read((tenantId, before, _key, search) => list(pool, tenantId, before, search)));
+  router.get('/followups', read((tenantId, before, _key, source) => {
+    const followup = require('./chatbot-followup-preview');
+    if (!followup.enabled(tenantId) || !['','reviewed','scheduled'].includes(source)) return null;
+    return followup.list(pool, tenantId, before, source);
+  }));
   router.get('/conversations/:key', read(async (tenantId, before, key) => {
     if (!/^[a-f0-9]{64}$/.test(key)) return null;
     const data = await thread(pool, tenantId, key, before);

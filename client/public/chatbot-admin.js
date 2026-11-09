@@ -279,6 +279,15 @@
       #sx-live-reply-mockup .sx-mockup-empty.sx-mockup-centered{min-height:100%}
       #sx-live-reply-mockup .sx-mockup-footer{display:flex;align-items:center;gap:8px;min-height:49px;padding:10px 16px;border-top:1px solid var(--mock-line)}
       #sx-live-reply-mockup .sx-mockup-footer svg{width:16px;height:16px;color:var(--mock-accent)}
+      #sx-live-reply-mockup .sx-followups{overflow:auto;min-height:0;padding:clamp(12px,2vw,24px);background:var(--mock-canvas)}
+      #sx-live-reply-mockup .sx-followup-toolbar,#sx-live-reply-mockup .sx-followup-heading{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px}
+      #sx-live-reply-mockup .sx-followup-control{min-height:44px;padding:8px 11px;border:1px solid var(--mock-line);border-radius:10px;background:var(--mock-surface);color:var(--mock-text);font:inherit}
+      #sx-live-reply-mockup .sx-followup-control[aria-pressed=true]{background:var(--mock-tint);color:var(--mock-accent)}
+      #sx-live-reply-mockup .sx-followup-card{margin-block:12px;padding:14px;border:1px solid var(--mock-line);border-radius:12px;background:var(--mock-surface);overflow-wrap:anywhere}
+      #sx-live-reply-mockup .sx-followup-card a{color:var(--mock-accent);font-weight:600}
+      #sx-live-reply-mockup .sx-followup-pair{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin-block-start:10px}
+      #sx-live-reply-mockup .sx-followup-pair section{padding:11px;border-radius:10px;background:var(--mock-canvas)}
+      #sx-live-reply-mockup .sx-followup-pair p[dir=auto]{white-space:pre-wrap;margin-block-start:5px}
       @media(max-width:720px){
         #sx-live-reply-mockup{width:100%;height:100dvh;border:0;border-radius:0}
         #sx-live-reply-mockup .sx-mockup-top{padding:10px 12px;padding-block-start:max(10px,env(safe-area-inset-top));gap:8px}
@@ -291,13 +300,23 @@
         #sx-live-reply-mockup .sx-mockup-thread-head{padding-inline:12px}
         #sx-live-reply-mockup .sx-mockup-bubble{max-width:92%}
         #sx-live-reply-mockup .sx-mockup-footer{padding-block-end:max(10px,env(safe-area-inset-bottom))}
+        #sx-live-reply-mockup .sx-followup-pair{grid-template-columns:minmax(0,1fr)}
       }
     </style>
     <div class="sx-mockup-frame">
       <header class="sx-mockup-top"><span class="sx-mockup-brand">${icon('chat')}</span><div class="sx-mockup-title-block">
         <h2 id="sx-mockup-title">${esc(tr('Live Reply Mockup','محاكاة الردود المباشرة'))}</h2>
         <p class="sx-mockup-muted">${esc(tr('Private WhatsApp draft inbox','صندوق خاص لمسودات واتساب'))}</p>
-      </div>${button('close','close',tr('Close','إغلاق'),'autofocus')}</header>
+      </div><button type="button" class="sx-followup-control" data-mockup-followups aria-pressed="false">${esc(tr('Follow-ups','المتابعات'))}</button>${button('close','close',tr('Close','إغلاق'),'autofocus')}</header>
+      <section class="sx-followups" data-mockup-followup-panel hidden aria-label="${esc(tr('Follow-up drafts','مسودات المتابعة'))}">
+        <div class="sx-followup-toolbar"><div><strong>${esc(tr('Day 2 and Day 7 follow-up drafts','مسودات المتابعة في اليومين الثاني والسابع'))}</strong>
+          <p class="sx-mockup-muted">${esc(tr('Private review. Day 7 is held until a first follow-up is delivered.','مراجعة خاصة. تبقى متابعة اليوم السابع معلقة حتى تسليم المتابعة الأولى.'))}</p></div>
+          <select class="sx-followup-control" data-mockup-followup-source aria-label="${esc(tr('Filter follow-up drafts','تصفية مسودات المتابعة'))}">
+            <option value="">${esc(tr('All drafts','كل المسودات'))}</option><option value="reviewed">${esc(tr('Reviewed pilot','المراجعة التجريبية'))}</option><option value="scheduled">${esc(tr('New enquiries','الاستفسارات الجديدة'))}</option>
+          </select>${button('followup-refresh','refresh',tr('Refresh follow-ups','تحديث المتابعات'))}
+        </div><p class="sx-mockup-muted" role="status" data-mockup-followup-status></p>
+        <div data-mockup-followup-list></div><button type="button" class="sx-mockup-more" data-mockup-followup-more hidden>${esc(tr('More follow-ups','المزيد من المتابعات'))}</button>
+      </section>
       <div class="sx-mockup-layout">
         <section class="sx-mockup-list-pane" aria-label="${esc(tr('Conversations','المحادثات'))}">
           <div class="sx-mockup-tools"><strong>${esc(tr('Conversations','المحادثات'))}</strong>
@@ -351,6 +370,71 @@
       queued: tr('Queued','في قائمة الانتظار'), processing: tr('Preparing draft','جار إعداد المسودة'),
       ready: tr('Draft ready','المسودة جاهزة'), review: tr('Staff review','مراجعة الموظفين'), failed: tr('Draft failed','تعذر إعداد المسودة'),
     })[value] || '';
+    const followupPanel = element('followup-panel');
+    const followupStatus = element('followup-status');
+    const followupList = element('followup-list');
+    const followupMore = element('followup-more');
+    const followupSource = element('followup-source');
+    const followupRefresh = element('followup-refresh');
+    let followupCursor, followupRequest = 0;
+    const followupReason = reason => ({
+      QUIET_ENQUIRY: tr('Ready for review','جاهزة للمراجعة'),
+      WAITING_FOR_SILENCE: tr('Scheduled preview','معاينة مجدولة'),
+      CUSTOMER_REPLIED: tr('Customer replied','رد العميل'),
+      LEAD_PROGRESSED: tr('Lead progressed','تقدم العميل المحتمل'),
+      STAFF_FOLLOWED_UP: tr('Staff followed up','تابع أحد الموظفين'),
+      STAFF_OWNS_LEAD: tr('Staff handling','يتابع الموظفون هذه الحالة'),
+      COURSE_UNCLEAR: tr('Confirm the course','تحقق من الدورة'),
+      REVIEW_MEDIA: tr('Review the last attachment in Inbox','راجع آخر مرفق في صندوق الوارد'),
+      OPT_OUT: tr('Customer opted out','ألغى العميل المتابعة'),
+      NO_CUSTOMER_MESSAGE: tr('Customer message unavailable','رسالة العميل غير متاحة'),
+    })[reason] || '';
+    async function loadFollowups(append = false) {
+      const version = ++followupRequest;
+      const query = new URLSearchParams({ search: followupSource.value });
+      if (append && followupCursor) query.set('before', followupCursor);
+      followupMore.disabled = followupRefresh.disabled = true;
+      if (!append) { followupList.replaceChildren(); followupMore.hidden = true; }
+      followupStatus.textContent = tr('Loading follow-ups…','جار تحميل المتابعات…');
+      try {
+        const data = await request('/followups?' + query.toString());
+        if (version !== followupRequest || !dialog.open) return;
+        const copy = value => value ? `<p dir="auto">${esc(value)}</p>` : '';
+        const rows = data.items.map(item => {
+          const lead = '/pipeline/?view=detail&lead=' + encodeURIComponent(item.leadId);
+          return `<article class="sx-followup-card"><div class="sx-followup-heading"><div><strong dir="auto">${esc(item.label || tr('Customer','العميل'))}</strong>
+            <p dir="auto" class="sx-mockup-muted">${esc(item.course || tr('Course to be confirmed','الدورة بحاجة إلى تأكيد'))}</p></div>
+            <a href="${esc(lead)}" target="_blank" rel="noopener">${esc(tr('Open lead','فتح العميل المحتمل'))}</a></div>
+            <p class="sx-mockup-tag" data-status="${esc(item.status)}">${esc(followupReason(item.reason))}</p>
+            ${item.draftSource && item.status !== 'skipped' ? `<span class="sx-mockup-muted"> · ${esc(({
+              reviewed: tr('Reviewed copy','نص تمت مراجعته'), ai_selection: tr('AI-selected variant','صيغة اختارها الذكاء الاصطناعي'),
+              library: tr('Library variant','صيغة من المكتبة'),
+            })[item.draftSource] || '')}</span>` : ''}
+            ${item.dayTwoAt && item.status !== 'skipped' ? `<div class="sx-followup-pair">
+              <section><strong>${esc(tr('Day 2 draft','مسودة اليوم الثاني'))}</strong><p class="sx-mockup-muted">${esc(timestamp(item.dayTwoAt))}</p>${copy(item.firstDraft)}</section>
+              <section><strong>${esc(tr('Day 7 draft','مسودة اليوم السابع'))}</strong><p class="sx-mockup-muted">${esc(timestamp(item.daySevenAt))} · ${esc(tr('Held','معلقة'))}</p>${copy(item.secondDraft)}</section>
+            </div>` : ''}</article>`;
+        }).join('');
+        followupList.insertAdjacentHTML('beforeend', rows);
+        followupCursor = data.next;
+        followupMore.hidden = !data.next;
+        followupStatus.textContent = !append && !rows ? tr('No follow-ups in this view.','لا توجد متابعات في هذا العرض.') : '';
+      } catch {
+        if (version === followupRequest) followupStatus.textContent = tr('Could not load follow-ups. Try refreshing.','تعذر تحميل المتابعات. حاول التحديث.');
+      } finally {
+        if (version === followupRequest) followupMore.disabled = followupRefresh.disabled = false;
+      }
+    }
+    element('followups').onclick = event => {
+      const open = followupPanel.hidden;
+      followupPanel.hidden = !open;
+      dialog.querySelector('.sx-mockup-layout').hidden = open;
+      event.currentTarget.setAttribute('aria-pressed', String(open));
+      if (open) loadFollowups();
+    };
+    followupSource.onchange = () => loadFollowups();
+    followupRefresh.onclick = () => loadFollowups();
+    followupMore.onclick = () => loadFollowups(true);
     const empty = (title, detail = '', centered = false) => '<div class="sx-mockup-empty' + (centered ? ' sx-mockup-centered' : '') + '">'
       + '<span class="sx-mockup-empty-icon">' + icon('chat') + '</span><strong>' + esc(title) + '</strong>'
       + (detail ? '<p>' + esc(detail) + '</p>' : '') + '</div>';

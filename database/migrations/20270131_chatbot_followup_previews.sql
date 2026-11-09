@@ -1,0 +1,21 @@
+CREATE TABLE sx_chatbot_followup_previews (
+  id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+  tenant_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+  lead_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+  source ENUM('reviewed','scheduled') NOT NULL,
+  status ENUM('scheduled','ready','review','skipped') NOT NULL,
+  course_name VARCHAR(180) NULL,
+  reason VARCHAR(60) NULL,
+  last_customer_at DATETIME(3) NULL,
+  day_two_at DATETIME(3) NULL,
+  day_seven_at DATETIME(3) NULL,
+  first_draft VARCHAR(600) NULL,
+  second_draft VARCHAR(600) NULL,
+  draft_source ENUM('reviewed','ai_selection','library') NULL,
+  checked_at DATETIME(3) NOT NULL,
+  created_at DATETIME(3) NOT NULL,
+  PRIMARY KEY (id),
+  UNIQUE KEY uq_chatbot_followup_lead (tenant_id,lead_id),
+  KEY idx_chatbot_followup_scan (tenant_id,checked_at,id),
+  CONSTRAINT fk_chatbot_followup_tenant FOREIGN KEY (tenant_id) REFERENCES sx_tenants(id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

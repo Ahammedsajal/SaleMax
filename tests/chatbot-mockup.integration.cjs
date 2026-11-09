@@ -24,7 +24,7 @@ async function main() {
   try {
     const db = await pool.getConnection();
     try {
-      const names = ['20261001_platform_identity.sql', '20270130_chatbot_mockup_turns.sql'];
+      const names = ['20261001_platform_identity.sql', '20270130_chatbot_mockup_turns.sql', '20270131_chatbot_followup_previews.sql'];
       const migrations = discover(path.join(__dirname, '../database/migrations')).filter(item => names.includes(item.file));
       assert.deepEqual((await applyMigrations(db, migrations)).applied, names);
       assert.deepEqual((await applyMigrations(db, migrations)).skipped, names);
@@ -33,6 +33,7 @@ async function main() {
     const hash = createHash('sha256').update(uid).digest('hex');
     process.env.SALEMAX_CHATBOT_MOCKUP_TENANT_ID = tenant;
     process.env.SALEMAX_CHATBOT_MOCKUP_OWNER_HASH = hash;
+    process.env.SALEMAX_CHATBOT_FOLLOWUP_PREVIEW_SINCE = '2026-11-09 00:00:00';
     await pool.query("INSERT INTO sx_tenants(id,slug,name,category_key,category_version,status) VALUES (?,'demo','Demo','training_center',1,'active'),(?,'foreign','Foreign','training_center',1,'active')", [tenant, foreign]);
     await pool.query("INSERT INTO sx_identities(id,email_normalized,display_name,status) VALUES (?,'synthetic@example.test','Synthetic','active')", [identity]);
     await pool.query("INSERT INTO sx_memberships(id,tenant_id,identity_id,role) VALUES (?,?,?,'owner')", [member, tenant, identity]);
@@ -119,6 +120,22 @@ async function main() {
     assert.equal((await search('متعلم')).length, 1);
     assert.deepEqual(await search('%'), []);
     assert.equal((await fetch(url + '?search=a&search=b', { headers: { 'x-role': 'owner' } })).status, 400);
+    await pool.query('CREATE TABLE pipeline_leads (id CHAR(36) PRIMARY KEY,uid_hash CHAR(64),uid VARCHAR(191),learner_name VARCHAR(255),contact_name VARCHAR(255))');
+    const lead = randomUUID();
+    await pool.query('INSERT INTO pipeline_leads VALUES (?,?,?,?,?)', [lead, hash, uid, null, 'Synthetic learner']);
+    await pool.query(`INSERT INTO sx_chatbot_followup_previews
+      (tenant_id,lead_id,source,status,first_draft,second_draft,checked_at,created_at)
+      VALUES (?,?,'reviewed','ready','First follow-up','Held follow-up',UTC_TIMESTAMP(3),UTC_TIMESTAMP(3))`, [tenant, lead]);
+    const followups = url + '/followups?search=reviewed';
+    assert.equal((await fetch(followups)).status, 401);
+    assert.equal((await fetch(followups, { headers: { 'x-role': 'agent' } })).status, 403);
+    assert.equal((await fetch(followups, { headers: { 'x-role': 'owner', 'x-other': 'yes' } })).status, 404);
+    const privateDrafts = await fetch(followups, { headers: { 'x-role': 'owner' } });
+    assert.equal(privateDrafts.headers.get('cache-control'), 'private, no-store');
+    assert.deepEqual((await privateDrafts.json()).data.items.map(item => item.firstDraft), ['First follow-up']);
+    await pool.query("UPDATE sx_chatbot_followup_previews SET status='skipped' WHERE tenant_id=? AND lead_id=?", [tenant, lead]);
+    const skipped = await fetch(followups, { headers: { 'x-role': 'owner' } });
+    assert.equal((await skipped.json()).data.items[0].firstDraft, null);
     console.log('Mockup migration, deduplication, ordered draft state, tenant boundary and owner read API verified.');
   } finally {
     if (server) await new Promise(resolve => server.close(resolve));

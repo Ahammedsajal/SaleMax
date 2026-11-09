@@ -119,6 +119,24 @@ def configure_lead_report_period():
     ADD_SCOPE = False
 
 
+def configure_followup_preview():
+    global ACTIVE_OVERLAY, REPLACED_FILES, NEW_FILES, SCOPE_ENV, SLUG, ADD_SCOPE, LIVE_SOURCE_EDITS, MOCKUP_MIGRATION
+    ACTIVE_OVERLAY = '/opt/salemax/releases/lead-report-period-71ed6093d802-20261109/compose.lead-report-period.json'
+    REPLACED_FILES = {
+        'modules/platform/chatbot-mockup.js': '93c56187bdd05e864dce57b76b31d20127789cf1de1b89bd3563a65ad325476a',
+        'client/public/chatbot-admin.js': '04c52e4325296b7946093550f6bb4db136feb7a9df3109f92b32cc53f10ad9d6',
+        'client/public/training-sidebar.js': '58438e953a6d9c4975db6ee9f9ea06b5254dcab2b2ab3ad37deec524676b1d85',
+    }
+    LIVE_SOURCE_EDITS = {
+        'client/public/training-sidebar.js': (b'/chatbot-admin.js?v=20261109-mockup-inbox1', b'/chatbot-admin.js?v=20261109-followup-preview1'),
+    }
+    MOCKUP_MIGRATION = 'database/migrations/20270131_chatbot_followup_previews.sql'
+    NEW_FILES = ('modules/platform/chatbot-followup-preview.js', 'modules/platform/chatbot-followup-library.js', MOCKUP_MIGRATION)
+    SCOPE_ENV = 'SALEMAX_CHATBOT_MOCKUP_TENANT_ID'
+    SLUG = 'pro-catalyst-followup-preview'
+    ADD_SCOPE = False
+
+
 def apply_mockup_migration(source):
     script = """const fs = require('node:fs');
     const crypto = require('node:crypto');
@@ -292,7 +310,7 @@ def deploy(stage, commit):
     overlay = release / f'compose.{SLUG}.json'
     overlay_app = {'image': app['Config']['Image'], 'volumes': mounts}
     extra_env = {SCOPE_ENV: tenant_id} if ADD_SCOPE else {}
-    if MOCKUP_MIGRATION:
+    if SLUG == 'pro-catalyst-mockup':
         owner_check = """console.log = () => {};
         const db = require('/app/database/config').promise();
         require('/app/modules/platform/chatbot-owner-uid').legacyOwnerUidForTenant(db, process.argv[1])
@@ -302,6 +320,8 @@ def deploy(stage, commit):
         if not re.fullmatch(r'[a-f0-9]{64}', owner_hash):
             raise RuntimeError('Active owner scope could not be verified')
         extra_env.update(SALEMAX_CHATBOT_MOCKUP_TENANT_ID=tenant_id, SALEMAX_CHATBOT_MOCKUP_OWNER_HASH=owner_hash)
+    if SLUG == 'pro-catalyst-followup-preview':
+        extra_env['SALEMAX_CHATBOT_FOLLOWUP_PREVIEW_SINCE'] = time.strftime('%Y-%m-%d %H:%M:%S', time.gmtime())
     if extra_env:
         if set(extra_env) & live_env.keys():
             raise RuntimeError('A target environment override already exists')
@@ -429,7 +449,7 @@ def reset(backup):
 
 
 if __name__ == '__main__':
-    if len(sys.argv) == 4 and sys.argv[1] in ('deploy', 'deploy-admissions', 'deploy-name-question', 'deploy-knowledge', 'deploy-mockup', 'deploy-mockup-inbox', 'deploy-lead-report-period'):
+    if len(sys.argv) == 4 and sys.argv[1] in ('deploy', 'deploy-admissions', 'deploy-name-question', 'deploy-knowledge', 'deploy-mockup', 'deploy-mockup-inbox', 'deploy-lead-report-period', 'deploy-followup-preview'):
         if sys.argv[1] == 'deploy-admissions':
             configure_admissions()
         elif sys.argv[1] == 'deploy-name-question':
@@ -442,10 +462,12 @@ if __name__ == '__main__':
             configure_mockup_inbox()
         elif sys.argv[1] == 'deploy-lead-report-period':
             configure_lead_report_period()
+        elif sys.argv[1] == 'deploy-followup-preview':
+            configure_followup_preview()
         deploy(Path(sys.argv[2]), sys.argv[3])
     elif len(sys.argv) == 3 and sys.argv[1] == 'reset':
         reset(Path(sys.argv[2]))
-    elif len(sys.argv) == 3 and sys.argv[1] in ('restore', 'restore-admissions', 'restore-name-question', 'restore-knowledge', 'restore-mockup', 'restore-mockup-inbox', 'restore-lead-report-period'):
+    elif len(sys.argv) == 3 and sys.argv[1] in ('restore', 'restore-admissions', 'restore-name-question', 'restore-knowledge', 'restore-mockup', 'restore-mockup-inbox', 'restore-lead-report-period', 'restore-followup-preview'):
         if sys.argv[1] == 'restore-admissions':
             configure_admissions()
         elif sys.argv[1] == 'restore-name-question':
@@ -458,6 +480,8 @@ if __name__ == '__main__':
             configure_mockup_inbox()
         elif sys.argv[1] == 'restore-lead-report-period':
             configure_lead_report_period()
+        elif sys.argv[1] == 'restore-followup-preview':
+            configure_followup_preview()
         restore(Path(sys.argv[2]))
     else:
-        raise SystemExit('Usage: pro-catalyst-handover-release.py deploy[-admissions|-name-question|-knowledge|-mockup|-mockup-inbox|-lead-report-period] <stage> <commit> | reset <backup> | restore[-admissions|-name-question|-knowledge|-mockup|-mockup-inbox|-lead-report-period] <backup>')
+        raise SystemExit('Usage: pro-catalyst-handover-release.py deploy[-admissions|-name-question|-knowledge|-mockup|-mockup-inbox|-lead-report-period|-followup-preview] <stage> <commit> | reset <backup> | restore[-admissions|-name-question|-knowledge|-mockup|-mockup-inbox|-lead-report-period|-followup-preview] <backup>')
