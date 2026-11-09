@@ -103,6 +103,22 @@ def configure_mockup_inbox():
     ADD_SCOPE = False
 
 
+def configure_lead_report_period():
+    global ACTIVE_OVERLAY, REPLACED_FILES, SCOPE_ENV, SLUG, ADD_SCOPE
+    ACTIVE_OVERLAY = '/opt/salemax/releases/pro-catalyst-mockup-inbox-225e5dae2a26-20261109/compose.pro-catalyst-mockup-inbox.json'
+    REPLACED_FILES = {
+        'helper/pipeline/reports.js': '59c6f588c1725f210f3cc94598f635c6a854a73b3b80349523aecbabcaf5000a',
+        'routes/pipeline.js': '91dae787e6b147a491b661ce9068ce29c7c76316be6e09cea077be80e3dae6d6',
+        'client/public/pipeline/index.html': '19fa8bd46c774b96d07b2402fcd7be23ed4500e490eda6ce8d555722c36ac8ac',
+        'client/public/pipeline/reports.js': '0f6463213a84edd12e32763d013da191339da58c5349b1786886097e0c125a61',
+        'modules/platform/chatbot-runtime.js': '9917b1dcfdabed2cca28de4791d1f2099c916f358e87c4427aee14997678d822',
+        'modules/platform/chatbot-admissions-intake.js': '1dc9ba707c272603cef4be94457671cceb5b7f0ec77a2a041becc01880a4d858',
+    }
+    SCOPE_ENV = 'SALEMAX_CHATBOT_MOCKUP_TENANT_ID'
+    SLUG = 'lead-report-period'
+    ADD_SCOPE = False
+
+
 def apply_mockup_migration(source):
     script = """const fs = require('node:fs');
     const crypto = require('node:crypto');
@@ -413,7 +429,7 @@ def reset(backup):
 
 
 if __name__ == '__main__':
-    if len(sys.argv) == 4 and sys.argv[1] in ('deploy', 'deploy-admissions', 'deploy-name-question', 'deploy-knowledge', 'deploy-mockup', 'deploy-mockup-inbox'):
+    if len(sys.argv) == 4 and sys.argv[1] in ('deploy', 'deploy-admissions', 'deploy-name-question', 'deploy-knowledge', 'deploy-mockup', 'deploy-mockup-inbox', 'deploy-lead-report-period'):
         if sys.argv[1] == 'deploy-admissions':
             configure_admissions()
         elif sys.argv[1] == 'deploy-name-question':
@@ -424,10 +440,12 @@ if __name__ == '__main__':
             configure_mockup()
         elif sys.argv[1] == 'deploy-mockup-inbox':
             configure_mockup_inbox()
+        elif sys.argv[1] == 'deploy-lead-report-period':
+            configure_lead_report_period()
         deploy(Path(sys.argv[2]), sys.argv[3])
     elif len(sys.argv) == 3 and sys.argv[1] == 'reset':
         reset(Path(sys.argv[2]))
-    elif len(sys.argv) == 3 and sys.argv[1] in ('restore', 'restore-admissions', 'restore-name-question', 'restore-knowledge', 'restore-mockup', 'restore-mockup-inbox'):
+    elif len(sys.argv) == 3 and sys.argv[1] in ('restore', 'restore-admissions', 'restore-name-question', 'restore-knowledge', 'restore-mockup', 'restore-mockup-inbox', 'restore-lead-report-period'):
         if sys.argv[1] == 'restore-admissions':
             configure_admissions()
         elif sys.argv[1] == 'restore-name-question':
@@ -438,6 +456,8 @@ if __name__ == '__main__':
             configure_mockup()
         elif sys.argv[1] == 'restore-mockup-inbox':
             configure_mockup_inbox()
+        elif sys.argv[1] == 'restore-lead-report-period':
+            configure_lead_report_period()
         restore(Path(sys.argv[2]))
     else:
-        raise SystemExit('Usage: pro-catalyst-handover-release.py deploy[-admissions|-name-question|-knowledge|-mockup|-mockup-inbox] <stage> <commit> | reset <backup> | restore[-admissions|-name-question|-knowledge|-mockup|-mockup-inbox] <backup>')
+        raise SystemExit('Usage: pro-catalyst-handover-release.py deploy[-admissions|-name-question|-knowledge|-mockup|-mockup-inbox|-lead-report-period] <stage> <commit> | reset <backup> | restore[-admissions|-name-question|-knowledge|-mockup|-mockup-inbox|-lead-report-period] <backup>')

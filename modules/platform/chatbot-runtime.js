@@ -876,7 +876,7 @@ async function previewMockupTurn({ uid, tenantId, chatId, channelKind, channelRe
     .some(prefix => businessContext.normalized(message) === prefix + businessContext.normalized(name));
   const storedName = capture.customerName(lead?.learner_name || lead?.contact_name, true)?.split(/\s+/u)[0];
   const intake = admissions.advance({ prior: previousIntake, text: message, name, nameOnly, savedName: storedName,
-    savedStart: admissions.savedStartLabel(qualification, language), language });
+    savedStart: admissions.savedStartLabel(qualification, language), language, recognizeImmediate: true });
   const route = businessContext.controlRoute(message, profile.config, prior, facts);
   const localReply = route === 'answer' && (acknowledgement || intake.answerOnly);
   const guided = !localReply && (profile.engine === 'guided' || route !== 'answer' ||
@@ -892,7 +892,10 @@ async function previewMockupTurn({ uid, tenantId, chatId, channelKind, channelRe
     answer = { ...polished, route: route === 'answer' ? 'guided' : route, handedOff: polished.handoff };
     if (polished.handoff) return { ...handoff(polished.handoffReason || 'HUMAN_REVIEW_REQUIRED', polished.state), reply: polished.reply };
   } else if (localReply) {
-    answer = { reply: acknowledgement || (language === 'ar' ? 'شكرا، تم تسجيل ردك.' : 'Thanks, I’ve noted your answer.'), state: prior, route: 'admissions-intake' };
+    const intakeReply = intake.start?.window === 'asap' && intake.start.only
+      ? (language === 'ar' ? 'شكرًا، سجلت أنك تود البدء في أقرب وقت ممكن.' : 'Thanks, I’ve noted that you’d like to start as soon as possible.')
+      : (language === 'ar' ? 'شكرا، تم تسجيل ردك.' : 'Thanks, I’ve noted your answer.');
+    answer = { reply: acknowledgement || intakeReply, state: prior, route: 'admissions-intake' };
   } else if (profile.config.aiDataProcessingConfirmed !== true) {
     return { revision, reason: 'AI_DATA_PROCESSING_ACK_REQUIRED' };
   } else {
@@ -903,14 +906,15 @@ async function previewMockupTurn({ uid, tenantId, chatId, channelKind, channelRe
   if (!acknowledgement) answer = admissions.planReply(answer, leadInfo);
   if (answer.handedOff) return handoff(answer.code || 'HUMAN_REVIEW_REQUIRED', answer.state || prior);
   if (!answer.reply) return { revision, reason: 'MOCKUP_EMPTY_REPLY' };
-  const next = { ...answer.state, greeted: true, mockupCourseInterest: courseInterest, mockupIntake: intake.state };
+  const next = { ...answer.state, greeted: true, mockupCourseInterest: courseInterest,
+    mockupIntake: { ...intake.state, ...(intake.start ? { preferredStart: intake.start } : {}) } };
   const question = (guided && !prior.greeted) || (acknowledgement && previousIntake.waiting)
     ? null : { ...leadInfo, intake: { ...intake, session: next } };
   const standalone = capture.standaloneNamePrompt(question);
   const main = capture.addQuestion(answer.reply, question, profile.config, pack.guidedContentDefaults);
   if (standalone || main !== answer.reply) {
     const key = intake.key + 'Asked';
-    next.mockupIntake = { ...intake.state, waiting: intake.key, [key]: Number(intake.state[key] || 0) + 1 };
+    next.mockupIntake = { ...next.mockupIntake, waiting: intake.key, [key]: Number(intake.state[key] || 0) + 1 };
   }
   if (!localReply) next.recentConversation = [...(prior.recentConversation || []),
     { role: 'user', text: message.slice(0, 400) }, { role: 'assistant', text: answer.reply.slice(0, 500) }].slice(-4);

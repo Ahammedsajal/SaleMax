@@ -39,7 +39,8 @@ test('reports is integrated as a bilingual view in the existing pipeline screen'
   assert.match(reports, /cohortShare:'of new leads'/);
   assert.match(reports, /cohortShare:'من العملاء الجدد'/);
   assert.match(reports, /Math\.round\(Number\(value\|\|0\)\*100\/cohortSize\)/);
-  assert.match(html, /pipeline\.css\?v=20261023-lead-reports-ui1/);
+  assert.match(html, /pipeline\.css\?v=[^"]+/);
+  assert.match(reports, /<output[^>]*id="reportFilteredTotal"/);
   assert.match(html, /reports\.js\?v=[^"]+/);
   assert.match(fs.readFileSync(path.join(root,'client/public/pipeline/pipeline.css'),'utf8'),/journey-cohort \.journey-stage small/);
   assert.match(reports, /reportPrevious/);

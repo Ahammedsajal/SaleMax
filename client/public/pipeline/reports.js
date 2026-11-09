@@ -55,6 +55,8 @@
   Object.assign(copy.ar,{filterTitle:'فترة التقرير',filterHint:'اختر التواريخ أو استخدم فترة سريعة.',presetToday:'اليوم',presetWeek:'آخر ٧ أيام',presetMonth:'هذا الشهر',summaryClickHint:'فتح قائمة العملاء المطابقة',drilldown_created:'العملاء الواردون اليوم',drilldown_month_created:'العملاء الواردون هذا الشهر',drilldown_month_converted:'المبيعات المحولة هذا الشهر',drilldown_live:'العملاء النشطون',drilldown_unassigned:'عملاء غير مسندين',drilldown_attended:'العملاء الذين تمت متابعتهم',scopeUnavailableDetail:'قائمة العملاء خارج نطاق صلاحياتك.'});
   Object.assign(copy.en,{primaryLoadFailed:'Lead activity could not be loaded. Your data has not changed.',partialLoad:'Some report sections are unavailable. Available results are still shown.',summaryUnavailable:'Daily totals are unavailable. Try loading the report again.',journeyUnavailable:'Team journey details are unavailable.',filtersUnavailable:'QR filter options could not be loaded.',requestCode:'Request reference'});
   Object.assign(copy.ar,{primaryLoadFailed:'تعذر تحميل نشاط العملاء. لم تتغير بياناتك.',partialLoad:'بعض أقسام التقرير غير متاحة. تم عرض النتائج المتوفرة.',summaryUnavailable:'الإجماليات اليومية غير متاحة. أعد تحميل التقرير.',journeyUnavailable:'تفاصيل رحلة الفريق غير متاحة.',filtersUnavailable:'تعذر تحميل خيارات تصفية QR.',requestCode:'مرجع الطلب'});
+  copy.en.filteredLeadTotal = 'Total leads in selected period';
+  copy.ar.filteredLeadTotal = 'إجمالي العملاء المحتملين في الفترة المحددة';
   const t = key => (arabic()?copy.ar:copy.en)[key] || key;
   const journeyStageTitle=item=>arabic()?({training_invoice_issued:'تم البيع وإصدار الفاتورة',training_payment_received:'تم استلام الدفعة',training_course_started:'بدأت الدورة',training_fully_paid:'تم السداد بالكامل',training_course_completed:'اكتملت الدورة',training_certificate_issued:'صدرت الشهادة'}[item.stageKey]||item.title):item.title;
   const outcomeLabel = key => (arabic()?copy.ar:copy.en).outcomesMap[key] || key || '—';
@@ -71,7 +73,7 @@
   const formatWindowDate = (value,end=false) => value ? new Intl.DateTimeFormat(arabic()?'ar-QA':'en-QA',{dateStyle:'medium',timeZone:'Asia/Qatar'}).format(new Date(Date.parse(value.replace(' ','T')+'Z')-(end?1:0))) : '—';
   const token = () => localStorage.getItem('wacrm_user') || localStorage.getItem('wacrm_agent');
   const initialTo=qatarToday(),initialFrom=(()=>{const d=new Date(`${initialTo}T12:00:00Z`);d.setUTCDate(d.getUTCDate()-6);return d.toISOString().slice(0,10);})();
-  const state = {page:1,report:null,journey:null,summary:null,issues:[],from:initialFrom,to:initialTo,assignment:'',qrInstanceId:'',qrInstances:[],sequence:0,period:'daily',at:initialTo,drilldown:null,drilldownPage:1,drilldownSequence:0,taskPage:1,taskPeriod:'all',taskSequence:0,taskTimezone:'Asia/Qatar',tasks:null,schedules:null,scheduleError:'',scheduleSequence:0};
+  const state = {page:1,report:null,journey:null,summary:null,issues:[],from:initialFrom,to:initialTo,assignment:'',qrInstanceId:'',qrInstances:[],sequence:0,drilldown:null,drilldownPage:1,drilldownSequence:0,taskPage:1,taskPeriod:'all',taskSequence:0,taskTimezone:'Asia/Qatar',tasks:null,schedules:null,scheduleError:'',scheduleSequence:0};
   const host = $('#reports'), taskHost = $('#followups'), toolbar = $('.toolbar');
   if (!host || !$('#reportsMode')) return;
 
@@ -89,10 +91,11 @@
     if(reports && !state.report) load();
     if(followups) loadFollowUps();
   }
-  function shell(content) {
+  function shell(content, { loading = false } = {}) {
     const scope=agentSession()?t('agentScope'):t('ownerScope');
+    const total=loading?'…':state.summary?.totalLeads?.toLocaleString(arabic()?'ar-QA':'en-QA')??'—';
     return `<div class="report-head"><div><h2>${t('title')}</h2><p>${t('subtitle')}</p><span class="report-scope">${scope}</span></div></div>
-      <form class="report-filters report-filter-panel" id="reportFilters"><div class="report-filter-heading"><div><strong>${t('filterTitle')}</strong><small>${t('filterHint')}</small></div><div class="report-filter-presets"><button type="button" data-report-preset="today">${t('presetToday')}</button><button type="button" data-report-preset="week">${t('presetWeek')}</button><button type="button" data-report-preset="month">${t('presetMonth')}</button></div></div><div class="report-filter-fields"><label>${t('fromDate')}<input name="from" type="date" value="${escape(state.from)}" required></label><span class="report-filter-to">→</span><label>${t('toDate')}<input name="to" type="date" value="${escape(state.to)}" required></label><label>${t('assignmentFilter')}<select name="assignment"><option value="">${t('allAssignments')}</option><option value="assigned">${t('assignedTransferred')}</option><option value="unassigned">${t('unassigned')}</option></select></label><label>${t('qrNumberFilter')}<select name="qrInstanceId"><option value="">${t('allQrNumbers')}</option>${state.qrInstances.map(item=>`<option value="${escape(item.id)}">${escape(item.number||item.title||item.id)}</option>`).join('')}</select></label><button class="primary" type="submit">${t('apply')}</button></div></form>${content}`;
+      <form class="report-filters report-filter-panel" id="reportFilters"><div class="report-filter-heading"><div><strong>${t('filterTitle')}</strong><small>${t('filterHint')}</small><output class="report-scope" id="reportFilteredTotal" aria-live="polite">${t('filteredLeadTotal')} · <b>${escape(total)}</b></output></div><div class="report-filter-presets"><button type="button" data-report-preset="today">${t('presetToday')}</button><button type="button" data-report-preset="week">${t('presetWeek')}</button><button type="button" data-report-preset="month">${t('presetMonth')}</button></div></div><div class="report-filter-fields"><label>${t('fromDate')}<input name="from" type="date" value="${escape(state.from)}" required></label><span class="report-filter-to">→</span><label>${t('toDate')}<input name="to" type="date" value="${escape(state.to)}" required></label><label>${t('assignmentFilter')}<select name="assignment"><option value="">${t('allAssignments')}</option><option value="assigned">${t('assignedTransferred')}</option><option value="unassigned">${t('unassigned')}</option></select></label><label>${t('qrNumberFilter')}<select name="qrInstanceId"><option value="">${t('allQrNumbers')}</option>${state.qrInstances.map(item=>`<option value="${escape(item.id)}">${escape(item.number||item.title||item.id)}</option>`).join('')}</select></label><button class="primary" type="submit">${t('apply')}</button></div></form>${content}`;
   }
   const ownerSession=()=>!agentSession();
   function scheduleSection(){
@@ -119,7 +122,7 @@
     };
     return `<section class="report-schedules"><div class="report-schedule-heading"><div><h3>${t('schedulesTitle')}</h3><p class="report-state">${t('schedulesHint')}</p></div></div><div class="report-schedule-grid">${['daily','weekly','monthly'].map(period=>{const row=rows.find(item=>item.period===period),run=row?.latestRun;return `<form class="report-schedule-card" data-report-schedule="${period}"><h4>${t(period)}</h4>${row?`<p class="report-state">${row.status==='paused'?escape(t('schedulePausedStatus')):`${escape(t('scheduleNext'))}: ${escape(formatDate(row.nextRunAt))}`} · v${escape(row.revision)}</p>`:''}<p class="report-state">${escape(runLabel(run))}</p><input type="hidden" name="period" value="${period}"><input type="hidden" name="expectedRevision" value="${row?row.revision:0}"><label>${t('scheduleTimezone')}<select name="timezone" required>${window.salemaxTimeZoneOptions.options(row?.timezone||'Asia/Qatar',t('scheduleTimezonePlaceholder'))}</select></label><label>${t('scheduleTime')}<input name="localTime" type="time" value="${escape(row?.localTime||(period==='daily'?'20:00':'08:00'))}" required></label><label class="report-schedule-check"><input name="emailEnabled" type="checkbox" ${row?.emailEnabled?'checked':''}> ${t('scheduleEmail')}</label><label class="report-schedule-check"><input name="whatsappEnabled" type="checkbox" ${row?.whatsappEnabled?'checked':''}> ${t('scheduleWhatsApp')}</label><label class="report-schedule-check"><input name="paused" type="checkbox" ${row?.status==='paused'?'checked':''}> ${t('schedulePaused')}</label><button class="primary" type="submit">${t('saveSchedule')}</button><p class="report-schedule-status">${deliveryStatus(row)}</p></form>`;}).join('')}</div></section>`;
   }
-  function loading() { host.innerHTML=shell(`<div class="report-state" role="status">${t('loading')}</div>`);bindFilters(); }
+  function loading() { host.innerHTML=shell(`<div class="report-state" role="status">${t('loading')}</div>`,{loading:true});bindFilters(); }
   function errorState(error) { const code=error?.code||error?.status||'';host.innerHTML=shell(`<section class="report-load-error" role="alert"><span class="report-error-mark" aria-hidden="true">!</span><div><h3>${t('primaryLoadFailed')}</h3><p>${t('failed')}</p>${code?`<small>${t('requestCode')}: ${escape(code)}</small>`:''}<button class="report-retry" type="button" id="reportRetry">${t('retry')}</button></div></section>`);bindFilters();bindScheduleForms();$('#reportRetry').onclick=load; }
   function bindFilters() {
     const form=$('#reportFilters');form.elements.from.value=state.from;form.elements.to.value=state.to;form.elements.assignment.value=state.assignment;form.elements.qrInstanceId.value=state.qrInstanceId;
@@ -162,7 +165,7 @@
       <nav class="report-pagination" aria-label="Report pages"><button type="button" id="reportPrevious" ${report.page<=1?'disabled':''}>${t('previous')}</button><span>${t('page')} ${escape(report.page)} · ${report.total} ${t('of')} ${Math.max(1,Math.ceil(report.total/report.limit))}</span><button type="button" id="reportNext" ${report.hasMore?'':'disabled'}>${t('next')}</button></nav>`:`<div class="report-state">${t('empty')}</div>`;
     const current=range?.current||{},summaryCards=`<section class="report-snapshot" aria-labelledby="reportSnapshotTitle"><div class="report-snapshot-heading"><div><h3 id="reportSnapshotTitle">${t('liveSummaryTitle')}</h3><p>${escape(fmtDay(qatarToday()))}</p></div></div><div class="report-kpis report-snapshot-kpis">${summaryMetric(t('todayTotal'),current.today,'created')}${summaryMetric(t('monthTotal'),current.month,'month_created')}${summaryMetric(t('convertedMonth'),current.salesConvertedMonth,'month_converted')}${summaryMetric(t('liveLeadsNow'),current.live,'live')}${summaryMetric(t('unassignedTotal'),current.unassigned,'unassigned')}</div></section>`;
     const drilldownHtml=state.drilldown?renderDrilldown(state.drilldown):'';
-    const detailsHtml=`<details class="report-more"><summary>${t('moreDetails')}</summary>${ownerSession()?scheduleSection():''}${journeyHtml}${cohortHtml}${journeyActivityHtml}<div class="report-kpis">${metrics.map(([key,value])=>metric(t(key),Number(value||0).toLocaleString(arabic()?'ar-QA':'en-QA'))).join('')}</div>${outcomeHtml}${financeHtml}<h3>${escape(t('title'))} · ${escape(fmtDay(state.to))}</h3>${state.report?.items?.length?`<button class="report-export" type="button" id="reportExport">${t('exportPage')}</button>`:''}${listHtml}</details>`;
+    const detailsHtml=`<details class="report-more"><summary>${t('moreDetails')}</summary>${ownerSession()?scheduleSection():''}${journeyHtml}${cohortHtml}${journeyActivityHtml}<div class="report-kpis">${metrics.map(([key,value])=>metric(t(key),Number(value||0).toLocaleString(arabic()?'ar-QA':'en-QA'))).join('')}</div>${outcomeHtml}${financeHtml}<h3>${escape(t('title'))} · ${escape(periodText)}</h3>${state.report?.items?.length?`<button class="report-export" type="button" id="reportExport">${t('exportPage')}</button>`:''}${listHtml}</details>`;
     const issueBanner=state.issues.length?`<div class="report-partial-alert" role="status"><span aria-hidden="true">i</span><div><strong>${t('partialLoad')}</strong><small>${state.issues.map(key=>t(key)).map(escape).join(' · ')}</small></div></div>`:'';
     host.innerHTML=shell(`${issueBanner}<p class="report-period">${escape(fmtDay(state.from))} – ${escape(fmtDay(state.to))}</p>${summaryCards}<section class="report-primary-section"><h3>${t('dailyLeads')}</h3>${dailyTable}</section><section class="report-primary-section"><h3>${t('agentAttendance')}</h3>${agentTable}</section>${drilldownHtml}${detailsHtml}`);
     const dialog=$('.report-lead-dialog',host);if(dialog&&!dialog.open)try{dialog.showModal();}catch(_){}
@@ -215,7 +218,7 @@
     };
     const csv='\uFEFF'+[headers,...rows].map(row=>row.map(cell).join(',')).join('\r\n');
     const blob=new Blob([csv],{type:'text/csv;charset=utf-8'}),url=URL.createObjectURL(blob),link=document.createElement('a');
-    link.href=url;link.download=`7network-activity-${state.period}-${state.at}-page-${report.page}.csv`;link.hidden=true;
+    link.href=url;link.download=`7network-activity-${state.from}-to-${state.to}-page-${report.page}.csv`;link.hidden=true;
     document.body.appendChild(link);link.click();link.remove();setTimeout(()=>URL.revokeObjectURL(url),1000);
     const toast=$('#toast');if(toast){toast.textContent=t('exportReady');toast.classList.add('show');setTimeout(()=>toast.classList.remove('show'),2500);}
   }
@@ -223,17 +226,19 @@
     const request=++state.sequence;
     const existing=$('#reportFilters');
     if(existing){state.from=existing.elements.from.value||state.from;state.to=existing.elements.to.value||qatarToday();}
-    state.at=state.to;
-    const period=state.period,at=state.at;
+    state.summary=null;
     loading();
     try {
       const bearer=token();if(!bearer)throw new Error('auth');
-      const query=new URLSearchParams({period,at,page:String(state.page),limit:'25',assignment:state.assignment,qrInstanceId:state.qrInstanceId}),rangeQuery=new URLSearchParams({from:state.from,to:state.to,assignment:state.assignment,qrInstanceId:state.qrInstanceId});
+      const rangeQuery=new URLSearchParams({from:state.from,to:state.to,assignment:state.assignment,qrInstanceId:state.qrInstanceId});
+      const query=new URLSearchParams(rangeQuery);
+      query.set('page',String(state.page));
+      query.set('limit','25');
       const headers={Authorization:`Bearer ${bearer}`,'Accept':'application/json'};
       const requestPart=async(url)=>{try{const response=await fetch(url,{headers}),body=await response.json().catch(()=>({}));if(!response.ok||!body.success)throw Object.assign(new Error(body.message||'REPORT_REQUEST_FAILED'),{code:body.code||response.status});return {data:body.data};}catch(error){return {error};}};
       const [activity,journey,summary,filters]=await Promise.all([
         requestPart('/api/pipeline/reports/activity?'+query),
-        requestPart('/api/pipeline/reports/journey?'+query),
+        requestPart('/api/pipeline/reports/journey?'+rangeQuery),
         requestPart('/api/pipeline/reports/summary?'+rangeQuery),
         requestPart('/api/pipeline/filter-options')
       ]);

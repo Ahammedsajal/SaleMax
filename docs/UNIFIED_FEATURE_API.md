@@ -9,6 +9,7 @@ business feature. Add future changes to that implementation once.
 | ChatGPT MCP account connections and OAuth consent | `/api/workspace/chatgpt` | None; MCP protocol at `/mcp` |
 | Inbox course replies | `/api/workspace/inbox/course-replies` | `/api/inbox/course-replies`, `/api/agent/course-replies` |
 | Lead-linked Inbox unread state | `/api/workspace/inbox/lead-status?chatId=…` | `/api/inbox/lead-status?chatId=…` |
+| Lead Reports and selected-period totals | `/api/workspace/pipeline/reports/summary`, `/reports/activity`, `/reports/journey` under the same Pipeline prefix | `/api/pipeline/reports/*`. Interactive reports share inclusive `from` and `to` dates in the workspace timezone. |
 | QR Inbox groups | `/api/workspace/inbox/groups` | `/api/inbox/groups`, `/api/agent/inbox/groups` |
 | Next active task for a lead | `/api/workspace/tasks/lead/:leadId/next` | `/api/pipeline/tasks/lead/:leadId/next`, `/api/user/training/tasks/lead/:leadId/next` |
 | Phonebook | `/api/workspace/phonebook` | `/api/phonebook/workspace`, `/api/agent/phonebook` |

@@ -33,6 +33,18 @@ test('confirms saved details one at a time and requests replacements when declin
   assert.equal(corrected.state.startConfirmed, true);
 });
 
+test('mockup recognizes an immediate start before it has asked for a start date', () => {
+  for (const [text, language] of [['Immediately', 'en'], ['فورًا', 'ar']]) {
+    const result = advance({ prior: { waiting: 'confirmName' }, text, name: text, nameOnly: true,
+      savedName: 'Nora', language, recognizeImmediate: true });
+    assert.equal(result.start.window, 'asap');
+    assert.equal(result.answerOnly, true);
+    assert.equal(result.state.startConfirmed, true);
+    assert.equal(result.state.nameConfirmed, undefined);
+    assert.equal(result.key, 'confirmName');
+  }
+});
+
 test('provider timeout continues short intake, then hands over after saved answers', () => {
   const original = { handedOff: true, code: 'AI_PROVIDER_TIMEOUT' };
   const info = { courseInterest: 'marine course', language: 'en', intake: { session: {}, key: 'name' } };

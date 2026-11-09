@@ -41,6 +41,7 @@ test('training-center managers can load lead summaries while 7Network Sales stil
   const pool={async getConnection(){return connection;}};
   const summary=await getLeadReportSummary({pool,uid:'synthetic-owner',role:'manager',from:'2026-10-01',to:'2026-10-01'});
   assert.equal(summary.daily.length,1);
+  assert.equal(summary.totalLeads,summary.daily[0].total);
   assert.equal(summary.current.unassigned,null);
   await assert.rejects(getLeadReportSummary({pool,uid:'synthetic-owner',role:'manager',categoryKey:'7network_sales',from:'2026-10-01',to:'2026-10-01'}),{status:403});
 });
@@ -92,7 +93,7 @@ test('owner finance separates period cash from invoice cohorts and flags, rather
 test('journey report combines current pipeline stages, period sources and agent sales credit',async()=>{
   const queries=[];
   const connection={async beginTransaction(){},async commit(){},async rollback(){},release(){},async query(sql){queries.push(sql);
-    if(sql.startsWith('CREATE TEMPORARY TABLE')||sql.startsWith('DELETE FROM sx_report_lead_scope')||sql.startsWith('INSERT INTO sx_report_lead_scope'))return [[],[]];
+    if(sql.startsWith('CREATE TEMPORARY TABLE')||sql.startsWith('DROP TEMPORARY TABLE'))return [[],[]];
     if(sql.includes('FROM pipeline_stages'))return [[{stageKey:'new',title:'New',stageType:'open',position:0,total:'2',cohortTotal:'1'},{stageKey:'won',title:'Won',stageType:'won',position:4,total:'1',cohortTotal:'1'}]];
     if(sql.includes('GROUP BY l.source_type'))return [[{sourceType:'whatsapp',origin:'whatsapp',total:'2'}]];
     if(sql.includes('WITH cohort_leads AS'))return [[{new_leads:2,attended:2,interested:1,follow_up:1,sales_converted:1,invoices_issued:1,payment_received:1,course_started:1,fully_paid:1,course_completed:1,certificate_issued:1}]];
@@ -103,7 +104,11 @@ test('journey report combines current pipeline stages, period sources and agent 
     if(sql.includes('AS enrolled'))return [[{enrolled:2,course_started:1,course_completed:1,certificates_issued:1,fully_paid:1}]];
     throw new Error(`Unexpected query: ${sql}`);
   }};
-  const report=await getJourneyReport({pool:{async getConnection(){return connection;}},uid:'business-owner',role:'owner',period:'daily',at:'2026-10-01',assignment:'assigned',qrInstanceId:17});
+  const report=await getJourneyReport({pool:{async getConnection(){return connection;}},uid:'business-owner',role:'owner',from:'2026-10-01',to:'2026-10-07',assignment:'assigned',qrInstanceId:17});
+  assert.equal(report.from,'2026-09-30 21:00:00.000');
+  assert.equal(report.to,'2026-10-07 21:00:00.000');
+  assert.match(queries[0],/AS SELECT l\.id AS lead_id/);
+  assert.equal(queries.at(-1),'DROP TEMPORARY TABLE IF EXISTS sx_report_lead_scope');
   assert.deepEqual(report.summary,{newLeads:2,leadsAttended:2,stageChanges:3,salesConverted:1,salesClosedByAgents:1,openLeads:2,wonLeads:1,lostLeads:0});
   assert.equal(report.stages[0].total,2);assert.equal(report.sources[0].total,2);
   assert.equal(report.stages[0].cohortTotal,1);
@@ -127,8 +132,7 @@ test('journey report combines current pipeline stages, period sources and agent 
   assert.equal((cohortJourneyQuery.match(/e\.legacy_uid COLLATE utf8mb4_general_ci=c\.uid COLLATE utf8mb4_general_ci/g)||[]).length,7);
   assert.match(queries.find(sql=>sql.includes('payment_receipts_issued')),/sx_training_receipts/);
   assert.match(queries.find(sql=>sql.includes('payment_receipts_issued')),/sx_training_enrollment_events/);
-  assert.equal(queries.length,11);
-  assert.match(queries[2],/l.owner_agent_id IS NOT NULL/);assert.match(queries[2],/qif.id = \?/);
+  assert.match(queries[0],/l.owner_agent_id IS NOT NULL/);assert.match(queries[0],/qif.id = \?/);
   for(const sql of queries.filter(item=>item.includes('FROM pipeline_stages')||item.includes('GROUP BY l.source_type')||item.includes('AS new_leads')||item.includes('FROM agents a')||item.includes("JSON_EXTRACT(pa.details,'$.stageTo')")))assert.match(sql,/sx_report_lead_scope/);
 });
 

@@ -321,7 +321,7 @@ router.get("/reports/activity", async (req,res)=>{
     const data=await pipelineReports.getActivityReport({
       pool:require("../database/config.js").promise(),uid:req.pipelineActor.uid,
       role:req.pipelineActor.role,agentId:req.pipelineActor.agentId,scopeAgentIds:req.pipelineActor.scopeAgentIds,
-      period:req.query.period,at:req.query.at,timezone:req.pipelineActor.timezone,
+      period:req.query.period,at:req.query.at,from:req.query.from,to:req.query.to,timezone:req.pipelineActor.timezone,
       page:req.query.page===undefined?1:Number(req.query.page),limit:req.query.limit===undefined?50:Number(req.query.limit),assignment:req.query.assignment,qrInstanceId:req.query.qrInstanceId,
     });
     res.setHeader('Cache-Control','no-store');res.json({success:true,data});
@@ -339,7 +339,7 @@ router.get('/reports/leads',async(req,res)=>{
 });
 
 router.get('/reports/journey',async(req,res)=>{
-  try{const pool=require('../database/config.js').promise();await trainingLeadJourney.reconcileExisting(pool,{uid:req.pipelineActor.uid,categoryKey:req.pipelineActor.categoryKey});const data=await pipelineReports.getJourneyReport({pool,uid:req.pipelineActor.uid,role:req.pipelineActor.role,agentId:req.pipelineActor.agentId,scopeAgentIds:req.pipelineActor.scopeAgentIds,categoryKey:req.pipelineActor.categoryKey,period:req.query.period,at:req.query.at,timezone:req.pipelineActor.timezone,assignment:req.query.assignment,qrInstanceId:req.query.qrInstanceId});res.setHeader('Cache-Control','no-store');res.json({success:true,data});}
+  try{const pool=require('../database/config.js').promise();await trainingLeadJourney.reconcileExisting(pool,{uid:req.pipelineActor.uid,categoryKey:req.pipelineActor.categoryKey});const data=await pipelineReports.getJourneyReport({pool,uid:req.pipelineActor.uid,role:req.pipelineActor.role,agentId:req.pipelineActor.agentId,scopeAgentIds:req.pipelineActor.scopeAgentIds,categoryKey:req.pipelineActor.categoryKey,period:req.query.period,at:req.query.at,from:req.query.from,to:req.query.to,timezone:req.pipelineActor.timezone,assignment:req.query.assignment,qrInstanceId:req.query.qrInstanceId});res.setHeader('Cache-Control','no-store');res.json({success:true,data});}
   catch(error){fail(res,error);}
 });
 

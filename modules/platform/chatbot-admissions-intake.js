@@ -7,6 +7,7 @@ const choices = {
   later: { en: 'later', ar: 'لاحقا' },
   flexible: { en: 'a flexible start date', ar: 'موعد بداية مرن' },
 };
+const immediateStart = /^(?:asap|as soon as possible|immediately|right away|فوراً?|فورًا|في أقرب وقت(?: ممكن)?)[.!،\s]*$/iu;
 
 function enabled(tenantId) {
   return Boolean(tenantId && tenantId === process.env.SALEMAX_CHATBOT_ADMISSIONS_INTAKE_TENANT_ID);
@@ -31,7 +32,8 @@ function startPreference(text, waiting = false) {
   const value = (explicit?.[1] || raw).trim().replace(/[.!،]+$/u, '');
   if (value.length > 64 || !/^[\p{L}\p{M}\p{N} /-]+$/u.test(value)) return null;
   const only = [
-    [/^(?:asap|as soon as possible|immediately|today|tomorrow|right away|فورا|فوراً|اليوم|غدا|غداً|في أقرب وقت(?: ممكن)?)$/iu, 'asap'],
+    [immediateStart, 'asap'],
+    [/^(?:today|tomorrow|اليوم|غدا|غداً)$/iu, 'asap'],
     [/^(?:(?:in |within )?(?:a|one|1) month|this month|(?:this|next) week|خلال شهر|هذا الشهر|هذا (?:الأسبوع|الاسبوع)|الأسبوع القادم|الاسبوع القادم)$/iu, 'within_month'],
     [/^(?:next month|(?:in |within )?(?:one to three|1 to 3|1-3|two|three|2|3) months|الشهر القادم|بعد شهرين|بعد ثلاثة أشهر)$/iu, 'one_to_three_months'],
     [/^(?:later|later this year|لاحقا|لاحقاً|في وقت لاحق)$/iu, 'later'],
@@ -44,15 +46,15 @@ function startPreference(text, waiting = false) {
   return dateLike.test(value) ? { window: null, detail: value, only: answerOnly } : null;
 }
 
-function advance({ prior, text, name, nameOnly, savedName, savedStart, language }) {
+function advance({ prior, text, name, nameOnly, savedName, savedStart, language, recognizeImmediate = false }) {
   const state = { ...prior };
   const waiting = prior.waiting;
-  const start = startPreference(text, waiting === 'start' || waiting === 'confirmStart');
+  const start = startPreference(text, waiting === 'start' || waiting === 'confirmStart' || (recognizeImmediate && immediateStart.test(text)));
   const yes = /^(?:yes|correct|that's right|that is right|نعم|صحيح|أجل|اي|أيوه)[.!\s]*$/iu.test(text);
   const no = /^(?:no|incorrect|not anymore|لا|غير صحيح)[.!\s]*$/iu.test(text);
   const confirming = waiting === 'confirmName' || waiting === 'confirmStart';
   const answerOnly = Boolean(nameOnly || start?.only || (confirming && (yes || no)));
-  if (name || (waiting === 'confirmName' && yes)) state.nameConfirmed = true;
+  if ((name && !start?.only) || (waiting === 'confirmName' && yes)) state.nameConfirmed = true;
   if (start || (waiting === 'confirmStart' && yes)) state.startConfirmed = true;
   if (waiting === 'confirmName' && no) state.replaceName = true;
   if (waiting === 'confirmStart' && no) state.replaceStart = true;
