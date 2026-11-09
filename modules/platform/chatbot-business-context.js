@@ -3,7 +3,7 @@ const crypto = require('node:crypto');
 const { isOpeningGreeting } = require('./chatbot-opening-flow');
 const { normalizeDigits } = require('./chatbot-training-guide');
 const { keywordReply } = require('./chatbot-keyword-replies');
-const { findApprovedFaq } = require('./chatbot-faq');
+const { findApprovedFaq, keywords: faqKeywords } = require('./chatbot-faq');
 
 const normalized = value => normalizeDigits(value).toLowerCase().normalize('NFKC').replace(/[أإآ]/g, 'ا').replace(/ى/g, 'ي').replace(/[^\p{L}\p{N}]+/gu, ' ').trim();
 const STOP_WORDS = new Set('the for your our are can you what how want would like tell about course courses training please help certificate certification professional class classes session sessions شهادة الشهادة شهادات احترافي اريد دورة الدورات التدريب ماهي ممكن لو سمحت'.split(' '));
@@ -12,7 +12,7 @@ function isBareCourseSelection(message, context) {
   if (Number(context?.explicitCourses) !== 1 || !context?.selectedCourseCode) return false;
   const words = normalized(message).split(/\s+/u).filter(Boolean);
   if (words.length < 1 || words.length > 6) return false;
-  return !/\b(?:what|which|who|where|when|why|how|can|could|would|should|is|are|do|does|did|tell|explain|details?|information|info|price|fee|cost|duration|long|schedule|batch|certificate|certification|accreditation|online|offline|compare|recommend|need|want|please|about)\b|[?؟]/iu.test(String(message || ''));
+  return !/\b(?:what|which|who|where|when|why|how|can|could|would|should|is|are|do|does|did|tell|explain|details?|information|info|price|fee|cost|duration|long|schedule|batch|certificate|certification|accreditation|online|offline|compare|recommend|need|want|please|about|prerequisites?|requirements?|outcomes?|level|beginners?|address|location)\b|متطلبات|مخرجات|نواتج|المبتدئين|مستوى|عنوان|[?؟]/iu.test(String(message || ''));
 }
 const fingerprint = value => crypto.createHash('sha256').update(JSON.stringify(value)).digest('hex');
 const COURSE_TOPIC_AR = new Map([
@@ -128,7 +128,7 @@ function decodeURIComponentSafe(value) {
   try { return decodeURIComponent(value.replace(/\+/g, ' ')); } catch { return value; }
 }
 
-function retrieveContext({ facts, knowledgeEntries = [], message, state = {}, profileRevision = 0, referral = null }) {
+function retrieveContext({ facts, knowledgeEntries = [], message, state = {}, profileRevision = 0, referral = null, includeRelatedFaqs = false }) {
   const language = languageFor(message, state);
   const courses = facts.filter(item => item.code && !item.kind);
   const nameWords = new Map(courses.map(item => [item.code, new Set(tokens([item.nameEn, item.nameAr].join(' ')).filter(word => word.length >= 4))]));
@@ -170,9 +170,23 @@ function retrieveContext({ facts, knowledgeEntries = [], message, state = {}, pr
     else if (courseInterest || /enquir|inquir|enrol|enroll|register|registration|apply|join|form|sign up|تسجيل|سجل|نموذج|اشتراك/i.test(message)) add('form:enquiry', item, { kind: item.kind, purpose: item.purpose || 'enquiry', name: local(item, 'name', language), url: item.url });
   });
   const matchedFaq = findApprovedFaq(message, knowledgeEntries, language, { hasCourse: selected.length > 0 });
-  if (matchedFaq) {
-    const item = knowledgeEntries[matchedFaq.index];
-    add('faq:' + matchedFaq.index, { item, profileRevision }, { kind: 'approved_faq', question: local(item, 'question', language), answer: matchedFaq.answer });
+  const addFaq = (index, answer) => {
+    const item = knowledgeEntries[index];
+    add('faq:' + index, { item, profileRevision }, { kind: 'approved_faq', question: local(item, 'question', language), answer });
+  };
+  if (matchedFaq) addFaq(matchedFaq.index, matchedFaq.answer);
+  else if (includeRelatedFaqs) {
+    const terms = faqKeywords(message);
+    const candidates = knowledgeEntries.map((item, index) => {
+      const question = local(item, 'question', language);
+      const answer = local(item, 'answer', language);
+      if (!question || !answer || (selected.length && /price|fee|cost|discount|رسوم|سعر|تكلفة|خصم/i.test(question))) return null;
+      const questionTerms = new Set(faqKeywords(question));
+      const answerTerms = new Set(faqKeywords(answer));
+      const rank = terms.reduce((sum, term) => sum + (questionTerms.has(term) ? 2 : answerTerms.has(term) ? 1 : 0), 0);
+      return rank >= 2 ? { index, answer, rank } : null;
+    }).filter(Boolean).sort((a, b) => b.rank - a.rank);
+    for (const item of candidates.slice(0, 2)) addFaq(item.index, item.answer.slice(0, 700));
   }
   // Names are a discovery index, never evidence for unpublished prices/policies.
   if (!direct.length) add('catalogue:index', courses.map(item => ({code:item.code,nameEn:item.nameEn,nameAr:item.nameAr})), { kind: 'course_index', names: courses.slice(0, 60).map(item => local(item, 'name', language)), totalCourses: courses.length, complete: courses.length < 500 && courses.length <= 60 });
@@ -249,6 +263,35 @@ function isGenericAdInterest(message) {
 
 function shouldClarifyGenericCourseInterest(message, context, state = {}) {
   return isGenericAdInterest(message) && !(context?.selectedCourseCode || state?.selectedCourseCode);
+}
+
+function publishedTrainingReply(message, context) {
+  const text = normalized(message);
+  const ar = context.language === 'ar';
+  const courses = context.evidence.filter(item => item.kind === 'course');
+  const course = courses.length === 1 ? courses[0] : null;
+  const business = context.evidence.find(item => item.kind === 'business_profile');
+  const levels = ar
+    ? { all_levels: 'جميع المستويات', beginner: 'مبتدئ', intermediate: 'متوسط', advanced: 'متقدم' }
+    : { all_levels: 'All levels', beginner: 'Beginner', intermediate: 'Intermediate', advanced: 'Advanced' };
+  const fields = [
+    [/\b(?:prerequisites?|entry requirements?|experience required|prior experience)\b|متطلبات|شروط الالتحاق|خبرة سابقة/u, course, course?.prerequisites, 'Prerequisites', 'المتطلبات'],
+    [/\b(?:learning outcomes?|what (?:will|can) (?:i|we) learn|what (?:will|can) (?:i|we) be able to do)\b|ماذا (?:ساتعلم|سنتعلم|اتعلم)|مخرجات التعلم|نواتج التعلم/u, course, course?.outcomes, 'What you’ll learn', 'ما ستتعلمه'],
+    [/\b(?:difficulty|skill level|what level|for beginners?|suitable for beginners?)\b|مستوى الدورة|للمبتدئين/u, course, levels[course?.difficultyLevel], 'Level', 'المستوى'],
+    [/\b(?:opening hours|business hours|working hours|office hours|what time (?:do you|are you) open)\b|ساعات العمل|اوقات الدوام|مواعيد العمل/u, business, business?.openingHours, 'Opening hours', 'ساعات العمل'],
+    [/\b(?:where are you|where is your|address|your location|google maps)\b|عنوانكم|موقعكم|اين موقع|اين المركز/u, business, [business?.address, business?.mapsUrl].filter(Boolean).join('\n'), 'Location', 'الموقع'],
+    [/\b(?:your phone|contact number|phone number|whatsapp number)\b|رقم التواصل|رقم الهاتف|رقم الواتساب|رقمكم/u, business, business?.phone, 'Phone', 'الهاتف'],
+    [/\b(?:your email|email address)\b|البريد الالكتروني|ايميلكم/u, business, business?.email, 'Email', 'البريد الإلكتروني'],
+    [/\b(?:your website|website link|official website)\b|موقعكم الالكتروني|رابط الموقع/u, business, business?.website, 'Website', 'الموقع الإلكتروني'],
+  ];
+  const requested = fields.filter(([pattern]) => pattern.test(text));
+  // Give compound questions to the full answer path when a listed field does not cover them.
+  if (!requested.length || requested.some(([, source, value]) => !source || !String(value || '').trim())
+    || /\b(?:fee|price|cost|how much|duration|how long|certificate|schedule|batch|compare|recommend|enrol|enroll|register|brochure)\b|رسوم|سعر|مدة|شهادة|دفعة|تسجيل/u.test(text)) return null;
+  return {
+    reply: requested.map(([, , value, en, arabic]) => `${ar ? arabic : en}: ${value}`).join('\n'),
+    sourceIds: [...new Set(requested.map(([, source]) => source.sourceId))],
+  };
 }
 
 function simpleFactualReply(message, context, config = {}) {
@@ -382,4 +425,4 @@ function polishGuidedReply({ result, profile, message, state, defaults }) {
   return result;
 }
 
-module.exports = { normalized, fingerprint, languageFor, controlRoute, isScheduleQuestion, hasPublishedSchedule, courseDetailNeedsCoordinator, trainingCenterCoordinatorReason, publishedDurationRange, retrieveContext, validateAnswer, clarification, unavailableReply, simpleFactualReply, isCourseOverviewRequest, shouldSkipApprovedFaq, isGenericAdInterest, shouldClarifyGenericCourseInterest, isBareCourseSelection, previewState, redactCustomerText, polishGuidedReply };
+module.exports = { normalized, fingerprint, languageFor, controlRoute, isScheduleQuestion, hasPublishedSchedule, courseDetailNeedsCoordinator, trainingCenterCoordinatorReason, publishedDurationRange, retrieveContext, validateAnswer, clarification, unavailableReply, publishedTrainingReply, simpleFactualReply, isCourseOverviewRequest, shouldSkipApprovedFaq, isGenericAdInterest, shouldClarifyGenericCourseInterest, isBareCourseSelection, previewState, redactCustomerText, polishGuidedReply };

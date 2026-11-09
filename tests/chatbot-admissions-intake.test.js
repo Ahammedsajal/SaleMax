@@ -2,7 +2,7 @@
 
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { startPreference, courseInterest, savedStartLabel, advance, planReply } = require('../modules/platform/chatbot-admissions-intake');
+const { startPreference, courseInterest, savedStartLabel, advance, planReply, acknowledgement } = require('../modules/platform/chatbot-admissions-intake');
 
 test('stores a stated start preference but does not treat course schedule questions as preferences', () => {
   assert.deepEqual(startPreference('I would like to start next week.'), { window: 'within_month', detail: 'next week', only: true });
@@ -50,4 +50,15 @@ test('does not repeatedly block staff handover on unanswered questions', () => {
   const plan = advance({ prior: { nameAsked: 2, startAsked: 2 }, text: 'What is the fee?', language: 'en' });
   assert.equal(plan.key, undefined);
   assert.equal(plan.answerOnly, false);
+});
+
+
+test('acknowledgements stay local and distinct from application consent or questions', () => {
+  assert.equal(acknowledgement('ok.', 'en'), 'Got it.');
+  assert.equal(acknowledgement('👍🏽', 'en'), 'Got it.');
+  assert.equal(acknowledgement('تمام', 'ar'), 'تمام.');
+  assert.equal(acknowledgement('Thank you!', 'en'), 'You’re welcome.');
+  for (const message of ['yes', 'ok?', 'ok, how much?', 'send the form', 'agent']) {
+    assert.equal(acknowledgement(message, 'en'), null);
+  }
 });

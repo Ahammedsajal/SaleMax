@@ -12,6 +12,17 @@ function enabled(tenantId) {
   return Boolean(tenantId && tenantId === process.env.SALEMAX_CHATBOT_ADMISSIONS_INTAKE_TENANT_ID);
 }
 
+function acknowledgement(text, language) {
+  const value = String(text || '').normalize('NFKC').trim().replace(/[.!،…]+$/u, '').trim();
+  if (/^(?:ok|okay|alright|got it|understood|تمام|طيب|حسنا|حسنًا|👍[\uFE0F\p{Emoji_Modifier}]*)$/iu.test(value)) {
+    return language === 'ar' ? 'تمام.' : 'Got it.';
+  }
+  if (/^(?:thanks|thank you|many thanks|شكرا|شكرًا|شكراً|يعطيك العافية)$/iu.test(value)) {
+    return language === 'ar' ? 'على الرحب والسعة.' : 'You’re welcome.';
+  }
+  return null;
+}
+
 function startPreference(text, waiting = false) {
   const raw = String(text || '').trim();
   if (!raw || /[?؟]/u.test(raw)) return null;
@@ -92,4 +103,4 @@ function planReply(answer, info) {
   return { canAnswer: true, reply, state, route: 'admissions-intake', reason };
 }
 
-module.exports = { planReply, enabled, startPreference, savedStartLabel, advance, courseInterest };
+module.exports = { planReply, enabled, acknowledgement, startPreference, savedStartLabel, advance, courseInterest };

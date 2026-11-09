@@ -70,7 +70,7 @@ async function captureLead(pool, { ctx, profile, uid, chatId, origin, message, f
     const priorIntake = prior.admissions?.scope === intakeScope && Date.now() - Number(prior.admissions.lastSeen || 0) < 24 * 60 * 60 * 1000
       ? prior.admissions : { scope: intakeScope };
     const waitingForName = useIntake ? ['name', 'confirmName'].includes(priorIntake.waiting) : prior.waitingFor === 'name';
-    let name = customerName(text, waitingForName && !courses.length);
+    let name = customerName(text, waitingForName && !courses.length && !(useIntake && admissions.acknowledgement(text)));
     const simpleName = name && ['', 'my name is ', 'my name s ', 'call me ', 'اسمي ', 'انا اسمي '].some(prefix => context.normalized(text) === prefix + context.normalized(name));
     const details = qualificationFromText(text);
     if (useIntake && !details.courseInterest) details.courseInterest = admissions.courseInterest(text);

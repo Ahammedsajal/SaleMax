@@ -1,7 +1,7 @@
 'use strict';
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { controlRoute, isScheduleQuestion, hasPublishedSchedule, courseDetailNeedsCoordinator, trainingCenterCoordinatorReason, publishedDurationRange, retrieveContext, validateAnswer, languageFor, fingerprint, previewState, simpleFactualReply, unavailableReply, isCourseOverviewRequest, shouldSkipApprovedFaq, isGenericAdInterest, shouldClarifyGenericCourseInterest, isBareCourseSelection } = require('../modules/platform/chatbot-business-context');
+const { controlRoute, isScheduleQuestion, hasPublishedSchedule, courseDetailNeedsCoordinator, trainingCenterCoordinatorReason, publishedDurationRange, retrieveContext, validateAnswer, languageFor, fingerprint, previewState, simpleFactualReply, unavailableReply, isCourseOverviewRequest, shouldSkipApprovedFaq, isGenericAdInterest, shouldClarifyGenericCourseInterest, isBareCourseSelection, publishedTrainingReply } = require('../modules/platform/chatbot-business-context');
 const facts = [
  { courseId:'english',code:'ENG',nameEn:'Business English',nameAr:'الإنجليزية للأعمال',descriptionEn:'English communication for work and presentations',descriptionAr:'التواصل باللغة الإنجليزية في العمل والعروض',durationValue:8,durationUnit:'weeks',offer:{priceAmount:'350.00',registrationFeeAmount:'25.00',currency:'QAR'},batches:[{startsOn:'2026-11-15',seatsAvailable:7}] },
  { courseId:'excel',code:'EXCEL',nameEn:'Excel Essentials',nameAr:'أساسيات إكسل',descriptionEn:'Practical spreadsheets and office skills',descriptionAr:'مهارات الجداول والحاسوب المكتبية',offer:{priceAmount:'250.00',currency:'QAR'},batches:[] },
@@ -263,3 +263,30 @@ test('unavailable Hybrid answers explain the missing business topic and handover
 test('registration and enquiry requests cite the corresponding published form purpose',()=>{const source=[...facts,{kind:'published_enquiry_form',purpose:'registration',nameEn:'Student registration',url:'https://example.test/p/test/forms/student-registration',publishedVersion:2}];const c=retrieveContext({facts:source,message:'Can I register for Business English?'});const form=c.evidence.find(x=>x.kind==='published_enquiry_form');assert.equal(form.purpose,'registration');assert.match(form.url,/student-registration/);const enquiry=retrieveContext({facts:source,message:'Can I enquire about Business English?'});assert.equal(enquiry.evidence.find(x=>x.kind==='published_enquiry_form').purpose,'enquiry');const changed=structuredClone(source);changed.at(-1).publishedVersion++;assert.notEqual(retrieveContext({facts:changed,message:'Can I register?'}).revision,c.revision);});
 
 test('explicit courses exclude the discovery index to reduce provider tokens',()=>{const known=retrieveContext({facts,message:'Business English fee'});assert.ok(known.evidence.some(x=>x.kind==='course'));assert.ok(!known.evidence.some(x=>x.kind==='course_index'));const discovery=retrieveContext({facts,message:'Do you have photography classes?'});assert.ok(discovery.evidence.some(x=>x.kind==='course_index'&&x.complete));});
+
+
+test('published replies answer from the selected course and public business profile', () => {
+  const records = [{ code: 'MARINE', courseId: 'marine', nameEn: 'Marine Deckhand', outcomesEn: 'Handle lines and inspect safety equipment.',
+    prerequisitesEn: 'Basic swimming ability.', difficultyLevel: 'beginner' },
+  { kind: 'business_profile', addressEn: 'Synthetic campus', openingHours: 'Sunday to Thursday, 9 am to 5 pm', mapsUrl: 'https://example.test/map' }];
+  const answer = (message, state) => publishedTrainingReply(message, retrieveContext({ facts: records, message, state }));
+  assert.match(answer('What will I learn in Marine Deckhand?').reply, /Handle lines/);
+  const short = 'Marine Deckhand prerequisites';
+  assert.equal(isBareCourseSelection(short, retrieveContext({ facts: records, message: short })), false);
+  assert.match(answer('What are the prerequisites?', { selectedCourseCode: 'MARINE' }).reply, /Basic swimming/);
+  assert.match(answer('Is it for beginners?', { selectedCourseCode: 'MARINE' }).reply, /Beginner/);
+  assert.match(answer('What are your opening hours and address?').reply, /Opening hours: Sunday.*\nLocation: Synthetic campus/);
+  assert.equal(answer('What will I learn in Marine Deckhand and how much is it?'), null);
+  assert.equal(answer('What are the prerequisites?'), null);
+});
+
+test('related FAQ entries can supply evidence without becoming automatic answers', () => {
+  const message = 'Is there free parking?';
+  const knowledgeEntries = [
+    { questionEn: 'How do visitors get to campus?', answerEn: 'Free parking is available near the entrance.' },
+    { questionEn: 'What is the admissions email?', answerEn: 'Please use the enquiry form.' },
+  ];
+  assert.equal(retrieveContext({ facts: [], message, knowledgeEntries }).evidence.some(x => x.kind === 'approved_faq'), false);
+  const result = retrieveContext({ facts: [], message, knowledgeEntries, includeRelatedFaqs: true });
+  assert.deepEqual(result.evidence.filter(x => x.kind === 'approved_faq').map(x => x.sourceId), ['faq:0']);
+});

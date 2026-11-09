@@ -47,6 +47,20 @@ def configure_name_question():
     ADD_SCOPE = False
 
 
+def configure_knowledge():
+    global ACTIVE_OVERLAY, REPLACED_FILES, SCOPE_ENV, SLUG, ADD_SCOPE
+    ACTIVE_OVERLAY = '/opt/salemax/releases/pro-catalyst-name-question-e6b9c0cb92b0-20261109/compose.pro-catalyst-name-question.json'
+    REPLACED_FILES = {
+        'modules/platform/chatbot-runtime.js': 'e83f4c4efdbbd002826d7e76d5f8a289f7ba6aefce8de9f4219a5290d8a47f1e',
+        'modules/platform/chatbot-business-context.js': '1d41007b283b7bf9e9116fd0d1e7160740685c616640cb84f696b5600ce911fa',
+        'modules/platform/chatbot-admissions-intake.js': '8afb4e65d82020691f5242e6f174f8bd01615b02033fd9d68178ad4d5f05415c',
+        'modules/platform/chatbot-lead-capture.js': 'c0dec85c964a15425f35fff6e07c79ff2da35490e3f8b26fc3d028e59db4432b',
+    }
+    SCOPE_ENV = 'SALEMAX_CHATBOT_ADMISSIONS_INTAKE_TENANT_ID'
+    SLUG = 'pro-catalyst-knowledge'
+    ADD_SCOPE = False
+
+
 EXPECTED_IMAGE = 'sha256:c756899fdbf63edc71d45de0c71cffe1f063244d91378d90b15a2c98fc1d5135'
 SUPPORT = (
     'salemax-db-1', 'salemax-report-worker-1', 'salemax-libretranslate-1',
@@ -312,19 +326,23 @@ def reset(backup):
 
 
 if __name__ == '__main__':
-    if len(sys.argv) == 4 and sys.argv[1] in ('deploy', 'deploy-admissions', 'deploy-name-question'):
+    if len(sys.argv) == 4 and sys.argv[1] in ('deploy', 'deploy-admissions', 'deploy-name-question', 'deploy-knowledge'):
         if sys.argv[1] == 'deploy-admissions':
             configure_admissions()
         elif sys.argv[1] == 'deploy-name-question':
             configure_name_question()
+        elif sys.argv[1] == 'deploy-knowledge':
+            configure_knowledge()
         deploy(Path(sys.argv[2]), sys.argv[3])
     elif len(sys.argv) == 3 and sys.argv[1] == 'reset':
         reset(Path(sys.argv[2]))
-    elif len(sys.argv) == 3 and sys.argv[1] in ('restore', 'restore-admissions', 'restore-name-question'):
+    elif len(sys.argv) == 3 and sys.argv[1] in ('restore', 'restore-admissions', 'restore-name-question', 'restore-knowledge'):
         if sys.argv[1] == 'restore-admissions':
             configure_admissions()
         elif sys.argv[1] == 'restore-name-question':
             configure_name_question()
+        elif sys.argv[1] == 'restore-knowledge':
+            configure_knowledge()
         restore(Path(sys.argv[2]))
     else:
-        raise SystemExit('Usage: pro-catalyst-handover-release.py deploy[-admissions|-name-question] <stage> <commit> | reset <backup> | restore[-admissions|-name-question] <backup>')
+        raise SystemExit('Usage: pro-catalyst-handover-release.py deploy[-admissions|-name-question|-knowledge] <stage> <commit> | reset <backup> | restore[-admissions|-name-question|-knowledge] <backup>')
