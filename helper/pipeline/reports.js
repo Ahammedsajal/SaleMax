@@ -237,7 +237,8 @@ async function getLeadReportSummary({pool,uid,role='owner',agentId,scopeAgentIds
     let businessUsers=[];
     if(role==='owner'&&categoryKeyMatches(categoryKey,'training_center')){
       const [rows]=await connection.query(`SELECT pa.actor_id AS userId,
-          COALESCE(NULLIF(i.display_name,''),NULLIF(actor_owner.name,''),'Business user') AS userName,
+          COALESCE(NULLIF(i.display_name COLLATE utf8mb4_general_ci,''),
+            NULLIF(actor_owner.name COLLATE utf8mb4_general_ci,''),'Business user' COLLATE utf8mb4_general_ci) AS userName,
           COUNT(DISTINCT CASE WHEN pa.activity_type IN ('contact_outcome','agent_message_sent') THEN pa.lead_id END) AS attendedLeads,
           SUM(pa.activity_type='agent_message_sent') AS messagesSent,
           COUNT(DISTINCT CASE WHEN pa.activity_type='sale_converted' THEN pa.lead_id END) AS salesClosed

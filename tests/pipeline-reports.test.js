@@ -68,6 +68,8 @@ test('lead summary counts unattended open leads and interested leads with no lat
   const businessUserQuery=queries.find(query=>query.sql.includes("pa.actor_type='user'"))?.sql||'';
   assert.match(businessUserQuery,/CAST\(m\.identity_id AS CHAR CHARACTER SET utf8mb4\) COLLATE utf8mb4_general_ci=pa\.actor_id COLLATE utf8mb4_general_ci/);
   assert.match(businessUserQuery,/actor_owner\.uid COLLATE utf8mb4_general_ci=pa\.actor_id COLLATE utf8mb4_general_ci/);
+  assert.match(businessUserQuery,/i\.display_name COLLATE utf8mb4_general_ci/);
+  assert.match(businessUserQuery,/actor_owner\.name COLLATE utf8mb4_general_ci/);
   assert.match(queries.find(query=>query.sql.includes('DATE_SUB(UTC_TIMESTAMP(3),INTERVAL 3 DAY)')).sql,/activity_type IN \('contact_outcome','agent_message_sent'\)/);
 });
 
