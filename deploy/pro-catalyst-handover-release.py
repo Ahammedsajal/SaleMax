@@ -426,6 +426,27 @@ def configure_friendly_intake_copy():
     ADD_SCOPE = False
 
 
+def configure_reply_quality():
+    global ACTIVE_OVERLAY, REPLACED_FILES, NEW_FILES, SCOPE_ENV, SLUG, RELEASE_DATE, ADD_SCOPE, LIVE_SOURCE_EDITS, MOCKUP_MIGRATION
+    ACTIVE_OVERLAY = '/opt/salemax/releases/training-owner-report-collation-fix-ce1719fb9fad-20261110/compose.training-owner-report-app.json'
+    REPLACED_FILES = {
+        'modules/platform/chatbot-runtime.js': '3b69eecd13e96c44584433cde10259d707abb090c9d8a4ecf7219ebb2c735300',
+        'modules/platform/chatbot-admissions-intake.js': '66a11a75170a53720771a01e447c3b42856099afc17b74f383458340e3db3bd7',
+        'modules/platform/chatbot-ai-prompt.js': '969ad634d0174498920efcd7341880c608d6aa4ac558bf9ae542b666e7fe0fe7',
+        'modules/platform/chatbot-business-context.js': '5c8a62b0e8583c77290a57597d1b5809a3c58a39f4c4292d7db9d4f8db314675',
+        'modules/platform/chatbot-conversation-history.js': '87c2796262c13bedefb01fd3f264b87ec5c6f6320b4c8badac9347c95e6cd656',
+        'modules/platform/chatbot-lead-capture.js': '9e55a5efe49089a992740aa18e645a62605ff07aca527beaea7c4b20f8c5655f',
+        'modules/platform/chatbot-mockup.js': '7bc32447850c5efeb3470ecf94d9de44708a016f78c90ba94757eddc4d289bca',
+    }
+    NEW_FILES = ()
+    LIVE_SOURCE_EDITS = {}
+    MOCKUP_MIGRATION = None
+    SCOPE_ENV = 'SALEMAX_CHATBOT_ADMISSIONS_INTAKE_TENANT_ID'
+    SLUG = 'pro-catalyst-reply-quality'
+    RELEASE_DATE = '20261110'
+    ADD_SCOPE = False
+
+
 def apply_mockup_migration(source):
     script = """const fs = require('node:fs');
     const crypto = require('node:crypto');
@@ -738,7 +759,7 @@ def reset(backup):
 
 
 if __name__ == '__main__':
-    if len(sys.argv) == 4 and sys.argv[1] in ('deploy', 'deploy-admissions', 'deploy-name-question', 'deploy-knowledge', 'deploy-mockup', 'deploy-mockup-inbox', 'deploy-lead-report-period', 'deploy-followup-preview', 'deploy-followup-chat-link', 'deploy-ad-aware-followups', 'deploy-ad-overview', 'deploy-test-replies', 'deploy-mockup-scroll', 'deploy-course-certification', 'deploy-course-opening', 'deploy-followup-delivery', 'deploy-followup-queue-fix', 'deploy-followup-inbox-parity', 'deploy-ai-handoff', 'deploy-ai-handoff-cache', 'deploy-ai-handoff-guard', 'deploy-human-replies', 'deploy-human-replies-history', 'deploy-human-reply-validation', 'deploy-friendly-intake-copy'):
+    if len(sys.argv) == 4 and sys.argv[1] in ('deploy', 'deploy-admissions', 'deploy-name-question', 'deploy-knowledge', 'deploy-mockup', 'deploy-mockup-inbox', 'deploy-lead-report-period', 'deploy-followup-preview', 'deploy-followup-chat-link', 'deploy-ad-aware-followups', 'deploy-ad-overview', 'deploy-test-replies', 'deploy-mockup-scroll', 'deploy-course-certification', 'deploy-course-opening', 'deploy-followup-delivery', 'deploy-followup-queue-fix', 'deploy-followup-inbox-parity', 'deploy-ai-handoff', 'deploy-ai-handoff-cache', 'deploy-ai-handoff-guard', 'deploy-human-replies', 'deploy-human-replies-history', 'deploy-human-reply-validation', 'deploy-friendly-intake-copy', 'deploy-reply-quality'):
         if sys.argv[1] == 'deploy-admissions':
             configure_admissions()
         elif sys.argv[1] == 'deploy-name-question':
@@ -787,10 +808,12 @@ if __name__ == '__main__':
             configure_human_reply_validation()
         elif sys.argv[1] == 'deploy-friendly-intake-copy':
             configure_friendly_intake_copy()
+        elif sys.argv[1] == 'deploy-reply-quality':
+            configure_reply_quality()
         deploy(Path(sys.argv[2]), sys.argv[3])
     elif len(sys.argv) == 3 and sys.argv[1] == 'reset':
         reset(Path(sys.argv[2]))
-    elif len(sys.argv) == 3 and sys.argv[1] in ('restore', 'restore-admissions', 'restore-name-question', 'restore-knowledge', 'restore-mockup', 'restore-mockup-inbox', 'restore-lead-report-period', 'restore-followup-preview', 'restore-followup-chat-link', 'restore-ad-aware-followups', 'restore-ad-overview', 'restore-test-replies', 'restore-mockup-scroll', 'restore-course-certification', 'restore-course-opening', 'restore-followup-delivery', 'restore-followup-queue-fix', 'restore-followup-inbox-parity', 'restore-ai-handoff', 'restore-ai-handoff-cache', 'restore-ai-handoff-guard', 'restore-human-replies', 'restore-human-replies-history', 'restore-human-reply-validation', 'restore-friendly-intake-copy'):
+    elif len(sys.argv) == 3 and sys.argv[1] in ('restore', 'restore-admissions', 'restore-name-question', 'restore-knowledge', 'restore-mockup', 'restore-mockup-inbox', 'restore-lead-report-period', 'restore-followup-preview', 'restore-followup-chat-link', 'restore-ad-aware-followups', 'restore-ad-overview', 'restore-test-replies', 'restore-mockup-scroll', 'restore-course-certification', 'restore-course-opening', 'restore-followup-delivery', 'restore-followup-queue-fix', 'restore-followup-inbox-parity', 'restore-ai-handoff', 'restore-ai-handoff-cache', 'restore-ai-handoff-guard', 'restore-human-replies', 'restore-human-replies-history', 'restore-human-reply-validation', 'restore-friendly-intake-copy', 'restore-reply-quality'):
         if sys.argv[1] == 'restore-admissions':
             configure_admissions()
         elif sys.argv[1] == 'restore-name-question':
@@ -839,6 +862,8 @@ if __name__ == '__main__':
             configure_human_reply_validation()
         elif sys.argv[1] == 'restore-friendly-intake-copy':
             configure_friendly_intake_copy()
+        elif sys.argv[1] == 'restore-reply-quality':
+            configure_reply_quality()
         restore(Path(sys.argv[2]))
     else:
         raise SystemExit('Usage: pro-catalyst-handover-release.py deploy[-admissions|-name-question|-knowledge|-mockup|-mockup-inbox|-lead-report-period|-followup-preview|-followup-chat-link|-ad-aware-followups|-ad-overview|-test-replies|-mockup-scroll|-course-certification|-course-opening|-followup-delivery|-followup-queue-fix|-followup-inbox-parity|-ai-handoff|-ai-handoff-cache|-ai-handoff-guard|-human-replies|-human-replies-history|-human-reply-validation|-friendly-intake-copy] <stage> <commit> | reset <backup> | restore <backup>')

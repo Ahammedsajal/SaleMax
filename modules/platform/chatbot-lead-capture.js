@@ -51,7 +51,8 @@ async function savedContactName(db, { uid, uidHash, category, phone, lead, check
 
 async function captureLead(pool, { ctx, profile, uid, chatId, origin, message, facts }) {
   if (ctx.tenant.categoryKey !== 'training_center' || !recipientAllowed(profile.config, message.senderMobile, profile.id)) return null;
-  const text = String(message?.msgContext?.text?.body ?? message?.msgContext?.button?.text ?? message?.msgContext?.interactive?.button_reply?.title ?? message?.msgContext?.interactive?.list_reply?.title ?? '').trim().slice(0, 2000);
+  const text = String(message?.msgContext?.text?.body ?? message?.msgContext?.button?.text ?? message?.msgContext?.interactive?.button_reply?.title ?? message?.msgContext?.interactive?.list_reply?.title
+    ?? message?.msgContext?.image?.caption ?? message?.msgContext?.video?.caption ?? message?.msgContext?.document?.caption ?? '').trim().slice(0, 2000);
   const captured = await require('../../helper/pipeline/leadPipeline').captureBotInbound({ uid, origin, chatId, senderMobile: message.senderMobile, senderName: message.senderName, normalizedMessage: message, providerMessageId: message.metaChatId, timestamp: message.timestamp, pool });
   if (!captured.leadId) throw Object.assign(new Error('BOT_LEAD_NOT_CAPTURED'), { code: 'BOT_LEAD_NOT_CAPTURED' });
   const db = await pool.getConnection();

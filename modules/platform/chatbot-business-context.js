@@ -86,7 +86,12 @@ function controlRoute(message, config, state = {}, facts = [], { courseCertifica
 
 function isScheduleQuestion(message) {
   const text = normalized(message);
-  return /\b(?:schedule|timetable|batch|batches|start date|start time|when does .{0,45} start|when is the next intake|class timing|next class)\b|مواعيد|جدول|دفعة|موعد البدء|متى تبدأ|متى يبدا|متى يبدأ/u.test(text);
+  const scheduleWords = /\b(?:schedule|timetable|batch|batches|start date|start time|when does .{0,45} start|when is the next intake|class timing|next class)\b|مواعيد|جدول|دفعة|موعد البدء|متى تبدأ|متى يبدا|متى يبدأ/u.test(text);
+  const month = '(?:january|february|march|april|may|june|july|august|september|october|november|december|يناير|فبراير|مارس|ابريل|مايو|يونيو|يوليو|اغسطس|سبتمبر|اكتوبر|نوفمبر|ديسمبر)';
+  const date = new RegExp(`(?:^|\\s)(?:\\d{1,2}(?:st|nd|rd|th)?\\s+${month}|${month}\\s+\\d{1,2}(?:st|nd|rd|th)?|\\d{1,2}\\s+\\d{1,2}(?:\\s+\\d{2,4})?)(?=\\s|$)`, 'iu').test(text);
+  const availability = /^(?:is|would|could|can|will)\b.{0,60}\b(?:ok|okay|available|possible|fine|work)\b|\b(?:ok|okay|available|possible|fine|work)$/u.test(text);
+  const arabicAvailability = /^(?:هل\s*)?.{1,60}\s+(?:مناسب|مناسبة|متاح|متاحة|ممكن)$/u.test(text);
+  return scheduleWords || (date && (availability || arabicAvailability));
 }
 
 function hasPublishedSchedule(facts, selectedCourseCode = null) {

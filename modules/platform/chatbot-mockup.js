@@ -25,7 +25,7 @@ async function enqueue(pool, { uid, message, origin, sessionId, chatId }) {
   const kind = channelFor(origin);
   const body = message.msgContext?.text?.body ?? message.msgContext?.button?.text
     ?? message.msgContext?.interactive?.button_reply?.title ?? message.msgContext?.interactive?.list_reply?.title
-    ?? message.msgContext?.image?.caption ?? message.msgContext?.video?.caption ?? '';
+    ?? message.msgContext?.image?.caption ?? message.msgContext?.video?.caption ?? message.msgContext?.document?.caption ?? '';
   const text = redactCustomerText(String(body).slice(0, 2000)).trim();
   const providerId = message.metaChatId || digest([message.timestamp, message.type, text]);
   const label = String(message.senderName || message.senderMobile || '').trim().slice(0, 160);

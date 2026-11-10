@@ -26,10 +26,17 @@ function acknowledgement(text, language) {
 
 function startPreference(text, waiting = false) {
   const raw = String(text || '').trim();
-  if (!raw || /[?؟]/u.test(raw)) return null;
-  const explicit = raw.match(/(?:\b(?:i\s+(?:can|need to|want to|plan to|would like to|prefer to)\s+start|my preferred start(?: date)? is|start date:)\s*|(?:أريد أن أبدأ|اريد ان ابدا|أقدر أبدأ|يمكنني أن أبدأ|موعد البدء المفضل)\s*)([^.!؟،\n]+)/iu);
+  if (!raw) return null;
+  const dateCheck = waiting && (
+    raw.match(/^(?:is|would|could|can|will)\s+(.+?)\s+(?:be\s+)?(?:ok(?:ay)?|available|possible|fine|work)[?!.\s]*$/iu)
+    || raw.match(/^(?:can|could|would|will)\s+i\s+(?:start|begin)\s+(?:on\s+)?(.+?)[?!.\s]*$/iu)
+    || raw.match(/^(?:هل\s*)?(.+?)\s+(?:مناسب|مناسبة|متاح|متاحة|ممكن)[؟?!.\s]*$/u)
+  );
+  if (!dateCheck && /[?؟]/u.test(raw)) return null;
+  const candidate = dateCheck?.[1] || raw;
+  const explicit = candidate.match(/(?:\b(?:i\s+(?:can|need to|want to|plan to|would like to|prefer to)\s+start|my preferred start(?: date)? is|start date:)\s*|(?:أريد أن أبدأ|اريد ان ابدا|أقدر أبدأ|يمكنني أن أبدأ|موعد البدء المفضل)\s*)([^.!؟،\n]+)/iu);
   if (!waiting && !explicit) return null;
-  const value = (explicit?.[1] || raw).trim().replace(/[.!،]+$/u, '');
+  const value = (explicit?.[1] || candidate).trim().replace(/[.!،?؟]+$/u, '');
   if (value.length > 64 || !/^[\p{L}\p{M}\p{N} /-]+$/u.test(value)) return null;
   const only = [
     [immediateStart, 'asap'],
@@ -40,10 +47,11 @@ function startPreference(text, waiting = false) {
     [/^(?:flexible|a flexible start date|anytime|any time|not sure|no preference|مرن|أي وقت|اي وقت|غير محدد|لست متأكدا|لست متأكداً)$/iu, 'flexible'],
   ];
   const window = only.find(([pattern]) => pattern.test(value.replace(/^(?:on|from) /iu, '')))?.[1] || null;
-  const answerOnly = !explicit || (explicit.index === 0 && explicit[0].length === raw.replace(/[.!،]+$/u, '').length);
+  const answerOnly = !dateCheck && (!explicit || (explicit.index === 0 && explicit[0].length === candidate.replace(/[.!،]+$/u, '').length));
   if (window) return { window, detail: value, only: answerOnly };
   const dateLike = /^(?:(?:on|from|in|by|في|من) )?(?:\d{4}-\d{2}-\d{2}|\d{1,2}[/-]\d{1,2}(?:[/-]\d{2,4})?|(?:\p{Nd}{1,2} )?(?:january|february|march|april|may|june|july|august|september|october|november|december|يناير|فبراير|مارس|أبريل|مايو|يونيو|يوليو|أغسطس|سبتمبر|أكتوبر|نوفمبر|ديسمبر)(?: \p{Nd}{1,4})?|(?:this |next )?(?:monday|tuesday|wednesday|thursday|friday|saturday|sunday)|(?:الأحد|الاثنين|الثلاثاء|الأربعاء|الخميس|الجمعة|السبت)(?: القادم)?)$/iu;
-  return dateLike.test(value) ? { window: null, detail: value, only: answerOnly } : null;
+  const dateValue = value.replace(/(\d{1,2})(?:st|nd|rd|th)\b/giu, '$1');
+  return dateLike.test(dateValue) ? { window: null, detail: value, only: answerOnly, availabilityQuestion: Boolean(dateCheck) } : null;
 }
 
 function advance({ prior, text, name, nameOnly, savedName, savedStart, language, recognizeImmediate = false }) {
@@ -58,7 +66,7 @@ function advance({ prior, text, name, nameOnly, savedName, savedStart, language,
   if (start || (waiting === 'confirmStart' && yes)) state.startConfirmed = true;
   if (waiting === 'confirmName' && no) state.replaceName = true;
   if (waiting === 'confirmStart' && no) state.replaceStart = true;
-  if (answerOnly) state.waiting = null;
+  if (answerOnly || start) state.waiting = null;
 
   const ar = language === 'ar';
   const candidates = [];
@@ -74,7 +82,7 @@ function advance({ prior, text, name, nameOnly, savedName, savedStart, language,
       : `You mentioned ${savedStart} as your preferred start—would you like me to keep that noted?`]);
     else candidates.push(['start', ar ? 'متى تود أن تبدأ؟ لا بأس إن لم يكن لديك موعد محدد بعد.' : 'When would you ideally like to begin? If you’re flexible, that’s completely fine.']);
   }
-  const [key, prompt] = candidates.find(([field]) => Number(state[field + 'Asked'] || 0) < 2) || [];
+  const [key, prompt] = (state.waiting ? [] : candidates).find(([field]) => Number(state[field + 'Asked'] || 0) < 2) || [];
   return { state, key, prompt, answerOnly, start };
 }
 

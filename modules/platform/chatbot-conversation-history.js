@@ -13,7 +13,7 @@ function conversationHistoryFromRows(rows, currentMessage = '') {
     let value = row.msgContext;
     try { if (typeof value === 'string') value = JSON.parse(value); } catch { value = null; }
     const body = value?.text?.body ?? value?.button?.text ?? value?.interactive?.button_reply?.title
-      ?? value?.interactive?.list_reply?.title ?? value?.image?.caption ?? value?.video?.caption;
+      ?? value?.interactive?.list_reply?.title ?? value?.image?.caption ?? value?.video?.caption ?? value?.document?.caption;
     if (typeof body !== 'string' || !body.trim()) return null;
     return { role: row.route === 'OUTGOING' ? 'assistant' : 'user', text: body.trim().slice(0, 400) };
   }).filter(Boolean);

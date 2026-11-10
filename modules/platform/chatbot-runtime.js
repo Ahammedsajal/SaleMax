@@ -24,7 +24,8 @@ let guidedSessionPrunePromise = null;
 
 const fail = code => { throw Object.assign(new Error(code), { code }); };
 const textOf = message => {
-  const body = message?.msgContext?.text?.body ?? message?.msgContext?.button?.text ?? message?.msgContext?.interactive?.button_reply?.title ?? message?.msgContext?.interactive?.list_reply?.title;
+  const body = message?.msgContext?.text?.body ?? message?.msgContext?.button?.text ?? message?.msgContext?.interactive?.button_reply?.title ?? message?.msgContext?.interactive?.list_reply?.title
+    ?? message?.msgContext?.image?.caption ?? message?.msgContext?.video?.caption ?? message?.msgContext?.document?.caption;
   return typeof body === 'string' ? body.trim().slice(0, 2000) : '';
 };
 async function loadConversationHistory({ uid, chatId, origin, currentMessage }) {
@@ -112,12 +113,27 @@ async function sendBotText({ origin, sessionId, message, uid, chatId, body, bypa
 
 function handoffText(message, language = null, accepted = false) {
   const lang = language || businessContext.languageFor(textOf(message), {});
-  if (lang === 'ar') return accepted
-    ? 'شكرًا لانتظارك. أحد أعضاء فريقنا استلم استفسارك وسيرد عليك هنا قريبًا.'
-    : 'أحلت استفسارك إلى فريقنا. سيرد عليك أحد أعضاء الفريق في هذه المحادثة عند توفره.';
-  return accepted
-    ? 'Thanks for waiting. A team member has accepted your request and will reply here shortly.'
-    : 'I’ve passed your message to our team. A staff member will reply in this chat as soon as they’re available.';
+  const type = String(message?.type || message?.msgContext?.type || '').toLowerCase();
+  if (accepted) return lang === 'ar'
+    ? 'شكرًا لصبرك، أصبح أحد أعضاء فريقنا يتابع استفسارك الآن. ويمكنني مواصلة مساعدتك بتفاصيل الدورات هنا.'
+    : 'Thanks for your patience—one of our team members is following up on your enquiry now. I can still help with course details here.';
+  if (['image', 'photo', 'sticker'].includes(type)) return lang === 'ar'
+    ? 'شكرًا لإرسال الصورة. طلبت من فريقنا مراجعتها. إذا كان لديك سؤال محدد عنها، اكتبه هنا وسأحاول مساعدتك.'
+    : 'Thanks for the photo. I’ve asked our team to review it. If there’s a particular detail you want us to check, just let me know here.';
+  if (['document', 'file'].includes(type)) return lang === 'ar'
+    ? 'شكرًا لمشاركة الملف. طلبت من فريقنا مراجعته؛ وإذا كنت تبحث عن معلومة محددة فيه، أخبرني بها هنا.'
+    : 'Thanks for sharing the file. I’ve asked our team to review it. If there’s a particular detail you need, let me know here.';
+  if (['audio', 'ptt', 'voice'].includes(type)) return lang === 'ar'
+    ? 'شكرًا على رسالتك الصوتية. طلبت من فريقنا مراجعتها؛ ويمكنك كتابة سؤالك باختصار هنا لأساعدك فورًا.'
+    : 'Thanks for the voice note. I’ve asked our team to review it; if you send the main question here in a few words, I can help right away.';
+  if (['video'].includes(type)) return lang === 'ar'
+    ? 'شكرًا لمشاركة الفيديو. طلبت من فريقنا مراجعته. أخبرني إن كان هناك شيء محدد تريد معرفته عنه.'
+    : 'Thanks for sharing the video. I’ve asked our team to review it. Is there anything specific you’d like to know about it?';
+  if (['location', 'live_location'].includes(type)) return lang === 'ar'
+    ? 'شكرًا لمشاركة موقعك. طلبت من فريقنا مراجعته. أخبرني إن كنت تبحث عن موقع مركز التدريب أو تحتاج إلى اتجاهات.'
+    : 'Thanks for sharing your location. I’ve asked our team to review it. If you’re looking for the training centre, I can help with directions.';
+  if (lang === 'ar') return 'شكرًا لتوضيح ذلك. طلبت من فريق القبول التحقق من استفسارك، ويمكنني مواصلة مساعدتك هنا بتفاصيل الدورات المتاحة.';
+  return 'Thanks for explaining. I’ve asked admissions to check this, and I can keep helping with the course details we have here.';
 }
 
 async function sendCustomerHandoffNotice({ ctx, profile, uid, message, origin, sessionId, chatId, accepted = false }) {
@@ -216,6 +232,7 @@ async function processHandoffPriorityForProfile({ ctx, profile, uid, message, us
   if (claims.parseYes(text)) {
     const claimed = await claims.handleStaffClaim(dbPool, { ctx, uid, message, text, channelKind, channelRef: sessionId, chatId });
     if (claimed.handled) {
+      if (claimed.outcome === 'none') return { handled: true, handoffClaim: claimed.outcome };
       let staffReply = 'There are no open staff handoffs to claim.';
       if (claimed.outcome === 'ambiguous') staffReply = 'More than one handoff is waiting. Reply YES followed by the six-character code in the alert.';
       else if (claimed.outcome === 'not_found') staffReply = 'That handoff code is no longer open. Check the latest staff alert.';
@@ -580,6 +597,7 @@ function safeConversationalReply({ language, context, message, state = {}, staff
       : 'أنا المساعد الافتراضي لمركز التدريب، ويسعدني مساعدتك في استفسارك.';
     if (staffNotificationQueued) {
       if (courseName && urgentStart) return `بالتأكيد. طلبت من فريق القبول تأكيد أقرب موعد لبدء ${courseName}. أفهم أنك ترغب في البدء فوراً، لكن لا أملك موعداً مؤكداً بعد. سأواصل مساعدتك هنا أثناء التحقق.`;
+      if (courseName && businessContext.isScheduleQuestion(message)) return `طلبت من فريق القبول التحقق من موعد بدء ${courseName}. لا أملك موعدًا مؤكدًا بعد، ويمكنني مساعدتك هنا بأي تفاصيل أخرى عن الدورة أثناء التحقق.`;
       if (courseName) return `بالتأكيد. طلبت من فريق القبول التحقق من ذلك بخصوص ${courseName}. لا أملك تأكيداً بعد، وسأواصل مساعدتك هنا أثناء التحقق.`;
       return 'بالتأكيد. طلبت من فريق القبول التحقق من ذلك، وسأواصل مساعدتك هنا أثناء التحقق.';
     }
@@ -587,14 +605,15 @@ function safeConversationalReply({ language, context, message, state = {}, staff
       ? `أفهم طلبك. لا أستطيع تأكيد وصول طلب التواصل إلى فريق القبول الآن، لكن يمكنني متابعة مساعدتك هنا بخصوص ${courseName}.`
       : 'أفهم طلبك. لا أستطيع تأكيد وصول طلب التواصل إلى فريق القبول الآن، لكن يمكنني متابعة مساعدتك هنا.';
     if (courseName && urgentStart) return `أفهم أنك ترغب في البدء فوراً. لا أملك موعداً مؤكداً لبدء ${courseName} بعد، ويمكن لفريق القبول التحقق من أقرب دفعة.`;
-    if (courseName) return `لا أملك هذه المعلومة مؤكدة عن ${courseName} حالياً. يمكن لفريق القبول التحقق منها، وسأساعدك هنا بما لدي من تفاصيل الدورة.`;
-    return 'لا أملك هذه المعلومة مؤكدة بعد. أخبرني بالتفصيل الذي تبحث عنه وسأحاول مساعدتك.';
+    if (courseName) return `أريد أن أتأكد من المعلومة الصحيحة عن ${courseName}. يمكن لفريق القبول التحقق منها، وسأشاركك هنا أي تفاصيل أخرى مؤكدة.`;
+    return 'لا أملك هذه المعلومة مؤكدة بعد. ما الجزء الذي تود أن أتحقق منه؟ يمكنني مشاركة التفاصيل المتوفرة لدي.';
   }
   if (askingWho) return staffNotificationQueued
     ? 'I’m the training center’s virtual assistant. I’ve asked admissions to check your enquiry, and I can keep helping you here.'
     : 'I’m the training center’s virtual assistant, here to help with your enquiry.';
   if (staffNotificationQueued) {
     if (courseName && urgentStart) return `Of course. I’ve asked admissions to confirm the next ${courseName} intake. I understand you’d like to start right away, but I don’t have a confirmed date yet. I’ll keep helping you here while they check.`;
+    if (courseName && businessContext.isScheduleQuestion(message)) return `I’ve asked admissions to check the start date for ${courseName}. I don’t have a confirmed schedule yet, but I can help with any other course details while they check.`;
     if (courseName) return `Of course. I’ve asked admissions to check that for your ${courseName} enquiry. I can keep helping you here while they do.`;
     return 'Of course. I’ve asked admissions to check that for you, and I can keep helping here while they do.';
   }
@@ -602,8 +621,26 @@ function safeConversationalReply({ language, context, message, state = {}, staff
     ? `I understand. I can’t confirm that your request reached admissions yet, but I can keep helping with your ${courseName} enquiry here.`
     : 'I understand. I can’t confirm that your request reached admissions yet, but I can keep helping you here.';
   if (courseName && urgentStart) return `I understand you’d like to start right away. I don’t have a confirmed start date for ${courseName} yet; admissions can check the next intake.`;
-  if (courseName) return `I don’t have that detail confirmed for ${courseName} yet. Admissions can verify it, and I can help with the course information I have.`;
-  return 'I don’t have that detail confirmed yet. Tell me what you’re trying to find out and I’ll help with what I can verify.';
+  if (courseName) return `I want to make sure I give you the right information about ${courseName}. Admissions can verify that detail, and I can share anything else we have confirmed.`;
+  return 'I don’t have that detail confirmed yet. Which part would you like me to check? I can also share the information we do have.';
+}
+
+function personalUpdateReply(message, context) {
+  const raw = String(message || '').normalize('NFKC').trim();
+  if (!raw || /[?؟]/u.test(raw)
+    || /\b(?:can you|could you|would you|please|when|where|how|what|send|share|connect|call|speak|talk|register|enrol|enroll)\b|ممكن|هل|أريد|اريد|اتصل|أرسل|ارسل|شارك/iu.test(raw)) return null;
+  const text = businessContext.normalized(raw);
+  const health = /\b(?:i was|i have been|i ve been|i am|i m)\s+(?:not feeling well|unwell|sick|ill|under the weather)\b|\b(?:not feeling well|unwell|sick|ill|under the weather)\s+(?:recently|lately)\b|\b(?:was sick|was ill|was unwell)\b|لم اكن بخير|كنت مريض|وعكة صحية|تعبت مؤخرا/u.test(text);
+  const busy = /\b(?:i(?: am| m| was| ve been| have been| had been)?\s+(?:very )?(?:busy|tied up)|i had a lot going on|work has been hectic|i couldn t get back to you|i could not get back to you)\b|كنت مشغولا|كنت مشغولة|كنت منشغلا|كنت منشغلة|لدي الكثير من الالتزامات/u.test(text);
+  if (!health && !busy) return null;
+  const language = context?.language === 'ar' ? 'ar' : 'en';
+  const courseName = context?.evidence?.find(item => item.kind === 'course')?.name || '';
+  if (language === 'ar') return health
+    ? `يؤسفني سماع أنك مررت بوعكة صحية، وأتمنى لك العافية. لا داعي للاستعجال؛ يمكننا متابعة استفسارك${courseName ? ` عن ${courseName}` : ''} متى كان ذلك مناسبًا لك.`
+    : `شكرًا لإخباري. لا مشكلة إطلاقًا؛ يمكننا متابعة استفسارك${courseName ? ` عن ${courseName}` : ''} في الوقت المناسب لك.`;
+  return health
+    ? `I’m sorry to hear you were unwell—I hope you’re feeling better. There’s no rush; we can pick up your ${courseName ? `${courseName} ` : ''}enquiry whenever it suits you.`
+    : `Thanks for letting me know—no problem at all. We can pick up your ${courseName ? `${courseName} ` : ''}enquiry whenever it suits you.`;
 }
 
 function tokenEstimate(text) { return Math.min(12000, Math.max(256, Math.ceil(Buffer.byteLength(text, 'utf8') / 1.5) + 700)); }
@@ -705,6 +742,10 @@ async function generateAiAnswer({ ctx, profile, uid, customerMessage, chatId = n
     ...(session.pendingCertificateQuestion ? { pendingCertificateQuestion: null } : {}),
   };
   const repeat = continuity ? businessContext.repeatQuestion(customerMessage, context, session) : null;
+  const personalReply = personalUpdateReply(customerMessage, context);
+  if (personalReply) return { canAnswer: true, confidence: 1, reply: personalReply,
+    state: { ...nextState, greeted: true }, route: 'empathy', suppressIntakeQuestion: true,
+    metrics: { inputTokens: 0, outputTokens: 0, cacheHit: false, sources: [] } };
   if (typeof businessContext.shouldClarifyGenericCourseInterest === 'function' && businessContext.shouldClarifyGenericCourseInterest(customerMessage, context, session)) {
     if (continuity) {
       const discovery = businessContext.trainingGreeting({ message: customerMessage, state: { ...nextState, greeted: true }, facts });
@@ -976,6 +1017,7 @@ async function aiTurn({ ctx, profile, uid, message, user, sessionId, origin, cha
   const onboarding = ctx.tenant.categoryKey === 'training_center' && !answer.state?.greeted;
   if (onboarding) answer.state = { ...(answer.state || {}), greeted: true };
   const questionLeadInfo = answer.staffRequested || answer.staffNotificationQueued
+    || answer.suppressIntakeQuestion
     || (answer.route === 'clarification' && (continuity || answer.reason === 'CERTIFICATE_DETAILS_UNVERIFIED'))
     || ((acknowledgement || answer.repeat) && leadInfo?.intake?.state.waiting) ? null : leadInfo?.intake
     ? { ...leadInfo, intake: { ...leadInfo.intake, session: answer.state || {} } }
@@ -1040,11 +1082,19 @@ async function previewMockupTurn({ uid, tenantId, chatId, channelKind, channelRe
     return { revision, reason: 'MOCKUP_CUSTOM_FLOW_REVIEW' };
   }
   const language = businessContext.languageFor(message, state || {});
-  const handoff = (reason, next = state) => ({
-    reply: handoffText({}, language), wouldHandoff: true, route: 'handoff', reason, revision, state: next,
+  const handoff = (reason, next = state, reply = null) => ({
+    reply: reply || handoffText({ type: messageType }, language), wouldHandoff: true, route: 'handoff', reason, revision, state: next,
   });
-  if (!message || !['text', 'interactive', 'button'].includes(messageType)) {
-    return handoff('UNSUPPORTED_MESSAGE_TYPE');
+  if (!message || !String(message).trim()) {
+    const previousAttachment = state?.mockupAttachment || {};
+    const count = previousAttachment.type === messageType ? Number(previousAttachment.count || 0) + 1 : 1;
+    const replies = language === 'ar'
+      ? { image: count > 1 ? 'وصلتني صورة أخرى، شكرًا لك. لا أستطيع فحص محتواها في هذه المعاينة؛ ما الجزء الذي تود أن نراجعه؟' : 'شكرًا لإرسال الصورة. لا أستطيع قراءة تفاصيلها في هذه المعاينة؛ هل يمكنك كتابة ما تود المساعدة فيه باختصار؟', document: 'شكرًا لمشاركة الملف. لا أستطيع قراءة محتواه في هذه المعاينة؛ أخبرني باختصار ما الذي تود معرفته.', audio: 'شكرًا على الرسالة الصوتية. لا أستطيع تفريغها في هذه المعاينة؛ هل يمكنك كتابة سؤالك باختصار؟', ptt: 'شكرًا على الرسالة الصوتية. لا أستطيع تفريغها في هذه المعاينة؛ هل يمكنك كتابة سؤالك باختصار؟', video: 'شكرًا لمشاركة الفيديو. لا أستطيع مشاهدة محتواه في هذه المعاينة؛ ما الذي تود أن أتحقق منه؟', location: 'شكرًا لمشاركة موقعك. لا أستطيع مراجعة الموقع من هذه المعاينة؛ هل تبحث عن موقع مركز التدريب أو عن اتجاهات إليه؟' }
+      : { image: count > 1 ? 'I see you’ve shared another photo, thanks. I can’t inspect it in this preview; which detail would you like us to look at?' : 'Thanks for the photo. I can’t read its contents in this preview yet. Could you briefly tell me what you’d like help with?', document: 'Thanks for sharing the file. I can’t read its contents in this preview yet. What would you like me to check?', audio: 'Thanks for the voice note. I can’t transcribe it in this preview yet. Could you send the main question in a few words?', ptt: 'Thanks for the voice note. I can’t transcribe it in this preview yet. Could you send the main question in a few words?', video: 'Thanks for sharing the video. I can’t view its contents in this preview yet. What would you like me to check?', location: 'Thanks for sharing your location. I can’t review the pin in this preview; are you looking for the training centre or directions there?' };
+    const next = { ...(state || {}), mockupAttachment: { type: messageType, count } };
+    return handoff('UNSUPPORTED_MESSAGE_TYPE', next, replies[String(messageType || '').toLowerCase()] || (language === 'ar'
+      ? 'شكرًا لمشاركة ذلك. لا أستطيع قراءة هذا النوع من الرسائل في المعاينة؛ اكتب سؤالك باختصار وسأحاول مساعدتك.'
+      : 'Thanks for sharing that. I can’t read this message type in the preview yet. If you add a short note, I’ll do my best to help.'));
   }
   const pack = getDomainPack(ctx.category.key, ctx.category.version);
   const db = await dbPool.getConnection();
@@ -1171,7 +1221,7 @@ async function previewMockupTurn({ uid, tenantId, chatId, channelKind, channelRe
   if (!answer.reply) return { revision, reason: 'MOCKUP_EMPTY_REPLY' };
   const next = { ...answer.state, greeted: true, mockupCourseInterest: courseInterest,
     mockupIntake: { ...intake.state, ...(intake.start ? { preferredStart: intake.start } : {}) } };
-  const question = (answer.staffRequested || answer.staffNotificationQueued)
+  const question = (answer.staffRequested || answer.staffNotificationQueued || answer.suppressIntakeQuestion)
     ? null : (guided && !opening && !prior.greeted) || ((acknowledgement || repeat) && previousIntake.waiting)
     ? null : { ...leadInfo, intake: { ...intake, session: next } };
   const standalone = capture.standaloneNamePrompt(question);
