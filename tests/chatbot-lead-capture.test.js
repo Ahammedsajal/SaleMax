@@ -21,7 +21,7 @@ test('useful contact preferences are captured without asking for identity or pay
 });
 test('lead prompt replaces a generic last question and is editable in both languages',()=>{
  const defaults=getDomainPack('training_center',1).guidedContentDefaults;
- assert.equal(addQuestion('Excel is QAR 950. Would you like more details?',{questionKey:'collectNameMessage',language:'en'},{},defaults),'Excel is QAR 950.\n\nMay I have your name?');
+ assert.equal(addQuestion('Excel is QAR 950. Would you like more details?',{questionKey:'collectNameMessage',language:'en'},{},defaults),'Excel is QAR 950.\n\nMay I ask what name you’d like me to use?');
  assert.equal(addQuestion('أهلاً!',{questionKey:'collectNameMessage',language:'ar'},{guidedContent:{messages:{collectNameMessage:{ar:'ما اسم المتعلم؟'}}}},defaults),'أهلاً!\n\nما اسم المتعلم؟');
  assert.equal(addQuestion('Hello',null,{},defaults),'Hello');
 });
@@ -43,7 +43,7 @@ test('Arabic certificate questions are not captured as customer names', () => {
 
 test('Pro Catalyst sends name questions and confirmations as standalone text', () => {
   const body = 'Marine Deckhand course. Duration: two months.';
-  for (const [key, prompt] of [['name', 'May I have your name?'], ['confirmName', 'هل اسمك نورا؟']]) {
+  for (const [key, prompt] of [['name', 'May I ask what name you’d like me to use?'], ['confirmName', 'لديّ اسمك مسجلاً باسم نورا، هل يمكنك تأكيد أنني سجلته بشكل صحيح؟']]) {
     const info = { courseInterest: 'Marine Deckhand', intake: { key, prompt, session: {} } };
     assert.equal(addQuestion(body, info, {}, {}), body);
     assert.equal(standaloneNamePrompt(info), prompt);

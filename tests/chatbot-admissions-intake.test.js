@@ -20,11 +20,11 @@ test('stores a stated start preference but does not treat course schedule questi
 test('confirms saved details one at a time and requests replacements when declined', () => {
   const input = { savedName: 'Nora', savedStart: 'next week', language: 'en' };
   const initial = advance({ ...input, prior: {}, text: 'Tell me about marine course' });
-  assert.equal(initial.prompt, 'Is your name Nora?');
+  assert.equal(initial.prompt, 'I have your name as Nora—could you please confirm I’ve got it right?');
   const accepted = advance({ ...input, prior: { ...initial.state, waiting: initial.key }, text: 'Yes' });
   assert.equal(accepted.state.nameConfirmed, true);
   assert.equal(accepted.answerOnly, true);
-  assert.equal(accepted.prompt, 'Is your preferred start still next week?');
+  assert.equal(accepted.prompt, 'You mentioned next week as your preferred start—would you like me to keep that noted?');
   const declined = advance({ ...input, prior: { ...accepted.state, waiting: accepted.key }, text: 'No' });
   assert.equal(declined.key, 'start');
   const corrected = advance({ ...input, prior: { ...declined.state, waiting: declined.key }, text: 'Flexible' });

@@ -16,7 +16,7 @@ test('first greeting feels welcoming, invites natural discovery and does not ask
   assert.match(result.reply, /Welcome to Pro Catalyst Training Center/);
   assert.match(result.reply, /Which course are you interested in/);
   assert.doesNotMatch(result.reply, /\[1\]|\[2\]|\[3\]|\[0\]|reply with a number/i);
-  assert.doesNotMatch(result.reply, /May I have your name\?/);
+  assert.doesNotMatch(result.reply, /May I ask what name you’d like me to use\?/);
   assert.equal(result.state.greeted, true);
 });
 

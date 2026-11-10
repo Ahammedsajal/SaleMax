@@ -37,11 +37,11 @@ module.exports = async function admissionsIntakeIntegration(db, pool, { t1, t2 }
     assert.equal((await turn('hello', randomUUID(), t2)).intake, null);
     const first = await turn('I want to know about marine course');
     assert.equal(first.courseInterest, 'marine course');
-    assert.equal(first.intake.prompt, 'Is your name Nora?');
+    assert.equal(first.intake.prompt, 'I have your name as Nora—could you please confirm I’ve got it right?');
     await markAsked(pool, first, uid);
     const accepted = await turn('Yes');
     assert.equal(accepted.intake.name, 'Nora Example');
-    assert.equal(accepted.intake.prompt, 'Is your preferred start still within a month?');
+    assert.equal(accepted.intake.prompt, 'You mentioned within a month as your preferred start—would you like me to keep that noted?');
     await markAsked(pool, accepted, uid);
     const newDate = randomUUID();
     const completed = await turn('Next week', newDate);
@@ -65,12 +65,12 @@ module.exports = async function admissionsIntakeIntegration(db, pool, { t1, t2 }
     await db.query('INSERT INTO contact(uid,phonebook_id,name,mobile) VALUES (?,901,?,?),(?,902,?,?)',
       [uid,'Leila Example','5555 0002',otherUid,'Unrelated Tenant','5555 0002']);
     const phonebook = await turn('I want to know about marine course');
-    assert.equal(phonebook.intake.prompt, 'Is your name Leila?');
+    assert.equal(phonebook.intake.prompt, 'I have your name as Leila—could you please confirm I’ve got it right?');
     await db.query('INSERT INTO contact(uid,phonebook_id,name,mobile) VALUES (?,901,?,?)', [uid,'Amina Example',normalizedPhone]);
-    assert.equal((await turn('I want to know about marine course')).intake.prompt, 'May I have your name?');
+    assert.equal((await turn('I want to know about marine course')).intake.prompt, 'May I ask what name you’d like me to use?');
 
     await db.query("UPDATE pipeline_contacts SET display_name='Linked Learner' WHERE id=?", [contactId]);
-    assert.equal((await turn('I want to know about marine course')).intake.prompt, 'Is your name Linked?');
+    assert.equal((await turn('I want to know about marine course')).intake.prompt, 'I have your name as Linked—could you please confirm I’ve got it right?');
     return { admissionsNumberLookup: true, admissionsConfirmAndSave: true, admissionsDuplicateProtection: true,
       admissionsLinkedContactAndPhonebookLookup: true };
   } finally {

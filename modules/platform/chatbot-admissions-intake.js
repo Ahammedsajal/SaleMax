@@ -63,12 +63,16 @@ function advance({ prior, text, name, nameOnly, savedName, savedStart, language,
   const ar = language === 'ar';
   const candidates = [];
   if (!state.nameConfirmed) {
-    if (savedName && !state.replaceName) candidates.push(['confirmName', ar ? `هل اسمك ${savedName}؟` : `Is your name ${savedName}?`]);
-    else candidates.push(['name', ar ? 'ما اسمك؟' : 'May I have your name?']);
+    if (savedName && !state.replaceName) candidates.push(['confirmName', ar
+      ? `لديّ اسمك مسجلاً باسم ${savedName}، هل يمكنك تأكيد أنني سجلته بشكل صحيح؟`
+      : `I have your name as ${savedName}—could you please confirm I’ve got it right?`]);
+    else candidates.push(['name', ar ? 'ما الاسم الذي تفضّل أن أستخدمه عند مخاطبتك؟' : 'May I ask what name you’d like me to use?']);
   }
   if (!state.startConfirmed) {
-    if (savedStart && !state.replaceStart) candidates.push(['confirmStart', ar ? `هل لا يزال موعد البدء المفضل لديك ${savedStart}؟` : `Is your preferred start still ${savedStart}?`]);
-    else candidates.push(['start', ar ? 'متى تفضل بدء الدورة؟ يمكنك قول «أي وقت».' : 'When would you like to start? “Flexible” is fine.']);
+    if (savedStart && !state.replaceStart) candidates.push(['confirmStart', ar
+      ? `ذكرت أن موعد البدء المفضل لديك هو ${savedStart}—هل أُبقي ذلك مسجلاً؟`
+      : `You mentioned ${savedStart} as your preferred start—would you like me to keep that noted?`]);
+    else candidates.push(['start', ar ? 'متى تود أن تبدأ؟ لا بأس إن لم يكن لديك موعد محدد بعد.' : 'When would you ideally like to begin? If you’re flexible, that’s completely fine.']);
   }
   const [key, prompt] = candidates.find(([field]) => Number(state[field + 'Asked'] || 0) < 2) || [];
   return { state, key, prompt, answerOnly, start };
