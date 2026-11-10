@@ -9,7 +9,7 @@ async function assignHandoffTask(db, { ctx, profile, uid, chatId, channelKind, c
   const [[member]] = await db.query(`SELECT m.identity_id FROM sx_memberships m JOIN sx_identities i ON i.id=m.identity_id
     WHERE m.tenant_id=? AND m.identity_id=? AND m.status='active' AND i.status='active' LIMIT 1`, [ctx.tenant.id, assignee]);
   if (!member) return null;
-  const description = `WhatsApp admissions handover\nConversation: ${chatId}\nChannel: ${channelKind}\nOpen Inbox and review this conversation. Automated replies are paused. Resume the bot only after staff follow-up.`;
+  const description = `WhatsApp admissions follow-up\nConversation: ${chatId}\nChannel: ${channelKind}\nOpen Inbox and review this conversation. The assistant continues helping while staff are notified. After a staff reply in Inbox, it pauses for the bot’s selected interval and resumes automatically.`;
   const [[existing]] = await db.query(`SELECT id FROM sx_tasks WHERE tenant_id=? AND task_type='chatbot_handoff'
     AND description=? AND status IN ('open','in_progress','blocked') AND deleted_at IS NULL LIMIT 1 FOR UPDATE`, [ctx.tenant.id, description]);
   if (existing) return existing.id;

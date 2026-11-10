@@ -857,6 +857,15 @@ function processSocketEvent({
               });
             }
             if(agentAccount)try{await recordAgentReply({query,uid:socket?.userData?.owner_uid,chatId:chatInfo.chat_id,agentId:socket?.userData?.id,origin:chatInfo.origin,providerMessageId:sendMsg.id});}catch{console.warn("LEAD_CONVERSATION_ACTIVITY_LOG_FAILED");}
+            if (inboxScope.canonical && inboxScope.identityId && ['qr', 'meta'].includes(chatInfo.origin)) {
+              const ownerUid = isAgent ? socket?.userData?.owner_uid : uid;
+              const channelKind = chatInfo.origin === 'qr' ? 'whatsapp_qr' : 'whatsapp_meta';
+              const channelRef = chatInfo.origin === 'qr' ? chatInfo.origin_instance_unique_id : 'META';
+              await require('../../modules/platform/chatbot-handoff-claims').recordStaffReply(require('../../database/config').promise(), {
+                tenantId: inboxScope.ctx?.tenant?.id, uid: ownerUid, identityId: inboxScope.identityId,
+                chatId: chatInfo.chat_id, channelKind, channelRef,
+              });
+            }
 
             await query(
               `UPDATE beta_chats SET last_message = ? WHERE chat_id = ? AND uid = ?`,

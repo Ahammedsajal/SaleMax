@@ -120,32 +120,29 @@ async function sendCustomerHandoffNotice({ ctx, profile, uid, message, origin, s
   return sent;
 }
 
-async function handoffConversation(ctx, chatId, channelKind, channelRef, reason, profile = null, uid = null, intake = null) {
+async function handoffConversation(ctx, chatId, channelKind, channelRef, reason, profile = null, uid = null, intake = null, { pause = true } = {}) {
   const db = await dbPool.getConnection();
   try {
     await db.beginTransaction();
     const handoffs = require('./chatbot-handoff-claims');
-    const minutes = handoffs.holdMinutes(ctx.tenant.id);
+    const minutes = handoffs.holdMinutes(ctx.tenant.id, profile);
     let claim = null;
     if (profile && uid) {
       const brief = await buildHandoffBrief(db, { ctx, profile, uid, chatId, channelKind, channelRef, intake });
       claim = await handoffs.open(db, { ctx, profile, uid, chatId, channelKind, channelRef, reason, brief });
-      if (minutes === 60 && claim.status === 'claimed') {
-        await db.commit();
-        return claim;
-      }
     }
-    const controlReason = String((minutes === 60 && claim?.reason) || reason || 'human-review').slice(0, minutes === 60 ? 120 : 240);
-    await db.query(`INSERT INTO sx_chatbot_conversation_controls(id,tenant_id,channel_kind,channel_ref,conversation_id,mode,pause_until,reason,revision,updated_by_kind,updated_by_identity_id)
+    const controlReason = String(claim?.reason || reason || 'human-review').slice(0, 240);
+    if (pause) await db.query(`INSERT INTO sx_chatbot_conversation_controls(id,tenant_id,channel_kind,channel_ref,conversation_id,mode,pause_until,reason,revision,updated_by_kind,updated_by_identity_id)
       VALUES (?,?,?,?,?,'paused',COALESCE(
         (SELECT expires_at FROM sx_chatbot_handoff_claims WHERE tenant_id=? AND id=?),
         TIMESTAMPADD(MINUTE,?,UTC_TIMESTAMP(3))),?,1,'system',NULL)
       ON DUPLICATE KEY UPDATE mode='paused',pause_until=VALUES(pause_until),reason=VALUES(reason),revision=revision+1,updated_by_kind='system',updated_by_identity_id=NULL`,
     [crypto.randomUUID(), ctx.tenant.id, channelKind, channelRef, chatId, ctx.tenant.id,
-      minutes === 60 ? claim?.id ?? null : null, minutes, controlReason]);
+      claim?.id ?? null, minutes, controlReason]);
     await db.query(`INSERT INTO sx_audit_events(id,tenant_id,actor_identity_id,actor_kind,action,resource_type,resource_id,changes,correlation_id)
-      VALUES (?,?,NULL,'system','chatbot.conversation-auto-handoff','chatbot-conversation',?,?,?)`,
-    [crypto.randomUUID(), ctx.tenant.id, chatId, JSON.stringify({ mode: 'paused', reason: controlReason }), crypto.randomUUID()]);
+      VALUES (?,?,NULL,'system',?,'chatbot-conversation',?,?,?)`,
+    [crypto.randomUUID(), ctx.tenant.id, pause ? 'chatbot.conversation-auto-handoff' : 'chatbot.conversation-staff-notified', chatId,
+      JSON.stringify({ mode: pause ? 'paused' : 'staff-notified', reason: controlReason, timeoutMinutes: minutes }), crypto.randomUUID()]);
     if (claim?.created) {
       const taskId = await require('./chatbot-handoff-task').assignHandoffTask(db, { ctx, profile, uid, chatId, channelKind, channelRef, reason });
       if (taskId) await db.query('UPDATE sx_chatbot_handoff_claims SET handoff_task_id=? WHERE tenant_id=? AND id=?', [taskId, ctx.tenant.id, claim.id]);
@@ -217,21 +214,21 @@ async function processHandoffPriorityForProfile({ ctx, profile, uid, message, us
       if (!pilot || await canSendNow({ ctx, profile, uid, origin, sessionId, chatId, message, checkPause: false })) {
         await sendBotText({ origin, sessionId, message, uid, chatId, body: staffReply }).catch(() => false);
       }
-      if (claimed.outcome === 'claimed' && claimed.customerChat?.senderMobile) {
-        const customerMessage = { ...message, senderMobile: claimed.customerChat.senderMobile, senderName: claimed.customerChat.senderName || '', metaChatId: `handoff-accepted:${claimed.conversationId}`, timestamp: Date.now() };
-        const target = { origin: claimed.customerChat.origin || origin, sessionId, message: customerMessage, uid, chatId: claimed.conversationId };
-        if (!pilot || await canSendNow({ ...target, ctx, profile, checkPause: false })) {
-          await sendBotText({ ...target, body: handoffText(customerMessage, null, true) }).catch(() => false);
-        }
-      }
       return { handled: true, handoffClaim: claimed.outcome };
     }
   }
 
   const pause = await require('./chatbot-conversation-control').readPause(uid, chatId, channelKind, sessionId);
   if (!pause) return { handled: false };
-  if (pause.updatedByKind !== 'system' || pause.failClosed || pause.ambiguous) return { handled: true, paused: true };
   let pending = await claims.findOpen(dbPool, { tenantId: ctx.tenant.id, uid, channelKind, channelRef: sessionId, chatId });
+  if (pause.updatedByKind === 'system' && pending && pause.reason === pending.reason) {
+    await query(`UPDATE sx_chatbot_conversation_controls SET mode='inherit',pause_until=NULL,reason=NULL,
+        revision=revision+1,updated_by_kind='system',updated_by_identity_id=NULL
+      WHERE tenant_id=? AND channel_kind=? AND channel_ref=? AND conversation_id=? AND mode='paused'
+        AND updated_by_kind='system' AND reason=?`, [ctx.tenant.id, channelKind, sessionId, chatId, pending.reason]);
+    return { handled: false, resumedLegacyHandoff: true };
+  }
+  if (pause.updatedByKind !== 'system' || pause.failClosed || pause.ambiguous) return { handled: true, paused: true };
   if (!pending) {
     const claim = await handoffConversation(ctx, chatId, channelKind, sessionId, pause.reason || 'human-review', profile, uid).catch(() => null);
     pending = claim && await claims.findOpen(dbPool, { tenantId: ctx.tenant.id, uid, channelKind, channelRef: sessionId, chatId });
@@ -547,6 +544,21 @@ async function trainingCenterGuidedTurn({ ctx, profile, uid, message, sessionId,
   return true;
 }
 
+function safeConversationalReply({ language, context, message, staffRequested = false, staffNotificationQueued = false }) {
+  const course = context?.evidence?.find(item => item.kind === 'course');
+  const courseName = course?.name ? ` about ${course.name}` : '';
+  if (language === 'ar') {
+    if (staffNotificationQueued) return `سجّلت ما تحتاجه وطلبت من فريق القبول التحقق. أستطيع مساعدتك هنا أيضاً${course?.name ? ` بخصوص ${course.name}` : ''} — ما أهم تفصيل تود معرفته؟`;
+    if (staffRequested) return `بالتأكيد، أستطيع متابعة مساعدتك هنا. ما التفصيل الذي تريد من فريقنا التركيز عليه؟`;
+    if (/\bwho are you\b|\bwhat are you\b|من أنت|من انتم|من أنتم/u.test(message)) return 'أنا المساعد الافتراضي لمركز التدريب، ويسعدني مساعدتك في استفسارك.';
+    return `لا أملك تأكيداً لهذه المعلومة حالياً${course?.name ? ` عن ${course.name}` : ''}. ما التفصيل الذي تود أن أتحقق منه أولاً؟`;
+  }
+  if (staffNotificationQueued) return `I’ve noted what you need and asked admissions to check. I can still help${courseName} while they do—what detail would you like first?`;
+  if (staffRequested) return 'Of course. I can keep helping here; what would you like the team to focus on?';
+  if (/\bwho are you\b|\bwhat are you\b/i.test(message)) return 'I’m the training center’s virtual assistant, here to help with your enquiry.';
+  return `I don’t have that confirmed yet${courseName}. What would be most helpful for me to check first?`;
+}
+
 function tokenEstimate(text) { return Math.min(12000, Math.max(256, Math.ceil(Buffer.byteLength(text, 'utf8') / 1.5) + 700)); }
 async function reserveTokens(ctx, providerConfig, amount) {
   return tenantAiSettings.reserveTokens(dbPool, ctx.tenant.id, providerConfig.daily_token_limit, amount);
@@ -619,6 +631,9 @@ async function generateAiAnswer({ ctx, profile, uid, customerMessage, chatId = n
   let session = state || (chatId ? await loadDomainGuidedSession({ ctx, profile, chatId, channelKind, channelRef }) : null) || {};
   const courseCertificates = ctx.category.key === 'training_center';
   const courseRoute = courseCertificates ? businessContext.controlRoute(customerMessage, profile.config, session, facts, { courseCertificates }) : null;
+  const staffRequested = courseRoute === 'human' || courseRoute === 'handoff';
+  let staffReason = courseRoute === 'human' ? 'customer-requested-human' : courseRoute === 'handoff' ? 'customer-requested-specialist' : null;
+  let staffNotificationQueued = false;
   if (intakeCourse && !session.selectedCourseCode && courseRoute !== 'certificate') {
     const matches = facts.filter(item => !item.kind && [item.nameEn, item.nameAr, item.code]
       .some(name => name && businessContext.normalized(name) === businessContext.normalized(intakeCourse)));
@@ -627,8 +642,9 @@ async function generateAiAnswer({ ctx, profile, uid, customerMessage, chatId = n
   if (courseCertificates && (courseRoute === 'certificate' || session.pendingCertificateQuestion)) {
     const context = businessContext.retrieveContext({ facts, message: customerMessage, state: session, referral });
     const answer = certificateTurn(customerMessage, context, session, courseRoute);
-    if (answer) return { ...answer, canAnswer: true, confidence: 1,
+    if (answer && answer.reason !== 'CERTIFICATE_DETAILS_UNVERIFIED') return { ...answer, canAnswer: true, confidence: 1,
       metrics: { inputTokens: 0, outputTokens: 0, cacheHit: false, sources: context.sources.filter(source => answer.sourceIds.includes(source.id)) } };
+    if (answer?.reason === 'CERTIFICATE_DETAILS_UNVERIFIED') staffReason ||= 'CERTIFICATE_DETAILS_UNVERIFIED';
   }
   onStage?.('approved-faqs');
   const knowledgeEntries = mergeKnowledgeEntries(profile.config?.knowledgeEntries || [], await loadApprovedFaqs(ctx.tenant.id));
@@ -654,14 +670,18 @@ async function generateAiAnswer({ ctx, profile, uid, customerMessage, chatId = n
   }
   const courseOverview = profile.engine === 'hybrid' && profile.config?.aiFallback !== false && businessContext.isCourseOverviewRequest(customerMessage, context);
   const published = admissionsIntake ? businessContext.publishedTrainingReply(customerMessage, context) : null;
-  if (published) return { canAnswer: true, confidence: 1, reply: published.reply, state: nextState, route: 'facts', repeat: Boolean(repeat),
+  if (published && !staffRequested) return { canAnswer: true, confidence: 1, reply: published.reply, state: nextState, route: 'facts', repeat: Boolean(repeat),
     metrics: { inputTokens: 0, outputTokens: 0, cacheHit: false, sources: context.sources.filter(source => published.sourceIds.includes(source.id)) } };
   if (ctx.category.key === 'training_center') {
     const handoffReason = businessContext.trainingCenterCoordinatorReason(customerMessage, facts, context.selectedCourseCode || session.selectedCourseCode);
-    if (handoffReason) return { handedOff: true, code: handoffReason, state: nextState };
+    if (handoffReason) staffReason ||= handoffReason;
+  }
+  if (staffReason && uid && chatId && channelKind && channelRef) {
+    const claim = await handoffConversation(ctx, chatId, channelKind, channelRef, staffReason, profile, uid, null, { pause: false }).catch(() => null);
+    staffNotificationQueued = Boolean(claim?.id);
   }
   const repeatedFact = businessContext.repeatedCourseFact(repeat, context);
-  if (repeatedFact) return { canAnswer: true, confidence: 1, reply: repeatedFact.reply, state: nextState, route: 'facts', repeat: true,
+  if (repeatedFact && !staffReason) return { canAnswer: true, confidence: 1, reply: repeatedFact.reply, state: nextState, route: 'facts', repeat: true,
     metrics: { inputTokens: 0, outputTokens: 0, cacheHit: false, sources: context.sources.filter(source => repeatedFact.sourceIds.includes(source.id)) } };
   const factualOverviewFallback = sourceContext => {
     const simple = businessContext.simpleFactualReply(customerMessage, sourceContext, profile.config);
@@ -670,15 +690,25 @@ async function generateAiAnswer({ ctx, profile, uid, customerMessage, chatId = n
   if (profile.engine === 'hybrid') {
     const faq = require('./chatbot-faq').findApprovedFaq(customerMessage, knowledgeEntries, context.language, { hasCourse: context.evidence.some(item => item.kind === 'course') });
     const skipFaq = typeof businessContext.shouldSkipApprovedFaq === 'function' && businessContext.shouldSkipApprovedFaq(customerMessage, context);
-    if (faq && !skipFaq) return { canAnswer: true, confidence: 1, reply: faq.answer, state: nextState, route: 'approved_faq', metrics: { inputTokens: 0, outputTokens: 0, cacheHit: false, sources: context.sources } };
+    if (faq && !skipFaq && !staffReason) return { canAnswer: true, confidence: 1, reply: faq.answer, state: nextState, route: 'approved_faq', metrics: { inputTokens: 0, outputTokens: 0, cacheHit: false, sources: context.sources } };
     const simple = businessContext.simpleFactualReply(customerMessage, context, profile.config);
-    if (simple && !courseOverview) return { canAnswer: true, confidence: 1, reply: simple.reply, state: simple.nextStep ? { ...nextState, step: simple.nextStep } : nextState, route: 'facts', metrics: { inputTokens: 0, outputTokens: 0, cacheHit: false, sources: context.sources } };
+    if (simple && !courseOverview && !staffReason) return { canAnswer: true, confidence: 1, reply: simple.reply, state: simple.nextStep ? { ...nextState, step: simple.nextStep } : nextState, route: 'facts', metrics: { inputTokens: 0, outputTokens: 0, cacheHit: false, sources: context.sources } };
   }
   onStage?.('ai-settings');
   const settings = await tenantAiSettings.forRuntime(dbPool, ctx.tenant.id);
-  if (!settings) return ((courseOverview || admissionsIntake) && factualOverviewFallback(context)) || { handedOff: true, code: 'AI_PROVIDER_NOT_CONFIGURED' };
+  if (!settings) {
+    if (admissionsIntake && uid && chatId && !staffNotificationQueued) {
+      const claim = await handoffConversation(ctx, chatId, channelKind, channelRef, 'AI_PROVIDER_NOT_CONFIGURED', profile, uid, null, { pause: false }).catch(() => null);
+      staffNotificationQueued = Boolean(claim?.id);
+    }
+    return ((!staffRequested && !staffNotificationQueued && (courseOverview || admissionsIntake)) && factualOverviewFallback(context)) || {
+      canAnswer: true, confidence: 0, reply: safeConversationalReply({ language: context.language, context, message: customerMessage, staffRequested, staffNotificationQueued }),
+      state: nextState, route: 'safe_fallback', reason: 'AI_PROVIDER_NOT_CONFIGURED', staffRequested, staffNotificationQueued,
+      metrics: { inputTokens: 0, outputTokens: 0, cacheHit: false, sources: context.sources },
+    };
+  }
   const historySafe = Array.isArray(session.recentConversation) ? session.recentConversation.slice(-4).map(item => ({ role: item.role, text: businessContext.redactCustomerText(item.text) })) : [];
-  const key = businessContext.fingerprint({ tenant: ctx.tenant.id, profile: profile.id, revision: context.revision, model: settings.model, provider: settings.provider, question: businessContext.normalized(customerMessage), language: context.language, history: historySafe, selected: session.selectedCourseCode });
+  const key = businessContext.fingerprint({ tenant: ctx.tenant.id, profile: profile.id, revision: context.revision, model: settings.model, provider: settings.provider, question: businessContext.normalized(customerMessage), language: context.language, history: historySafe, selected: session.selectedCourseCode, staffRequested, staffNotificationQueued });
   const cached = replyCache.get(key);
   if (cached && cached.expiresAt > Date.now()) return { ...cached.answer, state: nextState, metrics: { ...cached.answer.metrics, cacheHit: true, inputTokens: 0, outputTokens: 0, cachedInputTokens: 0, cacheWriteTokens: 0 } };
   const sourceAliases = new Map();
@@ -694,8 +724,8 @@ async function generateAiAnswer({ ctx, profile, uid, customerMessage, chatId = n
     }))
     : context.evidence;
   const compactEvidence = aiEvidence.map((item, index) => { const alias = 's' + index; sourceAliases.set(alias, item.sourceId); return { ...item, sourceId: alias }; });
-  const { system, context: promptContext, user: input, inputBytes } = buildAiPrompt({ pack, profile, customerMessage: businessContext.redactCustomerText(customerMessage), facts: compactEvidence, history: historySafe, courseOverview, admissionsIntake, repeat: Boolean(repeat) });
-  if (inputBytes > 12000) return factualOverviewFallback(context) || { canAnswer: true, reply: businessContext.clarification(profile.config, context.language), confidence: 0, state: nextState, route: 'clarification' };
+  const { system, context: promptContext, user: input, inputBytes } = buildAiPrompt({ pack, profile, customerMessage: businessContext.redactCustomerText(customerMessage), facts: compactEvidence, history: historySafe, courseOverview, admissionsIntake, repeat: Boolean(repeat), staffRequested, staffNotificationQueued });
+  if (inputBytes > 12000) return ((!staffRequested && !staffNotificationQueued) && factualOverviewFallback(context)) || { canAnswer: true, reply: safeConversationalReply({ language: context.language, context, message: customerMessage, staffRequested, staffNotificationQueued }), confidence: 0, state: nextState, route: 'safe_fallback', staffRequested, staffNotificationQueued };
   const prompt = `${system}\n\n${promptContext}\n\n${input}`;
   const estimate = tokenEstimate(prompt);
   let reservation = null;
@@ -715,8 +745,15 @@ async function generateAiAnswer({ ctx, profile, uid, customerMessage, chatId = n
     if (error.usage) response = error.usage;
     if (Number.isSafeInteger(error.tokensUsed)) failedUsage = error.tokensUsed;
     else if (Number.isInteger(error.status)) failedUsage = 0;
-    if (courseOverview || (admissionsIntake && ['AI_PROVIDER_TIMEOUT','AI_PROVIDER_REQUEST_FAILED','AI_PROVIDER_INVALID_OUTPUT'].includes(error.code))) {
-      return factualOverviewFallback(context) || { handedOff: true, code: error.code || 'AI_PROVIDER_ERROR' };
+    if (courseOverview && !staffRequested && !staffNotificationQueued && factualOverviewFallback(context)) return factualOverviewFallback(context);
+    if (admissionsIntake) {
+      if (!staffNotificationQueued && uid && chatId) {
+        const claim = await handoffConversation(ctx, chatId, channelKind, channelRef, error.code || 'AI_PROVIDER_ERROR', profile, uid, null, { pause: false }).catch(() => null);
+        staffNotificationQueued = Boolean(claim?.id);
+      }
+      return { canAnswer: true, confidence: 0, reply: safeConversationalReply({ language: context.language, context, message: customerMessage, staffRequested, staffNotificationQueued }),
+        state: nextState, route: 'safe_fallback', reason: error.code || 'AI_PROVIDER_ERROR', staffRequested, staffNotificationQueued,
+        metrics: { inputTokens: 0, outputTokens: 0, cacheHit: false, sources: context.sources } };
     }
     throw error;
   } finally {
@@ -731,22 +768,24 @@ async function generateAiAnswer({ ctx, profile, uid, customerMessage, chatId = n
   }
   const metrics = { inputTokens: response.inputTokens || 0, outputTokens: response.outputTokens || 0, cachedInputTokens: response.cachedInputTokens || 0, cacheWriteTokens: response.cacheWriteTokens || 0, cacheHit: false, latencyMs: Date.now() - providerStarted, sources: context.sources, provider: settings.provider, model: settings.model };
   onStage?.('answer-validation');
-  const validation = businessContext.validateAnswer(response, context);
+  const validation = businessContext.validateAnswer(response, context, { staffNotificationQueued });
   const threshold = Number(profile.config?.confidenceThreshold ?? 0.72);
   if (!validation.valid || response.confidence < threshold) {
-    if (courseOverview) return factualOverviewFallback(context) || { canAnswer: true, reply: businessContext.clarification(profile.config, context.language), confidence: 0, state: nextState, route: 'clarification', reason: validation.code || 'LOW_CONFIDENCE', metrics };
-    const language = context.language;
-    return { canAnswer: true, confidence: 0, reply: businessContext.unavailableReply(customerMessage, profile.config, language), state: nextState, route: 'clarification', reason: validation.code || 'LOW_CONFIDENCE', metrics };
+    if (courseOverview && !staffRequested && !staffNotificationQueued && factualOverviewFallback(context)) return factualOverviewFallback(context);
+    return { canAnswer: true, confidence: 0, reply: safeConversationalReply({ language: context.language, context, message: customerMessage, staffRequested, staffNotificationQueued }),
+      state: nextState, route: 'safe_fallback', reason: validation.code || 'LOW_CONFIDENCE', staffRequested, staffNotificationQueued, metrics };
   }
   // Re-read live facts after the model call; never deliver a price or date
   // generated from data that changed while the provider was working.
   const fresh = businessContext.retrieveContext({ facts: await loadFacts(), knowledgeEntries: mergeKnowledgeEntries(profile.config?.knowledgeEntries || [], await loadApprovedFaqs(ctx.tenant.id)), message: customerMessage, state: session, profileRevision: profile.revision, referral, includeRelatedFaqs: admissionsIntake });
-  if (fresh.revision !== context.revision) return factualOverviewFallback(fresh) || { canAnswer: true, confidence: 0, reply: businessContext.clarification(profile.config, context.language), state: nextState, route: 'clarification', reason: 'BUSINESS_DATA_CHANGED', metrics };
+  if (fresh.revision !== context.revision) return factualOverviewFallback(fresh) || { canAnswer: true, confidence: 0,
+    reply: safeConversationalReply({ language: context.language, context: fresh, message: customerMessage, staffRequested, staffNotificationQueued }),
+    state: nextState, route: 'safe_fallback', reason: 'BUSINESS_DATA_CHANGED', staffRequested, staffNotificationQueued, metrics };
   const usedCourses = context.evidence.filter(item => item.kind === 'course' && response.sourceIds.includes(item.sourceId));
   if (usedCourses.length === 1 && businessContext.normalized(response.reply).includes(businessContext.normalized(usedCourses[0].name))) nextState.selectedCourseCode = usedCourses[0].code;
-  const answer = { canAnswer: true, confidence: response.confidence, reply: response.reply, state: nextState, route: 'ai', repeat: Boolean(repeat), metrics };
+  const answer = { canAnswer: true, confidence: response.confidence, reply: response.reply, state: nextState, route: 'ai', repeat: Boolean(repeat), staffRequested, staffNotificationQueued, metrics };
   // Cache only answers without customer history or contact/private identifiers.
-  if (!historySafe.length && customerMessage.length <= 180 && /fee|price|duration|schedule|centre|center|location|address|رسوم|سعر|مدة|عنوان|موقع/i.test(customerMessage) && !/[0-9]{7,}|@|my name|اسمي/i.test(customerMessage)) {
+  if (!staffReason && !staffRequested && !historySafe.length && customerMessage.length <= 180 && /fee|price|duration|schedule|centre|center|location|address|رسوم|سعر|مدة|عنوان|موقع/i.test(customerMessage) && !/[0-9]{7,}|@|my name|اسمي/i.test(customerMessage)) {
     if (replyCache.size >= CACHE_MAX) replyCache.delete(replyCache.keys().next().value);
     replyCache.set(key, { expiresAt: Date.now() + 5 * 60 * 1000, answer });
   }
@@ -782,6 +821,9 @@ async function aiTurn({ ctx, profile, uid, message, user, sessionId, origin, cha
   onStage?.('bot-routing');
   const incomingText = textOf(message);
   const continuity = mockup.ownsInbox(uid, origin);
+  const aiAvailableForTurn = profile.engine !== 'guided'
+    && !(profile.engine === 'hybrid' && profile.config?.aiFallback === false)
+    && profile.config?.aiDataProcessingConfirmed === true;
   if (ctx.category.key === 'training_center' && continuity && !profile.config?.flowId && !profile.config?.introFlowId
     && businessContext.isTrainingGreeting(incomingText)) {
     const dispatched = await trainingCenterGuidedTurn({ ctx, profile, uid, message, sessionId, origin, chatId, leadInfo, onStage });
@@ -806,14 +848,19 @@ async function aiTurn({ ctx, profile, uid, message, user, sessionId, origin, cha
   if (profile.engine === 'hybrid' && !profile.config?.flowId && profile.config?.guidedMode !== 'domain_default') return { handedOff: true, code: 'GUIDED_FLOW_REQUIRED' };
   const courseCertificates = ctx.category.key === 'training_center';
   const safetyRoute = businessContext.controlRoute(incomingText, profile.config, {}, leadInfo?.facts || [], { courseCertificates });
-  if (courseCertificates && ['handoff', 'certificate'].includes(safetyRoute)) {
+  if (courseCertificates && ['handoff', 'certificate'].includes(safetyRoute) && !aiAvailableForTurn) {
     const language = businessContext.languageFor(incomingText);
     const intent = safetyRoute === 'certificate' ? null : language === 'ar' ? 'موظف' : 'agent';
     const dispatched = await trainingCenterGuidedTurn({ ctx, profile, uid, message, sessionId, origin, chatId, leadInfo, intent, onStage });
     return dispatched ? { flowDispatched: true, route: safetyRoute } : { handedOff: true, code: 'HUMAN_REVIEW_REQUIRED' };
   }
   const acknowledgement = leadInfo?.intake && admissions.acknowledgement(incomingText, leadInfo.language);
-  const intakeAnswer = leadInfo?.intake && (leadInfo.intake.answerOnly || acknowledgement) && safetyRoute === 'answer';
+  const intakeCourses = (leadInfo?.facts || []).filter(item => !item.kind && item.code);
+  const intakeCourse = intakeCourses.find(item => [item.nameEn, item.nameAr, item.code]
+    .some(name => name && businessContext.normalized(name) === businessContext.normalized(leadInfo?.courseInterest || '')));
+  const immediateStartNeedsReview = leadInfo?.intake?.start?.window === 'asap'
+    && !businessContext.hasPublishedSchedule(leadInfo.facts || [], intakeCourse?.code || leadInfo.intake.session?.selectedCourseCode || null);
+  const intakeAnswer = leadInfo?.intake && (leadInfo.intake.answerOnly || acknowledgement) && safetyRoute === 'answer' && !immediateStartNeedsReview;
   if (!intakeAnswer && (profile.config.guidedMode === 'domain_default' || (profile.engine === 'ai' && ctx.category.key === 'training_center'))) {
     onStage?.('guided-route-check');
     const channelKind = channelFor(origin);
@@ -837,7 +884,8 @@ async function aiTurn({ ctx, profile, uid, message, user, sessionId, origin, cha
       }
     }
     const applicationAccepted = acceptsRegistrationForm(session, incoming);
-    if (route !== 'answer' || leadInfo?.nameOnly || applicationAccepted || bareCourseSelection || fullCourseOpening || (profile.engine === 'hybrid' && profile.config.aiFallback === false)) {
+    const aiHandlesStaffRoute = aiAvailableForTurn && ['human', 'handoff', 'certificate'].includes(route);
+    if ((route !== 'answer' && !aiHandlesStaffRoute) || leadInfo?.nameOnly || applicationAccepted || bareCourseSelection || fullCourseOpening || (profile.engine === 'hybrid' && profile.config.aiFallback === false)) {
       onStage?.('training-center-guided-reply');
       const handoffIntent = route === 'human' || route === 'handoff'
         ? (businessContext.languageFor(incoming, session || {}) === 'ar' ? 'موظف' : 'agent')
@@ -867,7 +915,9 @@ async function aiTurn({ ctx, profile, uid, message, user, sessionId, origin, cha
   const pack = getDomainPack(ctx.category.key, ctx.category.version);
   const onboarding = ctx.tenant.categoryKey === 'training_center' && !answer.state?.greeted;
   if (onboarding) answer.state = { ...(answer.state || {}), greeted: true };
-  const questionLeadInfo = (answer.route === 'clarification' && (continuity || answer.reason === 'CERTIFICATE_DETAILS_UNVERIFIED')) || ((acknowledgement || answer.repeat) && leadInfo?.intake?.state.waiting) ? null : leadInfo?.intake
+  const questionLeadInfo = answer.staffRequested || answer.staffNotificationQueued
+    || (answer.route === 'clarification' && (continuity || answer.reason === 'CERTIFICATE_DETAILS_UNVERIFIED'))
+    || ((acknowledgement || answer.repeat) && leadInfo?.intake?.state.waiting) ? null : leadInfo?.intake
     ? { ...leadInfo, intake: { ...leadInfo.intake, session: answer.state || {} } }
     : onboarding ? null : leadInfo;
   const answerBeforeIntake = answer.reply;

@@ -67,7 +67,7 @@ function controlRoute(message, config, state = {}, facts = [], { courseCertifica
   const text = normalized(message);
   // Controls must be whole messages. Natural questions mentioning a course,
   // registration or a staff member must remain conversational.
-  if (/^(agent|human|staff|person|talk to (a )?(human|person)|موظف|بشر|موظفة|اريد موظف|ابي موظف)$/.test(text) || /\b(?:speak|talk|connect|transfer|chat)\b.*\b(?:person|human|agent|staff|advisor|team)\b|(?:التحدث|التواصل|تحويل|اكلم).*(?:موظف|فريق|شخص)/.test(text)) return 'human';
+  if (/^(agent|human|staff|person|talk to (a )?(human|person)|موظف|بشر|موظفة|اريد موظف|ابي موظف|(?:(?:please|kindly) )?(?:connect|transfer)(?: me)?(?: (?:please|kindly))?)$/.test(text) || /\b(?:speak|talk|connect|transfer|chat)\b.*\b(?:person|human|agent|staff|advisor|team|admissions)\b|(?:التحدث|التواصل|تحويل|اكلم).*(?:موظف|فريق|شخص)/.test(text)) return 'human';
   if (/\b(?:image|photo|picture|screenshot|document|file|voice note|audio|video|location pin)\b|\b(?:shared|sent|dropped) my location\b|\b(?:attached|sent|shared|uploaded)\b.{0,45}\b(?:media|attachment|file)\b|ارفق|مرفق|صورة|ملف|مقطع صوت|رسالة صوتية|فيديو|موقعي/u.test(text)) return 'handoff';
   if (/\b(?:job|jobs|career|careers|employment|vacancy|vacancies|hiring|recruitment|recruiter|cv|resume|work permit)\b|وظيفة|وظائف|توظيف|فرصة عمل|فرص عمل|سيرة ذاتية/u.test(text)) return 'handoff';
   const existingStudentQuestion = /\b(?:existing student|current student|already enrolled|already registered|my registration|my account|my certificate|collect (?:the|a) certificate|student account|payment|paid|receipt|invoice|refund|complaint|not received|haven't received|have not received)\b|شهادتي|استلام الشهادة|طالب حالي|طالبة حالية|انا طالب|انا طالبة|مسجل مسبقا|مسجلة مسبقة|حسابي|مشكلتي|شكوى|شكوي|استرداد|استرجاع|مشكلة دفع|مشكلة في الدفع|لم يصلني|ما وصلني|لم استلم|ما استلمت/u.test(text);
@@ -110,6 +110,8 @@ function courseDetailNeedsCoordinator(message, facts, selectedCourseCode = null)
 
 function trainingCenterCoordinatorReason(message, facts, selectedCourseCode = null) {
   if (isScheduleQuestion(message) && !hasPublishedSchedule(facts, selectedCourseCode)) return 'SCHEDULE_REQUIRES_COORDINATOR';
+  if (/\b(?:i need|i want|i'd like|i would like|hope) to start (?:immediately|right away|asap)|\b(?:immediately|right away|asap)\b|أريد أن أبدأ فوراً|أريد أن أبدأ فورًا|أبغى أبدأ فوراً|اريد ان ابدا فوراً/u.test(normalized(message))
+    && !hasPublishedSchedule(facts, selectedCourseCode)) return 'SCHEDULE_REQUIRES_COORDINATOR';
   if (courseDetailNeedsCoordinator(message, facts, selectedCourseCode)) return 'COURSE_DETAIL_REQUIRES_COORDINATOR';
   return null;
 }
@@ -221,11 +223,24 @@ function retrieveContext({ facts, knowledgeEntries = [], message, state = {}, pr
   return { evidence, sources, selectedCourseCode: selected.length === 1 ? selected[0].code : null, language, revision: fingerprint({ facts, knowledgeEntries, profileRevision }), explicitCourses: direct.length || (referralCourse ? 1 : 0), courseContextSource: direct.length ? 'message' : referralCourse ? 'meta_referral' : null };
 }
 
-function validateAnswer(response, context) {
+function validateAnswer(response, context, { staffNotificationQueued = false } = {}) {
   if (!response.canAnswer || !response.reply) return { valid: false, code: 'UNANSWERED' };
   const ids = response.sourceIds;
   const known = new Set(context.sources.map(source => source.id));
-  if (!Array.isArray(ids) || !ids.length || ids.some(id => !known.has(id))) return { valid: false, code: 'ANSWER_SOURCE_INVALID' };
+  if (!Array.isArray(ids) || ids.some(id => !known.has(id))) return { valid: false, code: 'ANSWER_SOURCE_INVALID' };
+  if (!ids.length) {
+    const reply = String(response.reply).replace(/’/g, "'").trim();
+    const uncertainty = /\b(?:i don't|i do not|i can't|i cannot|not yet|isn't confirmed|is not confirmed|don't have confirmed|do not have confirmed|not available to me|i'm not sure|i am not sure)\b/i.test(reply)
+      || /(?:لا تتوفر لدي|لا أستطيع تأكيد|ليس لدي تفاصيل مؤكدة|لم يتم تأكيد)/u.test(reply);
+    const conversational = /\b(?:virtual assistant|happy to help|glad to help|what would you like|which course|how can i help|i can help|could you tell me|would you like|i've asked|i have asked|asked our team|asked admissions|team has been notified|admissions can check)\b/i.test(reply)
+      || /(?:المساعد الافتراضي|يسعدني مساعدتك|كيف أساعدك|أي دورة|هل تود)/u.test(reply);
+    const falseStaffClaim = /\b(?:asked|notified|sent|contacted|joined|will reply)\b.{0,50}\b(?:team|staff|admissions|advisor)\b/i.test(reply)
+      || /\b(?:team|staff|admissions|advisor)\b.{0,50}\b(?:notified|contacted|joined|will reply)\b/i.test(reply)
+      || /(?:أبلغت|ابلغت|أشعرت|اشعرت|طلبت من|سيتواصل معك|تواصل معك).{0,60}(?:الفريق|الموظفون|الموظفين|القبول|المستشار)/u.test(reply);
+    const unsupportedDetail = /\b(?:QAR|QR|fee|fees|price|cost|schedule|batch|start date|certificate|certification|accreditation|attestation|duration|weeks?|months?|hours?|address|location|course includes|we offer|we provide)\b|(?:ر\.ق|رسوم|سعر|جدول|دفعة|شهادة|اعتماد|تصديق|مدة|عنوان|موقع)/iu.test(reply);
+    if ((!uncertainty && !conversational) || (falseStaffClaim && !staffNotificationQueued)
+      || (unsupportedDetail && !uncertainty) || /\d|https?:\/\//i.test(reply)) return { valid: false, code: 'ANSWER_SOURCE_INVALID' };
+  }
   const evidence = context.evidence.filter(item => ids.includes(item.sourceId));
   const raw = JSON.stringify(evidence);
   const reply = normalizeDigits(response.reply).replace(/’/g, "'");
@@ -243,7 +258,14 @@ function validateAnswer(response, context) {
   for (const number of reply.match(/\d+(?:[.,]\d+)?/g) || []) {
     if (!permittedNumbers.has(Number(number.replace(/,/g, '')))) return { valid: false, code: 'ANSWER_NUMBER_INVALID' };
   }
-  if (isCertificateQuestion(reply) && !evidence.some(item => item.kind === 'course' && item.certificateDetails)) return { valid: false, code: 'ANSWER_CERTIFICATE_UNVERIFIED' };
+  if (isCertificateQuestion(reply) && !evidence.some(item => item.kind === 'course' && item.certificateDetails)) {
+    const safeCertificateUncertainty = staffNotificationQueued
+      && (/\b(?:i don't have confirmed|i do not have confirmed|i can't confirm|i cannot confirm|not yet confirmed|admissions can check|the team can check|asked (?:our )?(?:team|admissions) to check)\b/i.test(reply)
+        || /(?:لا أملك تفاصيل مؤكدة|لا يوجد تأكيد|لم يتم التأكد|يمكن لفريق القبول التحقق|سيتحقق فريق القبول)/u.test(reply))
+      && !/\b(?:yes[,! ]|it (?:is|includes|comes with|provides)|we (?:provide|issue)|you (?:will receive|get)|certified by|attested by|accredited by|issued by|recognized by)\b/i.test(reply)
+      && !/(?:نعم|يشمل|تمنح|سنصدر|ستحصل|معتمد من|مصدق من|صادر من)/u.test(reply);
+    if (!safeCertificateUncertainty) return { valid: false, code: 'ANSWER_CERTIFICATE_UNVERIFIED' };
+  }
   if (/\b(?:i have|i've|we have|we've|you are|you're)\s+(?:booked|enrolled|registered|reserved|confirmed your)|تم (?:تسجيلك|حجز|تأكيد تسجيلك)/i.test(reply)) return { valid: false, code: 'ANSWER_COMMITMENT_INVALID' };
   return { valid: true };
 }

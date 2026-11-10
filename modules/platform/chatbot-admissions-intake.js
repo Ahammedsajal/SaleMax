@@ -27,7 +27,7 @@ function acknowledgement(text, language) {
 function startPreference(text, waiting = false) {
   const raw = String(text || '').trim();
   if (!raw || /[?؟]/u.test(raw)) return null;
-  const explicit = raw.match(/(?:\b(?:i\s+(?:can|want to|plan to|would like to|prefer to)\s+start|my preferred start(?: date)? is|start date:)\s*|(?:أريد أن أبدأ|اريد ان ابدا|أقدر أبدأ|يمكنني أن أبدأ|موعد البدء المفضل)\s*)([^.!؟،\n]+)/iu);
+  const explicit = raw.match(/(?:\b(?:i\s+(?:can|need to|want to|plan to|would like to|prefer to)\s+start|my preferred start(?: date)? is|start date:)\s*|(?:أريد أن أبدأ|اريد ان ابدا|أقدر أبدأ|يمكنني أن أبدأ|موعد البدء المفضل)\s*)([^.!؟،\n]+)/iu);
   if (!waiting && !explicit) return null;
   const value = (explicit?.[1] || raw).trim().replace(/[.!،]+$/u, '');
   if (value.length > 64 || !/^[\p{L}\p{M}\p{N} /-]+$/u.test(value)) return null;

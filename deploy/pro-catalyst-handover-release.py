@@ -308,6 +308,29 @@ def configure_followup_inbox_parity():
     ADD_SCOPE = False
 
 
+def configure_ai_handoff():
+    global ACTIVE_OVERLAY, REPLACED_FILES, NEW_FILES, SCOPE_ENV, SLUG, RELEASE_DATE, ADD_SCOPE, LIVE_SOURCE_EDITS, MOCKUP_MIGRATION
+    ACTIVE_OVERLAY = '/opt/salemax/releases/pro-catalyst-followup-inbox-parity-c2c95e8b0520-20261110/compose.pro-catalyst-followup-inbox-parity.json'
+    REPLACED_FILES = {
+        'client/public/chatbot-admin.js': '2ae4bbd9fb4e6cf6d6990b955754b76b9d116f5d7cdfd6bf62333897ab9b543b',
+        'helper/socket/index.js': '05ed2adbfa10c0cb81460f3222ae727679decefb91bb0262400f55a46ad60387',
+        'modules/platform/chatbot-admissions-intake.js': 'ad644f2f3ad648ae95ff627b340adb2fccee6a0a1bfb87c7b23727bd474f21f3',
+        'modules/platform/chatbot-ai-prompt.js': 'cd98404db28f94c14ae3a56690151812bdf8d8d402589a748e63b465b35633e4',
+        'modules/platform/chatbot-business-context.js': 'd409f7d47b7da603c7e648520a8230ecc929bff40512fc5ec6144637c1d8e546',
+        'modules/platform/chatbot-config.js': '2dd87b7c11b0a2725249ddb742e68edd01ff1ed323a378bf7b6535011c0ae5bf',
+        'modules/platform/chatbot-handoff-claims.js': '8a4d10a55ad30f8f9ba50b60ba69e70759cbbc9dba790dfa07e4f81998a4b900',
+        'modules/platform/chatbot-handoff-task.js': 'eb5028ff6db8bd388ad99572554cbdce3f8e63dbe00a51c14b1bf1ce14ca45bf',
+        'modules/platform/chatbot-runtime.js': '7454d16e130bc5d36aa4bf5c1ecacf5c80fb21fc0f3bb93487e0e2ee9654fefa',
+    }
+    NEW_FILES = ()
+    LIVE_SOURCE_EDITS = {}
+    MOCKUP_MIGRATION = None
+    SCOPE_ENV = 'SALEMAX_CHATBOT_ADMISSIONS_INTAKE_TENANT_ID'
+    SLUG = 'pro-catalyst-ai-handoff'
+    RELEASE_DATE = '20261110'
+    ADD_SCOPE = False
+
+
 def apply_mockup_migration(source):
     script = """const fs = require('node:fs');
     const crypto = require('node:crypto');
@@ -620,7 +643,7 @@ def reset(backup):
 
 
 if __name__ == '__main__':
-    if len(sys.argv) == 4 and sys.argv[1] in ('deploy', 'deploy-admissions', 'deploy-name-question', 'deploy-knowledge', 'deploy-mockup', 'deploy-mockup-inbox', 'deploy-lead-report-period', 'deploy-followup-preview', 'deploy-followup-chat-link', 'deploy-ad-aware-followups', 'deploy-ad-overview', 'deploy-test-replies', 'deploy-mockup-scroll', 'deploy-course-certification', 'deploy-course-opening', 'deploy-followup-delivery', 'deploy-followup-queue-fix', 'deploy-followup-inbox-parity'):
+    if len(sys.argv) == 4 and sys.argv[1] in ('deploy', 'deploy-admissions', 'deploy-name-question', 'deploy-knowledge', 'deploy-mockup', 'deploy-mockup-inbox', 'deploy-lead-report-period', 'deploy-followup-preview', 'deploy-followup-chat-link', 'deploy-ad-aware-followups', 'deploy-ad-overview', 'deploy-test-replies', 'deploy-mockup-scroll', 'deploy-course-certification', 'deploy-course-opening', 'deploy-followup-delivery', 'deploy-followup-queue-fix', 'deploy-followup-inbox-parity', 'deploy-ai-handoff'):
         if sys.argv[1] == 'deploy-admissions':
             configure_admissions()
         elif sys.argv[1] == 'deploy-name-question':
@@ -655,10 +678,12 @@ if __name__ == '__main__':
             configure_followup_queue_fix()
         elif sys.argv[1] == 'deploy-followup-inbox-parity':
             configure_followup_inbox_parity()
+        elif sys.argv[1] == 'deploy-ai-handoff':
+            configure_ai_handoff()
         deploy(Path(sys.argv[2]), sys.argv[3])
     elif len(sys.argv) == 3 and sys.argv[1] == 'reset':
         reset(Path(sys.argv[2]))
-    elif len(sys.argv) == 3 and sys.argv[1] in ('restore', 'restore-admissions', 'restore-name-question', 'restore-knowledge', 'restore-mockup', 'restore-mockup-inbox', 'restore-lead-report-period', 'restore-followup-preview', 'restore-followup-chat-link', 'restore-ad-aware-followups', 'restore-ad-overview', 'restore-test-replies', 'restore-mockup-scroll', 'restore-course-certification', 'restore-course-opening', 'restore-followup-delivery', 'restore-followup-queue-fix', 'restore-followup-inbox-parity'):
+    elif len(sys.argv) == 3 and sys.argv[1] in ('restore', 'restore-admissions', 'restore-name-question', 'restore-knowledge', 'restore-mockup', 'restore-mockup-inbox', 'restore-lead-report-period', 'restore-followup-preview', 'restore-followup-chat-link', 'restore-ad-aware-followups', 'restore-ad-overview', 'restore-test-replies', 'restore-mockup-scroll', 'restore-course-certification', 'restore-course-opening', 'restore-followup-delivery', 'restore-followup-queue-fix', 'restore-followup-inbox-parity', 'restore-ai-handoff'):
         if sys.argv[1] == 'restore-admissions':
             configure_admissions()
         elif sys.argv[1] == 'restore-name-question':
@@ -693,6 +718,8 @@ if __name__ == '__main__':
             configure_followup_queue_fix()
         elif sys.argv[1] == 'restore-followup-inbox-parity':
             configure_followup_inbox_parity()
+        elif sys.argv[1] == 'restore-ai-handoff':
+            configure_ai_handoff()
         restore(Path(sys.argv[2]))
     else:
-        raise SystemExit('Usage: pro-catalyst-handover-release.py deploy[-admissions|-name-question|-knowledge|-mockup|-mockup-inbox|-lead-report-period|-followup-preview|-followup-chat-link|-ad-aware-followups|-ad-overview|-test-replies|-mockup-scroll|-course-certification|-course-opening|-followup-delivery|-followup-queue-fix|-followup-inbox-parity] <stage> <commit> | reset <backup> | restore[-admissions|-name-question|-knowledge|-mockup|-mockup-inbox|-lead-report-period|-followup-preview|-followup-chat-link|-ad-aware-followups|-ad-overview|-test-replies|-mockup-scroll|-course-certification|-course-opening|-followup-delivery|-followup-queue-fix|-followup-inbox-parity] <backup>')
+        raise SystemExit('Usage: pro-catalyst-handover-release.py deploy[-admissions|-name-question|-knowledge|-mockup|-mockup-inbox|-lead-report-period|-followup-preview|-followup-chat-link|-ad-aware-followups|-ad-overview|-test-replies|-mockup-scroll|-course-certification|-course-opening|-followup-delivery|-followup-queue-fix|-followup-inbox-parity|-ai-handoff] <stage> <commit> | reset <backup> | restore[-admissions|-name-question|-knowledge|-mockup|-mockup-inbox|-lead-report-period|-followup-preview|-followup-chat-link|-ad-aware-followups|-ad-overview|-test-replies|-mockup-scroll|-course-certification|-course-opening|-followup-delivery|-followup-queue-fix|-followup-inbox-parity|-ai-handoff] <backup>')
