@@ -37,6 +37,7 @@ async function send({c,chat,part,file,jobId,index},dependencies={}) {
   await (dependencies.saveMessage||require('../../functions/function').saveMessageToConversation)({uid:c.scope.uid,chatId:chat.chat_id,messageData});
   await c.query('UPDATE beta_chats SET last_message=? WHERE uid=? AND chat_id=?',[JSON.stringify(messageData),c.scope.uid,chat.chat_id]);
   if(c.agent)await (dependencies.recordReply||require('../../helper/pipeline/conversationAttendance').recordAgentReply)({query:c.query,uid:c.scope.uid,chatId:chat.chat_id,agentId:c.actor.id,origin:chat.origin,providerMessageId:response.id}).catch(()=>{});
+  else if(c.scope.canonical&&c.scope.identityId)await (dependencies.recordWorkspaceReply||require('../../helper/pipeline/conversationAttendance').recordWorkspaceReply)({query:c.query,uid:c.scope.uid,identityId:c.scope.identityId,chatId:chat.chat_id,origin:chat.origin,providerMessageId:response.id}).catch(()=>{});
   const sendToUid=dependencies.notify||require('../../socket').sendToUid;
   const recipients=new Set([c.scope.uid,c.actor.uid]);
   for(const uid of recipients){sendToUid(uid,{chatId:chat.chat_id},'request_update_chat_list');sendToUid(uid,{chatId:chat.chat_id},'request_update_opened_chat');}

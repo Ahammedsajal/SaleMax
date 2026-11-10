@@ -857,6 +857,7 @@ function processSocketEvent({
               });
             }
             if(agentAccount)try{await recordAgentReply({query,uid:socket?.userData?.owner_uid,chatId:chatInfo.chat_id,agentId:socket?.userData?.id,origin:chatInfo.origin,providerMessageId:sendMsg.id});}catch{console.warn("LEAD_CONVERSATION_ACTIVITY_LOG_FAILED");}
+            else if(inboxScope.canonical&&inboxScope.identityId&&['qr','meta'].includes(chatInfo.origin))try{await require('../pipeline/conversationAttendance').recordWorkspaceReply({query,uid,identityId:inboxScope.identityId,chatId:chatInfo.chat_id,origin:chatInfo.origin,providerMessageId:sendMsg.id});}catch{console.warn("LEAD_CONVERSATION_ACTIVITY_LOG_FAILED");}
             if (inboxScope.canonical && inboxScope.identityId && ['qr', 'meta'].includes(chatInfo.origin)) {
               const ownerUid = isAgent ? socket?.userData?.owner_uid : uid;
               const channelKind = chatInfo.origin === 'qr' ? 'whatsapp_qr' : 'whatsapp_meta';
@@ -1083,6 +1084,7 @@ function processSocketEvent({
               messageData,
             });
             if(agentAccount)try{await recordAgentReply({query,uid:socket?.userData?.owner_uid,chatId:chatid,agentId:socket?.userData?.id,origin:'qr',providerMessageId:sendNewMsg.id});}catch{console.warn("LEAD_CONVERSATION_ACTIVITY_LOG_FAILED");}
+            else if(inboxScope.canonical&&inboxScope.identityId)try{await require('../pipeline/conversationAttendance').recordWorkspaceReply({query,uid,identityId:inboxScope.identityId,chatId:chatid,origin:'qr',providerMessageId:sendNewMsg.id});}catch{console.warn("LEAD_CONVERSATION_ACTIVITY_LOG_FAILED");}
 
             const originInstanceId =
               sendNewMsg?.sessionData?.authState?.creds?.me ||

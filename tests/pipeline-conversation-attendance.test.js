@@ -3,7 +3,7 @@ const test=require('node:test');
 const assert=require('node:assert/strict');
 const fs=require('node:fs');
 const path=require('node:path');
-const {recordAgentReply}=require('../helper/pipeline/conversationAttendance');
+const {recordAgentReply,recordWorkspaceReply}=require('../helper/pipeline/conversationAttendance');
 
 test('successful agent WhatsApp replies are linked to the exact tenant conversation and attributed without message text',async()=>{
   const calls=[],uid='legacy-owner',chatId='whatsapp-chat-1',leadId='lead-1',agentId=17;
@@ -15,10 +15,23 @@ test('successful agent WhatsApp replies are linked to the exact tenant conversat
   }});
   assert.equal(recorded,true);
   assert.deepEqual(calls[0].params.slice(1),[uid,chatId,'meta']);
-  const insert=calls[2];assert.match(insert.sql,/VALUES \(\?,\?,'agent',\?,'agent_message_sent'/);
-  assert.equal(insert.params[1],leadId);assert.equal(insert.params[2],String(agentId));
-  assert.deepEqual(JSON.parse(insert.params[3]),{origin:'meta',providerMessageId:'provider-message-123'});
-  assert.doesNotMatch(insert.params[3],/text|body|message content/i);
+  const insert=calls[2];assert.match(insert.sql,/VALUES \(\?,\?,\?,\?,\?,\?,\?\)/);
+  assert.equal(insert.params[1],leadId);assert.equal(insert.params[2],'agent');assert.equal(insert.params[3],String(agentId));assert.equal(insert.params[4],'agent_message_sent');
+  assert.deepEqual(JSON.parse(insert.params[6]),{origin:'meta',providerMessageId:'provider-message-123'});
+  assert.doesNotMatch(insert.params[6],/text|body|message content/i);
+});
+
+test('workspace owner and staff replies are linked to the lead and attributed by identity',async()=>{
+  const calls=[];
+  const recorded=await recordWorkspaceReply({uid:'legacy-owner',chatId:'whatsapp-chat-1',identityId:42,origin:'qr',providerMessageId:'provider-message-456',query:async(sql,params)=>{calls.push({sql,params});
+    if(sql.includes('SELECT lead_id FROM pipeline_conversations'))return [[{lead_id:'lead-2'}]];
+    if(sql.includes('SELECT id FROM pipeline_activity'))return [[]];
+    if(sql.includes('INSERT INTO pipeline_activity'))return [{insertId:45}];
+    throw new Error(`Unexpected query: ${sql}`);
+  }});
+  assert.equal(recorded,true);
+  const insert=calls[2];assert.equal(insert.params[2],'user');assert.equal(insert.params[3],'42');assert.equal(insert.params[4],'workspace_message_sent');
+  assert.deepEqual(JSON.parse(insert.params[6]),{origin:'qr',providerMessageId:'provider-message-456'});
 });
 
 test('agent reply activity is idempotent per provider message and ignores unlinked chats',async()=>{
@@ -32,4 +45,5 @@ test('only a successful agent send in QR or Meta writes lead attendance',()=>{
   const socket=fs.readFileSync(path.join(__dirname,'../helper/socket/index.js'),'utf8');
   assert.match(socket,/if\(agentAccount\)try\{await recordAgentReply\([\s\S]*?origin:chatInfo\.origin,providerMessageId:sendMsg\.id/);
   assert.match(socket,/if\(agentAccount\)try\{await recordAgentReply\([\s\S]*?origin:'qr',providerMessageId:sendNewMsg\.id/);
+  assert.match(socket,/recordWorkspaceReply\([\s\S]*?identityId:inboxScope\.identityId/);
 });

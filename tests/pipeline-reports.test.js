@@ -53,10 +53,12 @@ test('lead summary counts unattended open leads and interested leads with no lat
     if(sql.includes('SELECT a.id AS agentId'))return [[{agentId:17,agentName:'Agent A',active:1,assignedLeads:8,attendedLeads:6}]];
     if(sql.includes('AS unattended_leads'))return [[{leads_today:2,leads_month:12,sales_converted_month:1,live_leads:9,unassigned_leads:1,unattended_leads:3}]];
     if(sql.includes('AS under_one_day'))return [[{under_one_day:2,one_to_three_days:3,four_to_seven_days:1,over_seven_days:3}]];
+    if(sql.includes('SELECT COUNT(*) AS contacted FROM pipeline_leads'))return [[{contacted:4}]];
     if(sql.includes('AS average_minutes'))return [[{contacted:4,average_minutes:'18.5'}]];
     if(sql.includes('GROUP BY l.owner_agent_id'))return [[{agentId:17,n:2}]];
     if(sql.includes('COUNT(DISTINCT l.id) AS n'))return [[{n:2}]];
     if(sql.includes("pa.actor_type='user'"))return [[{userId:'identity-1',userName:'Owner',attendedLeads:4,messagesSent:3,salesClosed:1}]];
+    if(sql.includes('AS messages_sent'))return [[{messages_sent:0,attended_leads:0}]];
     throw new Error(`Unexpected summary query: ${sql}`);
   }};
   const summary=await getLeadReportSummary({pool:{async getConnection(){return connection;}},uid:'synthetic-owner',role:'owner',categoryKey:'training_center',from:'2026-10-01',to:'2026-10-01'});
@@ -71,7 +73,9 @@ test('lead summary counts unattended open leads and interested leads with no lat
   assert.match(businessUserQuery,/workspace_owner\.uid COLLATE utf8mb4_general_ci=l\.uid COLLATE utf8mb4_general_ci/);
   assert.match(businessUserQuery,/i\.display_name COLLATE utf8mb4_general_ci/);
   assert.match(businessUserQuery,/actor_owner\.name COLLATE utf8mb4_general_ci/);
-  assert.match(queries.find(query=>query.sql.includes('DATE_SUB(UTC_TIMESTAMP(3),INTERVAL 3 DAY)')).sql,/activity_type IN \('contact_outcome','agent_message_sent'\)/);
+  const hotQuery=queries.find(query=>query.sql.includes('DATE_SUB(UTC_TIMESTAMP(3),INTERVAL 3 DAY)')).sql;
+  assert.match(hotQuery,/bc\.route='OUTGOING'/);assert.match(hotQuery,/h\.activity_type='contact_outcome'/);
+  assert.ok(queries.some(query=>query.sql.includes('AS contacted')&&query.sql.includes("bc.route='OUTGOING'")));
 });
 
 test('activity reports include agent WhatsApp replies with attribution and channel but no message text',async()=>{
@@ -124,6 +128,7 @@ test('journey report combines current pipeline stages, period sources and agent 
     if(sql.startsWith('CREATE TEMPORARY TABLE')||sql.startsWith('DROP TEMPORARY TABLE'))return [[],[]];
     if(sql.includes('FROM pipeline_stages'))return [[{stageKey:'new',title:'New',stageType:'open',position:0,total:'2',cohortTotal:'1'},{stageKey:'won',title:'Won',stageType:'won',position:4,total:'1',cohortTotal:'1'}]];
     if(sql.includes('GROUP BY l.source_type'))return [[{sourceType:'whatsapp',origin:'whatsapp',total:'2'}]];
+    if(sql.includes('COUNT(DISTINCT lead_id) AS total FROM ('))return [[{total:2}]];
     if(sql.includes('WITH cohort_leads AS'))return [[{new_leads:2,attended:2,interested:1,follow_up:1,applications:1,sales_converted:1,invoices_issued:1,payment_received:1,course_started:1,fully_paid:1,course_completed:1,certificate_issued:1}]];
     if(sql.includes('AS new_leads'))return [[{new_leads:2,stage_changes:3,sales_converted:1,sales_closed_by_agents:1,leads_attended:2}]];
     if(sql.includes('FROM agents a'))return [[{agentId:7,agentName:'Mona',active:1,assignedLeads:2,newLeads:2,attendedLeads:2,salesAttributed:1,salesClosedByAgent:1}]];
@@ -150,12 +155,12 @@ test('journey report combines current pipeline stages, period sources and agent 
   assert.match(agentQuery,/pa\.actor_type='agent'/);
   assert.match(agentQuery,/CAST\(pa\.actor_id AS UNSIGNED\) AS agent_id/);
   assert.match(agentQuery,/COUNT\(DISTINCT pa\.lead_id\) AS attended_leads/);
-  assert.match(agentQuery,/pa\.activity_type IN \('contact_outcome','agent_message_sent'\)/);assert.doesNotMatch(agentQuery,/note_added/);
+  assert.match(agentQuery,/pa\.activity_type='agent_message_sent'/);assert.doesNotMatch(agentQuery,/note_added/);
   assert.doesNotMatch(agentQuery,/COUNT\(DISTINCT CASE WHEN pa\.activity_type IN/);
   assert.doesNotMatch(agentQuery,/pa\.activity_type='sale_converted'/);
-  const flowQuery=queries.find(sql=>sql.includes('AS leads_attended')),cohortQuery=queries.find(sql=>sql.includes('AS attended,'));
-  assert.match(flowQuery,/pa\.activity_type IN \('contact_outcome','agent_message_sent'\)/);assert.doesNotMatch(flowQuery,/note_added/);
-  assert.match(cohortQuery,/pa\.activity_type IN \('contact_outcome','agent_message_sent'\)/);assert.doesNotMatch(cohortQuery,/note_added/);
+  const attendedQuery=queries.find(sql=>sql.includes('COUNT(DISTINCT lead_id) AS total FROM (')),cohortQuery=queries.find(sql=>sql.includes('AS attended,'));
+  assert.match(attendedQuery,/bc\.route='OUTGOING'/);assert.match(attendedQuery,/pipeline_conversations pc/);
+  assert.match(cohortQuery,/bc\.route='OUTGOING'/);assert.match(cohortQuery,/LEFT\(pc\.chat_id,8\)<>'qrgroup_'/);
   const cohortJourneyQuery=queries.find(sql=>sql.includes('WITH cohort_leads AS'));
   const cohortJourneyCall=queryArguments.find(call=>call.sql.includes('WITH cohort_leads AS'));
   assert.match(cohortJourneyQuery,/sx_training_registrations/);assert.equal(cohortJourneyCall.args.at(-1),'11111111-1111-4111-8111-111111111111');
