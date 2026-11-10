@@ -74,7 +74,7 @@ test('lead summary counts unattended open leads and interested leads with no lat
   assert.match(businessUserQuery,/i\.display_name COLLATE utf8mb4_general_ci/);
   assert.match(businessUserQuery,/actor_owner\.name COLLATE utf8mb4_general_ci/);
   const hotQuery=queries.find(query=>query.sql.includes('DATE_SUB(UTC_TIMESTAMP(3),INTERVAL 3 DAY)')).sql;
-  assert.match(hotQuery,/bc\.route='OUTGOING'/);assert.match(hotQuery,/h\.activity_type='contact_outcome'/);
+  assert.match(hotQuery,/bc\.route='OUTGOING'/);assert.match(hotQuery,/h\.activity_type='contact_outcome'/);assert.match(hotQuery,/COLLATE utf8mb4_unicode_ci/);
   assert.ok(queries.some(query=>query.sql.includes('AS contacted')&&query.sql.includes("bc.route='OUTGOING'")));
 });
 
@@ -159,7 +159,7 @@ test('journey report combines current pipeline stages, period sources and agent 
   assert.doesNotMatch(agentQuery,/COUNT\(DISTINCT CASE WHEN pa\.activity_type IN/);
   assert.doesNotMatch(agentQuery,/pa\.activity_type='sale_converted'/);
   const attendedQuery=queries.find(sql=>sql.includes('COUNT(DISTINCT lead_id) AS total FROM (')),cohortQuery=queries.find(sql=>sql.includes('AS attended,'));
-  assert.match(attendedQuery,/bc\.route='OUTGOING'/);assert.match(attendedQuery,/pipeline_conversations pc/);
+  assert.match(attendedQuery,/bc\.route='OUTGOING'/);assert.match(attendedQuery,/pipeline_conversations pc/);assert.match(attendedQuery,/COLLATE utf8mb4_unicode_ci/);
   assert.match(cohortQuery,/bc\.route='OUTGOING'/);assert.match(cohortQuery,/LEFT\(pc\.chat_id,8\)<>'qrgroup_'/);
   const cohortJourneyQuery=queries.find(sql=>sql.includes('WITH cohort_leads AS'));
   const cohortJourneyCall=queryArguments.find(call=>call.sql.includes('WITH cohort_leads AS'));

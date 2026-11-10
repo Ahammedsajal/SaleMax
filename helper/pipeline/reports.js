@@ -8,7 +8,8 @@ const { canonicalCategoryKey, categoryKeyMatches } = require('../../modules/plat
 const conversationMessageAt="COALESCE(bc.createdAt,CASE WHEN CAST(bc.timestamp AS CHAR) REGEXP '^[0-9]{10,13}$' THEN FROM_UNIXTIME(CASE WHEN CHAR_LENGTH(CAST(bc.timestamp AS CHAR))=13 THEN CAST(bc.timestamp AS DECIMAL(16,3))/1000 ELSE CAST(bc.timestamp AS UNSIGNED) END) ELSE NULL END)";
 function hasOutboundMessage(leadAlias='l',afterSql=null){
   return `EXISTS (SELECT 1 FROM pipeline_conversations pc JOIN beta_conversation bc
-    ON bc.uid=${leadAlias}.uid AND bc.chat_id=pc.chat_id AND bc.origin=pc.origin
+    ON bc.uid=${leadAlias}.uid COLLATE utf8mb4_unicode_ci AND bc.chat_id=pc.chat_id COLLATE utf8mb4_unicode_ci
+      AND bc.origin=pc.origin COLLATE utf8mb4_unicode_ci
     WHERE pc.uid_hash=${leadAlias}.uid_hash AND pc.lead_id=${leadAlias}.id AND bc.route='OUTGOING'
       AND LEFT(pc.chat_id,8)<>'qrgroup_' AND ${conversationMessageAt}>=${leadAlias}.created_at${afterSql?` AND ${conversationMessageAt}>${afterSql}`:''})`;
 }
@@ -210,7 +211,8 @@ async function getLeadReportSummary({pool,uid,role='owner',agentId,scopeAgentIds
     const [[firstContact]] = await connection.query(`SELECT COUNT(first_contact_at) AS contacted,
         ROUND(AVG(TIMESTAMPDIFF(SECOND,created_at,first_contact_at))/60,1) AS average_minutes
       FROM (SELECT l.created_at,(SELECT MIN(${conversationMessageAt}) FROM pipeline_conversations pc
-        JOIN beta_conversation bc ON bc.uid=l.uid AND bc.chat_id=pc.chat_id AND bc.origin=pc.origin
+        JOIN beta_conversation bc ON bc.uid=l.uid COLLATE utf8mb4_unicode_ci AND bc.chat_id=pc.chat_id COLLATE utf8mb4_unicode_ci
+          AND bc.origin=pc.origin COLLATE utf8mb4_unicode_ci
         WHERE pc.uid_hash=l.uid_hash AND pc.lead_id=l.id AND bc.route='OUTGOING' AND LEFT(pc.chat_id,8)<>'qrgroup_'
           AND ${conversationMessageAt}>=l.created_at) AS first_contact_at
         FROM pipeline_leads l WHERE l.uid_hash=? AND l.uid=? AND l.created_at>=? AND l.created_at<?${leadScope.sql}) first_contacts`,
@@ -270,8 +272,9 @@ async function getLeadReportSummary({pool,uid,role='owner',agentId,scopeAgentIds
       businessUsers=rows.map(row=>({userId:String(row.userId),userName:row.userName||'Business user',attendedLeads:Number(row.attendedLeads||0),messagesSent:Number(row.messagesSent||0),salesClosed:Number(row.salesClosed||0)}));
       const [[unattributed]]=await connection.query(`SELECT COUNT(DISTINCT COALESCE(NULLIF(bc.metaChatId,''),CONCAT(bc.chat_id,'|',bc.timestamp))) AS messages_sent,
           COUNT(DISTINCT pc.lead_id) AS attended_leads
-        FROM pipeline_conversations pc JOIN beta_conversation bc ON bc.uid=? AND bc.chat_id=pc.chat_id AND bc.origin=pc.origin
-        JOIN pipeline_leads l ON l.uid_hash=pc.uid_hash AND l.uid=bc.uid AND l.id=pc.lead_id
+        FROM pipeline_conversations pc JOIN beta_conversation bc ON bc.uid=? AND bc.chat_id=pc.chat_id COLLATE utf8mb4_unicode_ci
+          AND bc.origin=pc.origin COLLATE utf8mb4_unicode_ci
+        JOIN pipeline_leads l ON l.uid_hash=pc.uid_hash AND l.uid COLLATE utf8mb4_unicode_ci=bc.uid AND l.id=pc.lead_id
         WHERE pc.uid_hash=? AND bc.route='OUTGOING' AND COALESCE(bc.sentBy,'human')='human'
           AND ${conversationMessageAt}>=? AND ${conversationMessageAt}<?${leadScope.sql}
           AND NOT EXISTS (SELECT 1 FROM pipeline_activity pa WHERE pa.uid_hash=pc.uid_hash AND pa.lead_id=pc.lead_id
@@ -373,7 +376,8 @@ async function getJourneyReport({pool,uid,role='owner',agentId,scopeAgentIds,cat
           AND EXISTS (SELECT 1 FROM sx_report_lead_scope x WHERE x.lead_id=l.id)
         UNION
         SELECT l.id FROM pipeline_leads l JOIN pipeline_conversations pc ON pc.uid_hash=l.uid_hash AND pc.lead_id=l.id
-        JOIN beta_conversation bc ON bc.uid=l.uid AND bc.chat_id=pc.chat_id AND bc.origin=pc.origin
+        JOIN beta_conversation bc ON bc.uid=l.uid COLLATE utf8mb4_unicode_ci AND bc.chat_id=pc.chat_id COLLATE utf8mb4_unicode_ci
+          AND bc.origin=pc.origin COLLATE utf8mb4_unicode_ci
         WHERE l.uid_hash=? AND l.uid=? AND bc.route='OUTGOING' AND LEFT(pc.chat_id,8)<>'qrgroup_'
           AND ${conversationMessageAt}>=? AND ${conversationMessageAt}<?${role==='agent'?' AND l.owner_agent_id=?':''}
           AND EXISTS (SELECT 1 FROM sx_report_lead_scope x WHERE x.lead_id=l.id)
