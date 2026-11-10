@@ -1,3 +1,7 @@
+## Course Certification and grounded certificate replies — production, 10 November 2026
+
+Existing course cards open the bilingual Certification section directly. The bot keeps an unanswered certification question in context until the course is named and uses saved published-course details without assuming government attestation. Production verification and synthetic browser and role fixtures passed. The 10 published Pro Catalyst courses still need verified English and Arabic certificate details. Signed-in live editing and WhatsApp delivery remain unverified. `DEPLOYMENT.md` records the release and rollback.
+
 ## Pro Catalyst mockup scrolling — production, 10 November 2026
 
 The conversation list and message history in the existing Live Reply Mockup scroll independently within the modal. Earlier pages are reachable, and loading earlier messages preserves the reading position. English and Arabic Chrome fixtures exercised desktop, tablet and phone with long lists and threads. Production serves the verified assets. Signed-in production browser acceptance remains open. `DEPLOYMENT.md` records the release and rollback.
