@@ -12,7 +12,7 @@ import time
 
 ROOT = Path('/opt/salemax')
 BASE = '/opt/salemax/releases/training-pipeline-correction-v3-9867ca72-20261104'
-ACTIVE_APP_OVERLAY = '/opt/salemax/releases/pro-catalyst-ai-handoff-guard-58041217dcc1-20261110/compose.pro-catalyst-ai-handoff-guard.json'
+ACTIVE_APP_OVERLAY = '/opt/salemax/releases/pro-catalyst-human-replies-history-409950255da8-20261110/compose.pro-catalyst-human-replies-history.json'
 WORKER_BASE_COMPOSE = '/opt/salemax/releases/business-summary-55b5f11-20261024/deploy/compose.yml'
 PRIOR_VARS = ROOT / 'shared/rollback-private-inventory-84644fdfebee/compose-manual-vars.json'
 APP = 'salemax-app-1'
