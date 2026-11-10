@@ -243,7 +243,7 @@ async function getLeadReportSummary({pool,uid,role='owner',agentId,scopeAgentIds
           SUM(pa.activity_type='agent_message_sent') AS messagesSent,
           COUNT(DISTINCT CASE WHEN pa.activity_type='sale_converted' THEN pa.lead_id END) AS salesClosed
         FROM pipeline_activity pa JOIN pipeline_leads l ON l.uid_hash=pa.uid_hash AND l.id=pa.lead_id
-        JOIN user workspace_owner ON workspace_owner.uid=l.uid
+        JOIN user workspace_owner ON workspace_owner.uid COLLATE utf8mb4_general_ci=l.uid COLLATE utf8mb4_general_ci
         JOIN sx_legacy_ownership o ON o.source_table='user' AND o.source_id=CAST(workspace_owner.id AS CHAR) AND o.legacy_uid_hash=l.uid_hash
         JOIN sx_tenants t ON t.id=o.tenant_id AND t.status='active' AND t.category_key='training_center'
         LEFT JOIN sx_memberships m ON m.tenant_id=o.tenant_id
