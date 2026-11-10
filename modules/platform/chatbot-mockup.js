@@ -65,10 +65,11 @@ async function claim(pool, tenantId) {
 
 async function finish(pool, job, result) {
   const status = result.error ? job.attempts >= 3 ? 'failed' : 'queued' : result.wouldHandoff || !result.reply ? 'review' : 'ready';
+  const state = result.replyParts?.length ? { ...result.state, mockupReplyParts: result.replyParts } : result.state;
   await pool.query(`UPDATE sx_chatbot_mockup_turns SET status=?,reply_text=?,state_json=?,route=?,reason=?,profile_revision=?,
     available_at=DATE_ADD(UTC_TIMESTAMP(3), INTERVAL 10 SECOND),lease_token=NULL,lease_until=NULL
     WHERE tenant_id=? AND id=? AND status='processing' AND lease_token=?`,
-  [status, result.reply?.slice(0, 10000) || null, result.state ? JSON.stringify(result.state) : null, safeCode(result.route)?.slice(0, 64) || null,
+  [status, result.reply?.slice(0, 10000) || null, state ? JSON.stringify(state) : null, safeCode(result.route)?.slice(0, 64) || null,
     safeCode(result.reason) || (result.error ? 'MOCKUP_GENERATION_ERROR' : null), result.revision || null, job.tenant_id, job.id, job.lease_token]);
 }
 
@@ -85,9 +86,10 @@ async function tick(pool, { generate = input => require('./chatbot-runtime').pre
       WHERE tenant_id=? AND conversation_key=? AND id<? AND state_json IS NOT NULL
         AND created_at>=DATE_SUB(?, INTERVAL 24 HOUR) ORDER BY id DESC LIMIT 1`,
     [tenantId, job.conversation_key, job.id, job.created_at]);
-    const state = typeof previous?.state_json === 'string' ? JSON.parse(previous.state_json) : previous?.state_json;
+    const saved = typeof previous?.state_json === 'string' ? JSON.parse(previous.state_json) : previous?.state_json;
+    const { mockupReplyParts: _parts, ...state } = saved || {};
     result = await generate({ uid, tenantId, chatId: job.chat_id, channelKind: job.channel_kind,
-      channelRef: job.channel_ref, message: job.customer_text, messageType: job.message_type, state, receivedAt: job.created_at });
+      channelRef: job.channel_ref, message: job.customer_text, messageType: job.message_type, state: saved ? state : saved, receivedAt: job.created_at });
   } catch (error) {
     result = { error: true, reason: error.code || 'MOCKUP_GENERATION_ERROR' };
     console.warn('[chatbot mockup] draft generation failed', safeCode(result.reason));
@@ -131,10 +133,14 @@ async function list(pool, tenantId, before, search = '') {
 
 async function thread(pool, tenantId, key, before) {
   const [rows] = await pool.query(`SELECT CAST(id AS CHAR) AS id,sender_label AS label,message_type AS messageType,customer_text AS customerText,
-    status,reply_text AS replyText,route,reason,profile_revision AS profileRevision,CAST(created_at AS CHAR) AS createdAt
+    status,reply_text AS replyText,route,reason,profile_revision AS profileRevision,CAST(created_at AS CHAR) AS createdAt,
+    JSON_EXTRACT(state_json,'$.mockupReplyParts') AS replyParts
     FROM sx_chatbot_mockup_turns WHERE tenant_id=? AND conversation_key=? AND (? IS NULL OR id<?)
     ORDER BY id DESC LIMIT 41`, [tenantId, key, before, before]);
-  const items = rows.slice(0, 40);
+  const items = rows.slice(0, 40).map(({ replyParts, ...turn }) => {
+    const parts = typeof replyParts === 'string' ? JSON.parse(replyParts) : replyParts;
+    return Array.isArray(parts) && parts.every(part => typeof part === 'string') ? { ...turn, replyParts: parts } : turn;
+  });
   return { next: rows.length > 40 ? items.at(-1).id : null, items: items.reverse() };
 }
 

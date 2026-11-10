@@ -503,14 +503,17 @@
       try {
         const result = await request('/conversations/' + encodeURIComponent(key) + cursor);
         if (version !== threadRequest || !dialog.open) return;
-        const rows = result.items.map(turn => `<article class="sx-mockup-turn">
-          <div class="sx-mockup-bubble"><div class="sx-mockup-meta"><span>${esc(tr('Customer','العميل'))}</span><time>${esc(timestamp(turn.createdAt))}</time></div>
-            <p class="sx-mockup-copy" dir="auto">${esc(turn.customerText || tr('Attachment or non-text message','مرفق أو رسالة غير نصية'))}</p>
-          </div><div class="sx-mockup-bubble sx-mockup-draft">
-            <div class="sx-mockup-meta" data-status="${esc(turn.status)}"><strong>${esc(tr('Bot draft','مسودة الروبوت'))}</strong><span>${esc(status(turn.status))}</span></div>
-            ${turn.replyText ? `<p class="sx-mockup-copy" dir="auto">${esc(turn.replyText)}</p>` : ''}
-            ${turn.reason ? `<p class="sx-mockup-muted">${esc(mockupReasonLabel(turn.reason))}</p>` : ''}
-          </div></article>`).join('');
+        const rows = result.items.map(turn => {
+          const parts = Array.isArray(turn.replyParts) && turn.replyParts.length ? turn.replyParts : [turn.replyText];
+          return `<article class="sx-mockup-turn">
+            <div class="sx-mockup-bubble"><div class="sx-mockup-meta"><span>${esc(tr('Customer','العميل'))}</span><time>${esc(timestamp(turn.createdAt))}</time></div>
+              <p class="sx-mockup-copy" dir="auto">${esc(turn.customerText || tr('Attachment or non-text message','مرفق أو رسالة غير نصية'))}</p>
+            </div>${parts.map((part, index) => `<div class="sx-mockup-bubble sx-mockup-draft">
+              <div class="sx-mockup-meta" data-status="${esc(turn.status)}"><strong>${esc(tr('Bot draft','مسودة الروبوت'))}</strong><span>${esc(status(turn.status))}</span></div>
+              ${part ? `<p class="sx-mockup-copy" dir="auto">${esc(part)}</p>` : ''}
+              ${turn.reason && index === parts.length - 1 ? `<p class="sx-mockup-muted">${esc(mockupReasonLabel(turn.reason))}</p>` : ''}
+            </div>`).join('')}</article>`;
+        }).join('');
         const previousHeight = history.scrollHeight;
         const previousScroll = history.scrollTop;
         thread.classList.remove('sx-mockup-centered');

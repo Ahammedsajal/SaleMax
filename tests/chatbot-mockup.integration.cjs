@@ -64,7 +64,8 @@ async function main() {
       assert.equal(input.message, 'What is the fee?');
       started();
       await firstWait;
-      return { reply: 'First draft', state: { selectedCourseCode: 'fixture-course' }, revision: 2 };
+      return { reply: 'First draft', replyParts: ['Course poster', 'Course overview', 'Course details'],
+        state: { selectedCourseCode: 'fixture-course' }, revision: 2 };
     } });
     try {
       await Promise.race([firstStarted, first.then(() => { throw Error('FIRST_DRAFT_NOT_CLAIMED'); })]);
@@ -76,6 +77,7 @@ async function main() {
     } finally { finishFirst(); await first; }
     await mockup.tick(pool, { generate: async input => {
       assert.equal(input.state.selectedCourseCode, 'fixture-course');
+      assert.equal(input.state.mockupReplyParts, undefined);
       assert.equal(input.message, 'Email: [email omitted]');
       return { reply: 'Second draft', wouldHandoff: true, reason: 'HUMAN_REVIEW_REQUIRED' };
     } });
@@ -85,6 +87,8 @@ async function main() {
     const items = (await mockup.thread(pool, tenant, conversation, null)).items;
     assert.deepEqual(items.map(item => item.status), ['ready', 'review']);
     assert.deepEqual(items.map(item => item.replyText), ['First draft', 'Second draft']);
+    assert.deepEqual(items[0].replyParts, ['Course poster', 'Course overview', 'Course details']);
+    assert.equal(items[1].replyParts, undefined);
     assert.equal((await mockup.thread(pool, foreign, conversation, null)).items.length, 0);
 
     const app = express();

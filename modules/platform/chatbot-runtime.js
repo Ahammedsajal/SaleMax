@@ -13,6 +13,7 @@ const { isGuidedChoice, hybridTurnPlan, supportsAiPreview } = require('./chatbot
 const { channelFor } = require('./chatbot-channels');
 const { buildAiPrompt } = require('./chatbot-ai-prompt');
 const businessContext = require('./chatbot-business-context');
+const courseOpening = require('./chatbot-course-opening');
 const { isOpeningGreeting } = require('./chatbot-opening-flow');
 const replyCache = new Map();
 const CACHE_MAX = 250;
@@ -80,8 +81,8 @@ async function finishTurn(turn, status, resultClass, diagnostic = null) {
     [status, resultClass, diagnostic?.stage || null, diagnostic?.code || null, turn.id]);
 }
 
-async function sendBotText({ origin, sessionId, message, uid, chatId, body, bypassBotPause = true }) {
-  const content = { type: 'text', text: { preview_url: false, body: String(body || '').slice(0, 1200) } };
+async function sendBotText({ origin, sessionId, message, uid, chatId, body, bypassBotPause = true, maxLength = 1200 }) {
+  const content = { type: 'text', text: { preview_url: false, body: String(body || '').slice(0, maxLength) } };
   const id = await require('../../automation/functions').sendWaMessage({ origin, sessionId, message, uid, chatId, content, bypassBotPause });
   if (!id) return false;
   const data = { type: 'text', metaChatId: id, msgContext: content, reaction: '', timestamp: Math.trunc(Date.now() / 1000),
@@ -450,6 +451,8 @@ async function trainingCenterGuidedTurn({ ctx, profile, uid, message, sessionId,
       const route = ctx.category.key === 'training_center' && !intent
         ? businessContext.controlRoute(textOf(message), profile.config, priorState || {}, facts, { courseCertificates: true }) : null;
       const certificate = route && certificateTurn(textOf(message), referralContext, priorState || {}, route);
+      const opening = !certificate && route === 'answer' && mockup.ownsInbox(uid, origin) && !leadInfo?.nameOnly
+        ? courseOpening.planOpening({ facts, message: textOf(message), context: referralContext, state: priorState || {}, config: profile.config }) : null;
       const referralCourse = referralContext.courseContextSource === 'meta_referral'
         ? facts.find(item => item.code === referralContext.selectedCourseCode) : null;
       const selectedCourse = businessContext.isBareCourseSelection(textOf(message), referralContext)
@@ -460,8 +463,9 @@ async function trainingCenterGuidedTurn({ ctx, profile, uid, message, sessionId,
           ? `${textOf(message)} ${referralContext.language === 'ar' ? (referralCourse.nameAr || referralCourse.nameEn) : (referralCourse.nameEn || referralCourse.nameAr)}`
           : intent || textOf(message);
       onStage?.('training-guide-compose');
-      reply = certificate || pack.guidedReply({ message: guideMessage, state: priorState, facts, config: { ...(profile.config?.guidedContent || {}), knowledgeEntries } });
+      reply = certificate || opening || pack.guidedReply({ message: guideMessage, state: priorState, facts, config: { ...(profile.config?.guidedContent || {}), knowledgeEntries } });
       if (certificate?.route === 'clarification') deferLeadQuestion = true;
+      if (opening) deferLeadQuestion = false;
     }
     // A lead-capture name prompt must never erase a substantive safety route
     // (for example, a certificate question that needs staff confirmation).
@@ -474,10 +478,12 @@ async function trainingCenterGuidedTurn({ ctx, profile, uid, message, sessionId,
     onStage?.('training-guide-polish');
     if (!pilotGreeting) reply = businessContext.polishGuidedReply({ result: reply, profile, message: textOf(message), state: priorState, defaults: pack.guidedContentDefaults });
     const questionLeadInfo = deferLeadQuestion ? null : leadInfo;
-    if (!reply.handoff) reply.reply = require('./chatbot-lead-capture').addQuestion(reply.reply, questionLeadInfo, profile.config, pack.guidedContentDefaults);
+    if (!reply.handoff && !reply.openingTexts) reply.reply = require('./chatbot-lead-capture').addQuestion(reply.reply, questionLeadInfo, profile.config, pack.guidedContentDefaults);
     reply.state.sentCoursePdfIds = priorState?.sentCoursePdfIds || [];
-    const pdfs = require('./chatbot-course-media').coursePdfs(facts, reply.state.selectedCourseCode, textOf(message), reply.state.sentCoursePdfIds);
-    reply.media = [...(reply.media || []).filter(item => item.kind !== 'document'), ...pdfs];
+    if (!reply.openingTexts) {
+      const pdfs = require('./chatbot-course-media').coursePdfs(facts, reply.state.selectedCourseCode, textOf(message), reply.state.sentCoursePdfIds);
+      reply.media = [...(reply.media || []).filter(item => item.kind !== 'document'), ...pdfs];
+    }
     onStage?.('training-session-save');
     const nextState = JSON.stringify(reply.state || {});
     await db.query(`UPDATE sx_chatbot_guided_sessions SET state=?,expires_at=DATE_ADD(UTC_TIMESTAMP(3),INTERVAL 24 HOUR) WHERE id=?`, [nextState, row.id]);
@@ -504,6 +510,11 @@ async function trainingCenterGuidedTurn({ ctx, profile, uid, message, sessionId,
 
   onStage?.('training-authority-check');
   if (!await canSendNow({ ctx, profile, uid, origin, sessionId, chatId, message })) { onStage?.('training-authority-blocked'); return false; }
+  if (reply.openingTexts && reply.media.length) {
+    try { await sendTurnCourseMedia({ ctx, profile, uid, chatId, sessionId, message, origin, media: reply.media, state: reply.state }); }
+    catch (error) { console.warn('[chatbot] course opening attachment unavailable', error.code || 'COURSE_MEDIA_ERROR'); }
+    if (!await canSendNow({ ctx, profile, uid, origin, sessionId, chatId, message })) return false;
+  }
   const { sendWaMessage } = require('../../automation/functions');
   const interactiveButtons=channelKind==='whatsapp_meta'&&Array.isArray(reply.buttons)?reply.buttons.filter(item=>item&&typeof item.id==='string'&&typeof item.title==='string'&&item.id.length<=256&&item.title.length<=20).slice(0,3):[];
   const messageContext=interactiveButtons.length?{type:'interactive',interactive:{type:'button',body:{text:reply.reply.slice(0,1024)},action:{buttons:interactiveButtons.map(item=>({type:'reply',reply:{id:item.id,title:item.title}}))}}}:{type:'text',text:{preview_url:false,body:reply.reply}};
@@ -516,8 +527,23 @@ async function trainingCenterGuidedTurn({ ctx, profile, uid, message, sessionId,
   onStage?.('training-conversation-persist');
   await require('./chatbot-conversation-store').persistConversationMessage({ uid, chatId, data: { ...messageData, msgContext: JSON.stringify(messageData.msgContext), context: null } });
   await query(`UPDATE beta_chats SET last_message=? WHERE uid=? AND chat_id=?`, [JSON.stringify(messageData), uid, chatId]);
+  let questionLeadInfo = deferLeadQuestion ? null : leadInfo;
+  if (reply.openingTexts) {
+    // Stop the sequence if staff pause the chat or a detail message fails.
+    // The first reply is already recorded, so do not retry the whole burst.
+    for (const body of reply.openingTexts) {
+      try {
+        if (!await canSendNow({ ctx, profile, uid, origin, sessionId, chatId, message })) return true;
+        if (!await sendBotText({ origin, sessionId, message, uid, chatId, body, bypassBotPause: false, maxLength: courseOpening.textLimit })) return true;
+      } catch (error) {
+        console.warn('[chatbot] course opening details unavailable', error.code || 'COURSE_OPENING_DETAILS_FAILED');
+        return true;
+      }
+    }
+    if (!require('./chatbot-lead-capture').standaloneNamePrompt(questionLeadInfo)) questionLeadInfo = null;
+  }
   if (!reply.handoff) await sendCourseReplyFollowups({ ctx, profile, uid, origin, sessionId, chatId, message,
-    leadInfo: deferLeadQuestion ? null : leadInfo, media: reply.media, state: reply.state });
+    leadInfo: questionLeadInfo, media: reply.openingTexts ? [] : reply.media, state: reply.state });
   return true;
 }
 
@@ -795,6 +821,7 @@ async function aiTurn({ ctx, profile, uid, message, user, sessionId, origin, cha
     const incoming = textOf(message);
     const route = businessContext.controlRoute(incoming, profile.config, session || {}, leadInfo?.facts || []);
     let bareCourseSelection = false;
+    let fullCourseOpening = false;
     if (route === 'answer' && !leadInfo?.nameOnly && ctx.category.key === 'training_center') {
       const pack = getDomainPack(ctx.category.key, ctx.category.version);
       let selectionFacts = leadInfo?.facts;
@@ -805,9 +832,12 @@ async function aiTurn({ ctx, profile, uid, message, user, sessionId, origin, cha
       }
       const selectionContext = businessContext.retrieveContext({ facts: selectionFacts || [], message: incoming, state: session || {}, referral: message?.msgContext?.referral || null });
       bareCourseSelection = businessContext.isBareCourseSelection(incoming, selectionContext);
+      if (continuity && !session?.courseOpeningCodes?.includes(selectionContext.selectedCourseCode)) {
+        fullCourseOpening = courseOpening.isOpeningRequest(incoming, selectionContext, selectionFacts?.find(item => item.code === selectionContext.selectedCourseCode));
+      }
     }
     const applicationAccepted = acceptsRegistrationForm(session, incoming);
-    if (route !== 'answer' || leadInfo?.nameOnly || applicationAccepted || bareCourseSelection || (profile.engine === 'hybrid' && profile.config.aiFallback === false)) {
+    if (route !== 'answer' || leadInfo?.nameOnly || applicationAccepted || bareCourseSelection || fullCourseOpening || (profile.engine === 'hybrid' && profile.config.aiFallback === false)) {
       onStage?.('training-center-guided-reply');
       const handoffIntent = route === 'human' || route === 'handoff'
         ? (businessContext.languageFor(incoming, session || {}) === 'ar' ? 'موظف' : 'agent')
@@ -967,10 +997,14 @@ async function previewMockupTurn({ uid, tenantId, chatId, channelKind, channelRe
   const repeat = route === 'answer' && !localReply && businessContext.repeatQuestion(message, context, state || {});
   const guided = !localReply && (profile.engine === 'guided' || route !== 'answer' ||
     acceptsRegistrationForm(prior, message) || businessContext.isBareCourseSelection(message, context) || profile.config.aiFallback === false);
-  const advertisedOverview = route === 'answer' && context.courseContextSource === 'meta_referral'
+  const opening = route === 'answer' && !localReply
+    ? courseOpening.planOpening({ facts, message, context, state: prior, config: profile.config }) : null;
+  const advertisedOverview = !opening && route === 'answer' && context.courseContextSource === 'meta_referral'
     ? businessContext.simpleFactualReply(message, context, profile.config) : null;
   let answer;
-  if (advertisedOverview) {
+  if (opening) {
+    answer = opening;
+  } else if (advertisedOverview) {
     answer = { reply: advertisedOverview.reply, route: 'facts', state: { ...prior, selectedCourseCode: course.code } };
   } else if (guided) {
     const knowledgeEntries = mergeKnowledgeEntries(profile.config.knowledgeEntries || [], await loadApprovedFaqs(tenantId));
@@ -999,22 +1033,23 @@ async function previewMockupTurn({ uid, tenantId, chatId, channelKind, channelRe
   if (!answer.reply) return { revision, reason: 'MOCKUP_EMPTY_REPLY' };
   const next = { ...answer.state, greeted: true, mockupCourseInterest: courseInterest,
     mockupIntake: { ...intake.state, ...(intake.start ? { preferredStart: intake.start } : {}) } };
-  const question = (guided && !prior.greeted) || ((acknowledgement || repeat) && previousIntake.waiting)
+  const question = (guided && !opening && !prior.greeted) || ((acknowledgement || repeat) && previousIntake.waiting)
     ? null : { ...leadInfo, intake: { ...intake, session: next } };
   const standalone = capture.standaloneNamePrompt(question);
-  const main = capture.addQuestion(answer.reply, question, profile.config, pack.guidedContentDefaults);
+  const main = opening ? answer.reply : capture.addQuestion(answer.reply, question, profile.config, pack.guidedContentDefaults);
   if (standalone || main !== answer.reply) {
     const key = intake.key + 'Asked';
     next.mockupIntake = { ...next.mockupIntake, waiting: intake.key, [key]: Number(intake.state[key] || 0) + 1 };
   }
   if (!localReply) next.recentConversation = [...(prior.recentConversation || []),
     { role: 'user', text: message.slice(0, 400) }, { role: 'assistant', text: answer.reply.slice(0, 500) }].slice(-4);
-  const pdfs = localReply ? [] : require('./chatbot-course-media').coursePdfs(facts, next.selectedCourseCode, message, prior.sentCoursePdfIds || []);
+  const pdfs = localReply || opening ? [] : require('./chatbot-course-media').coursePdfs(facts, next.selectedCourseCode, message, prior.sentCoursePdfIds || []);
   const images = repeat ? [] : (answer.media || []).filter(item => item.kind !== 'document');
-  const attachments = [...pdfs, ...images].slice(0, 2);
-  next.sentCoursePdfIds = [...new Set([...(prior.sentCoursePdfIds || []), ...pdfs.map(item => item.id)])].slice(-20);
-  return { revision, reply: [main, ...attachments.map(item => language === 'ar' ? `[مرفق: ${item.filename || item.kind}]` : `[Attachment: ${item.filename || item.kind}]`), standalone]
-    .filter(Boolean).join('\n\n'), route: answer.route, reason: answer.reason, state: next };
+  const attachments = opening ? opening.media : [...pdfs, ...images].slice(0, 2);
+  const attachmentLabels = attachments.map(item => language === 'ar' ? `[مرفق: ${item.filename || item.kind}]` : `[Attachment: ${item.filename || item.kind}]`);
+  next.sentCoursePdfIds = [...new Set([...(prior.sentCoursePdfIds || []), ...attachments.filter(item => item.kind === 'document').map(item => item.id)])].slice(-20);
+  const parts = (opening ? [...attachmentLabels, main, ...opening.openingTexts, standalone] : [main, ...attachmentLabels, standalone]).filter(Boolean);
+  return { revision, reply: parts.join('\n\n'), ...(opening ? { replyParts: parts } : {}), route: answer.route, reason: answer.reason, state: next };
 }
 
 async function finishRecruitmentChat({ctx,profile,uid,message,sessionId,origin,chatId,completion,action}){
