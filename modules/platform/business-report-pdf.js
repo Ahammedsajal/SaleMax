@@ -1,6 +1,7 @@
 'use strict';
 const {money}=require('./business-finance-context');
-async function render(s,{test=false}={}){
+async function render(s,{test=false,receivableActions=[]}={}){
+ if(Number(s?.schemaVersion)>=2&&s?.summary&&s?.journey)return require('./training-report-pdf').render(s,{test,receivableActions});
  const {PDFDocument}=require('pdfkit');const title=`${s.business}_sale summary report`;
  const doc=new PDFDocument({size:'A4',margin:40,bufferPages:true,info:{Title:`${test?'Sample ':''}${title} · ${s.day}`,Author:'7Network'}});
  const chunks=[];const done=new Promise((resolve,reject)=>{doc.on('data',b=>chunks.push(b));doc.once('end',()=>resolve(Buffer.concat(chunks)));doc.once('error',reject);});

@@ -1,6 +1,6 @@
 const test=require('node:test');
 const assert=require('node:assert/strict');
-const {periodWindow,getActivityReport,getJourneyReport,getLeadReportSummary}=require('../helper/pipeline/reports');
+const {periodWindow,getActivityReport,getJourneyReport,getLeadReportSummary,getReportLeads}=require('../helper/pipeline/reports');
 const {reconcileExisting}=require('../modules/platform/training-lead-journey');
 
 test('pipeline reports define Qatar-local daily, Monday-weekly and monthly periods',()=>{
@@ -76,6 +76,21 @@ test('lead summary counts unattended open leads and interested leads with no lat
   const hotQuery=queries.find(query=>query.sql.includes('DATE_SUB(UTC_TIMESTAMP(3),INTERVAL 3 DAY)')).sql;
   assert.match(hotQuery,/bc\.route='OUTGOING'/);assert.match(hotQuery,/h\.activity_type='contact_outcome'/);assert.match(hotQuery,/COLLATE utf8mb4_unicode_ci/);
   assert.ok(queries.some(query=>query.sql.includes('AS contacted')&&query.sql.includes("bc.route='OUTGOING'")));
+});
+
+test('message status drilldowns match the selected-period outbound-message counts',async()=>{
+  const queryLog=[];
+  const connection={release(){},async query(sql,params=[]){queryLog.push({sql,params});if(sql.includes('SELECT COUNT(*) AS total FROM ('))return [[{total:1}]];if(sql.includes('SELECT l.id AS leadId'))return [[{leadId:'lead-1',contactName:'Synthetic lead',stageKey:'new'}]];throw new Error(`Unexpected message drilldown query: ${sql}`);}};
+  const pool={async getConnection(){return connection;}};
+  for(const kind of ['messaged','not_messaged']){
+    const data=await getReportLeads({pool,uid:'synthetic-owner',role:'owner',kind,from:'2026-11-04',to:'2026-11-10',timezone:'Asia/Qatar',page:1,limit:50});
+    assert.equal(data.kind,kind);assert.equal(data.from,'2026-11-04');assert.equal(data.to,'2026-11-10');assert.equal(data.total,1);assert.equal(data.items[0].leadId,'lead-1');
+  }
+  const [messaged,notMessaged]=queryLog.filter(row=>row.sql.includes('SELECT COUNT(*) AS total FROM ('));
+  assert.match(messaged.sql,/bc\.route='OUTGOING'/);assert.match(messaged.sql,/AND EXISTS \(SELECT 1 FROM pipeline_conversations/);
+  assert.match(notMessaged.sql,/AND NOT EXISTS \(SELECT 1 FROM pipeline_conversations/);
+  for(const {sql,params} of queryLog)assert.equal(params.length,(sql.match(/\?/g)||[]).length,`placeholder count for ${sql.slice(0,110)}`);
+  await assert.rejects(getReportLeads({pool,uid:'synthetic-owner',role:'owner',kind:'not_messaged'}),{status:400});
 });
 
 test('activity reports include agent WhatsApp replies with attribution and channel but no message text',async()=>{

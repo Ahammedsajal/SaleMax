@@ -65,7 +65,13 @@ test('reports is integrated as a bilingual view in the existing pipeline screen'
   assert.match(reports, /window\.open\(`\$\{url\}#print`/);
   assert.match(reports, /print-color-adjust:exact/);
   assert.match(reports, /messageStatusDefinition/);
-  assert.match(reports, /Business account · sender not recorded/);
+  assert.match(reports, /managerRole:'Manager'/);
+  assert.match(reports, /managerActivityNote/);
+  assert.match(reports, /class="report-message-drill"/);
+  assert.match(reports, /data-message-drill="\$\{part\.kind\}"/);
+  assert.match(reports, /drilldown_messaged:'Leads with an outbound message'/);
+  assert.match(reports, /drilldown_not_messaged:'Leads with no outbound message'/);
+  assert.match(reports, /loadDrilldown\(kind,null,null\)/);
   assert.match(reports, /7network-owner-report-\$\{state\.from\}/);
   assert.match(reports, /window\.print\(\)/);
   assert.match(financeDashboard, /Add an additional report recipient’s WhatsApp number and verify it/);

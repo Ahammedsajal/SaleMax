@@ -96,8 +96,9 @@ function whatsappReportText(snapshot,{receivableActions=[]}={}){
   ];
   if(prior){const earlier=prior.journey?.cohortFunnel||{};lines.push(`Vs prior period: contacted ${number(summary.newLeadsContacted)} vs ${number(prior.summary?.newLeadsContacted)} · applications ${number(funnel.applications)} vs ${number(earlier.applications)} · enrollments ${number(funnel.salesConverted)} vs ${number(earlier.salesConverted)} · billed ${money(finance.billedMinor)} vs ${money(priorFinance?.billedMinor)} · collection rate ${pctMinor(finance.collectedOnPeriodIssuedInvoicesMinor,finance.billedMinor)} vs ${pctMinor(priorFinance?.collectedOnPeriodIssuedInvoicesMinor,priorFinance?.billedMinor)}`);}
   if(agents.length)lines.push(`Agents (attended / closed / late follow-ups / hot 72h+): ${agents.map(agent=>`${agent.agentName} ${number(agent.attendedLeads)}/${number(agent.salesClosedByAgent)}/${number(agent.followUpsOverdue)}/${number(agent.hotLeadsNoFollowUp)}`).join(' · ')}`);
-  const businessUsers=journey.businessUsers||[];
-  if(businessUsers.length)lines.push(`Owner/staff (attended / messages / sales): ${businessUsers.slice(0,5).map(user=>`${user.userName} ${number(user.attendedLeads)}/${number(user.messagesSent)}/${number(user.salesClosed)}`).join(' · ')}`);
+  const businessUsers=journey.businessUsers||[],managerUsers=businessUsers.filter(user=>user.attribution==='account_role'),namedUsers=businessUsers.filter(user=>user.attribution!=='account_role');
+  const reportUsers=[...managerUsers,...namedUsers].slice(0,5);
+  if(reportUsers.length)lines.push(`Owner/staff (leads messaged / messages sent / sales closed): ${reportUsers.map(user=>`${user.attribution==='account_role'?'Manager':user.userName} ${number(user.attendedLeads)}/${number(user.messagesSent)}/${number(user.salesClosed)}`).join(' · ')}`);
   const cohorts=snapshot.courseCohorts||[];
   if(cohorts.length)lines.push(`Cohorts starting this period (filled/capacity; enrollments; cancelled to date): ${cohorts.slice(0,4).map(batch=>`${String(batch.courseName||'Course').replace(/[\r\n\u0000-\u001f]/g,' ').slice(0,40)} ${batch.cohortCode} ${number(batch.seatsFilled)}/${number(batch.capacity)}; ${number(batch.enrollmentsInPeriod)}; ${number(batch.cancelledTotal)}`).join(' · ')}`);
   lines.push('Course-level enquiries are not attributed to a normalized course field yet.');
@@ -114,7 +115,7 @@ function whatsappReportText(snapshot,{receivableActions=[]}={}){
     lines.push(`Overdue invoice actions: ${receivableActions.map(row=>`${row.payerName} · ${row.invoiceNumber} · ${money(row.amountMinor)} · ${row.daysOverdue}d late · ${row.salesperson} · ${row.nextAction}`).join(' | ')}`);
   }
   if(BigInt(finance.overdueReceivablesMinor||0)>0n)lines.push('Full receivables list: https://7network.live/user?page=finance');
-  lines.push(`Unattended = open lead with no recorded contact/message. Hot 72h+ = latest “interested” outcome with no later contact/message for 3+ days. First-contact average covers reached new leads. Saved snapshots exclude customer details${receivableActions.length?'; verified owner delivery includes up to 3 overdue invoice actions':''}.`);
+  lines.push(`Unattended = open lead with no outbound message from any connected QR or Meta device. Hot 72h+ = latest “interested” outcome with no later contact outcome or outbound message for 3+ days. First-contact average covers messaged new leads. Saved snapshots exclude customer details${receivableActions.length?'; verified owner delivery includes up to 3 overdue invoice actions':''}.`);
   return lines.join('\n');
 }
 function whatsappParameters(snapshot){const values=snapshot.summary||{},finance=snapshot.finance||{};return [String(snapshot.period||'scheduled'),`${dateText(snapshot.from)} - ${dateText(snapshot.to)}`,`Leads ${Number(values.leadsCreated)||0} (${Number(values.newLeadsUntouched)||0} untouched); due/late ${Number(values.followUpsDue)||0}/${Number(values.followUpsOverdue)||0}; cash ${((Number(finance.cashReceivedMinor)||0)/100).toFixed(2)} ${finance.currency||'QAR'}; overdue AR ${((Number(finance.overdueReceivablesMinor)||0)/100).toFixed(2)}`];}
@@ -126,8 +127,7 @@ async function sendEmail(message,{env=process.env,transport,sendEmail}={}){
 async function sendWhatsapp(db,{pool,tenantId,to,snapshot,env=process.env,http=require('axios'),sendWhatsapp:injected}={}){
   let config;try{config=delivery.whatsappConfig(env,'delivery');}catch(error){return {status:'failed',errorCode:error.code||'REPORT_WHATSAPP_NOT_CONFIGURED'};}
   if(config.transport==='qr'){
-    const receivableActions=await loadReceivableActions(pool,db,tenantId);
-    return require('./training-report-qr').send(db,{tenantId,to,text:whatsappReportText(snapshot,{receivableActions}),snapshot,env,http});
+    return require('./training-report-qr').send(db,{pool,tenantId,to,text:whatsappReportText(snapshot),snapshot,env,http});
   }
   let credentials;try{credentials=await delivery.tenantMetaCredentials(db,tenantId);}catch{return {status:'retry',errorCode:'REPORT_WHATSAPP_ACCOUNT_LOOKUP_FAILED'};}if(!credentials)return {status:'failed',errorCode:'REPORT_WHATSAPP_ACCOUNT_UNAVAILABLE'};
   const parameters=whatsappParameters(snapshot),message={messaging_product:'whatsapp',to:String(to).replace(/^\+/,''),type:'template',template:{name:config.template,language:{code:config.language},components:[{type:'body',parameters:parameters.map(text=>({type:'text',text}))}]}};

@@ -280,7 +280,7 @@ async function getLeadReportSummary({pool,uid,role='owner',agentId,scopeAgentIds
           AND NOT EXISTS (SELECT 1 FROM pipeline_activity pa WHERE pa.uid_hash=pc.uid_hash AND pa.lead_id=pc.lead_id
             AND pa.activity_type IN ('agent_message_sent','workspace_message_sent')
             AND JSON_UNQUOTE(JSON_EXTRACT(pa.details,'$.providerMessageId'))=bc.metaChatId)`,[uid,uidHash,start,end,...leadScope.args]);
-      if(Number(unattributed.messages_sent||0)>0)businessUsers.push({userId:'unattributed',userName:'Business account (sender not recorded)',attendedLeads:Number(unattributed.attended_leads||0),messagesSent:Number(unattributed.messages_sent||0),salesClosed:0,attribution:'unavailable'});
+      if(Number(unattributed.messages_sent||0)>0)businessUsers.push({userId:'unattributed',userName:'Manager',attendedLeads:Number(unattributed.attended_leads||0),messagesSent:Number(unattributed.messages_sent||0),salesClosed:0,attribution:'account_role'});
     }
     const daily=range.days.map((day,i)=>({date:day.date,total:Number(dailyRows[0]?.[`d${i}`]||0)}));
     return {from,to,timezone,asOf:new Date().toISOString(),daily,totalLeads:daily.reduce((total,day)=>total+day.total,0),agents:agentRows.map(row=>({agentId:Number(row.agentId),agentName:row.agentName||'Agent',active:Number(row.active)===1,assignedLeads:Number(row.assignedLeads),attendedLeads:Number(row.attendedLeads||0),unattendedLeads:unattendedByAgent.get(Number(row.agentId))||0,hotLeadsNoFollowUp:hotByAgent.get(Number(row.agentId))||0})),businessUsers,current:{today:Number(current.leads_today||0),month:Number(current.leads_month||0),salesConvertedMonth:Number(current.sales_converted_month||0),live:Number(current.live_leads||0),unattended:Number(current.unattended_leads||0),hotLeadsNoFollowUp:Number(hot.n||0),unassigned:role==='owner'?Number(current.unassigned_leads||0):null,firstContact:{count:Number(firstContact.contacted||0),averageMinutes:firstContact.average_minutes==null?null:Number(firstContact.average_minutes)},leadAge:{underOneDay:Number(age.under_one_day||0),oneToThreeDays:Number(age.one_to_three_days||0),fourToSevenDays:Number(age.four_to_seven_days||0),overSevenDays:Number(age.over_seven_days||0)}}};
@@ -290,9 +290,11 @@ async function getReportLeads({pool,uid,role='owner',agentId,scopeAgentIds,kind,
   if(!pool||typeof uid!=='string'||!uid)fail('A business workspace is required.',400);
   if(!['owner','manager','team_leader','agent'].includes(role))fail('This role cannot view lead reports.',403);
   if(['manager','team_leader'].includes(role)&&!Array.isArray(scopeAgentIds))fail('Team scope is unavailable for this report.',403);
-  if(!['created','attended','month_created','month_converted','live','unassigned'].includes(kind))fail('Choose a supported lead list.');
+  if(!['created','attended','messaged','not_messaged','month_created','month_converted','live','unassigned'].includes(kind))fail('Choose a supported lead list.');
   if(kind==='unassigned'&&role!=='owner')fail('Unassigned leads are outside your access scope.',403);
-  const range=kind==='attended'&&from&&to?reportRange({from,to,timezone}):null,window=range?{start:range.days[0].start,end:range.days[range.days.length-1].end,timezone}:['month_created','month_converted'].includes(kind)?periodWindow({period:'monthly',at:date,timezone}):periodWindow({period:'daily',at:date,timezone}),currentPage=Number(page),pageSize=Number(limit);
+  const range=['attended','messaged','not_messaged'].includes(kind)&&from&&to?reportRange({from,to,timezone}):null;
+  if(['attended','messaged','not_messaged'].includes(kind)&&!range)fail('Choose a report date range for this lead list.');
+  const window=range?{start:range.days[0].start,end:range.days[range.days.length-1].end,timezone}:['month_created','month_converted'].includes(kind)?periodWindow({period:'monthly',at:date,timezone}):periodWindow({period:'daily',at:date,timezone}),currentPage=Number(page),pageSize=Number(limit);
   if(!Number.isSafeInteger(currentPage)||currentPage<1||currentPage>10000||!Number.isSafeInteger(pageSize)||pageSize<1||pageSize>100)fail('Report page or page size is invalid.');
   let actor=selectedAgentId;
   if(kind==='attended'){
@@ -310,6 +312,9 @@ async function getReportLeads({pool,uid,role='owner',agentId,scopeAgentIds,kind,
     let source,params;
     if(kind==='created'||kind==='month_created'){
       source=`SELECT l.id FROM pipeline_leads l WHERE l.uid_hash=? AND l.uid=? AND l.created_at>=? AND l.created_at<?${leadScope.sql}`;params=[uidHash,uid,window.start,window.end,...leadScope.args];
+    }else if(kind==='messaged'||kind==='not_messaged'){
+      const outbound=hasOutboundMessage('l');
+      source=`SELECT l.id FROM pipeline_leads l WHERE l.uid_hash=? AND l.uid=? AND l.created_at>=? AND l.created_at<? AND ${kind==='messaged'?outbound:`NOT ${outbound}`}${leadScope.sql}`;params=[uidHash,uid,window.start,window.end,...leadScope.args];
     }else if(kind==='month_converted'){
       source=`SELECT DISTINCT pa.lead_id AS id FROM pipeline_activity pa JOIN pipeline_leads l ON l.uid_hash=pa.uid_hash AND l.id=pa.lead_id WHERE pa.uid_hash=? AND l.uid=? AND pa.activity_type='sale_converted' AND pa.created_at>=? AND pa.created_at<?${leadScope.sql}`;params=[uidHash,uid,window.start,window.end,...leadScope.args];
     }else if(kind==='live'){
@@ -324,7 +329,8 @@ async function getReportLeads({pool,uid,role='owner',agentId,scopeAgentIds,kind,
       FROM (${source}) report_leads JOIN pipeline_leads l ON l.uid_hash=? AND l.id=report_leads.id LEFT JOIN pipeline_contacts c ON c.uid_hash=l.uid_hash AND c.id=l.contact_id
       LEFT JOIN agents a ON a.id=l.owner_agent_id AND a.owner_uid COLLATE utf8mb4_general_ci=l.uid COLLATE utf8mb4_general_ci
       ORDER BY l.created_at DESC,l.id DESC LIMIT ? OFFSET ?`,[...params,uidHash,pageSize,offset]);
-    const total=Number(count.total||0);return {kind,date,from:kind==='attended'?from||date:['month_created','month_converted'].includes(kind)?window.start:null,to:kind==='attended'?to||date:['month_created','month_converted'].includes(kind)?window.end:null,selectedAgentId:kind==='attended'?actor:null,page:currentPage,limit:pageSize,total,hasMore:offset+rows.length<total,items:rows};
+    const isRangeKind=['attended','messaged','not_messaged'].includes(kind);
+    const total=Number(count.total||0);return {kind,date,from:isRangeKind?from||date:['month_created','month_converted'].includes(kind)?window.start:null,to:isRangeKind?to||date:['month_created','month_converted'].includes(kind)?window.end:null,selectedAgentId:kind==='attended'?actor:null,page:currentPage,limit:pageSize,total,hasMore:offset+rows.length<total,items:rows};
   }finally{connection.release();}
 }
 async function getJourneyReport({pool,uid,role='owner',agentId,scopeAgentIds,categoryKey,tenantId,period='daily',at,from,to,timezone='Asia/Qatar',assignment,qrInstanceId}){

@@ -45,9 +45,19 @@ async function scanTenant(db,tenant,{now=new Date()}={}){
  if(local.format('HH:mm')<at)return;
  await enqueue(db,tenant.id,{kind:'daily_summary',sourceType:'tenant',sourceId:tenant.id,key:`daily:${today}`,payload:{day:today,timezone}});
 }
-async function prepare(db,event,tenant){
+async function prepare(db,event,tenant,{pool}={}){
  const meta=finance.parse(event.payload_json);let data;
- if(event.kind==='daily_summary')data=await reports.build(db,tenant,{day:meta.day});else if(event.kind==='ai_usage_monthly')data={month:meta.month,estimatedUsd:Number(meta.estimatedUsd),thresholdUsd:Number(meta.thresholdUsd||10)};else if(event.kind==='chatbot_handoff'){const [[claim]]=await db.query("SELECT id,claim_code AS claimCode,status,COALESCE(expires_at,DATE_ADD(created_at,INTERVAL 24 HOUR))>UTC_TIMESTAMP(3) AS isActive,customer_name AS customerName,customer_phone AS customerPhone FROM sx_chatbot_handoff_claims WHERE tenant_id=? AND id=?",[event.tenant_id,event.source_id]);data=claim?.status==='open'&&Number(claim.isActive)?claim:null;}else data=await finance.load(db,event);
+ if(event.kind==='daily_summary'){
+  data=await reports.build(db,tenant,{day:meta.day});
+  if(pool&&tenant.category_key==='training_center'){
+   try{
+    const timezone=moment.tz.zone(tenant.timezone)?tenant.timezone:'Asia/Qatar';
+    const cutoffAt=event.created_at?moment.utc(event.created_at).toISOString():moment.tz(`${meta.day} 19:00`, 'YYYY-MM-DD HH:mm',timezone).toISOString();
+    const snapshot=await require('./training-report-runner').buildSnapshot(pool,{tenant_id:event.tenant_id,period:'daily',timezone,cutoff_at:cutoffAt,metric_definition_version:2,schedule_revision:1,revision:1});
+    data={...snapshot,business:tenant.name||'7Network'};
+   }catch(error){console.warn(JSON.stringify({event:'training_owner_report_snapshot_fallback',code:error.code||'SNAPSHOT_UNAVAILABLE'}));}
+  }
+ }else if(event.kind==='ai_usage_monthly')data={month:meta.month,estimatedUsd:Number(meta.estimatedUsd),thresholdUsd:Number(meta.thresholdUsd||10)};else if(event.kind==='chatbot_handoff'){const [[claim]]=await db.query("SELECT id,claim_code AS claimCode,status,COALESCE(expires_at,DATE_ADD(created_at,INTERVAL 24 HOUR))>UTC_TIMESTAMP(3) AS isActive,customer_name AS customerName,customer_phone AS customerPhone FROM sx_chatbot_handoff_claims WHERE tenant_id=? AND id=?",[event.tenant_id,event.source_id]);data=claim?.status==='open'&&Number(claim.isActive)?claim:null;}else data=await finance.load(db,event);
  if(!data){await db.query("UPDATE sx_business_notification_events SET status='failed',last_error_code=? WHERE id=? AND tenant_id=?",[event.kind==='chatbot_handoff'?'HANDOFF_ALREADY_CLAIMED':'FINANCE_RESOURCE_CLOSED_OR_UNAVAILABLE',event.id,event.tenant_id]);return;}
  let members=data.customerOnly?[]:await qr.staff(db,event.tenant_id,{ownerOnly:event.kind==='daily_summary'});
  if(event.kind==='ai_usage_monthly')members=members.filter(member=>['owner','manager'].includes(member.role));
@@ -64,7 +74,8 @@ async function prepare(db,event,tenant){
  const seen=new Set();for(const member of members){const destination=qr.hash(member.phone||`missing:${member.id}`);if(seen.has(destination))continue;seen.add(destination);
   for(const part of event.kind==='daily_summary'?['text','pdf']:['text'])await db.query('INSERT INTO sx_business_notification_deliveries(tenant_id,event_id,recipient_kind,recipient_id,destination_hash,part) VALUES (?,?,?,?,?,?) ON DUPLICATE KEY UPDATE id=id',[event.tenant_id,event.id,member.kind,member.id,destination,part]);
  }
- const eventMeta=event.kind==='chatbot_handoff'?{...meta,claimCode:data.claimCode}:({...meta,snapshot:data,business:tenant.name||'7Network'});
+ const reportText=event.kind==='daily_summary'&&Number(data.schemaVersion)>=2?require('./training-report-delivery-worker').whatsappReportText(data):null;
+ const eventMeta=event.kind==='chatbot_handoff'?{...meta,claimCode:data.claimCode}:({...meta,snapshot:data,business:tenant.name||'7Network',...(reportText?{reportText}:{})});
  await db.query("UPDATE sx_business_notification_events SET status='prepared',payload_json=? WHERE id=? AND tenant_id=?",[JSON.stringify(eventMeta),event.id,event.tenant_id]);
 }
 async function claim(db){
@@ -77,7 +88,7 @@ async function claim(db){
  }catch(e){await db.rollback();throw e;}
 }
 async function allowed(db,item){const e=await require('./plans').loadEntitlements(db,item.tenant_id);if(!e||!['active','trial','grace'].includes(e.status))return false;const caps=e.capabilities||[],finance=caps.includes('finance.invoices')||caps.includes('sales.finance');if(['ai_usage_monthly','chatbot_handoff'].includes(item.kind))return caps.includes('automation.chatbot');return item.kind==='daily_summary'?dailyReportAllowed(e.categoryKey,caps):finance;}
-async function dispatch(db,item,{send=qr.send,authorize=allowed,summarizeHandoff=null}={}){
+async function dispatch(db,item,{pool,send=qr.send,authorize=allowed,summarizeHandoff=null}={}){
  if(!await authorize(db,item))return {status:'suppressed',errorCode:'BUSINESS_NOTIFICATION_FEATURE_UNAVAILABLE'};
  const meta=finance.parse(item.payload_json);let current=null,handoff=null;
  if(item.kind!=='daily_summary'&&item.kind!=='ai_usage_monthly'&&item.kind!=='chatbot_handoff'){current=await finance.load(db,{...item,tenant_id:item.tenant_id});if(!current)return {status:'suppressed',errorCode:'FINANCE_RESOURCE_CLOSED_OR_UNAVAILABLE'};}
@@ -108,9 +119,10 @@ async function dispatch(db,item,{send=qr.send,authorize=allowed,summarizeHandoff
   : item.kind==='chatbot_handoff'
    ? `New 7Network customer handoff · ${snapshot.claimCode}\nCustomer: ${snapshot.customerName || 'Name not available'}${snapshot.customerPhone ? ` · ${snapshot.customerPhone}` : ''}\nCourse: ${(snapshot.courseDetails||[]).map(course=>course.nameEn||course.nameAr||course.code).filter(Boolean).join(', ') || 'Not identified'}\nLatest enquiry: ${snapshot.latestEnquiry || 'Please review the chat'}\n${snapshot.ai?'AI summary':'Conversation context'}: ${snapshot.text || 'Please review the recent conversation.'}\n\nReply YES ${snapshot.claimCode} to claim this chat. The first eligible staff reply is assigned the chat.\n\nيوجد استفسار عميل جديد بانتظار الفريق · ${snapshot.claimCode}\nالعميل: ${snapshot.customerName || 'الاسم غير متوفر'}${snapshot.customerPhone ? ` · ${snapshot.customerPhone}` : ''}\nالدورة: ${(snapshot.courseDetails||[]).map(course=>course.nameAr||course.nameEn||course.code).filter(Boolean).join('، ') || 'غير محددة'}\nآخر استفسار: ${snapshot.latestEnquiry || 'يرجى مراجعة المحادثة'}\nملخص المحادثة: ${snapshot.text || 'يرجى مراجعة المحادثة الأخيرة.'}\n\nأرسل YES ${snapshot.claimCode} لاستلام المحادثة.`
    : finance.message(item.kind,snapshot,{business:meta.business});
- const pdf=item.part==='pdf'?await require('./business-report-pdf').render(snapshot):null;
+ let receivableActions=[];if(item.kind==='daily_summary'&&item.part==='pdf'&&pool){try{receivableActions=await require('./training-report-delivery-worker').loadReceivableActions(pool,db,item.tenant_id);}catch{}}
+ const pdf=item.part==='pdf'?await require('./business-report-pdf').render(snapshot,{receivableActions}):null;
  const safeBusiness=String(snapshot.business||'7Network').normalize('NFKD').replace(/[^\p{L}\p{N}]+/gu,'_').replace(/^_+|_+$/g,'').slice(0,60)||'7Network';
- return send(db,{tenantId:item.tenant_id,to,text:item.part==='pdf'?`${safeBusiness} sale summary report · ${snapshot.day}`:text,pdf,fileName:`${safeBusiness}_sale_summary_report.pdf`});
+ return send(db,{tenantId:item.tenant_id,to,text:item.part==='pdf'?`${safeBusiness} daily owner report · ${snapshot.to||snapshot.day}`:text,pdf,fileName:`${safeBusiness}_daily_owner_report.pdf`});
 }
 async function finish(db,item,result){
  let {status}=result;if(!['accepted','blocked','failed','unknown','suppressed'].includes(status))status='unknown';if(status==='blocked'&&item.attempts>=16&&item.kind!=='daily_summary')status='failed';
@@ -118,17 +130,18 @@ async function finish(db,item,result){
  if(updated.affectedRows!==1)throw Object.assign(Error('BUSINESS_NOTIFICATION_LEASE_LOST'),{code:'BUSINESS_NOTIFICATION_LEASE_LOST'});
  return status;
 }
-async function scheduledReport(db,{tenantId,to,snapshot,text}){
+async function scheduledReport(db,{pool,tenantId,to,snapshot,text}){
  const owners=await qr.staff(db,tenantId,{ownerOnly:true}),owner=owners.find(r=>r.phone&&qr.hash(r.phone)===qr.hash(qr.phone(to)||''));
  if(!owner)return {status:'failed',errorCode:'DAILY_REPORT_OWNER_ONLY'};
  const [[recipient]]=await db.query("SELECT id FROM sx_training_report_recipients WHERE tenant_id=? AND channel='whatsapp' AND destination=? AND status='verified' LIMIT 1",[tenantId,to]);
  if(!recipient)return {status:'failed',errorCode:'REPORT_DESTINATION_NOT_VERIFIED'};
  const [[tenant]]=await db.query("SELECT id,name,timezone FROM sx_tenants WHERE id=? AND status='active'",[tenantId]);if(!tenant)return {status:'failed',errorCode:'REPORT_TENANT_UNAVAILABLE'};
- const timezone=snapshot.timezone||tenant.timezone||'Asia/Qatar',day=moment.utc(snapshot.from).tz(timezone).format('YYYY-MM-DD'),key=`daily:${day}`;
- const data=await reports.build(db,tenant,{day});await db.beginTransaction();try{
+ const timezone=snapshot.timezone||tenant.timezone||'Asia/Qatar',richSnapshot=Number(snapshot.schemaVersion)>=2&&snapshot.period==='daily'&&snapshot.summary&&snapshot.journey,day=richSnapshot?String(snapshot.from||'').slice(0,10):moment.utc(snapshot.from).tz(timezone).format('YYYY-MM-DD'),key=`daily:${day}`;
+ const legacy=richSnapshot&&tenant.category_key==='training_center'?await reports.build(db,tenant,{day}):null;
+ const data=richSnapshot?{...snapshot,business:tenant.name||snapshot.business||'7Network',monthToDate:legacy?.monthToDate||null,monthlyFinance:legacy?.finance||[]}:legacy||await reports.build(db,tenant,{day});await db.beginTransaction();try{
   await enqueue(db,tenantId,{kind:'daily_summary',sourceType:'tenant',sourceId:tenantId,key,payload:{day,timezone,snapshot:data,business:tenant.name,reportText:text}});
   const [[event]]=await db.query('SELECT id,status FROM sx_business_notification_events WHERE tenant_id=? AND event_key=? FOR UPDATE',[tenantId,key]);
-  if(event.status==='queued')await db.query("UPDATE sx_business_notification_events SET status='prepared',payload_json=? WHERE tenant_id=? AND id=?",[JSON.stringify({day,timezone,snapshot:data,business:tenant.name,reportText:reports.text(data)}),tenantId,event.id]);
+  if(event.status==='queued')await db.query("UPDATE sx_business_notification_events SET status='prepared',payload_json=? WHERE tenant_id=? AND id=?",[JSON.stringify({day,timezone,snapshot:data,business:tenant.name,reportText:richSnapshot?(text||''):reports.text(data)}),tenantId,event.id]);
   const hash=qr.hash(qr.phone(to));for(const part of ['text','pdf'])await db.query("INSERT INTO sx_business_notification_deliveries(tenant_id,event_id,recipient_kind,recipient_id,destination_hash,part) VALUES (?,?,'identity',?,?,?) ON DUPLICATE KEY UPDATE id=id",[tenantId,event.id,owner.id,hash,part]);
   const [parts]=await db.query('SELECT status,provider_message_id FROM sx_business_notification_deliveries WHERE tenant_id=? AND event_id=? AND destination_hash=?',[tenantId,event.id,hash]);await db.commit();
   if(parts.length===2&&parts.every(p=>p.status==='accepted'))return {status:'accepted',providerMessageId:parts.find(p=>p.provider_message_id)?.provider_message_id};
@@ -144,10 +157,10 @@ async function tick(pool,{scan=true,now=new Date(),limit=20}={}){
  try{
   if(scan){const [tenants]=await db.query("SELECT id,name,category_key,timezone FROM sx_tenants WHERE status='active' AND id>? ORDER BY id LIMIT 100",[tenantScanCursor]);tenantScanCursor=tenants.length===100?tenants.at(-1).id:'';for(const tenant of tenants)try{await scanTenant(db,tenant,{now});}catch(e){console.error(JSON.stringify({event:'business_notification_scan_failed',code:e.code||'SCAN_FAILED'}));}}
   for(let i=0;i<limit;i++){
-   await db.beginTransaction();try{const [[event]]=await db.query("SELECT e.*,t.name,t.timezone FROM sx_business_notification_events e JOIN sx_tenants t ON t.id=e.tenant_id AND t.status='active' LEFT JOIN sx_business_notification_settings s ON s.tenant_id=t.id WHERE e.status='queued' AND (e.kind IN ('ai_usage_monthly','chatbot_handoff') OR s.enabled=1) ORDER BY e.created_at,e.id LIMIT 1 FOR UPDATE SKIP LOCKED");if(!event){await db.commit();break;}await prepare(db,event,{id:event.tenant_id,name:event.name,timezone:event.timezone});await db.commit();totals.prepared++;}catch(e){await db.rollback();throw e;}
+   await db.beginTransaction();try{const [[event]]=await db.query("SELECT e.*,t.name,t.category_key,t.timezone FROM sx_business_notification_events e JOIN sx_tenants t ON t.id=e.tenant_id AND t.status='active' LEFT JOIN sx_business_notification_settings s ON s.tenant_id=t.id WHERE e.status='queued' AND (e.kind IN ('ai_usage_monthly','chatbot_handoff') OR s.enabled=1) ORDER BY e.created_at,e.id LIMIT 1 FOR UPDATE SKIP LOCKED");if(!event){await db.commit();break;}await prepare(db,event,{id:event.tenant_id,name:event.name,category_key:event.category_key,timezone:event.timezone},{pool});await db.commit();totals.prepared++;}catch(e){await db.rollback();throw e;}
   }
  }finally{db.release();}
- for(let i=0;i<limit;i++){const c=await pool.getConnection();try{const item=await claim(c);if(!item)break;let result;try{result=await dispatch(c,item);}catch(e){result={status:'unknown',errorCode:e.code||'BUSINESS_SEND_UNCONFIRMED'};}const status=await finish(c,item,result);if(status in totals)totals[status]++;}finally{c.release();}}
+ for(let i=0;i<limit;i++){const c=await pool.getConnection();try{const item=await claim(c);if(!item)break;let result;try{result=await dispatch(c,item,{pool});}catch(e){result={status:'unknown',errorCode:e.code||'BUSINESS_SEND_UNCONFIRMED'};}const status=await finish(c,item,result);if(status in totals)totals[status]++;}finally{c.release();}}
  return totals;
 }
 function start({env=process.env,pool}={}){
