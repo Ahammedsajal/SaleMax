@@ -187,7 +187,8 @@ function renderTrainingReport(s,{test=false,receivableActions=[]}={}){
   if(!actionRows.length)doc.fillColor(palette.muted).font('Helvetica').fontSize(7.5).text('No overdue invoice follow-up details were available.',46,actionHeadingY+58,{width:500,lineBreak:false});
   const prior=s.period==='weekly'?s.comparisons?.previousWeek:s.period==='monthly'?s.comparisons?.previousMonth:(s.comparisons?.yesterday||s.comparisons?.sameWeekdayLastWeek);
   if(prior){
-    heading(doc,`Compared with ${prior.from||'previous report'}`,602);
+    const priorStart=String(prior.from||''),priorInstant=new Date(/(?:Z|[+-]\d{2}:?\d{2})$/i.test(priorStart)?priorStart:`${priorStart.replace(' ','T')}Z`),priorDate=Number.isNaN(priorInstant.getTime())?'previous report':new Intl.DateTimeFormat('en-QA',{dateStyle:'medium',timeZone:s.timezone||'Asia/Qatar'}).format(priorInstant);
+    heading(doc,`Compared with ${priorDate}`,602);
     const pSummary=prior.summary||{},pFunnel=prior.journey?.cohortFunnel||{},pFinance=prior.finance||{};
     const comparisons=[
       ['New leads',count(summary.leadsCreated),count(pSummary.leadsCreated)],
@@ -196,7 +197,7 @@ function renderTrainingReport(s,{test=false,receivableActions=[]}={}){
       ['Cash received',formatMoney(finance.cashReceivedMinor,currency),formatMoney(pFinance.cashReceivedMinor,currency)],
       ['Overdue balance',formatMoney(finance.overdueReceivablesMinor,currency),formatMoney(pFinance.overdueReceivablesMinor,currency)]
     ];
-    table(doc,{y:627,widths:[205,155,144],headers:['Metric','This report',`Prior · ${prior.from||'—'}`],rows:comparisons,rowHeight:19,fontSize:6.8});
+    table(doc,{y:627,widths:[205,155,144],headers:['Metric','This report',`Prior · ${priorDate}`],rows:comparisons,rowHeight:19,fontSize:6.8});
   }
   const range=doc.bufferedPageRange();for(let page=0;page<range.count;page++){doc.switchToPage(page);doc.moveTo(40,798).lineTo(555,798).strokeColor(palette.line).stroke();doc.fillColor(palette.muted).font('Helvetica').fontSize(7).text(`Private owner report · ${safe(s.business||'7Network')} · Page ${page+1} of ${range.count}`,40,808,{width:515,align:'center',lineBreak:false});}
   doc.end();return done;
