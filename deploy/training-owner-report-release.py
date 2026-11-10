@@ -31,6 +31,18 @@ WORKER_FILES = {
     'modules/platform/training-report-runner.js': '13b7bf6e04eca0f9312030bb273e305bf3b37a1f8d4cc0b7c6ecf6f34f46b389',
     'modules/platform/training-report-delivery-worker.js': 'd1d786f9c008ed6725bc54bb08c2497a59db2187cd986819c8c824ad268cae9b',
 }
+APP_PREIMAGES = {
+    'helper/pipeline/reports.js': '5b2e62e58049d0e7c86a6ec2c6507224c42f426761824f4dbb46d739977c4466',
+    'modules/platform/training-report-runner.js': '61cfa39370682da5e025636de294b4aa6104ba81e401afbe39d028f5f97b9c7f',
+    'modules/platform/training-report-delivery-worker.js': 'fdd187948ade8c11b1cbc777d2f8236f4514966dbd90e202eb10f66e5c95cea1',
+    'client/public/pipeline/reports.js': 'b19c7c388779759f004ff63310013551ea0d991e9d49771207fef431698b143d',
+    'client/public/pipeline/index.html': 'd28d55bd22d5c89f48bdf40fe093d3e38545b44361d65a18d0ac9498fe4de9f9',
+}
+WORKER_PREIMAGES = {
+    'helper/pipeline/reports.js': 'cde3413d81e53477790f04fab92d1676e26066076efd8bbd7b992ebfe8207d8b',
+    'modules/platform/training-report-runner.js': 'c7487c258a673ec9ff83037151e9f172276e1fa6d9df2354535c551ffe22e3a3',
+    'modules/platform/training-report-delivery-worker.js': 'fdd187948ade8c11b1cbc777d2f8236f4514966dbd90e202eb10f66e5c95cea1',
+}
 APP_KEYS = ('config_files', 'environment_file', 'working_dir')
 
 def run(*args, env=None):
@@ -174,10 +186,10 @@ def deploy(stage, commit):
     app, worker = inspect(APP), inspect(WORKER)
     app_meta, worker_meta = service_compose(app, 'app'), service_compose(worker, 'report-worker')
     validate_baseline(app, worker, app_meta, worker_meta)
-    for name, expected in APP_FILES.items():
+    for name, expected in APP_PREIMAGES.items():
         if run('docker', 'exec', APP, 'sha256sum', '/app/' + name).split()[0] != expected:
             raise RuntimeError('Live app report file changed: ' + name)
-    for name, expected in WORKER_FILES.items():
+    for name, expected in WORKER_PREIMAGES.items():
         if run('docker', 'exec', WORKER, 'sha256sum', '/app/' + name).split()[0] != expected:
             raise RuntimeError('Live report-worker file changed: ' + name)
     release = ROOT / 'releases' / f'training-owner-report-{commit[:12]}-20261110'
@@ -204,7 +216,7 @@ def deploy(stage, commit):
             saved.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
             run('docker', 'cp', service + ':' + target, str(saved))
             digest = sha(saved.read_bytes())
-            if digest != (APP_FILES if service == APP else WORKER_FILES)[name]:
+            if digest != (APP_PREIMAGES if service == APP else WORKER_PREIMAGES)[name]:
                 raise RuntimeError('Rollback preimage hash mismatch: ' + service + ':' + name)
             preimage_hashes[service][name] = digest
     (backup / 'preimage-hashes.json').write_text(json.dumps(preimage_hashes, indent=2) + '\n')
