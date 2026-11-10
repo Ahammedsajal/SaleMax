@@ -92,6 +92,13 @@ for (const message of ['Business English fee','Business English schedule','Busin
 for (const message of ['How much?','When does it start?','Is there a place?','Is that in person?','How long?','هل يوجد مقعد؟','كم الرسوم؟','متى تبدأ؟']) test('follow-up: '+message,()=>{const c=retrieveContext({facts,message,state:{selectedCourseCode:'ENG'}});assert.equal(c.selectedCourseCode,'ENG');});
 const context=retrieveContext({facts,message:'Business English fee'});
 const reply = (text, sourceIds=['course:english'])=>validateAnswer({canAnswer:true,reply:text,sourceIds},context);
+test('queued staff-request acknowledgements can be conversational without invented course facts',()=>{
+ const staffContext=retrieveContext({facts,message:'Please connect',state:{selectedCourseCode:'ENG'}});
+ const text='The admissions team has been asked to join and check whether you can start immediately. I can keep helping while they respond.';
+ assert.deepEqual(validateAnswer({canAnswer:true,reply:text,sourceIds:[]},staffContext,{staffNotificationQueued:true}),{valid:true});
+ assert.equal(validateAnswer({canAnswer:true,reply:text,sourceIds:[]},staffContext).code,'ANSWER_STAFF_NOTIFICATION_UNVERIFIED');
+ assert.equal(validateAnswer({canAnswer:true,reply:'The admissions team has been asked to join. The fee is QAR 999.',sourceIds:[]},staffContext,{staffNotificationQueued:true}).valid,false);
+});
 for (const text of ['It costs 999 QAR.','It costs QAR 999.','رسومها ٩٩٩ ريال','Starts on 2027-12-20.','There are 999 seats.','The duration is 900 hours.','Call 97455999999.','Apply at https://evil.test','I have booked your seat.','I’ve enrolled you.','تم تسجيلك في الدورة','Confirmed: 99% discount.']) test('reject unsupported assertion: '+text,()=>assert.equal(reply(text).valid,false));
 for (const text of ['It costs 350 QAR.','It costs QAR 350.','الرسوم ٣٥٠ ريال','Registration is 25 QAR.','There are 7 seats.','Duration is 8 weeks.','Starts on 2026-11-15.']) test('allow supported assertion: '+text,()=>assert.equal(reply(text).valid,true));
 for (const ids of [[],['course:foreign'],['course:english','course:foreign'],null,{},['faq:999']]) test('reject invalid source reference '+JSON.stringify(ids),()=>assert.equal(reply('A helpful answer.',ids).valid,false));

@@ -230,7 +230,7 @@ function validateAnswer(response, context, { staffNotificationQueued = false } =
   if (!Array.isArray(ids) || ids.some(id => !known.has(id))) return { valid: false, code: 'ANSWER_SOURCE_INVALID' };
   const fullReply = String(response.reply).replace(/’/g, "'").trim();
   const staffAction = /\b(?:asked|notified|sent|contacted|joined|will reply)\b.{0,50}\b(?:team|staff|admissions|advisor)\b/i.test(fullReply)
-    || /\b(?:team|staff|admissions|advisor)\b.{0,50}\b(?:notified|contacted|joined|will reply)\b/i.test(fullReply)
+    || /\b(?:team|staff|admissions|advisor)\b.{0,50}\b(?:(?:has been|have been|was|were)\s+)?(?:asked|notified|contacted|joined|will reply|will respond|will call|will contact)\b/i.test(fullReply)
     || /(?:أبلغت|ابلغت|أشعرت|اشعرت|طلبت من|سيتواصل معك|تواصل معك).{0,60}(?:الفريق|الموظفون|الموظفين|القبول|المستشار)/u.test(fullReply);
   const claimsDelivered = /\b(?:team|staff|admissions)\s+(?:has been|were|was)\s+notified\b|\bnotified (?:the|our) (?:team|staff|admissions)\b|\b(?:الفريق|الموظفون|الموظفين|القبول)\s+(?:تم إبلاغهم|تم إشعارهم|أُبلغوا|أُشعروا)\b/iu.test(fullReply);
   const promisesStaffReply = /\b(?:team|staff|admissions)\s+will\s+(?:reply|respond|call|contact|message)\b|\b(?:سيتواصل|سيرد|سيتصل)\s+(?:معك\s+)?(?:الفريق|الموظفون|القبول)\b/u.test(fullReply);
@@ -242,7 +242,8 @@ function validateAnswer(response, context, { staffNotificationQueued = false } =
     const reply = fullReply;
     const uncertainty = /\b(?:i don't|i do not|i can't|i cannot|not yet|isn't confirmed|is not confirmed|don't have confirmed|do not have confirmed|not available to me|i'm not sure|i am not sure)\b/i.test(reply)
       || /(?:لا تتوفر لدي|لا أستطيع تأكيد|ليس لدي تفاصيل مؤكدة|لم يتم تأكيد)/u.test(reply);
-    const conversational = /\b(?:virtual assistant|happy to help|glad to help|what would you like|which course|how can i help|i can help|could you tell me|would you like|i've asked|i have asked|asked our team|asked admissions|team has been notified|admissions can check)\b/i.test(reply)
+    const conversational = (staffNotificationQueued && staffAction)
+      || /\b(?:virtual assistant|happy to help|glad to help|what would you like|which course|how can i help|i can help|could you tell me|would you like|i've asked|i have asked|asked our team|asked admissions|team has been notified|admissions can check)\b/i.test(reply)
       || /(?:المساعد الافتراضي|يسعدني مساعدتك|كيف أساعدك|أي دورة|هل تود)/u.test(reply);
     const unsupportedDetail = /\b(?:QAR|QR|fee|fees|price|cost|schedule|batch|start date|certificate|certification|accreditation|attestation|duration|weeks?|months?|hours?|address|location|course includes|we offer|we provide)\b|(?:ر\.ق|رسوم|سعر|جدول|دفعة|شهادة|اعتماد|تصديق|مدة|عنوان|موقع)/iu.test(reply);
     if ((!uncertainty && !conversational)
