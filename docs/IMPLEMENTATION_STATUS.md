@@ -1,6 +1,10 @@
+## Pro Catalyst certificate catalogue data — production, 10 November 2026
+
+Eight of ten published courses have bilingual certificate details drawn from course-specific staff replies and published course material. Business Management is supported by its published course entry. Kids Python Programming and SEN & Shadow Teacher Training still need verified certificate details. Production Courses readback and no-send bot previews passed. `DEPLOYMENT.md` records the scoped data rollback and source evidence.
+
 ## Course Certification and grounded certificate replies — production, 10 November 2026
 
-Existing course cards open the bilingual Certification section directly. The bot keeps an unanswered certification question in context until the course is named and uses saved published-course details without assuming government attestation. Production verification and synthetic browser and role fixtures passed. The 10 published Pro Catalyst courses still need verified English and Arabic certificate details. Signed-in live editing and WhatsApp delivery remain unverified. `DEPLOYMENT.md` records the release and rollback.
+Existing course cards open the bilingual Certification section directly. The bot keeps an unanswered certification question in context until the course is named and uses saved published-course details without assuming government attestation. Production verification and synthetic browser and role fixtures passed. At rollout, all 10 published Pro Catalyst courses had blank certificate fields. Signed-in live editing and WhatsApp delivery remain unverified. `DEPLOYMENT.md` records the release and rollback.
 
 ## Pro Catalyst mockup scrolling — production, 10 November 2026
 
