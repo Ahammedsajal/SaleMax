@@ -22,6 +22,21 @@ function nextRunAfter({period,timezone,localTime,local_time:localTimeDb},schedul
   if(period==='daily')next.add(1,'day');else if(period==='weekly')next.add(1,'week').isoWeekday(1);else if(period==='monthly')next.add(1,'month').date(1);else fail('INVALID_REPORT_PERIOD');
   return next.hour(hour).minute(minute).second(0).millisecond(0).utc().format('YYYY-MM-DD HH:mm:ss.SSS');
 }
+async function courseCohortSummary(pool,tenantId,{fromDate,toDate,from,to}){
+  const db=await pool.getConnection();
+  try{
+    const [rows]=await db.query(`SELECT c.name_en AS courseName,b.code AS cohortCode,b.starts_on AS startsOn,
+        b.capacity,b.reserved_seats AS seatsFilled,b.status AS cohortStatus,
+        SUM(CASE WHEN e.created_at>=? AND e.created_at<? AND e.status IN ('reserved','requested','confirmed','started','completed') THEN 1 ELSE 0 END) AS enrollmentsInPeriod,
+        SUM(e.status='cancelled') AS cancelledTotal
+      FROM sx_training_batches b JOIN sx_training_courses c ON c.tenant_id=b.tenant_id AND c.id=b.course_id
+      LEFT JOIN sx_training_enrollments e ON e.tenant_id=b.tenant_id AND e.batch_id=b.id
+      WHERE b.tenant_id=? AND b.starts_on>=? AND b.starts_on<=?
+      GROUP BY c.id,c.name_en,b.id,b.code,b.starts_on,b.capacity,b.reserved_seats,b.status
+      ORDER BY b.starts_on,c.name_en,b.code LIMIT 20`,[from,to,tenantId,fromDate,toDate]);
+    return rows.map(row=>({courseName:row.courseName,cohortCode:row.cohortCode,startsOn:String(row.startsOn).slice(0,10),capacity:Number(row.capacity||0),seatsFilled:Number(row.seatsFilled||0),seatsAvailable:Math.max(0,Number(row.capacity||0)-Number(row.seatsFilled||0)),status:row.cohortStatus,enrollmentsInPeriod:Number(row.enrollmentsInPeriod||0),cancelledTotal:Number(row.cancelledTotal||0)}));
+  }finally{db.release();}
+}
 async function enqueueDue(db,{now=new Date(),limit=25}={}){
   if(!(now instanceof Date)&&typeof now!=='string')fail('INVALID_REPORT_WORKER_TIME');if(!Number.isSafeInteger(limit)||limit<1||limit>100)fail('INVALID_REPORT_WORKER_LIMIT');
   const nowSql=sqlDate(now);let enqueued=0,duplicates=0;await db.beginTransaction();
@@ -34,7 +49,7 @@ async function enqueueDue(db,{now=new Date(),limit=25}={}){
       const id=crypto.randomUUID();
       try{
         await db.query(`INSERT INTO sx_training_report_runs(id,tenant_id,schedule_id,schedule_revision,period,period_start,period_end,cutoff_at,timezone,metric_definition_version,status)
-          VALUES (?,?,?,?,?,?,?,?,?,1,'queued')`,[id,schedule.tenant_id,schedule.id,Number(schedule.revision),schedule.period,window.start,window.end,window.cutoffAt,schedule.timezone]);enqueued++;
+          VALUES (?,?,?,?,?,?,?,?,?,2,'queued')`,[id,schedule.tenant_id,schedule.id,Number(schedule.revision),schedule.period,window.start,window.end,window.cutoffAt,schedule.timezone]);enqueued++;
       }catch(error){if(error.code!=='ER_DUP_ENTRY')throw error;duplicates++;}
       const next=nextRunAfter(schedule,schedule.scheduled_at);
       await db.query('UPDATE sx_training_report_schedules SET next_run_at=?,updated_at=UTC_TIMESTAMP(3) WHERE tenant_id=? AND id=?',[next,schedule.tenant_id,schedule.id]);
@@ -67,7 +82,11 @@ async function buildSnapshot(pool,run){
   }finally{db.release();}
   const window=windowFor({period:run.period,timezone:run.timezone,scheduledAt:run.cutoff_at});
   const report=await reports.getActivityReport({pool,uid:ownerUid,role:'owner',period:run.period,at:window.date,timezone:run.timezone,cutoffAt:window.cutoffAt,page:1,limit:1});
-  const journey=await reports.getJourneyReport({pool,uid:ownerUid,role:'owner',period:run.period,at:window.date,timezone:run.timezone});
+  const journey=await reports.getJourneyReport({pool,uid:ownerUid,role:'owner',categoryKey:'training_center',tenantId:run.tenant_id,period:run.period,at:window.date,timezone:run.timezone});
+  const liveFrom=moment.utc(window.start).tz(run.timezone).format('YYYY-MM-DD');
+  const liveTo=moment.utc(window.end).subtract(1,'millisecond').tz(run.timezone).format('YYYY-MM-DD');
+  const live=await reports.getLeadReportSummary({pool,uid:ownerUid,role:'owner',categoryKey:'training_center',from:liveFrom,to:liveTo,timezone:run.timezone});
+  const courseCohorts=await courseCohortSummary(pool,run.tenant_id,{fromDate:liveFrom,toDate:liveTo,from:window.start,to:window.end});
   const comparisonDates=run.period==='daily'?[['yesterday',-1],['sameWeekdayLastWeek',-7]]:run.period==='weekly'?[['previousWeek',-1]]:[['previousMonth',-1]];
   const comparisons={};
   for(const [key,offset] of comparisonDates){
@@ -78,6 +97,8 @@ async function buildSnapshot(pool,run){
     comparisons[key]={from:prior.from,to:prior.to,activityCount:prior.total,summary:prior.summary,finance:prior.finance||null,journey:{summary:priorJourney.summary,cohortFunnel:priorJourney.cohortFunnel}};
   }
   const summary=report.summary||{},finance=report.finance||null;
+  const liveAgentMap=new Map((live.agents||[]).map(agent=>[Number(agent.agentId),agent]));
+  const agentSummary=(journey.agents||[]).map(agent=>({...agent,unattendedLeads:Number(liveAgentMap.get(Number(agent.agentId))?.unattendedLeads||0),hotLeadsNoFollowUp:Number(liveAgentMap.get(Number(agent.agentId))?.hotLeadsNoFollowUp||0)}));
   let dashboardFinance=null;
   if(dashboardEnabled){
     const context=await require('./training-courses').legacyOwnerContext(pool,ownerUid),connection=await pool.getConnection();
@@ -90,11 +111,13 @@ async function buildSnapshot(pool,run){
   if(Number(summary.followUpsOverdue)>0)actionItems.push({key:'overdue_followups',count:Number(summary.followUpsOverdue),priority:'high'});
   if(Number(summary.followUpsDue)>0)actionItems.push({key:'followups_due',count:Number(summary.followUpsDue),priority:'today'});
   if(Number(summary.newLeadsUntouched)>0)actionItems.push({key:'new_leads_untouched',count:Number(summary.newLeadsUntouched),priority:'today'});
+  if(Number(live.current?.unattended)>0)actionItems.push({key:'open_leads_unattended',count:Number(live.current.unattended),priority:'high'});
+  if(Number(live.current?.hotLeadsNoFollowUp)>0)actionItems.push({key:'hot_leads_no_followup_3d',count:Number(live.current.hotLeadsNoFollowUp),priority:'high'});
   if(finance&&BigInt(finance.overdueReceivablesMinor||0)>0n)actionItems.push({key:'overdue_receivables',amountMinor:String(finance.overdueReceivablesMinor),priority:'high'});
   if(Number(finance?.openDisputesCount)>0)actionItems.push({key:'open_payment_disputes',count:Number(finance.openDisputesCount),priority:'high'});
   if(finance?.reconciliation?.status==='attention')actionItems.push({key:'finance_reconciliation',count:Math.max(Number(finance.reconciliation.periodIssuedInvoiceMismatchCount||0),Number(finance.reconciliation.allInvoiceMismatchCount||0)),priority:'high'});
   if(!finance)actionItems.push({key:'finance_data_unavailable',priority:'high'});
-  const snapshot={schemaVersion:2,metricDefinitionVersion:Number(run.metric_definition_version),scheduleRevision:Number(run.schedule_revision),revision:Number(run.revision||1),revisionReason:run.revision_reason||null,supersedesRunId:run.supersedes_run_id||null,period:run.period,timezone:run.timezone,from:report.from,to:report.to,cutoffAt:report.cutoffAt||window.cutoffAt,generatedAt:new Date().toISOString(),activityCount:report.total,summary,journey:{summary:journey.summary,sources:journey.sources,stages:journey.stages,agents:journey.agents,cohortFunnel:journey.cohortFunnel,learnerJourney:journey.learnerJourney,journeyActivity:journey.journeyActivity},finance,comparisons,actionItems,customerDetailsIncluded:false,delivery:{email:'not_configured',whatsapp:'not_configured'}};
+  const snapshot={schemaVersion:2,metricDefinitionVersion:Math.max(2,Number(run.metric_definition_version)||1),scheduleRevision:Number(run.schedule_revision),revision:Number(run.revision||1),revisionReason:run.revision_reason||null,supersedesRunId:run.supersedes_run_id||null,period:run.period,timezone:run.timezone,from:report.from,to:report.to,cutoffAt:report.cutoffAt||window.cutoffAt,generatedAt:new Date().toISOString(),activityCount:report.total,summary,current,journey:{summary:journey.summary,sources:journey.sources,stages:journey.stages,agents:agentSummary,businessUsers:live.businessUsers,cohortFunnel:journey.cohortFunnel,learnerJourney:journey.learnerJourney,journeyActivity:journey.journeyActivity},courseCohorts,finance,comparisons,actionItems,definitions:{unattended:'Open leads with no recorded contact outcome or agent message.',hotNoFollowUp3d:'Open leads whose latest interested outcome has no later contact outcome or agent message for at least 72 hours.',firstContactTime:'Average minutes from lead creation to its first recorded contact or agent message, among new leads contacted in the report window.',leadAge:'Open-lead age buckets as of report generation: under 1 day, 1–3 days, 4–7 days and over 7 days.',agentAttendance:'Distinct leads with an agent contact outcome or agent message during this report period.',businessUserAttendance:'Distinct leads handled by this named owner or active tenant staff.',agentSaleClosed:'Training Center sale conversions confirmed by the credited sales agent.',courseCohorts:'Enrollment, capacity, filled seats and existing cancelled enrollments by course batch starting during the report period.'},customerDetailsIncluded:false,delivery:{email:'not_configured',whatsapp:'not_configured'}};
   return {...snapshot,dashboardFinance};
 }
 
@@ -137,4 +160,4 @@ async function tick(pool,{workerId=`reports-${process.pid}`,limit=10,now=new Dat
   }
   return {queued:due.enqueued,duplicatePeriods:due.duplicates,processed:outcomes,externalWrites:false,externallySent:false};
 }
-module.exports={windowFor,nextRunAfter,enqueueDue,claimRuns,buildSnapshot,completeRun,failRun,listLatest,tick};
+module.exports={windowFor,nextRunAfter,courseCohortSummary,enqueueDue,claimRuns,buildSnapshot,completeRun,failRun,listLatest,tick};

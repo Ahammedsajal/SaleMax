@@ -6,6 +6,13 @@ const runner=require('../modules/platform/training-report-runner');
 const {trainingCenter}=require('../modules/platform/categories');
 const base={period:'daily',timezone:'Asia/Qatar',localTime:'20:00',emailEnabled:true,emailDestination:'owner@example.qa',whatsappEnabled:true,whatsappDestination:'+97455123456'};
 function context(overrides={}){return {audience:'tenant',identity:{id:'identity-a'},tenant:{id:'tenant-a',status:'active',categoryKey:'training_center',categoryVersion:1},membership:{id:'member-a',tenantId:'tenant-a',role:'owner',status:'active',delegatedPermissions:[]},category:trainingCenter,subscription:{status:'active',capabilities:['reports.read','reports.schedule']},...overrides};}
+test('course cohort summary reports capacity, enrolled seats, starts and cancellations without learner details',async()=>{
+  const calls=[],connection={release(){},async query(sql,params){calls.push({sql,params});return [[{courseName:'Safety',cohortCode:'NOV-1',startsOn:'2026-11-03',capacity:12,seatsFilled:8,cohortStatus:'open',enrollmentsInPeriod:2,cancelledTotal:1}]];}};
+  const rows=await runner.courseCohortSummary({async getConnection(){return connection;}},'tenant-a',{fromDate:'2026-11-02',toDate:'2026-11-08',from:'2026-11-01 21:00:00.000',to:'2026-11-08 21:00:00.000'});
+  assert.deepEqual(rows,[{courseName:'Safety',cohortCode:'NOV-1',startsOn:'2026-11-03',capacity:12,seatsFilled:8,seatsAvailable:4,status:'open',enrollmentsInPeriod:2,cancelledTotal:1}]);
+  assert.equal(calls.length,1);assert.equal(calls[0].params.length,(calls[0].sql.match(/\?/g)||[]).length);
+  assert.equal(calls[0].sql.includes('learner_name'),false);
+});
 test('report schedule input validates Qatar report destinations and channel selection',()=>{
   assert.deepEqual(schedules.normalize(base),{...base,status:'active'});
   assert.equal(schedules.normalize({...base,whatsappEnabled:false,whatsappDestination:''}).whatsappDestination,null);

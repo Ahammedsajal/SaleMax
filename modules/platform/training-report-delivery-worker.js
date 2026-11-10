@@ -29,6 +29,46 @@ function emailContent(snapshot,{to}){
   const section=(title,lines)=>`<h3 style="color:#a8003b">${htmlEscape(title)}</h3><ul>${lines.map(line=>`<li>${htmlEscape(line)}</li>`).join('')||'<li>None</li>'}</ul>`;
   return {to,subject:`7Network ${snapshot.period||'scheduled'} owner report · ${range}`,text,html:`<div style="font-family:Arial,sans-serif;color:#17212f;max-width:720px;margin:auto"><h2 style="color:#a8003b">7Network ${htmlEscape(snapshot.period||'scheduled')} owner report</h2><p>${htmlEscape(range)} · ${htmlEscape(snapshot.timezone||'Asia/Qatar')}</p>${section('Leads and sales',leadLines)}${section('Finance',financeLines)}${comparisonLines.length?section('Comparison',comparisonLines):''}${actions.length?section('Top actions',actions):''}<p>Workspace totals only; customer details are excluded.</p></div>`};
 }
+function whatsappReportText(snapshot){
+  const summary=snapshot.summary||{},current=snapshot.current||{},journey=snapshot.journey||{},funnel=journey.cohortFunnel||{},finance=snapshot.finance||{};
+  const number=value=>Number(value||0).toLocaleString('en');
+  const money=value=>{try{const minor=BigInt(value||0),sign=minor<0n?'-':'',absolute=minor<0n?-minor:minor;return `${sign}${absolute/100n}.${String(absolute%100n).padStart(2,'0')} ${finance.currency||'QAR'}`;}catch{return '—';}};
+  const date=(value,zone=snapshot.timezone||'Asia/Qatar',end=false)=>{const raw=String(value||''),instant=new Date(/(?:Z|[+-]\d{2}:?\d{2})$/i.test(raw)?raw:`${raw.replace(' ','T')}Z`);if(end)instant.setMilliseconds(instant.getMilliseconds()-1);return new Intl.DateTimeFormat('en-CA',{timeZone:zone,year:'numeric',month:'2-digit',day:'2-digit'}).format(instant);};
+  const prior=snapshot.comparisons?.previousWeek||snapshot.comparisons?.previousMonth;
+  const previous=prior?.summary?.leadsCreated;
+  const delta=previous===undefined?'':` (${Number(summary.leadsCreated||0)-Number(previous)>=0?'+':''}${number(Number(summary.leadsCreated||0)-Number(previous))} vs prior period)`;
+  const pct=(numerator,denominator)=>Number(denominator)>0?`${Math.round(Number(numerator||0)*100/Number(denominator))}%`:'—';
+  const pctMinor=(numerator,denominator)=>{try{const total=BigInt(denominator||0);return total>0n?`${BigInt(numerator||0)*100n/total}%`:'—';}catch{return '—';}};
+  const priorFinance=prior?.finance;
+  const agents=(journey.agents||[]).filter(agent=>Number(agent.attendedLeads||0)||Number(agent.salesClosedByAgent||0)||Number(agent.followUpsOverdue||0)||Number(agent.unattendedLeads||0)||Number(agent.hotLeadsNoFollowUp||0)).slice(0,5);
+  const lines=[
+    `7Network · Training Center · ${snapshot.period||'report'}`,
+    `${date(snapshot.from)} to ${date(snapshot.to,snapshot.timezone,true)} · ${snapshot.timezone||'Asia/Qatar'}`,
+    `New leads: ${number(summary.leadsCreated)}${delta} · contacted: ${number(summary.newLeadsContacted)} (${pct(summary.newLeadsContacted,summary.leadsCreated)}) · untouched: ${number(summary.newLeadsUntouched)}`,
+    `Today: ${number(current.today)} new · open: ${number(current.live)} · unattended: ${number(current.unattended)} · unassigned: ${number(current.unassigned)}`,
+    `Hot leads needing follow-up (72h+): ${number(current.hotLeadsNoFollowUp)}`,
+    `First contact avg: ${current.firstContact?.averageMinutes===null||current.firstContact?.averageMinutes===undefined?'—':`${number(current.firstContact.averageMinutes)} min`} (${number(current.firstContact?.count)} new leads reached) · open age <1d/${number(current.leadAge?.underOneDay)} · 1–3d/${number(current.leadAge?.oneToThreeDays)} · 4–7d/${number(current.leadAge?.fourToSevenDays)} · >7d/${number(current.leadAge?.overSevenDays)}`,
+    `Funnel: ${number(funnel.newLeads)} leads → ${number(funnel.attended)} contacted (${pct(funnel.attended,funnel.newLeads)}) → ${number(funnel.interested)} interested → ${number(funnel.applications)} applications (${pct(funnel.applications,funnel.newLeads)}) → ${number(funnel.salesConverted)} sales/enrollments (${pct(funnel.salesConverted,funnel.newLeads)}) → ${number(funnel.invoicesIssued)} invoices → ${number(funnel.paymentReceived)} paid (${pct(funnel.paymentReceived,funnel.newLeads)})`,
+    `Follow-ups: ${number(summary.followUpsDue)} due · ${number(summary.followUpsOverdue)} overdue`,
+    `Invoices: ${number(finance.issuedInvoiceCount)} issued · ${money(finance.billedMinor)} billed · ${money(finance.collectedOnPeriodIssuedInvoicesMinor)} collected (${pctMinor(finance.collectedOnPeriodIssuedInvoicesMinor,finance.billedMinor)}) · cash ${money(finance.cashReceivedMinor)}${priorFinance?` (prior period ${money(priorFinance.cashReceivedMinor)})`:''}`,
+    `Receivables: ${money(finance.allOutstandingMinor)} total · ${money(finance.overdueReceivablesMinor)} overdue (included above) · refunds ${money(finance.refundsPaidMinor)} · credits ${money(finance.creditsIssuedMinor)}`,
+    `Course journey: ${number(journey.learnerJourney?.enrolled)} enrolled · ${number(journey.learnerJourney?.courseStarted)} started · ${number(journey.learnerJourney?.courseCompleted)} completed`,
+    'Monthly target: not configured · offer stage is not separate; enrollment conversions are tracked'
+  ];
+  if(agents.length)lines.push(`Agents (attended / closed / late follow-ups / hot 72h+): ${agents.map(agent=>`${agent.agentName} ${number(agent.attendedLeads)}/${number(agent.salesClosedByAgent)}/${number(agent.followUpsOverdue)}/${number(agent.hotLeadsNoFollowUp)}`).join(' · ')}`);
+  const businessUsers=journey.businessUsers||[];
+  if(businessUsers.length)lines.push(`Owner/staff (attended / messages / sales): ${businessUsers.slice(0,5).map(user=>`${user.userName} ${number(user.attendedLeads)}/${number(user.messagesSent)}/${number(user.salesClosed)}`).join(' · ')}`);
+  const cohorts=snapshot.courseCohorts||[];
+  if(cohorts.length)lines.push(`Cohorts starting this period (filled/capacity; enrollments; cancelled to date): ${cohorts.slice(0,4).map(batch=>`${String(batch.courseName||'Course').replace(/[\r\n\u0000-\u001f]/g,' ').slice(0,40)} ${batch.cohortCode} ${number(batch.seatsFilled)}/${number(batch.capacity)}; ${number(batch.enrollmentsInPeriod)}; ${number(batch.cancelledTotal)}`).join(' · ')}`);
+  lines.push('Course-level enquiries are not attributed to a normalized course field yet.');
+  const actions=[];
+  if(Number(current.hotLeadsNoFollowUp)>0)actions.push(`${number(current.hotLeadsNoFollowUp)} hot leads → contact assigned owners today`);
+  if(Number(summary.followUpsOverdue)>0)actions.push(`${number(summary.followUpsOverdue)} overdue follow-ups → clear due tasks`);
+  if(BigInt(finance.overdueReceivablesMinor||0)>0n)actions.push(`${money(finance.overdueReceivablesMinor)} overdue → contact invoice payers`);
+  if(actions.length)lines.push(`Needs attention: ${actions.join(' · ')}`);
+  lines.push('Unattended = open lead with no recorded contact/message. Hot 72h+ = latest “interested” outcome with no later contact/message for 3+ days. First-contact average covers reached new leads; customer details excluded.');
+  return lines.join('\n');
+}
 function whatsappParameters(snapshot){const values=snapshot.summary||{},finance=snapshot.finance||{};return [String(snapshot.period||'scheduled'),`${dateText(snapshot.from)} - ${dateText(snapshot.to)}`,`Leads ${Number(values.leadsCreated)||0} (${Number(values.newLeadsUntouched)||0} untouched); due/late ${Number(values.followUpsDue)||0}/${Number(values.followUpsOverdue)||0}; cash ${((Number(finance.cashReceivedMinor)||0)/100).toFixed(2)} ${finance.currency||'QAR'}; overdue AR ${((Number(finance.overdueReceivablesMinor)||0)/100).toFixed(2)}`];}
 async function sendEmail(message,{env=process.env,transport,sendEmail}={}){
   const config=delivery.emailConfig(env);let created=null;try{if(sendEmail){const result=await sendEmail({...message,from:config.from});const accepted=result?.accepted===true||(Array.isArray(result?.accepted)&&result.accepted.some(address=>String(address).toLowerCase()===message.to.toLowerCase()));if(accepted)return {status:'accepted',providerMessageId:String(result.providerMessageId||'').slice(0,191)||null};if(['failed','retry','unknown'].includes(result?.status))return {status:result.status,errorCode:result.errorCode||null};return {status:'unknown',errorCode:'REPORT_EMAIL_ACCEPTANCE_UNCONFIRMED'};}if(!transport)created=require('nodemailer').createTransport({host:config.host,port:config.port,secure:config.secure,requireTLS:!config.secure,auth:config.auth,tls:{minVersion:'TLSv1.2'},connectionTimeout:15000,greetingTimeout:15000,socketTimeout:30000});const result=await (transport||created).sendMail({...message,from:config.from});const accepted=(result?.accepted||[]).some(address=>String(address).toLowerCase()===message.to.toLowerCase());if(accepted)return {status:'accepted',providerMessageId:String(result.messageId||'').slice(0,191)||null};if((result?.rejected||[]).some(address=>String(address).toLowerCase()===message.to.toLowerCase()))return {status:'failed',errorCode:'REPORT_EMAIL_REJECTED'};return {status:'unknown',errorCode:'REPORT_EMAIL_ACCEPTANCE_UNCONFIRMED'};}
@@ -37,7 +77,7 @@ async function sendEmail(message,{env=process.env,transport,sendEmail}={}){
 }
 async function sendWhatsapp(db,{tenantId,to,snapshot,env=process.env,http=require('axios'),sendWhatsapp:injected}={}){
   let config;try{config=delivery.whatsappConfig(env,'delivery');}catch(error){return {status:'failed',errorCode:error.code||'REPORT_WHATSAPP_NOT_CONFIGURED'};}
-  if(config.transport==='qr')return require('./training-report-qr').send(db,{tenantId,to,text:emailContent(snapshot,{to}).text,snapshot,env,http});
+  if(config.transport==='qr')return require('./training-report-qr').send(db,{tenantId,to,text:whatsappReportText(snapshot),snapshot,env,http});
   let credentials;try{credentials=await delivery.tenantMetaCredentials(db,tenantId);}catch{return {status:'retry',errorCode:'REPORT_WHATSAPP_ACCOUNT_LOOKUP_FAILED'};}if(!credentials)return {status:'failed',errorCode:'REPORT_WHATSAPP_ACCOUNT_UNAVAILABLE'};
   const parameters=whatsappParameters(snapshot),message={messaging_product:'whatsapp',to:String(to).replace(/^\+/,''),type:'template',template:{name:config.template,language:{code:config.language},components:[{type:'body',parameters:parameters.map(text=>({type:'text',text}))}]}};
   try{const response=injected?await injected({tenantId,to,snapshot,config,message}):await http.post(`https://graph.facebook.com/${config.version}/${credentials.phoneId}/messages`,message,{headers:{Authorization:`Bearer ${credentials.token}`},timeout:15000});const id=(response?.data?.messages?.[0]?.id||response?.providerMessageId||'').toString();return (id||response?.accepted)?{status:'accepted',providerMessageId:id.slice(0,191)||null}:{status:'unknown',errorCode:'REPORT_WHATSAPP_ACCEPTANCE_UNCONFIRMED'};}
@@ -76,4 +116,4 @@ async function tick(pool,{workerId=`report-delivery-${process.pid}`,limit=10,env
     const complete=await pool.getConnection();try{outcomes.push(await finish(complete,{item,workerId,outcome}));}finally{complete.release();}}
   return {claimed:items.length,accepted:outcomes.filter(x=>x.status==='accepted').length,failed:outcomes.filter(x=>x.status==='failed').length,retrying:outcomes.filter(x=>x.status==='retry').length,unknown:outcomes.filter(x=>x.status==='unknown').length,externalWrites:outcomes.length>0,externallySent:outcomes.some(x=>x.status==='accepted')};
 }
-module.exports={emailContent,whatsappParameters,sendEmail,sendWhatsapp,claim,finish,tick};
+module.exports={emailContent,whatsappParameters,whatsappReportText,sendEmail,sendWhatsapp,claim,finish,tick};

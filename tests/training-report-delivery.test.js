@@ -69,6 +69,26 @@ test('report email and WhatsApp summaries separate cash from invoices and omit c
   const message=worker.emailContent(snapshot,{to:'owner@example.qa'});assert.match(message.text,/New leads 2 \(1 contacted, 1 untouched\)/);assert.match(message.text,/Cash received 50\.00 QAR/);assert.match(message.text,/yesterday: leads 2 vs 1/);assert.match(message.text,/HIGH: overdue followups/);assert.equal(message.text.includes('should-not-appear'),false);assert.deepEqual(worker.whatsappParameters(snapshot),['daily','2026-10-07 - 2026-10-08','Leads 2 (1 untouched); due/late 1/1; cash 50.00 QAR; overdue AR 25.00']);
   const verification=delivery.verificationEmail({code:'0012345678',from:'reports@example.qa',to:'owner@example.qa'});assert.match(verification.html,/0012345678/);
 });
+test('QR weekly summary is concise, dated in the business timezone and includes owner action counts',()=>{
+  const text=worker.whatsappReportText({period:'weekly',from:'2026-11-01 21:00:00.000',to:'2026-11-08 21:00:00.000',timezone:'Asia/Qatar',summary:{leadsCreated:23,newLeadsContacted:12,newLeadsUntouched:11,followUpsDue:4,followUpsOverdue:2},current:{today:3,live:18,unattended:6,unassigned:2,hotLeadsNoFollowUp:1,firstContact:{count:8,averageMinutes:18.5},leadAge:{underOneDay:2,oneToThreeDays:4,fourToSevenDays:3,overSevenDays:9}},journey:{cohortFunnel:{newLeads:23,attended:12,interested:8,applications:5,salesConverted:3,invoicesIssued:2,paymentReceived:1},agents:[{agentName:'Agent A',attendedLeads:7,salesClosedByAgent:2,followUpsOverdue:1,hotLeadsNoFollowUp:1}],businessUsers:[{userName:'Owner',attendedLeads:4,messagesSent:3,salesClosed:1}],learnerJourney:{enrolled:6,courseStarted:3,courseCompleted:2}},courseCohorts:[{courseName:'Safety',cohortCode:'NOV-1',seatsFilled:8,capacity:12,enrollmentsInPeriod:2,cancelledTotal:1}],finance:{currency:'QAR',issuedInvoiceCount:2,billedMinor:'20000',collectedOnPeriodIssuedInvoicesMinor:'10000',cashReceivedMinor:'10000',allOutstandingMinor:'2000',overdueReceivablesMinor:'500',refundsPaidMinor:'500',creditsIssuedMinor:'250'},comparisons:{previousWeek:{summary:{leadsCreated:20},finance:{cashReceivedMinor:'8000'}}},actionItems:[{key:'hot_leads_no_followup_3d',count:1}]});
+  assert.match(text,/2026-11-02 to 2026-11-08/);
+  assert.match(text,/New leads: 23 \(\+3 vs prior period\)/);
+  assert.match(text,/Today: 3 new · open: 18 · unattended: 6 · unassigned: 2/);
+  assert.match(text,/Hot leads needing follow-up \(72h\+\): 1/);
+  assert.match(text,/First contact avg: 18.5 min \(8 new leads reached\)/);
+  assert.match(text,/>7d\/9/);
+  assert.match(text,/12 contacted \(52%\)/);
+  assert.match(text,/5 applications \(22%\)/);
+  assert.match(text,/Agent A 7\/2\/1\/1/);
+  assert.match(text,/Owner 4\/3\/1/);
+  assert.match(text,/Safety NOV-1 8\/12; 2; 1/);
+  assert.match(text,/2 issued · 200.00 QAR billed · 100.00 QAR collected \(50%\)/);
+  assert.match(text,/20\.00 QAR total · 5\.00 QAR overdue \(included above\)/);
+  assert.match(text,/contact assigned owners today/);
+  assert.match(text,/not attributed to a normalized course field/);
+  assert.match(text,/cash 100\.00 QAR \(prior period 80\.00 QAR\)/);
+  assert.match(text,/customer details excluded/);
+});
 test('email worker requires explicit acceptance from the configured recipient',async()=>{
   const env={...verificationEnv,SALEMAX_REPORT_DELIVERY_ENABLED:'true'},message=worker.emailContent({period:'daily',from:'2026-10-07',to:'2026-10-08',activityCount:2,summary:{}},{to:'owner@example.invalid'}),calls=[];
   const accepted=await worker.sendEmail(message,{env,sendEmail:async payload=>{calls.push(payload);return {accepted:[payload.to],providerMessageId:'synthetic-smtp-id'};}});
@@ -78,7 +98,7 @@ test('email worker requires explicit acceptance from the configured recipient',a
 test('WhatsApp delivery worker uses tenant credentials and an injected template adapter',async()=>{
   const env={SALEMAX_REPORT_DELIVERY_ENABLED:'true',SALEMAX_REPORT_WHATSAPP_ENABLED:'true',SALEMAX_REPORT_WHATSAPP_TEMPLATE:'salemax_owner_report',SALEMAX_REPORT_WHATSAPP_LANGUAGE:'en_US',SALEMAX_META_GRAPH_VERSION:'v24.0'},calls=[];
   const db={async query(sql){if(sql.includes('FROM sx_legacy_ownership'))return [[{uid:'synthetic-owner',legacy_uid_hash:require('node:crypto').createHash('sha256').update('synthetic-owner').digest('hex')}]];if(sql.includes('FROM meta_api'))return [[{access_token:'synthetic-token-not-used',business_phone_number_id:'1234567890'}]];throw Error('unexpected query');}};
-  const result=await worker.sendWhatsapp(db,{tenantId:'tenant-a',to:'+97455123456',env,snapshot:{period:'weekly',from:'2026-10-01',to:'2026-10-07',activityCount:3,summary:{leadsCreated:1,followUpsDue:2}},sendWhatsapp:async input=>{calls.push(input);return {providerMessageId:'synthetic-wa-id'};}});
+  const result=await worker.sendWhatsapp(db,{tenantId:'tenant-a',to:'+97455123456',env,http:{},snapshot:{period:'weekly',from:'2026-10-01',to:'2026-10-07',activityCount:3,summary:{leadsCreated:1,followUpsDue:2}},sendWhatsapp:async input=>{calls.push(input);return {providerMessageId:'synthetic-wa-id'};}});
   assert.equal(result.status,'accepted');assert.equal(result.providerMessageId,'synthetic-wa-id');assert.equal(calls.length,1);assert.equal(calls[0].message.messaging_product,'whatsapp');assert.equal(calls[0].message.to,'97455123456');assert.equal(calls[0].message.template.name,'salemax_owner_report');assert.equal(calls[0].message.template.components[0].parameters.length,3);
 });
 test('delivery worker remains inert when the global delivery gate is off',async()=>{
