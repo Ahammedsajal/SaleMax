@@ -1078,7 +1078,8 @@ async function previewMockupTurn({ uid, tenantId, chatId, channelKind, channelRe
           AND expires_at>UTC_TIMESTAMP(3) LIMIT 1`, [tenantId, profile.id, channelKind, channelRef, chatId]);
       try { liveState = typeof session?.state === 'string' ? JSON.parse(session.state) : session?.state || null; } catch { liveState = null; }
       [transcriptRows] = await db.query(`SELECT route,msgContext FROM beta_conversation
-        WHERE uid=? AND chat_id=? AND origin=? AND route IN ('INCOMING','OUTGOING') ORDER BY id DESC LIMIT 12`, [uid, chatId, origin]);
+        WHERE uid=? AND chat_id=? AND origin=? AND route IN ('INCOMING','OUTGOING')
+          AND (? IS NULL OR createdAt<=?) ORDER BY id DESC LIMIT 12`, [uid, chatId, origin, receivedAt, receivedAt]);
     }
     if (businessContext.isGenericAdInterest(message)) {
       const [rows] = await db.query(`SELECT CASE WHEN JSON_VALID(m.msgContext) THEN JSON_EXTRACT(m.msgContext,'$.referral') END AS referral
@@ -1094,10 +1095,10 @@ async function previewMockupTurn({ uid, tenantId, chatId, channelKind, channelRe
   const sessionHistory = liveHistory.length ? liveHistory : Array.isArray(liveState?.recentConversation) ? liveState.recentConversation.slice(-8) : [];
   const prior = {
     ...(liveState || {}), ...(state || {}),
-    ...(qualifiedCourse ? { selectedCourseCode: qualifiedCourse.code } : {}),
+    ...(state?.selectedCourseCode || liveState?.selectedCourseCode ? {} : qualifiedCourse ? { selectedCourseCode: qualifiedCourse.code } : {}),
     ...(sessionHistory.length ? { recentConversation: sessionHistory } : {}),
-    mockupCourseInterest: qualification.courseInterest || qualifiedCourse?.nameEn || qualifiedCourse?.nameAr
-      || state?.mockupCourseInterest || liveState?.mockupCourseInterest || undefined,
+    mockupCourseInterest: state?.mockupCourseInterest || liveState?.mockupCourseInterest
+      || qualifiedCourse?.nameEn || qualifiedCourse?.nameAr || qualification.courseInterest || undefined,
     language,
   };
   const discovery = () => businessContext.trainingGreeting({ message, state: prior, facts, welcome:
@@ -1107,7 +1108,7 @@ async function previewMockupTurn({ uid, tenantId, chatId, channelKind, channelRe
   const course = facts.find(item => item.code === context.selectedCourseCode);
   const courseInterest = (course?.nameEn || course?.nameAr) || admissions.courseInterest(message)
     || prior.mockupCourseInterest || qualification.courseInterest || null;
-  const previousIntake = { ...(prior.mockupIntake || {}), ...(qualification?.botCapture?.admissions || {}) };
+  const previousIntake = { ...(qualification?.botCapture?.admissions || {}), ...(prior.mockupIntake || {}) };
   const acknowledgement = admissions.acknowledgement(message, language);
   const name = acknowledgement ? null : capture.customerName(message,
     ['name', 'confirmName'].includes(previousIntake.waiting) && !context.explicitCourses);
