@@ -290,6 +290,9 @@
       #sx-live-reply-mockup .sx-followup-toolbar,#sx-live-reply-mockup .sx-followup-heading{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px}
       #sx-live-reply-mockup .sx-followup-control{min-height:44px;padding:8px 11px;border:1px solid var(--mock-line);border-radius:10px;background:var(--mock-surface);color:var(--mock-text);font:inherit}
       #sx-live-reply-mockup .sx-followup-control[aria-pressed=true]{background:var(--mock-tint);color:var(--mock-accent)}
+      #sx-live-reply-mockup .sx-followup-settings{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;margin-block:12px;padding:12px 14px;border:1px solid var(--mock-line);border-radius:12px;background:var(--mock-surface)}
+      #sx-live-reply-mockup .sx-followup-switch{display:flex;align-items:center;gap:9px;font-weight:600}
+      #sx-live-reply-mockup .sx-followup-switch input{width:20px;height:20px;accent-color:var(--mock-accent)}
       #sx-live-reply-mockup .sx-followup-card{margin-block:12px;padding:14px;border:1px solid var(--mock-line);border-radius:12px;background:var(--mock-surface);overflow-wrap:anywhere}
       #sx-live-reply-mockup .sx-followup-card a{color:var(--mock-accent);font-weight:600}
       #sx-live-reply-mockup .sx-followup-links{display:flex;align-items:center;flex-wrap:wrap;gap:8px 16px}
@@ -315,15 +318,19 @@
     <div class="sx-mockup-frame">
       <header class="sx-mockup-top"><span class="sx-mockup-brand">${icon('chat')}</span><div class="sx-mockup-title-block">
         <h2 id="sx-mockup-title">${esc(tr('Live Reply Mockup','محاكاة الردود المباشرة'))}</h2>
-        <p class="sx-mockup-muted">${esc(tr('Private WhatsApp draft inbox','صندوق خاص لمسودات واتساب'))}</p>
+        <p class="sx-mockup-muted">${esc(tr('Staff reply in Inbox · follow-ups use the original QR number','يرد الموظفون من صندوق الوارد · تُرسل المتابعات من رقم QR الأصلي'))}</p>
       </div><button type="button" class="sx-followup-control" data-mockup-followups aria-pressed="false">${esc(tr('Follow-ups','المتابعات'))}</button>${button('close','close',tr('Close','إغلاق'),'autofocus')}</header>
-      <section class="sx-followups" data-mockup-followup-panel hidden aria-label="${esc(tr('Follow-up drafts','مسودات المتابعة'))}">
-        <div class="sx-followup-toolbar"><div><strong>${esc(tr('Day 2 and Day 7 follow-up drafts','مسودات المتابعة في اليومين الثاني والسابع'))}</strong>
-          <p class="sx-mockup-muted">${esc(tr('Private review. Day 7 is held until a first follow-up is delivered.','مراجعة خاصة. تبقى متابعة اليوم السابع معلقة حتى تسليم المتابعة الأولى.'))}</p></div>
+      <section class="sx-followups" data-mockup-followup-panel hidden aria-label="${esc(tr('Follow-ups','المتابعات'))}">
+        <div class="sx-followup-toolbar"><div><strong>${esc(tr('Day 2 and Day 7 follow-ups','متابعات اليوم الثاني والسابع'))}</strong>
+          <p class="sx-mockup-muted">${esc(tr('Conversation-specific, low-pressure messages sent from the customer’s original QR number.','رسائل لطيفة ومخصصة للمحادثة تُرسل من رقم QR الأصلي الذي تواصل معه العميل.'))}</p></div>
           <select class="sx-followup-control" data-mockup-followup-source aria-label="${esc(tr('Filter follow-up drafts','تصفية مسودات المتابعة'))}">
-            <option value="">${esc(tr('All drafts','كل المسودات'))}</option><option value="reviewed">${esc(tr('Reviewed pilot','المراجعة التجريبية'))}</option><option value="scheduled">${esc(tr('New enquiries','الاستفسارات الجديدة'))}</option>
+            <option value="">${esc(tr('All follow-ups','كل المتابعات'))}</option><option value="reviewed">${esc(tr('Reviewed pilot','المراجعة التجريبية'))}</option><option value="scheduled">${esc(tr('New enquiries','الاستفسارات الجديدة'))}</option>
           </select>${button('followup-refresh','refresh',tr('Refresh follow-ups','تحديث المتابعات'))}
         </div><p class="sx-mockup-muted" role="status" data-mockup-followup-status></p>
+        <div class="sx-followup-settings"><label class="sx-followup-switch"><input type="checkbox" data-mockup-followup-enabled checked disabled>
+          <span>${esc(tr('Send automatic follow-ups','إرسال المتابعات تلقائيًا'))}</span></label>
+          <p class="sx-mockup-muted" role="status" data-mockup-followup-settings-status>${esc(tr('Loading settings…','جار تحميل الإعدادات…'))}</p>
+        </div>
         <div data-mockup-followup-list></div><button type="button" class="sx-mockup-more" data-mockup-followup-more hidden>${esc(tr('More follow-ups','المزيد من المتابعات'))}</button>
       </section>
       <div class="sx-mockup-layout">
@@ -377,7 +384,7 @@
     const older = element('older');
     const refresh = element('refresh');
     const mobile = matchMedia('(max-width:720px)');
-    const request = async path => (await window.SaleMaxWorkspace.request('chatbots', '/mockup' + path)).data;
+    const request = async (path, options = {}) => (await window.SaleMaxWorkspace.request('chatbots', '/mockup' + path, options)).data;
     const contact = item => item.label || tr('Customer','العميل');
     const initial = value => Array.from(value.trim())[0]?.toLocaleUpperCase() || '?';
     const timestamp = (value, dateOnly = false) => {
@@ -397,10 +404,12 @@
     const followupMore = element('followup-more');
     const followupSource = element('followup-source');
     const followupRefresh = element('followup-refresh');
+    const followupEnabled = element('followup-enabled');
+    const followupSettingsStatus = element('followup-settings-status');
     let followupCursor, followupRequest = 0;
     const followupReason = reason => ({
-      QUIET_ENQUIRY: tr('Ready for review','جاهزة للمراجعة'),
-      WAITING_FOR_SILENCE: tr('Scheduled preview','معاينة مجدولة'),
+      QUIET_ENQUIRY: tr('Ready for automatic follow-up','جاهزة للمتابعة التلقائية'),
+      WAITING_FOR_SILENCE: tr('Waiting for follow-up date','بانتظار موعد المتابعة'),
       CUSTOMER_REPLIED: tr('Customer replied','رد العميل'),
       LEAD_PROGRESSED: tr('Lead progressed','تقدم العميل المحتمل'),
       STAFF_FOLLOWED_UP: tr('Staff followed up','تابع أحد الموظفين'),
@@ -410,6 +419,32 @@
       OPT_OUT: tr('Customer opted out','ألغى العميل المتابعة'),
       NO_CUSTOMER_MESSAGE: tr('Customer message unavailable','رسالة العميل غير متاحة'),
     })[reason] || '';
+    const deliveryLabel = (status, reason, step) => {
+      if (status === 'queued' && reason === 'ORIGINAL_QR_OFFLINE') return tr('Waiting for original QR number','بانتظار اتصال رقم QR الأصلي');
+      if (status === 'queued' && reason === 'ORIGINAL_QR_MAPPING_UNAVAILABLE') return tr('Original QR number unavailable','رقم QR الأصلي غير متاح');
+      if (status === 'queued' && reason === 'FOLLOWUP_DRAFT_UNAVAILABLE') return tr('Waiting for message draft','بانتظار إعداد الرسالة');
+      if (status === 'queued') return tr('Scheduled','مجدولة');
+      if (status === 'sending') return tr('Sending','جار الإرسال');
+      if (status === 'sent') return tr('Sent','تم الإرسال');
+      if (status === 'skipped') return tr('Stopped: customer or staff activity','تم الإيقاف بسبب تفاعل العميل أو الموظف');
+      if (status === 'uncertain') return tr('Check Inbox before retrying','تحقق من صندوق الوارد قبل إعادة المحاولة');
+      return step === 'day7' ? tr('Held until Day 2 is sent','معلقة حتى إرسال متابعة اليوم الثاني') : tr('Waiting for due date','بانتظار موعد الإرسال');
+    };
+    const followupSettingsCopy = settings => settings.enabled
+      ? tr(`On · up to ${settings.dailyLimit} per day, with 2–10 minutes between sends. Stops after a customer reply, opt-out, staff follow-up, or progress.`,
+        `مفعّلة · حتى ${settings.dailyLimit} يوميًا، بفاصل من دقيقتين إلى 10 دقائق. تتوقف عند رد العميل أو إلغاء المتابعة أو متابعة الموظف أو تقدم الطلب.`)
+      : tr('Off · no follow-up messages will be sent.','متوقفة · لن تُرسل أي رسائل متابعة.');
+    async function loadFollowupSettings() {
+      followupEnabled.disabled = true;
+      try {
+        const settings = await request('/followups/settings');
+        if (!dialog.open) return;
+        followupEnabled.checked = Boolean(settings.enabled);
+        followupSettingsStatus.textContent = followupSettingsCopy(settings);
+      } catch {
+        followupSettingsStatus.textContent = tr('Could not load settings. Refresh and try again.','تعذر تحميل الإعدادات. حدّث الصفحة وحاول مجددًا.');
+      } finally { followupEnabled.disabled = false; }
+    }
     async function loadFollowups(append = false) {
       const version = ++followupRequest;
       const query = new URLSearchParams({ search: followupSource.value });
@@ -433,9 +468,9 @@
               reviewed: tr('Reviewed copy','نص تمت مراجعته'), ai_selection: tr('AI-assisted draft','مسودة بمساعدة الذكاء الاصطناعي'),
               library: tr('Library variant','صيغة من المكتبة'),
             })[item.draftSource] || '')}</span>` : ''}
-            ${item.dayTwoAt && item.status !== 'skipped' ? `<div class="sx-followup-pair">
-              <section><strong>${esc(tr('Day 2 draft','مسودة اليوم الثاني'))}</strong><p class="sx-mockup-muted">${esc(timestamp(item.dayTwoAt))}</p>${copy(item.firstDraft)}</section>
-              <section><strong>${esc(tr('Day 7 draft','مسودة اليوم السابع'))}</strong><p class="sx-mockup-muted">${esc(timestamp(item.daySevenAt))} · ${esc(tr('Held','معلقة'))}</p>${copy(item.secondDraft)}</section>
+            ${item.dayTwoAt && (item.status !== 'skipped' || ['sent','uncertain'].includes(item.dayTwoDeliveryStatus) || ['sent','uncertain'].includes(item.daySevenDeliveryStatus)) ? `<div class="sx-followup-pair">
+              <section><strong>${esc(tr('Day 2 follow-up','متابعة اليوم الثاني'))}</strong><p class="sx-mockup-muted">${esc(timestamp(item.dayTwoDeliveryAt || item.dayTwoAt))} · ${esc(deliveryLabel(item.dayTwoDeliveryStatus,item.dayTwoDeliveryReason,'day2'))}${item.dayTwoSentAt ? ` · ${esc(timestamp(item.dayTwoSentAt))}` : ''}</p>${copy(item.firstDraft)}</section>
+              <section><strong>${esc(tr('Day 7 follow-up','متابعة اليوم السابع'))}</strong><p class="sx-mockup-muted">${esc(timestamp(item.daySevenDeliveryAt || item.daySevenAt))} · ${esc(deliveryLabel(item.daySevenDeliveryStatus,item.daySevenDeliveryReason,'day7'))}${item.daySevenSentAt ? ` · ${esc(timestamp(item.daySevenSentAt))}` : ''}</p>${copy(item.secondDraft)}</section>
             </div>` : ''}</article>`;
         }).join('');
         followupList.insertAdjacentHTML('beforeend', rows);
@@ -453,11 +488,25 @@
       followupPanel.hidden = !open;
       dialog.querySelector('.sx-mockup-layout').hidden = open;
       event.currentTarget.setAttribute('aria-pressed', String(open));
-      if (open) loadFollowups();
+      if (open) { loadFollowupSettings(); loadFollowups(); }
     };
     followupSource.onchange = () => loadFollowups();
     followupRefresh.onclick = () => loadFollowups();
     followupMore.onclick = () => loadFollowups(true);
+    followupEnabled.onchange = async () => {
+      const requested = followupEnabled.checked;
+      followupEnabled.disabled = true;
+      followupSettingsStatus.textContent = tr('Saving setting…','جار حفظ الإعداد…');
+      try {
+        const saved = await request('/followups/settings', { method: 'PUT', body: { enabled: requested } });
+        followupEnabled.checked = Boolean(saved.enabled);
+        followupSettingsStatus.textContent = followupSettingsCopy(saved);
+        await loadFollowups();
+      } catch {
+        followupEnabled.checked = !requested;
+        followupSettingsStatus.textContent = tr('Could not save setting. Try again.','تعذر حفظ الإعداد. حاول مجددًا.');
+      } finally { followupEnabled.disabled = false; }
+    };
     const empty = (title, detail = '', centered = false) => '<div class="sx-mockup-empty' + (centered ? ' sx-mockup-centered' : '') + '">'
       + '<span class="sx-mockup-empty-icon">' + icon('chat') + '</span><strong>' + esc(title) + '</strong>'
       + (detail ? '<p>' + esc(detail) + '</p>' : '') + '</div>';

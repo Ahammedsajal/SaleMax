@@ -101,6 +101,7 @@ async function tick(pool, { generate = input => require('./chatbot-runtime').pre
 function start(pool) {
   if (!enabled(tenant())) return;
   require('./chatbot-followup-preview').start(pool);
+  require('./chatbot-followup-delivery').start(pool);
   let lastCleanup = 0;
   const next = async () => {
     try {
@@ -178,6 +179,26 @@ function createRouter({ pool, authenticate }) {
     if (!followup.enabled(tenantId) || !['','reviewed','scheduled'].includes(source)) return null;
     return followup.list(pool, tenantId, before, source);
   }));
+  router.get('/followups/settings', read(tenantId => require('./chatbot-followup-delivery').readSettings(pool, tenantId)));
+  router.put('/followups/settings', async (req, res) => {
+    const ctx = req.featureSession?.context;
+    if (ctx?.membership?.role !== 'owner' || !decision(ctx, { capability: 'automation.chatbot', permission: 'automation.manage' }).allowed) {
+      return res.status(403).json({ success: false, code: 'PERMISSION_DENIED' });
+    }
+    if (!enabled(ctx.tenant.id)) return res.status(404).json({ success: false, code: 'MOCKUP_DISABLED' });
+    const body = req.body;
+    if (!body || typeof body !== 'object' || Array.isArray(body)
+      || Object.keys(body).length !== 1 || typeof body.enabled !== 'boolean') {
+      return res.status(400).json({ success: false, code: 'INVALID_FOLLOWUP_SETTINGS' });
+    }
+    try {
+      const data = await require('./chatbot-followup-delivery').setEnabled(pool, ctx.tenant.id, body.enabled, ctx.identity?.id);
+      return res.json({ success: true, data });
+    } catch (error) {
+      console.warn('[chatbot mockup] follow-up settings unavailable', safeCode(error.code) || 'FOLLOWUP_SETTINGS_ERROR');
+      return res.status(503).json({ success: false, code: 'FOLLOWUP_SETTINGS_UNAVAILABLE' });
+    }
+  });
   router.get('/conversations/:key', read(async (tenantId, before, key) => {
     if (!/^[a-f0-9]{64}$/.test(key)) return null;
     const data = await thread(pool, tenantId, key, before);

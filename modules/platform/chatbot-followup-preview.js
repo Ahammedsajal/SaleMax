@@ -3,7 +3,7 @@
 const { createHash } = require('node:crypto');
 const { getDomainPack } = require('./chatbot-domain-packs');
 const { languageFor, retrieveContext, normalized, courseFromVerifiedReferral } = require('./chatbot-business-context');
-const { acknowledgement, startPreference } = require('./chatbot-admissions-intake');
+const { startPreference } = require('./chatbot-admissions-intake');
 const { variants, render } = require('./chatbot-followup-library');
 
 const DAY = 86400000;
@@ -11,7 +11,7 @@ const QATAR_OFFSET = 3 * 3600000;
 const EARLY = new Set(['new', 'interested', 'contacted', 'qualified']);
 const uuid = /^[a-f0-9]{8}(?:-[a-f0-9]{4}){3}-[a-f0-9]{12}$/i;
 const outboundFollowup = /checking in|just (?:checking|following) up|still (?:interested|looking|planning)|any updates|friendly reminder|أتابع معك|هل ما زلت مهتما|للتذكير/iu;
-const optOut = /^(?:stop(?: course updates)?|unsubscribe|(?:do not|don['’]?t) (?:contact|message|call)(?: me)?|not interested(?: anymore)?|please stop|إلغاء|الغاء|توقف|غير مهتم)[.،!\s]*$/iu;
+const optOut = /^(?:stop(?: (?:course )?updates?| follow[- ]?ups?)?|unsubscribe|(?:do not|don['’]?t) (?:contact|message|call|send|follow up)(?: me)?|no more (?:messages|follow[- ]?ups?)|not interested(?: anymore)?|please stop|إلغاء|الغاء|توقف|غير مهتم)[.،!\s]*$/iu;
 const cues = {
   F02: /\b(?:fees?|price|cost|how much|payment)\b|رسوم|سعر|تكلفة/iu,
   F03: /\b(?:how long|duration|weeks)\b|مدة|مدتها/iu,
@@ -70,9 +70,6 @@ function classify({ row, messages, course, now = Date.now() }) {
   if (inbound.some(m => optOut.test(textOf(m)))) return status('skipped', 'OPT_OUT');
   if (row.status !== 'open' || !EARLY.has(row.stage_key) || row.progressed) return status('skipped', 'LEAD_PROGRESSED');
   if (row.automation_paused || row.staff_task) return status('skipped', 'STAFF_OWNS_LEAD');
-  if (row.prior_reason === 'CUSTOMER_REPLIED' || (row.prior_draft && lastAt > utc(row.prior_last) && !acknowledgement(textOf(last), 'en'))) {
-    return status('skipped', 'CUSTOMER_REPLIED');
-  }
   const handled = messages.some(m => m.route === 'OUTGOING' && epoch(m) >= lastAt
     && !['bot','ai','automation','chatbot'].includes(String(m.sentBy || '').toLowerCase())
     && (epoch(m) - lastAt > 3 * 3600000 || outboundFollowup.test(textOf(m))));
@@ -89,9 +86,10 @@ async function candidates(db, tenant, uid, ids = null) {
     : ` AND ((p.id IS NOT NULL AND p.checked_at < DATE_SUB(UTC_TIMESTAMP(3), INTERVAL 5 MINUTE))
              OR (p.id IS NULL AND l.status='open' AND l.first_inbound_at>=GREATEST(?,DATE_SUB(UTC_TIMESTAMP(3),INTERVAL 30 DAY))))
       ORDER BY p.checked_at IS NOT NULL,p.checked_at,l.first_inbound_at,l.id LIMIT 20`;
-  const [rows] = await db.query(`SELECT l.id,l.status,l.stage_key,l.automation_paused,l.qualification_data,
+  const [rows] = await db.query(`SELECT l.id,l.status,l.stage_key,l.automation_paused,l.qualification_data,l.primary_origin,
     CAST(l.first_inbound_at AS CHAR) AS first_at,
-    p.source,p.course_name,p.reason AS prior_reason,p.first_draft AS prior_draft,p.second_draft AS prior_second,
+    p.source,p.status AS preview_status,CAST(p.day_two_at AS CHAR) AS preview_two,CAST(p.day_seven_at AS CHAR) AS preview_seven,
+    p.course_name,p.reason AS prior_reason,p.first_draft AS prior_draft,p.second_draft AS prior_second,
     p.draft_source,CAST(p.last_customer_at AS CHAR) AS prior_last,
     EXISTS(SELECT 1 FROM sx_training_form_submissions f WHERE f.tenant_id=? AND BINARY f.lead_id=BINARY l.id)
       OR EXISTS(SELECT 1 FROM sx_training_enrollments e WHERE e.tenant_id=? AND BINARY e.lead_id=BINARY l.id) AS progressed,
@@ -248,7 +246,7 @@ async function tick(pool, tenant) {
       const result = classify({ row, messages, course });
       result.courseName = course?.nameEn || row.course_name;
       let drafts;
-      if (row.prior_draft && (row.source === 'reviewed' || result.lastAt === utc(row.prior_last))) {
+      if (row.prior_draft && result.lastAt === utc(row.prior_last)) {
         drafts = { first: row.prior_draft, second: row.prior_second, source: row.draft_source };
       } else if (result.status === 'ready') {
         const info = summary(messages, inboundTexts);
@@ -258,6 +256,18 @@ async function tick(pool, tenant) {
     }
     return rows.length;
   });
+}
+
+async function evaluateLead(pool, tenant, uid, leadId, now = Date.now()) {
+  if (!enabled(tenant) || !uuid.test(String(leadId || ''))) return { status: 'skipped', reason: 'LEAD_UNAVAILABLE' };
+  const rows = await candidates(pool, tenant, uid, [leadId]);
+  const row = rows[0];
+  if (!row || row.primary_origin !== 'qr') return { status: 'skipped', reason: 'ORIGINAL_QR_UNAVAILABLE' };
+  const facts = await loadFacts(pool, tenant);
+  const { messages, course: matched } = await evidence(pool, uid, row, facts);
+  const course = row.source === 'reviewed' ? facts.find(item => item.nameEn === row.course_name) : matched;
+  const result = classify({ row, messages, course, now });
+  return { ...result, courseName: course?.nameEn || row.course_name || null, source: row.source || 'scheduled' };
 }
 
 function start(pool) {
@@ -319,13 +329,19 @@ async function list(pool, tenant, before, source = '') {
       ORDER BY c.last_inbound_at DESC,c.id DESC LIMIT 1) AS chatId,
     CAST(p.last_customer_at AS CHAR) AS lastCustomerAt,CAST(p.day_two_at AS CHAR) AS dayTwoAt,
     CAST(p.day_seven_at AS CHAR) AS daySevenAt,
-    CASE WHEN p.status IN ('ready','review') THEN p.first_draft END AS firstDraft,
-    CASE WHEN p.status IN ('ready','review') THEN p.second_draft END AS secondDraft
+    d2.status AS dayTwoDeliveryStatus,d2.last_error_code AS dayTwoDeliveryReason,
+    CAST(d2.due_at AS CHAR) AS dayTwoDeliveryAt,CAST(d2.sent_at AS CHAR) AS dayTwoSentAt,
+    d7.status AS daySevenDeliveryStatus,d7.last_error_code AS daySevenDeliveryReason,
+    CAST(d7.due_at AS CHAR) AS daySevenDeliveryAt,CAST(d7.sent_at AS CHAR) AS daySevenSentAt,
+    CASE WHEN p.status IN ('ready','review') OR d2.status IN ('sent','uncertain') OR d7.status IN ('sent','uncertain') THEN p.first_draft END AS firstDraft,
+    CASE WHEN p.status IN ('ready','review') OR d2.status IN ('sent','uncertain') OR d7.status IN ('sent','uncertain') THEN p.second_draft END AS secondDraft
     FROM sx_chatbot_followup_previews p JOIN pipeline_leads l ON BINARY l.id=BINARY p.lead_id AND l.uid_hash=? AND l.uid=?
+    LEFT JOIN sx_chatbot_followup_deliveries d2 ON d2.tenant_id=p.tenant_id AND d2.lead_id=p.lead_id AND d2.step='day2'
+    LEFT JOIN sx_chatbot_followup_deliveries d7 ON d7.tenant_id=p.tenant_id AND d7.lead_id=p.lead_id AND d7.step='day7'
     WHERE p.tenant_id=? AND (?='' OR p.source=?) AND (? IS NULL OR p.id<?)
     ORDER BY p.id DESC LIMIT 31`, [hash, uid, tenant, source, source, before, before]);
   const items = rows.slice(0, 30);
   return { items, next: rows.length > 30 ? items.at(-1).id : null };
 }
 
-module.exports = { enabled, start, tick, seedPilot, list, classify, schedule, summary, validatedDraftPair };
+module.exports = { enabled, start, tick, seedPilot, list, classify, schedule, summary, validatedDraftPair, evaluateLead };
