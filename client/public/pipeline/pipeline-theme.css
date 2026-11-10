@@ -93,3 +93,31 @@ html[data-sx-theme=dark] .lead-detail-page .lead-journey-copy strong{color:#c9d5
 html[data-sx-theme=dark] .lead-detail-page .lead-journey-step[data-state=complete] .lead-journey-index{background:#173c38;border-color:#43866e;color:#92e7d2}
 html[data-sx-theme=dark] .lead-detail-page .lead-journey-step[data-state=current] .lead-journey-index{background:#16375d;border-color:#3979bd;color:#a8d3ff}
 html[data-sx-theme=dark] .lead-detail-page .lead-journey-step[data-state=blocked] .lead-journey-index{background:#48262e;border-color:#8d4652;color:#ffc2c9}
+
+html[data-sx-theme=dark] .reports{background:#1a222d;border-color:#354252;color:#e7edf5}
+html[data-sx-theme=dark] .reports .report-filter-panel,
+html[data-sx-theme=dark] .reports .report-primary-section,
+html[data-sx-theme=dark] .reports .report-snapshot,
+html[data-sx-theme=dark] .reports .journey-report,
+html[data-sx-theme=dark] .reports .journey-cohort,
+html[data-sx-theme=dark] .reports .report-finance,
+html[data-sx-theme=dark] .reports .report-insight-card{background:#1f2936;border-color:#354252;color:#e7edf5}
+html[data-sx-theme=dark] .reports .report-insights-heading h3,
+html[data-sx-theme=dark] .reports .report-insight-card h4,
+html[data-sx-theme=dark] .reports .report-primary-section>h3,
+html[data-sx-theme=dark] .reports .report-finance>h3,
+html[data-sx-theme=dark] .reports .chart-center-value{color:#e7edf5;fill:#e7edf5}
+html[data-sx-theme=dark] .reports .report-insights-heading p,
+html[data-sx-theme=dark] .reports .report-period,
+html[data-sx-theme=dark] .reports .report-state,
+html[data-sx-theme=dark] .reports .report-chart-note,
+html[data-sx-theme=dark] .reports .chart-label{color:#aebaca;fill:#aebaca}
+html[data-sx-theme=dark] .reports .chart-value{fill:#e7edf5}
+html[data-sx-theme=dark] .reports .report-table-wrap{border-color:#354252}
+html[data-sx-theme=dark] .reports .report-table th{background:#263241;color:#d5deea;border-color:#354252}
+html[data-sx-theme=dark] .reports .report-table td{color:#d5deea;border-color:#303c4b}
+html[data-sx-theme=dark] .reports .report-filter-fields input,
+html[data-sx-theme=dark] .reports .report-filter-fields select{color:#e7edf5;background:#111720;border-color:#465466}
+html[data-sx-theme=dark] .reports .report-chart-legend li{color:#d5deea}
+html[data-sx-theme=dark] .reports .report-insight-alert{background:#30251f;color:#f2c5a9;border-color:#5a4033}
+html[data-sx-theme=dark] .reports .report-summary-card{color:#e7edf5;background:linear-gradient(145deg,#202a37,#1a222d);border-color:#354252}

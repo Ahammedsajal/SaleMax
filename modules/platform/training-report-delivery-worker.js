@@ -21,6 +21,7 @@ function emailContent(snapshot,{to}){
     `Net cash movement ${money(finance.netCollectionsMinor)} · receivables ${money(finance.allOutstandingMinor)} · overdue ${money(finance.overdueReceivablesMinor)}`,
     `Reconciliation: ${finance.reconciliation?.status==='attention'?'needs review':'clear'} (${Number(finance.reconciliation?.periodIssuedInvoiceMismatchCount||0)+Number(finance.reconciliation?.allInvoiceMismatchCount||0)} flagged)`
   ]:[];
+  if(finance){const aging=finance.receivablesAging||{};financeLines.push(`Receivables aging: current ${money(aging.current?.outstandingMinor)} · 1–30d ${money(aging['1-30']?.outstandingMinor)} · 31–60d ${money(aging['31-60']?.outstandingMinor)} · 61–90d ${money(aging['61-90']?.outstandingMinor)} · 90+d ${money(aging['90+']?.outstandingMinor)}`);}
   if(snapshot.dashboardFinance){const d=snapshot.dashboardFinance;financeLines.unshift(`Finance dashboard (${d.from} to ${d.to}): total invoiced ${money(d.sales_minor)} (${Number(d.invoice_count)||0} invoices, linked documents counted once); payment receipts ${money(d.received_minor)}; current receivable on these invoices ${money(d.receivable_minor)}; overdue ${money(d.overdue_minor)}`);}
   const comparisonLines=Object.entries(snapshot.comparisons||{}).map(([key,prior])=>`${key.replace(/([a-z])([A-Z])/g,'$1 $2')}: leads ${Number(values.leadsCreated||0)} vs ${Number(prior.summary?.leadsCreated||0)}, replies ${Number(values.agentReplies||0)} vs ${Number(prior.summary?.agentReplies||0)}, due/late follow-ups ${Number(values.followUpsDue||0)}/${Number(values.followUpsOverdue||0)} vs ${Number(prior.summary?.followUpsDue||0)}/${Number(prior.summary?.followUpsOverdue||0)}, sales ${Number(journey.summary?.salesConverted||0)} vs ${Number(prior.journey?.summary?.salesConverted||0)}, cash ${money(finance.cashReceivedMinor)} vs ${money(prior.finance?.cashReceivedMinor)}, overdue receivables ${money(finance.overdueReceivablesMinor)} vs ${money(prior.finance?.overdueReceivablesMinor)}`);
   const actions=(snapshot.actionItems||[]).map(item=>`${item.priority==='high'?'HIGH':'ACTION'}: ${item.key.replaceAll('_',' ')}${item.amountMinor!==undefined?` (${money(item.amountMinor)})`:item.count!==undefined?` (${item.count})`:''}`);
@@ -29,7 +30,43 @@ function emailContent(snapshot,{to}){
   const section=(title,lines)=>`<h3 style="color:#a8003b">${htmlEscape(title)}</h3><ul>${lines.map(line=>`<li>${htmlEscape(line)}</li>`).join('')||'<li>None</li>'}</ul>`;
   return {to,subject:`7Network ${snapshot.period||'scheduled'} owner report · ${range}`,text,html:`<div style="font-family:Arial,sans-serif;color:#17212f;max-width:720px;margin:auto"><h2 style="color:#a8003b">7Network ${htmlEscape(snapshot.period||'scheduled')} owner report</h2><p>${htmlEscape(range)} · ${htmlEscape(snapshot.timezone||'Asia/Qatar')}</p>${section('Leads and sales',leadLines)}${section('Finance',financeLines)}${comparisonLines.length?section('Comparison',comparisonLines):''}${actions.length?section('Top actions',actions):''}<p>Workspace totals only; customer details are excluded.</p></div>`};
 }
-function whatsappReportText(snapshot){
+function shortText(value,fallback,max=40){const result=String(value||'').replace(/[\r\n\u0000-\u001f\u007f]/g,' ').replace(/\s+/g,' ').trim().slice(0,max);return result||fallback;}
+async function loadReceivableActions(pool,db,tenantId){
+  if(!pool||!db||typeof tenantId!=='string')return [];
+  try{
+    const [owners]=await db.query(`SELECT u.uid,o.legacy_uid_hash FROM sx_legacy_ownership o
+      JOIN sx_tenants t ON t.id=o.tenant_id AND t.status='active'
+      JOIN sx_memberships m ON m.tenant_id=o.tenant_id AND m.id=o.membership_id AND m.role='owner' AND m.status='active'
+      JOIN sx_identities i ON i.id=m.identity_id AND i.status='active'
+      JOIN user u ON o.source_table='user' AND o.source_id=CAST(u.id AS CHAR)
+      WHERE o.tenant_id=? LIMIT 2`,[tenantId]);
+    if(owners.length!==1||owners[0].legacy_uid_hash!==crypto.createHash('sha256').update(owners[0].uid).digest('hex'))return [];
+    const context=await require('./training-courses').legacyOwnerContext(pool,owners[0].uid);
+    if(context.tenant.id!==tenantId||context.membership.role!=='owner')return [];
+    const report=await require('./training-receivables-report').list(db,context,{limit:100});
+    const invoices=new Map();
+    for(const row of report.items||[]){
+      if(row.bucket==='current'||Number(row.outstandingMinor)<=0)continue;
+      const current=invoices.get(row.invoiceId)||{invoiceId:row.invoiceId,invoiceNumber:row.invoiceNumber,payerName:row.payerName,amountMinor:0n,dueDate:row.dueDate,daysOverdue:0};
+      current.amountMinor+=BigInt(row.outstandingMinor||0);if(String(row.dueDate)<String(current.dueDate))current.dueDate=row.dueDate;current.daysOverdue=Math.max(current.daysOverdue,Number(row.daysOverdue||0));invoices.set(row.invoiceId,current);
+    }
+    const top=[...invoices.values()].sort((a,b)=>b.daysOverdue-a.daysOverdue||String(a.dueDate).localeCompare(String(b.dueDate))).slice(0,3);
+    if(!top.length)return [];
+    const [ownersByInvoice]=await db.query(`SELECT i.id AS invoiceId,e.lead_id AS leadId,pl.owner_agent_id AS agentId,
+        a.name AS agentName,pl.next_follow_up_at AS nextFollowUpAt
+      FROM sx_training_invoices i JOIN sx_training_enrollments e ON e.tenant_id=i.tenant_id AND e.id=i.enrollment_id
+      LEFT JOIN pipeline_leads pl ON pl.uid_hash=? AND pl.uid=? AND pl.id=e.lead_id
+      LEFT JOIN agents a ON a.id=pl.owner_agent_id AND a.owner_uid=?
+      WHERE i.tenant_id=? AND i.id IN (?)`,[owners[0].legacy_uid_hash,owners[0].uid,owners[0].uid,tenantId,top.map(row=>row.invoiceId)]);
+    const ownerMap=new Map(ownersByInvoice.map(row=>[row.invoiceId,row]));
+    return top.map(row=>{
+      const owner=ownerMap.get(row.invoiceId),next=owner?.nextFollowUpAt?new Intl.DateTimeFormat('en-CA',{timeZone:'Asia/Qatar',year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date(owner.nextFollowUpAt)):null;
+      return {payerName:shortText(row.payerName||row.learnerName,'Customer'),invoiceNumber:shortText(row.invoiceNumber,'Invoice'),amountMinor:String(row.amountMinor),daysOverdue:row.daysOverdue,
+        salesperson:shortText(owner?.agentName,owner?.agentId?'Assigned agent':'Unassigned'),nextAction:next?`follow up ${next}`:owner?.agentId?'call today; set next follow-up':'assign owner and call today'};
+    });
+  }catch(error){console.warn('[reports] receivable action details unavailable',error.code||'REPORT_RECEIVABLE_ACTIONS_UNAVAILABLE');return [];}
+}
+function whatsappReportText(snapshot,{receivableActions=[]}={}){
   const summary=snapshot.summary||{},current=snapshot.current||{},journey=snapshot.journey||{},funnel=journey.cohortFunnel||{},finance=snapshot.finance||{};
   const number=value=>Number(value||0).toLocaleString('en');
   const money=value=>{try{const minor=BigInt(value||0),sign=minor<0n?'-':'',absolute=minor<0n?-minor:minor;return `${sign}${absolute/100n}.${String(absolute%100n).padStart(2,'0')} ${finance.currency||'QAR'}`;}catch{return '—';}};
@@ -40,6 +77,7 @@ function whatsappReportText(snapshot){
   const pct=(numerator,denominator)=>Number(denominator)>0?`${Math.round(Number(numerator||0)*100/Number(denominator))}%`:'—';
   const pctMinor=(numerator,denominator)=>{try{const total=BigInt(denominator||0);return total>0n?`${BigInt(numerator||0)*100n/total}%`:'—';}catch{return '—';}};
   const priorFinance=prior?.finance;
+  const aging=finance.receivablesAging||{};
   const agents=(journey.agents||[]).filter(agent=>Number(agent.attendedLeads||0)||Number(agent.salesClosedByAgent||0)||Number(agent.followUpsOverdue||0)||Number(agent.unattendedLeads||0)||Number(agent.hotLeadsNoFollowUp||0)).slice(0,5);
   const lines=[
     `7Network · Training Center · ${snapshot.period||'report'}`,
@@ -52,9 +90,11 @@ function whatsappReportText(snapshot){
     `Follow-ups: ${number(summary.followUpsDue)} due · ${number(summary.followUpsOverdue)} overdue`,
     `Invoices: ${number(finance.issuedInvoiceCount)} issued · ${money(finance.billedMinor)} billed · ${money(finance.collectedOnPeriodIssuedInvoicesMinor)} collected (${pctMinor(finance.collectedOnPeriodIssuedInvoicesMinor,finance.billedMinor)}) · cash ${money(finance.cashReceivedMinor)}${priorFinance?` (prior period ${money(priorFinance.cashReceivedMinor)})`:''}`,
     `Receivables: ${money(finance.allOutstandingMinor)} total · ${money(finance.overdueReceivablesMinor)} overdue (included above) · refunds ${money(finance.refundsPaidMinor)} · credits ${money(finance.creditsIssuedMinor)}`,
+    `Due buckets: current ${money(aging.current?.outstandingMinor)} · 1–30d ${money(aging['1-30']?.outstandingMinor)} · 31–60d ${money(aging['31-60']?.outstandingMinor)} · 61–90d ${money(aging['61-90']?.outstandingMinor)} · 90+d ${money(aging['90+']?.outstandingMinor)}`,
     `Course journey: ${number(journey.learnerJourney?.enrolled)} enrolled · ${number(journey.learnerJourney?.courseStarted)} started · ${number(journey.learnerJourney?.courseCompleted)} completed`,
     'Monthly target: not configured · offer stage is not separate; enrollment conversions are tracked'
   ];
+  if(prior){const earlier=prior.journey?.cohortFunnel||{};lines.push(`Vs prior period: contacted ${number(summary.newLeadsContacted)} vs ${number(prior.summary?.newLeadsContacted)} · applications ${number(funnel.applications)} vs ${number(earlier.applications)} · enrollments ${number(funnel.salesConverted)} vs ${number(earlier.salesConverted)} · billed ${money(finance.billedMinor)} vs ${money(priorFinance?.billedMinor)} · collection rate ${pctMinor(finance.collectedOnPeriodIssuedInvoicesMinor,finance.billedMinor)} vs ${pctMinor(priorFinance?.collectedOnPeriodIssuedInvoicesMinor,priorFinance?.billedMinor)}`);}
   if(agents.length)lines.push(`Agents (attended / closed / late follow-ups / hot 72h+): ${agents.map(agent=>`${agent.agentName} ${number(agent.attendedLeads)}/${number(agent.salesClosedByAgent)}/${number(agent.followUpsOverdue)}/${number(agent.hotLeadsNoFollowUp)}`).join(' · ')}`);
   const businessUsers=journey.businessUsers||[];
   if(businessUsers.length)lines.push(`Owner/staff (attended / messages / sales): ${businessUsers.slice(0,5).map(user=>`${user.userName} ${number(user.attendedLeads)}/${number(user.messagesSent)}/${number(user.salesClosed)}`).join(' · ')}`);
@@ -65,8 +105,16 @@ function whatsappReportText(snapshot){
   if(Number(current.hotLeadsNoFollowUp)>0)actions.push(`${number(current.hotLeadsNoFollowUp)} hot leads → contact assigned owners today`);
   if(Number(summary.followUpsOverdue)>0)actions.push(`${number(summary.followUpsOverdue)} overdue follow-ups → clear due tasks`);
   if(BigInt(finance.overdueReceivablesMinor||0)>0n)actions.push(`${money(finance.overdueReceivablesMinor)} overdue → contact invoice payers`);
+  for(const agent of (journey.agents||[]).filter(row=>Number(row.hotLeadsNoFollowUp||0)||Number(row.followUpsOverdue||0)).slice(0,3)){
+    const work=[];if(Number(agent.hotLeadsNoFollowUp||0))work.push(`${number(agent.hotLeadsNoFollowUp)} hot 72h+ → contact today`);if(Number(agent.followUpsOverdue||0))work.push(`${number(agent.followUpsOverdue)} overdue follow-ups → clear today`);
+    actions.push(`${shortText(agent.agentName,'Agent',32)}: ${work.join(', ')}`);
+  }
   if(actions.length)lines.push(`Needs attention: ${actions.join(' · ')}`);
-  lines.push('Unattended = open lead with no recorded contact/message. Hot 72h+ = latest “interested” outcome with no later contact/message for 3+ days. First-contact average covers reached new leads; customer details excluded.');
+  if(receivableActions.length){
+    lines.push(`Overdue invoice actions: ${receivableActions.map(row=>`${row.payerName} · ${row.invoiceNumber} · ${money(row.amountMinor)} · ${row.daysOverdue}d late · ${row.salesperson} · ${row.nextAction}`).join(' | ')}`);
+  }
+  if(BigInt(finance.overdueReceivablesMinor||0)>0n)lines.push('Full receivables list: https://7network.live/user?page=finance');
+  lines.push(`Unattended = open lead with no recorded contact/message. Hot 72h+ = latest “interested” outcome with no later contact/message for 3+ days. First-contact average covers reached new leads. Saved snapshots exclude customer details${receivableActions.length?'; verified owner delivery includes up to 3 overdue invoice actions':''}.`);
   return lines.join('\n');
 }
 function whatsappParameters(snapshot){const values=snapshot.summary||{},finance=snapshot.finance||{};return [String(snapshot.period||'scheduled'),`${dateText(snapshot.from)} - ${dateText(snapshot.to)}`,`Leads ${Number(values.leadsCreated)||0} (${Number(values.newLeadsUntouched)||0} untouched); due/late ${Number(values.followUpsDue)||0}/${Number(values.followUpsOverdue)||0}; cash ${((Number(finance.cashReceivedMinor)||0)/100).toFixed(2)} ${finance.currency||'QAR'}; overdue AR ${((Number(finance.overdueReceivablesMinor)||0)/100).toFixed(2)}`];}
@@ -75,9 +123,12 @@ async function sendEmail(message,{env=process.env,transport,sendEmail}={}){
   catch(error){const responseCode=Number(error?.responseCode);if(responseCode>=400&&responseCode<500)return {status:'retry',errorCode:'REPORT_EMAIL_TEMPORARY_REJECTION'};if(responseCode>=500)return {status:'failed',errorCode:'REPORT_EMAIL_REJECTED'};return {status:'unknown',errorCode:'REPORT_EMAIL_OUTCOME_UNKNOWN'};}
   finally{created?.close();}
 }
-async function sendWhatsapp(db,{tenantId,to,snapshot,env=process.env,http=require('axios'),sendWhatsapp:injected}={}){
+async function sendWhatsapp(db,{pool,tenantId,to,snapshot,env=process.env,http=require('axios'),sendWhatsapp:injected}={}){
   let config;try{config=delivery.whatsappConfig(env,'delivery');}catch(error){return {status:'failed',errorCode:error.code||'REPORT_WHATSAPP_NOT_CONFIGURED'};}
-  if(config.transport==='qr')return require('./training-report-qr').send(db,{tenantId,to,text:whatsappReportText(snapshot),snapshot,env,http});
+  if(config.transport==='qr'){
+    const receivableActions=await loadReceivableActions(pool,db,tenantId);
+    return require('./training-report-qr').send(db,{tenantId,to,text:whatsappReportText(snapshot,{receivableActions}),snapshot,env,http});
+  }
   let credentials;try{credentials=await delivery.tenantMetaCredentials(db,tenantId);}catch{return {status:'retry',errorCode:'REPORT_WHATSAPP_ACCOUNT_LOOKUP_FAILED'};}if(!credentials)return {status:'failed',errorCode:'REPORT_WHATSAPP_ACCOUNT_UNAVAILABLE'};
   const parameters=whatsappParameters(snapshot),message={messaging_product:'whatsapp',to:String(to).replace(/^\+/,''),type:'template',template:{name:config.template,language:{code:config.language},components:[{type:'body',parameters:parameters.map(text=>({type:'text',text}))}]}};
   try{const response=injected?await injected({tenantId,to,snapshot,config,message}):await http.post(`https://graph.facebook.com/${config.version}/${credentials.phoneId}/messages`,message,{headers:{Authorization:`Bearer ${credentials.token}`},timeout:15000});const id=(response?.data?.messages?.[0]?.id||response?.providerMessageId||'').toString();return (id||response?.accepted)?{status:'accepted',providerMessageId:id.slice(0,191)||null}:{status:'unknown',errorCode:'REPORT_WHATSAPP_ACCEPTANCE_UNCONFIRMED'};}
@@ -112,8 +163,8 @@ async function tick(pool,{workerId=`report-delivery-${process.pid}`,limit=10,env
   const probe=await pool.getConnection();let ready;try{let whatsappReady=false;try{delivery.whatsappConfig(env,'delivery');whatsappReady=true;}catch{}let emailReady=false;try{delivery.emailConfig(env);emailReady=true;}catch{}ready={email:emailReady,whatsapp:whatsappReady};}
   finally{probe.release();}
   const db=await pool.getConnection();let items;try{items=await claim(db,{workerId,limit,ready});}finally{db.release();}const outcomes=[];
-  for(const item of items){let outcome;if(item.channel==='email')outcome=await sendEmail(emailContent(item.snapshot,{to:item.destination}),{env,sendEmail:emailAdapter});else{const c=await pool.getConnection();try{outcome=await sendWhatsapp(c,{tenantId:item.tenantId,to:item.destination,snapshot:item.snapshot,env,http,sendWhatsapp:whatsappAdapter});}finally{c.release();}}
+  for(const item of items){let outcome;if(item.channel==='email')outcome=await sendEmail(emailContent(item.snapshot,{to:item.destination}),{env,sendEmail:emailAdapter});else{const c=await pool.getConnection();try{outcome=await sendWhatsapp(c,{pool,tenantId:item.tenantId,to:item.destination,snapshot:item.snapshot,env,http,sendWhatsapp:whatsappAdapter});}finally{c.release();}}
     const complete=await pool.getConnection();try{outcomes.push(await finish(complete,{item,workerId,outcome}));}finally{complete.release();}}
   return {claimed:items.length,accepted:outcomes.filter(x=>x.status==='accepted').length,failed:outcomes.filter(x=>x.status==='failed').length,retrying:outcomes.filter(x=>x.status==='retry').length,unknown:outcomes.filter(x=>x.status==='unknown').length,externalWrites:outcomes.length>0,externallySent:outcomes.some(x=>x.status==='accepted')};
 }
-module.exports={emailContent,whatsappParameters,whatsappReportText,sendEmail,sendWhatsapp,claim,finish,tick};
+module.exports={emailContent,whatsappParameters,whatsappReportText,loadReceivableActions,sendEmail,sendWhatsapp,claim,finish,tick};

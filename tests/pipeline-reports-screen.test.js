@@ -51,6 +51,18 @@ test('reports is integrated as a bilingual view in the existing pipeline screen'
   assert.match(reports, /follow-up queue|follow-ups/i);
   assert.match(reports, /متابعات/);
   assert.match(reports, /function exportCurrentPage\(report\)/);
+  assert.match(reports, /downloadReport:'Download visual report'/);
+  assert.match(reports, /downloadDailyReport:'Download daily report'/);
+  assert.match(reports, /downloadReport:'تنزيل التقرير المرئي'/);
+  assert.match(reports, /downloadDailyReport:'تنزيل التقرير اليومي'/);
+  assert.match(reports, /function dailyBars\(days\)/);
+  assert.match(reports, /function followUpDonut\(report,journey\)/);
+  assert.match(reports, /function teamBars\(journey,range\)/);
+  assert.match(reports, /function downloadVisualReport\(\)/);
+  assert.match(reports, /7network-owner-report-\$\{state\.from\}/);
+  assert.match(reports, /window\.print\(\)/);
+  assert.match(fs.readFileSync(path.join(root,'client/public/pipeline/pipeline.css'),'utf8'),/\.report-insights-grid\{display:grid/);
+  assert.match(fs.readFileSync(path.join(root,'client/public/pipeline/pipeline-theme.css'),'utf8'),/html\[data-sx-theme=dark\] \.reports \.report-insight-card/);
   assert.ok(reports.includes("if(/^(?:[=+@]|-|\\t)/.test(text))"));
   assert.ok(reports.includes("join('\\r\\n')"));
   assert.match(pipeline, /window\.salemaxPipelineOpenLead=openLead/);
