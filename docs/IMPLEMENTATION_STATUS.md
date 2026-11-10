@@ -1,3 +1,7 @@
+## Pro Catalyst automatic original-QR follow-ups — production, 10 November 2026
+
+The owner-enabled worker prepares Day 2 and Day 7 course-specific messages, with randomized 2–10 minute spacing and a cap of 20 per Qatar day. It sends only through each lead’s original QR instance and suppresses messages after a customer reply, staff follow-up, opt-out, or lead progression. Production confirms all 20 reviewed Day 2 follow-ups are queued, with zero sent. The source QR currently has zero open sockets, so delivery will start only after that same QR session reconnects; no alternate number or Meta transport is used. The owner screen could not be visually verified because the Edge tab lookup timed out. `DEPLOYMENT.md` records source commits, migration, runtime hash, queue evidence and rollback.
+
 ## Pro Catalyst staff-style first course replies — production, 10 November 2026
 
 The ten published courses share a first-reply format derived from staff messages. The scoped bot shows a current course attachment where available, then the full overview and practical details as separate messages. Names are handled after the details. The mockup saves the same sequence and six existing test numbers remain eligible for live replies. The production preview passed all ten courses and the English and Arabic browser fixtures passed. WhatsApp delivery on a tester's device remains open. `DEPLOYMENT.md` records the release, evidence and rollback.
@@ -20,7 +24,7 @@ The existing Live Reply Mockup recognizes informal greetings, offers discovery b
 
 ## Ad-aware Pro Catalyst replies and AI-written drafts — production, 9 November 2026
 
-The scoped QR handler retains click-to-WhatsApp context when supplied. Private replies use verified ad context to answer about the matching published course, or ask the customer which course they mean when the evidence is unavailable. AI writes future follow-up pairs from bounded conversation topics and the verified course. The reviewed cohort is retained. Synthetic production verification passed and device-level ad and scheduled draft acceptance remain open. Automated follow-up delivery remains disabled. Release details are in `DEPLOYMENT.md`.
+The scoped QR handler retains click-to-WhatsApp context when supplied. Private replies use verified ad context to answer about the matching published course, or ask the customer which course they mean when the evidence is unavailable. AI writes follow-up pairs from bounded conversation topics and the verified course. The reviewed cohort is retained. Automated QR follow-up delivery is now enabled; the 20-lead batch is queued while the original QR socket is offline. `DEPLOYMENT.md` records the current rollout and gate.
 
 ## Direct Inbox links from Pro Catalyst follow-ups — production, 9 November 2026
 
@@ -28,7 +32,7 @@ Follow-up cards now open the linked WhatsApp conversation in a new Inbox tab. Pr
 
 ## Pro Catalyst private follow-up pilot — production, 9 November 2026
 
-Live Reply Mockup now has an owner-only Follow-ups view with 20 reviewed pairs. New enquiries are evaluated for day 2 and day 7 drafts based on customer inactivity, course interest, lead progress and staff activity. The AI selector uses a bounded summary to choose between 15 English and Arabic variants. Day 7 remains a held preview. Focused tests, local database permissions, bilingual browser fixtures and a production synthetic AI selection passed. Signed-in browser acceptance, the first prospective due preview and live provider delivery remain separate gates. `DEPLOYMENT.md` records the release and rollback.
+Live Reply Mockup has an owner-only Follow-ups view with 20 reviewed pairs. New enquiries are evaluated for day 2 and day 7 messages based on customer inactivity, course interest, lead progress and staff activity. The AI selector uses a bounded summary to choose between 15 English and Arabic variants. Automated delivery is enabled and uses each lead’s original QR instance; production has 20 Day 2 messages queued. Actual sending awaits reconnection of that QR session. `DEPLOYMENT.md` records the release and rollback.
 
 ## Lead Reports period totals and Pro Catalyst draft intake — production, 9 November 2026
 
