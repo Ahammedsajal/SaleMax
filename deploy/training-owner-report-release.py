@@ -12,9 +12,9 @@ import time
 
 ROOT = Path('/opt/salemax')
 BASE = '/opt/salemax/releases/training-pipeline-correction-v3-9867ca72-20261104'
-ACTIVE_APP_OVERLAY = '/opt/salemax/releases/pro-catalyst-human-reply-validation-78562bcec95c-20261110/compose.pro-catalyst-human-reply-validation.json'
+ACTIVE_APP_OVERLAY = '/opt/salemax/releases/training-owner-report-c94b149fd307-20261110/compose.training-owner-report-app.json'
 WORKER_BASE_COMPOSE = '/opt/salemax/releases/business-summary-55b5f11-20261024/deploy/compose.yml'
-ACTIVE_WORKER_OVERLAY = '/opt/salemax/releases/training-owner-report-7775551a04ab-20261110/compose.training-owner-report-worker.json'
+ACTIVE_WORKER_OVERLAY = '/opt/salemax/releases/training-owner-report-c94b149fd307-20261110/compose.training-owner-report-worker.json'
 PRIOR_VARS = ROOT / 'shared/rollback-private-inventory-84644fdfebee/compose-manual-vars.json'
 APP = 'salemax-app-1'
 WORKER = 'salemax-report-worker-1'
@@ -33,14 +33,14 @@ WORKER_FILES = {
     'modules/platform/training-report-delivery-worker.js': 'd1d786f9c008ed6725bc54bb08c2497a59db2187cd986819c8c824ad268cae9b',
 }
 APP_PREIMAGES = {
-    'helper/pipeline/reports.js': '7729da07d9fba47cccc0e0617c52c75836f7955022bc405e0a2c5739dfedede3',
+    'helper/pipeline/reports.js': '51c456b5d37b9ca8687636845d8fbd82435a3fbde4ab58ef2fb65b4ad6fd8562',
     'modules/platform/training-report-runner.js': '13b7bf6e04eca0f9312030bb273e305bf3b37a1f8d4cc0b7c6ecf6f34f46b389',
     'modules/platform/training-report-delivery-worker.js': 'd1d786f9c008ed6725bc54bb08c2497a59db2187cd986819c8c824ad268cae9b',
     'client/public/pipeline/reports.js': 'da2eaee6c3a96794fd3e12054fddd074a34f99985d6a1893bed5f91588aeb97a',
     'client/public/pipeline/index.html': 'cddb158d1b061bc75c3a7acd71132e50f69211fa8e65c288a602c310c5acd8bf',
 }
 WORKER_PREIMAGES = {
-    'helper/pipeline/reports.js': '7729da07d9fba47cccc0e0617c52c75836f7955022bc405e0a2c5739dfedede3',
+    'helper/pipeline/reports.js': '51c456b5d37b9ca8687636845d8fbd82435a3fbde4ab58ef2fb65b4ad6fd8562',
     'modules/platform/training-report-runner.js': '13b7bf6e04eca0f9312030bb273e305bf3b37a1f8d4cc0b7c6ecf6f34f46b389',
     'modules/platform/training-report-delivery-worker.js': 'd1d786f9c008ed6725bc54bb08c2497a59db2187cd986819c8c824ad268cae9b',
 }
