@@ -1,3 +1,7 @@
+## Pro Catalyst staff-style first course replies — production, 10 November 2026
+
+The ten published courses share a first-reply format derived from staff messages. The scoped bot shows a current course attachment where available, then the full overview and practical details as separate messages. Names are handled after the details. The mockup saves the same sequence and six existing test numbers remain eligible for live replies. The production preview passed all ten courses and the English and Arabic browser fixtures passed. WhatsApp delivery on a tester's device remains open. `DEPLOYMENT.md` records the release, evidence and rollback.
+
 ## Pro Catalyst certificate catalogue data — production, 10 November 2026
 
 Eight of ten published courses have bilingual certificate details drawn from course-specific staff replies and published course material. Business Management is supported by its published course entry. Kids Python Programming and SEN & Shadow Teacher Training still need verified certificate details. Production Courses readback and no-send bot previews passed. `DEPLOYMENT.md` records the scoped data rollback and source evidence.
