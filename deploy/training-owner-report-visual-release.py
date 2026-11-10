@@ -24,10 +24,16 @@ APP_PREIMAGES = {
     'client/public/pipeline/pipeline.css': '5ddbd4be487eccef03a899d1ad489b04e7df4c1a939e6001ad9e44aa9cbebd34',
     'client/public/pipeline/pipeline-theme.css': 'f21b68f770d0afba9b31b1ab21650fb2a9ee34169f8218534ebc6fc90327d787',
     'client/public/pipeline/index.html': 'cddb158d1b061bc75c3a7acd71132e50f69211fa8e65c288a602c310c5acd8bf',
+    'client/public/finance-dashboard.js': '9dea2ad7c47459326350d5a8d3d10f70af7cbb573da97142b4522523abd70644',
+    'client/public/index.html': '7de51e329dfef0b7f7cbbf9ba2ded0e56e19d9cc87aacd51be75b86a164ee9d5',
 }
 WORKER_PREIMAGES = {'modules/platform/training-report-delivery-worker.js': 'd1d786f9c008ed6725bc54bb08c2497a59db2187cd986819c8c824ad268cae9b'}
 APP_FILES = tuple(APP_PREIMAGES)
 WORKER_FILES = tuple(WORKER_PREIMAGES)
+STAGED_APP_FILES = tuple(name for name in APP_FILES if name != 'client/public/index.html')
+LIVE_SHELL = 'client/public/index.html'
+LIVE_SHELL_SCRIPT_OLD = b'finance-dashboard.js?v=20261018-unified1'
+LIVE_SHELL_SCRIPT_NEW = b'finance-dashboard.js?v=20261110-report-recipients1'
 PRIOR_VARS = ROOT / 'shared/rollback-private-inventory-84644fdfebee/compose-manual-vars.json'
 
 
@@ -164,7 +170,7 @@ def deploy(stage, commit):
     require_lock()
     if not re.fullmatch(r'[a-f0-9]{40}', commit):
         raise RuntimeError('Invalid source commit')
-    expected = set(APP_FILES + WORKER_FILES)
+    expected = set(STAGED_APP_FILES + WORKER_FILES)
     if not all((stage / name).is_file() and not (stage / name).is_symlink() for name in expected):
         raise RuntimeError('Staging directory is missing reviewed report files')
     if shutil.disk_usage(ROOT).free < 1024 * 1024 * 1024:
@@ -214,8 +220,14 @@ def deploy(stage, commit):
     runtime = release / 'runtime'
     runtime.mkdir(mode=0o755)
     contents = {}
-    for name in expected:
-        data = (stage / name).read_bytes()
+    for name in APP_FILES + WORKER_FILES:
+        if name == LIVE_SHELL:
+            data = (backup / 'preimages' / APP / LIVE_SHELL).read_bytes()
+            if data.count(LIVE_SHELL_SCRIPT_OLD) != 1:
+                raise RuntimeError('Live app shell report asset reference changed')
+            data = data.replace(LIVE_SHELL_SCRIPT_OLD, LIVE_SHELL_SCRIPT_NEW, 1)
+        else:
+            data = (stage / name).read_bytes()
         target = runtime / name
         target.parent.mkdir(parents=True, exist_ok=True, mode=0o755)
         target.write_bytes(data)
@@ -256,6 +268,7 @@ def deploy(stage, commit):
                   'appImage': current_app['Config']['Image'], 'workerImage': current_worker['Config']['Image'],
                   'appHealth': current_app['State'].get('Health', {}).get('Status'), 'workerState': current_worker['State'].get('Status'),
                   'appFiles': {name: sha(contents[name]) for name in APP_FILES},
+                  'liveDerivedAppShellPreimage': APP_PREIMAGES[LIVE_SHELL],
                   'workerFiles': {name: sha(contents[name]) for name in WORKER_FILES},
                   'appComposeInputs': len(app_chain), 'supportServicesUnchanged': True, 'migration': 'none', 'healthz': '200'}
         (backup / 'result.json').write_text(json.dumps(result, indent=2) + '\n')

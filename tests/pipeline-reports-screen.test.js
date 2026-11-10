@@ -8,6 +8,7 @@ const test = require('node:test');
 const root = path.resolve(__dirname, '..');
 const html = fs.readFileSync(path.join(root, 'client/public/pipeline/index.html'), 'utf8');
 const reports = fs.readFileSync(path.join(root, 'client/public/pipeline/reports.js'), 'utf8');
+const financeDashboard = fs.readFileSync(path.join(root, 'client/public/finance-dashboard.js'), 'utf8');
 const pipeline = fs.readFileSync(path.join(root, 'client/public/pipeline/pipeline.js'), 'utf8');
 const entry = fs.readFileSync(path.join(root, 'client/public/pipeline-entry.js'), 'utf8');
 const sidebar = fs.readFileSync(path.join(root, 'client/public/training-sidebar.js'), 'utf8');
@@ -61,6 +62,9 @@ test('reports is integrated as a bilingual view in the existing pipeline screen'
   assert.match(reports, /function downloadVisualReport\(\)/);
   assert.match(reports, /7network-owner-report-\$\{state\.from\}/);
   assert.match(reports, /window\.print\(\)/);
+  assert.match(financeDashboard, /Add an additional report recipient’s WhatsApp number and verify it/);
+  assert.match(financeDashboard, /WhatsApp recipient number \(country code included\)/);
+  assert.match(financeDashboard, /رقم واتساب المستلم مع رمز الدولة/);
   assert.match(fs.readFileSync(path.join(root,'client/public/pipeline/pipeline.css'),'utf8'),/\.report-insights-grid\{display:grid/);
   assert.match(fs.readFileSync(path.join(root,'client/public/pipeline/pipeline-theme.css'),'utf8'),/html\[data-sx-theme=dark\] \.reports \.report-insight-card/);
   assert.ok(reports.includes("if(/^(?:[=+@]|-|\\t)/.test(text))"));
