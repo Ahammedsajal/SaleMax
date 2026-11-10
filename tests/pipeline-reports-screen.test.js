@@ -8,6 +8,7 @@ const test = require('node:test');
 const root = path.resolve(__dirname, '..');
 const html = fs.readFileSync(path.join(root, 'client/public/pipeline/index.html'), 'utf8');
 const reports = fs.readFileSync(path.join(root, 'client/public/pipeline/reports.js'), 'utf8');
+const reportRoute = fs.readFileSync(path.join(root, 'routes/pipeline.js'), 'utf8');
 const financeDashboard = fs.readFileSync(path.join(root, 'client/public/finance-dashboard.js'), 'utf8');
 const pipeline = fs.readFileSync(path.join(root, 'client/public/pipeline/pipeline.js'), 'utf8');
 const entry = fs.readFileSync(path.join(root, 'client/public/pipeline-entry.js'), 'utf8');
@@ -82,6 +83,24 @@ test('reports is integrated as a bilingual view in the existing pipeline screen'
   assert.ok(reports.includes("if(/^(?:[=+@]|-|\\t)/.test(text))"));
   assert.ok(reports.includes("join('\\r\\n')"));
   assert.match(pipeline, /window\.salemaxPipelineOpenLead=openLead/);
+});
+
+test('daily follow-up brief is scoped, bilingual, non-tasking, and included in PDF export', () => {
+  assert.match(reportRoute, /router\.get\('\/reports\/follow-up-brief'/);
+  assert.match(reportRoute, /includeItems:req\.query\.includeItems==='true'/);
+  assert.match(reports, /Today’s follow-up brief/);
+  assert.match(reports, /ملخص متابعات اليوم/);
+  assert.match(reports, /Open leads on linked QR or Meta chats where the latest customer message has no later staff reply/);
+  assert.match(reports, /no tasks are created/i);
+  assert.match(reports, /No business message sent/);
+  assert.match(reports, /Automated reply sent; staff reply still needed/);
+  assert.match(reports, /Show remaining leads/);
+  assert.match(reports, /data-brief-open-lead/);
+  assert.match(reports, /data-notice-open/);
+  assert.match(reports, /function scheduleFollowUpBriefNotice/);
+  assert.match(reports, /nextQatarMidnight/);
+  assert.match(reports, /followUpSection/);
+  assert.match(reports, /includeItems','true'/);
 });
 
 test('existing lead details submit localized outcomes and require a due time when selected', () => {

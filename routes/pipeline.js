@@ -12,6 +12,7 @@ const reportDelivery = require('../modules/platform/training-report-delivery');
 const trainingForms = require('../modules/platform/training-forms');
 const legacyPipelineActor = require('../modules/platform/legacy-pipeline-actor');
 const trainingLeadJourney = require('../modules/platform/training-lead-journey');
+const followUpBrief = require('../modules/platform/pipeline-follow-up-brief');
 const leadFilters = require('../helper/pipeline/lead-filters');
 const trainingTasks = require('../modules/platform/task-management');
 const crypto = require('node:crypto');
@@ -336,6 +337,18 @@ router.get('/reports/summary',async(req,res)=>{
 router.get('/reports/leads',async(req,res)=>{
   try{const data=await pipelineReports.getReportLeads({pool:require('../database/config.js').promise(),uid:req.pipelineActor.uid,role:req.pipelineActor.role,agentId:req.pipelineActor.agentId,scopeAgentIds:req.pipelineActor.scopeAgentIds,kind:req.query.kind,date:req.query.date,from:req.query.from,to:req.query.to,selectedAgentId:req.query.agentId,timezone:req.pipelineActor.timezone,page:req.query.page===undefined?1:Number(req.query.page),limit:req.query.limit===undefined?50:Number(req.query.limit),assignment:req.query.assignment,qrInstanceId:req.query.qrInstanceId});res.setHeader('Cache-Control','no-store');res.json({success:true,data});}
   catch(error){fail(res,error);}
+});
+
+router.get('/reports/follow-up-brief',async(req,res)=>{
+  try{
+    const data=await followUpBrief.getBrief({pool:require('../database/config.js').promise(),uid:req.pipelineActor.uid,role:req.pipelineActor.role,agentId:req.pipelineActor.agentId,scopeAgentIds:req.pipelineActor.scopeAgentIds,timezone:req.pipelineActor.timezone,assignment:req.query.assignment,qrInstanceId:req.query.qrInstanceId,includeItems:req.query.includeItems==='true'});
+    res.setHeader('Cache-Control','no-store');res.json({success:true,data});
+  }catch(error){
+    const code=error?.code||'FOLLOW_UP_BRIEF_UNAVAILABLE';
+    const status=error?.status||(['PERMISSION_DENIED','INVALID_REPORT_ACTOR'].includes(code)?403:code==='INVALID_TIMEZONE'?400:code==='FOLLOW_UP_HISTORY_TOO_LARGE'?503:500);
+    if(status>=500)console.error('Follow-up brief request failed:',code);
+    res.status(status).json({success:false,code:status===500?'FOLLOW_UP_BRIEF_UNAVAILABLE':code});
+  }
 });
 
 router.get('/reports/journey',async(req,res)=>{

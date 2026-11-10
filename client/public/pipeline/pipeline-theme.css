@@ -131,3 +131,16 @@ html[data-sx-theme=dark] .reports .report-drilldown .report-open-chat{background
 html[data-sx-theme=dark] .reports .report-drilldown .report-open-chat:hover{background:#2a3b50;border-color:#6387b5}
 html[data-sx-theme=dark] .reports .report-insight-alert{background:#30251f;color:#f2c5a9;border-color:#5a4033}
 html[data-sx-theme=dark] .reports .report-summary-card{color:#e7edf5;background:linear-gradient(145deg,#202a37,#1a222d);border-color:#354252}
+html[data-sx-theme=dark] .reports .report-followup-brief{background:#1f2936;border-color:#354252;color:#e7edf5}
+html[data-sx-theme=dark] .reports .report-followup-brief h3,html[data-sx-theme=dark] .reports .followup-brief-top h4{color:#f0f4f9}
+html[data-sx-theme=dark] .reports .report-followup-brief .report-snapshot-heading p,html[data-sx-theme=dark] .reports .followup-brief-top p,html[data-sx-theme=dark] .reports .followup-brief-item>p{color:#aebaca}
+html[data-sx-theme=dark] .reports .followup-brief-item,html[data-sx-theme=dark] .reports .followup-brief-kpis .report-kpi{background:#18212c;border-color:#354252;color:#e7edf5}
+html[data-sx-theme=dark] .reports .followup-brief-item blockquote{background:#202b38;border-color:#435164;color:#d5deea}
+html[data-sx-theme=dark] .reports .followup-brief-item .followup-brief-next{color:#9de2bb}
+html[data-sx-theme=dark] .followup-brief-notice{background:#202b38;border-color:#6a4256;color:#edf3fa}
+html[data-sx-theme=dark] .followup-brief-notice p{color:#afbdcc}
+html[data-sx-theme=dark] .followup-brief-notice button{background:#263241;border-color:#435164;color:#c9dcf4}
+html[data-sx-theme=dark] .reports .followup-brief-more{background:#18212c;border-color:#354252}
+html[data-sx-theme=dark] .reports .followup-brief-more>summary{color:#b7d3f1}
+html[data-sx-theme=dark] .reports .followup-brief-status.is-auto{background:#302a20;color:#f1cf8d}
+html[data-sx-theme=dark] .reports .followup-brief-status.is-never{background:#35232c;color:#f0b3c6}
