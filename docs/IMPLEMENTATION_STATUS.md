@@ -1,3 +1,7 @@
+## Pro Catalyst mockup scrolling — production, 10 November 2026
+
+The conversation list and message history in the existing Live Reply Mockup scroll independently within the modal. Earlier pages are reachable, and loading earlier messages preserves the reading position. English and Arabic Chrome fixtures exercised desktop, tablet and phone with long lists and threads. Production serves the verified assets. Signed-in production browser acceptance remains open. `DEPLOYMENT.md` records the release and rollback.
+
 ## Pro Catalyst conversation continuity and QR test audience — production, 9 November 2026
 
 The existing Live Reply Mockup recognizes informal greetings, offers discovery based on published courses and keeps the selected course and intake state across repeat greetings. Repeated fee and duration answers use verified facts and skip an intake question already awaiting a reply. Name lookup uses the linked lead, matching contact and phonebook as applicable. The six saved test numbers can receive real replies on the assigned QR number. Other conversations continue producing private drafts for staff review. Production verified audience enforcement and synthetic replies. English and Arabic browser fixtures verified the live-test label. Actual WhatsApp delivery needs a fresh inbound from a tester. Scheduled follow-ups remain private drafts. `DEPLOYMENT.md` records the release and rollback.
