@@ -34,7 +34,8 @@ function card(doc,x,y,w,label,value,color=palette.blue,note=''){
   doc.roundedRect(x,y,w,60,8).fillAndStroke('#FFFFFF',palette.line);
   doc.roundedRect(x,y,w,4,2).fill(color);
   doc.fillColor(palette.muted).font('Helvetica-Bold').fontSize(7.3).text(safe(label),x+10,y+12,{width:w-20,height:10,lineBreak:false,ellipsis:true});
-  doc.fillColor(palette.navy).font('Helvetica-Bold').fontSize(17).text(safe(value),x+10,y+25,{width:w-20,height:21,lineBreak:false,ellipsis:true});
+  const valueText=safe(value),available=w-20,valueWidth=doc.font('Helvetica-Bold').fontSize(17).widthOfString(valueText),valueFont=valueWidth>available?Math.max(8.5,17*available/valueWidth):17;
+  doc.fillColor(palette.navy).font('Helvetica-Bold').fontSize(valueFont).text(valueText,x+10,y+25,{width:available,height:21,lineBreak:false});
   if(note)doc.fillColor(palette.muted).font('Helvetica').fontSize(6.6).text(safe(note),x+10,y+47,{width:w-20,height:8,lineBreak:false,ellipsis:true});
 }
 function table(doc,{x=40,y,widths,headers,rows,rowHeight=22,fontSize=7.1}){
@@ -98,11 +99,12 @@ function drawFunnel(doc,s,y){
 }
 function reportFunnelRate(snapshot){const funnel=snapshot.journey?.cohortFunnel||{};return rate(funnel.attended,funnel.newLeads);}
 function renderTrainingReport(s,{test=false,receivableActions=[]}={}){
-  const {PDFDocument}=require('pdfkit'),doc=new PDFDocument({size:'A4',margin:0,bufferPages:true,info:{Title:`${test?'Sample ':''}7Network daily owner report · ${s.from||s.day}`,Author:'7Network'}});
+  const periodName=s.period==='weekly'?'weekly':s.period==='monthly'?'monthly':'daily';
+  const {PDFDocument}=require('pdfkit'),doc=new PDFDocument({size:'A4',margin:0,bufferPages:true,info:{Title:`${test?'Sample ':''}7Network ${periodName} owner report · ${s.from||s.day}`,Author:'7Network'}});
   const chunks=[],done=new Promise((resolve,reject)=>{doc.on('data',chunk=>chunks.push(chunk));doc.once('end',()=>resolve(Buffer.concat(chunks)));doc.once('error',reject);});
   const summary=s.summary||{},current=s.current||{},journey=s.journey||{},funnel=journey.cohortFunnel||{},finance=s.finance||{},currency=finance.currency||'QAR';
 
-  header(doc,s,test?'Sample daily owner report':'Daily owner report');
+  header(doc,s,`${test?'Sample ':''}${periodName[0].toUpperCase()+periodName.slice(1)} owner report`);
   if(test){doc.fillColor(palette.red).font('Helvetica-Bold').fontSize(8).text('SAMPLE DATA — NOT A CUSTOMER REPORT',40,112,{lineBreak:false});}
   const cardTop=test?130:120,cardW=164,gap=11;
   const kpis=[
@@ -115,7 +117,7 @@ function renderTrainingReport(s,{test=false,receivableActions=[]}={}){
   ];
   kpis.forEach((item,index)=>card(doc,40+(index%3)*(cardW+gap),cardTop+Math.floor(index/3)*70,cardW,item[0],item[1],item[3],item[2]));
 
-  heading(doc,'Leads received · last 7 days',cardTop+151);drawLeadTrend(doc,s,cardTop+174);
+  heading(doc,periodName==='weekly'?'Leads received · week by day':'Leads received · last 7 days',cardTop+151);drawLeadTrend(doc,s,cardTop+174);
   const contacted=Number(summary.newLeadsContacted||0),untouched=Number(summary.newLeadsUntouched||0),donutY=cardTop+219;
   donut(doc,{cx:470,cy:donutY,done:contacted,remaining:untouched});
   doc.fillColor(palette.blue).circle(427,donutY+49,4).fill();doc.fillColor(palette.muted).font('Helvetica').fontSize(6.6).text(`Contacted ${count(contacted)}`,437,donutY+45,{width:110,lineBreak:false});
@@ -153,7 +155,8 @@ function renderTrainingReport(s,{test=false,receivableActions=[]}={}){
   const cohorts=(s.courseCohorts||[]).slice(0,6),cohortRows=cohorts.map(row=>[row.courseName||'Course',row.cohortCode||'—',row.startsOn||'—',count(row.enrollmentsInPeriod),`${count(row.seatsFilled)}/${count(row.capacity)}`,count(row.cancelledTotal)]);
   const courseEnd=table(doc,{y:cohortY,widths:[129,63,68,72,75,97],headers:['Course','Cohort','Start','Enrollments','Filled / cap.','Cancelled'],rows:cohortRows,rowHeight:20,fontSize:6.8});
   if(!cohorts.length)doc.fillColor(palette.muted).font('Helvetica').fontSize(8).text('No cohort capacity data was available for this period.',46,cohortY+31,{width:500,lineBreak:false});
-  doc.fillColor(palette.muted).font('Helvetica').fontSize(7).text('Course enquiries are not yet linked to a normalized course field.',40,Math.max(courseEnd+12,courseEnd+12),{width:515,lineBreak:false});
+  const courseNoteY=Math.max(courseEnd+12,cohortY+(cohorts.length?0:49));
+  doc.fillColor(palette.muted).font('Helvetica').fontSize(7).text('Course enquiries are not yet linked to a normalized course field.',40,courseNoteY,{width:515,lineBreak:false});
 
   doc.addPage({size:'A4',margin:0});header(doc,s,'Collections & owner actions');
   heading(doc,'Revenue and receivables',120);
@@ -182,7 +185,7 @@ function renderTrainingReport(s,{test=false,receivableActions=[]}={}){
   const actionRows=(receivableActions||[]).slice(0,3).map(row=>[row.payerName,row.invoiceNumber,formatMoney(row.amountMinor,currency),`${count(row.daysOverdue)} days`,row.salesperson,row.nextAction]);
   table(doc,{y:actionHeadingY+25,widths:[94,71,79,55,92,113],headers:['Customer','Invoice','Balance','Late','Owner','Next step'],rows:actionRows,rowHeight:23,fontSize:6.5});
   if(!actionRows.length)doc.fillColor(palette.muted).font('Helvetica').fontSize(7.5).text('No overdue invoice follow-up details were available.',46,actionHeadingY+58,{width:500,lineBreak:false});
-  const prior=s.comparisons?.yesterday||s.comparisons?.sameWeekdayLastWeek;
+  const prior=s.period==='weekly'?s.comparisons?.previousWeek:s.period==='monthly'?s.comparisons?.previousMonth:(s.comparisons?.yesterday||s.comparisons?.sameWeekdayLastWeek);
   if(prior){
     heading(doc,`Compared with ${prior.from||'previous report'}`,602);
     const pSummary=prior.summary||{},pFunnel=prior.journey?.cohortFunnel||{},pFinance=prior.finance||{};

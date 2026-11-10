@@ -87,7 +87,7 @@ async function buildSnapshot(pool,run){
   const liveTo=moment.utc(window.end).subtract(1,'millisecond').tz(run.timezone).format('YYYY-MM-DD');
   const live=await reports.getLeadReportSummary({pool,uid:ownerUid,role:'owner',categoryKey:'training_center',from:liveFrom,to:liveTo,timezone:run.timezone});
   const leadTrendFrom=moment.tz(liveTo,'YYYY-MM-DD',run.timezone).subtract(6,'days').format('YYYY-MM-DD');
-  const leadTrend=run.period==='daily'?await reports.getLeadReportSummary({pool,uid:ownerUid,role:'owner',categoryKey:'training_center',from:leadTrendFrom,to:liveTo,timezone:run.timezone}):null;
+  const leadTrend=run.period==='daily'?await reports.getLeadReportSummary({pool,uid:ownerUid,role:'owner',categoryKey:'training_center',from:leadTrendFrom,to:liveTo,timezone:run.timezone}):run.period==='weekly'?live:null;
   const courseCohorts=await courseCohortSummary(pool,run.tenant_id,{fromDate:liveFrom,toDate:liveTo,from:window.start,to:window.end});
   const comparisonDates=run.period==='daily'?[['yesterday',-1],['sameWeekdayLastWeek',-7]]:run.period==='weekly'?[['previousWeek',-1]]:[['previousMonth',-1]];
   const comparisons={};
