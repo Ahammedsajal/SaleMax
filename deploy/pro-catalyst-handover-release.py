@@ -396,7 +396,7 @@ def configure_human_replies_history():
 
 def configure_human_reply_validation():
     global ACTIVE_OVERLAY, REPLACED_FILES, NEW_FILES, SCOPE_ENV, SLUG, RELEASE_DATE, ADD_SCOPE, LIVE_SOURCE_EDITS, MOCKUP_MIGRATION
-    ACTIVE_OVERLAY = '/opt/salemax/releases/pro-catalyst-human-replies-history-409950255da8-20261110/compose.pro-catalyst-human-replies-history.json'
+    ACTIVE_OVERLAY = '/opt/salemax/releases/training-owner-report-7775551a04ab-20261110/compose.training-owner-report-app.json'
     REPLACED_FILES = {
         'modules/platform/chatbot-business-context.js': '974020bc5e58b94a0e59cc8e7a2357cebdcaf0328e7730afa6255e8538465fbd',
     }
