@@ -245,9 +245,13 @@ async function getLeadReportSummary({pool,uid,role='owner',agentId,scopeAgentIds
         JOIN user workspace_owner ON workspace_owner.uid=l.uid
         JOIN sx_legacy_ownership o ON o.source_table='user' AND o.source_id=CAST(workspace_owner.id AS CHAR) AND o.legacy_uid_hash=l.uid_hash
         JOIN sx_tenants t ON t.id=o.tenant_id AND t.status='active' AND t.category_key='training_center'
-        LEFT JOIN sx_memberships m ON m.tenant_id=o.tenant_id AND m.identity_id=pa.actor_id AND m.status='active'
-        LEFT JOIN sx_identities i ON i.id=m.identity_id AND i.id=pa.actor_id
-        LEFT JOIN user actor_owner ON actor_owner.uid=pa.actor_id AND actor_owner.uid=l.uid
+        LEFT JOIN sx_memberships m ON m.tenant_id=o.tenant_id
+          AND CAST(m.identity_id AS CHAR CHARACTER SET utf8mb4) COLLATE utf8mb4_general_ci=pa.actor_id COLLATE utf8mb4_general_ci
+          AND m.status='active'
+        LEFT JOIN sx_identities i ON i.id=m.identity_id
+          AND CAST(i.id AS CHAR CHARACTER SET utf8mb4) COLLATE utf8mb4_general_ci=pa.actor_id COLLATE utf8mb4_general_ci
+        LEFT JOIN user actor_owner ON actor_owner.uid COLLATE utf8mb4_general_ci=pa.actor_id COLLATE utf8mb4_general_ci
+          AND actor_owner.uid COLLATE utf8mb4_general_ci=l.uid COLLATE utf8mb4_general_ci
         WHERE pa.uid_hash=? AND l.uid=? AND pa.actor_type='user' AND pa.created_at>=? AND pa.created_at<?
           AND (i.id IS NOT NULL OR actor_owner.id IS NOT NULL)
           AND pa.activity_type IN ('contact_outcome','agent_message_sent','sale_converted')${leadScope.sql}

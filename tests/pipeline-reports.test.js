@@ -65,6 +65,9 @@ test('lead summary counts unattended open leads and interested leads with no lat
   assert.equal(summary.current.leadAge.overSevenDays,3);assert.equal(summary.agents[0].unattendedLeads,2);assert.equal(summary.agents[0].hotLeadsNoFollowUp,2);
   assert.deepEqual(summary.businessUsers,[{userId:'identity-1',userName:'Owner',attendedLeads:4,messagesSent:3,salesClosed:1}]);
   for(const query of queries)assert.equal(query.params.length,(query.sql.match(/\?/g)||[]).length,`placeholder count for ${query.sql.slice(0,90)}`);
+  const businessUserQuery=queries.find(query=>query.sql.includes("pa.actor_type='user'"))?.sql||'';
+  assert.match(businessUserQuery,/CAST\(m\.identity_id AS CHAR CHARACTER SET utf8mb4\) COLLATE utf8mb4_general_ci=pa\.actor_id COLLATE utf8mb4_general_ci/);
+  assert.match(businessUserQuery,/actor_owner\.uid COLLATE utf8mb4_general_ci=pa\.actor_id COLLATE utf8mb4_general_ci/);
   assert.match(queries.find(query=>query.sql.includes('DATE_SUB(UTC_TIMESTAMP(3),INTERVAL 3 DAY)')).sql,/activity_type IN \('contact_outcome','agent_message_sent'\)/);
 });
 

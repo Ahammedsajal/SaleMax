@@ -20,14 +20,14 @@ WORKER = 'salemax-report-worker-1'
 SUPPORT = ('salemax-db-1', 'salemax-libretranslate-1', 'salemax-recruitment-founder-notification-worker-1', 'salemax-bot-lead-test-db')
 EXPECTED_IMAGES = {APP: 'salemax-app:openai-ads-lead-01fde9e1-20261103', WORKER: 'salemax-app:business-summary-55b5f11-20261024'}
 APP_FILES = {
-    'helper/pipeline/reports.js': '7729da07d9fba47cccc0e0617c52c75836f7955022bc405e0a2c5739dfedede3',
+    'helper/pipeline/reports.js': '51c456b5d37b9ca8687636845d8fbd82435a3fbde4ab58ef2fb65b4ad6fd8562',
     'modules/platform/training-report-runner.js': '13b7bf6e04eca0f9312030bb273e305bf3b37a1f8d4cc0b7c6ecf6f34f46b389',
     'modules/platform/training-report-delivery-worker.js': 'd1d786f9c008ed6725bc54bb08c2497a59db2187cd986819c8c824ad268cae9b',
     'client/public/pipeline/reports.js': 'da2eaee6c3a96794fd3e12054fddd074a34f99985d6a1893bed5f91588aeb97a',
     'client/public/pipeline/index.html': 'cddb158d1b061bc75c3a7acd71132e50f69211fa8e65c288a602c310c5acd8bf',
 }
 WORKER_FILES = {
-    'helper/pipeline/reports.js': '7729da07d9fba47cccc0e0617c52c75836f7955022bc405e0a2c5739dfedede3',
+    'helper/pipeline/reports.js': '51c456b5d37b9ca8687636845d8fbd82435a3fbde4ab58ef2fb65b4ad6fd8562',
     'modules/platform/training-report-runner.js': '13b7bf6e04eca0f9312030bb273e305bf3b37a1f8d4cc0b7c6ecf6f34f46b389',
     'modules/platform/training-report-delivery-worker.js': 'd1d786f9c008ed6725bc54bb08c2497a59db2187cd986819c8c824ad268cae9b',
 }
