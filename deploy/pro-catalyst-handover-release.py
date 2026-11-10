@@ -363,6 +363,22 @@ def configure_ai_handoff_guard():
     ADD_SCOPE = False
 
 
+def configure_human_replies():
+    global ACTIVE_OVERLAY, REPLACED_FILES, NEW_FILES, SCOPE_ENV, SLUG, RELEASE_DATE, ADD_SCOPE, LIVE_SOURCE_EDITS, MOCKUP_MIGRATION
+    ACTIVE_OVERLAY = '/opt/salemax/releases/pro-catalyst-ai-handoff-guard-58041217dcc1-20261110/compose.pro-catalyst-ai-handoff-guard.json'
+    REPLACED_FILES = {
+        'modules/platform/chatbot-ai-prompt.js': '9c6c3b4ead07d753d548ba164106ea3b225749174b446f3cb8e35c2d43b78484',
+        'modules/platform/chatbot-runtime.js': '3e87d8d9be9de0ddb958dd8c67814d7d492034d6231fcd60bdaa2f073b2aa2c3',
+    }
+    NEW_FILES = ('modules/platform/chatbot-conversation-history.js',)
+    LIVE_SOURCE_EDITS = {}
+    MOCKUP_MIGRATION = None
+    SCOPE_ENV = 'SALEMAX_CHATBOT_ADMISSIONS_INTAKE_TENANT_ID'
+    SLUG = 'pro-catalyst-human-replies'
+    RELEASE_DATE = '20261110'
+    ADD_SCOPE = False
+
+
 def apply_mockup_migration(source):
     script = """const fs = require('node:fs');
     const crypto = require('node:crypto');
@@ -675,7 +691,7 @@ def reset(backup):
 
 
 if __name__ == '__main__':
-    if len(sys.argv) == 4 and sys.argv[1] in ('deploy', 'deploy-admissions', 'deploy-name-question', 'deploy-knowledge', 'deploy-mockup', 'deploy-mockup-inbox', 'deploy-lead-report-period', 'deploy-followup-preview', 'deploy-followup-chat-link', 'deploy-ad-aware-followups', 'deploy-ad-overview', 'deploy-test-replies', 'deploy-mockup-scroll', 'deploy-course-certification', 'deploy-course-opening', 'deploy-followup-delivery', 'deploy-followup-queue-fix', 'deploy-followup-inbox-parity', 'deploy-ai-handoff', 'deploy-ai-handoff-cache', 'deploy-ai-handoff-guard'):
+    if len(sys.argv) == 4 and sys.argv[1] in ('deploy', 'deploy-admissions', 'deploy-name-question', 'deploy-knowledge', 'deploy-mockup', 'deploy-mockup-inbox', 'deploy-lead-report-period', 'deploy-followup-preview', 'deploy-followup-chat-link', 'deploy-ad-aware-followups', 'deploy-ad-overview', 'deploy-test-replies', 'deploy-mockup-scroll', 'deploy-course-certification', 'deploy-course-opening', 'deploy-followup-delivery', 'deploy-followup-queue-fix', 'deploy-followup-inbox-parity', 'deploy-ai-handoff', 'deploy-ai-handoff-cache', 'deploy-ai-handoff-guard', 'deploy-human-replies'):
         if sys.argv[1] == 'deploy-admissions':
             configure_admissions()
         elif sys.argv[1] == 'deploy-name-question':
@@ -716,10 +732,12 @@ if __name__ == '__main__':
             configure_ai_handoff_cache()
         elif sys.argv[1] == 'deploy-ai-handoff-guard':
             configure_ai_handoff_guard()
+        elif sys.argv[1] == 'deploy-human-replies':
+            configure_human_replies()
         deploy(Path(sys.argv[2]), sys.argv[3])
     elif len(sys.argv) == 3 and sys.argv[1] == 'reset':
         reset(Path(sys.argv[2]))
-    elif len(sys.argv) == 3 and sys.argv[1] in ('restore', 'restore-admissions', 'restore-name-question', 'restore-knowledge', 'restore-mockup', 'restore-mockup-inbox', 'restore-lead-report-period', 'restore-followup-preview', 'restore-followup-chat-link', 'restore-ad-aware-followups', 'restore-ad-overview', 'restore-test-replies', 'restore-mockup-scroll', 'restore-course-certification', 'restore-course-opening', 'restore-followup-delivery', 'restore-followup-queue-fix', 'restore-followup-inbox-parity', 'restore-ai-handoff', 'restore-ai-handoff-cache', 'restore-ai-handoff-guard'):
+    elif len(sys.argv) == 3 and sys.argv[1] in ('restore', 'restore-admissions', 'restore-name-question', 'restore-knowledge', 'restore-mockup', 'restore-mockup-inbox', 'restore-lead-report-period', 'restore-followup-preview', 'restore-followup-chat-link', 'restore-ad-aware-followups', 'restore-ad-overview', 'restore-test-replies', 'restore-mockup-scroll', 'restore-course-certification', 'restore-course-opening', 'restore-followup-delivery', 'restore-followup-queue-fix', 'restore-followup-inbox-parity', 'restore-ai-handoff', 'restore-ai-handoff-cache', 'restore-ai-handoff-guard', 'restore-human-replies'):
         if sys.argv[1] == 'restore-admissions':
             configure_admissions()
         elif sys.argv[1] == 'restore-name-question':
@@ -760,6 +778,8 @@ if __name__ == '__main__':
             configure_ai_handoff_cache()
         elif sys.argv[1] == 'restore-ai-handoff-guard':
             configure_ai_handoff_guard()
+        elif sys.argv[1] == 'restore-human-replies':
+            configure_human_replies()
         restore(Path(sys.argv[2]))
     else:
-        raise SystemExit('Usage: pro-catalyst-handover-release.py deploy[-admissions|-name-question|-knowledge|-mockup|-mockup-inbox|-lead-report-period|-followup-preview|-followup-chat-link|-ad-aware-followups|-ad-overview|-test-replies|-mockup-scroll|-course-certification|-course-opening|-followup-delivery|-followup-queue-fix|-followup-inbox-parity|-ai-handoff|-ai-handoff-cache|-ai-handoff-guard] <stage> <commit> | reset <backup> | restore <backup>')
+        raise SystemExit('Usage: pro-catalyst-handover-release.py deploy[-admissions|-name-question|-knowledge|-mockup|-mockup-inbox|-lead-report-period|-followup-preview|-followup-chat-link|-ad-aware-followups|-ad-overview|-test-replies|-mockup-scroll|-course-certification|-course-opening|-followup-delivery|-followup-queue-fix|-followup-inbox-parity|-ai-handoff|-ai-handoff-cache|-ai-handoff-guard|-human-replies] <stage> <commit> | reset <backup> | restore <backup>')

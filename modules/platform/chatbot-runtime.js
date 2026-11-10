@@ -13,6 +13,7 @@ const { isGuidedChoice, hybridTurnPlan, supportsAiPreview } = require('./chatbot
 const { channelFor } = require('./chatbot-channels');
 const { buildAiPrompt } = require('./chatbot-ai-prompt');
 const businessContext = require('./chatbot-business-context');
+const { conversationHistoryFromRows } = require('./chatbot-conversation-history');
 const courseOpening = require('./chatbot-course-opening');
 const { isOpeningGreeting } = require('./chatbot-opening-flow');
 const replyCache = new Map();
@@ -26,6 +27,18 @@ const textOf = message => {
   const body = message?.msgContext?.text?.body ?? message?.msgContext?.button?.text ?? message?.msgContext?.interactive?.button_reply?.title ?? message?.msgContext?.interactive?.list_reply?.title;
   return typeof body === 'string' ? body.trim().slice(0, 2000) : '';
 };
+async function loadConversationHistory({ uid, chatId, origin, currentMessage }) {
+  if (!uid || !chatId || !origin) return [];
+  try {
+    const rows = await query(`SELECT route,msgContext FROM beta_conversation
+      WHERE uid=? AND chat_id=? AND origin=? AND route IN ('INCOMING','OUTGOING')
+      ORDER BY id DESC LIMIT 12`, [uid, chatId, origin]);
+    return conversationHistoryFromRows(rows, currentMessage);
+  } catch (error) {
+    console.warn('[chatbot] conversation context unavailable', error.code || 'CONVERSATION_CONTEXT_UNAVAILABLE');
+    return [];
+  }
+}
 function mergeKnowledgeEntries(...groups) {
   const seen = new Set();
   return groups.flat().filter(item => item && typeof item === 'object').filter(item => {
@@ -544,19 +557,53 @@ async function trainingCenterGuidedTurn({ ctx, profile, uid, message, sessionId,
   return true;
 }
 
-function safeConversationalReply({ language, context, message, staffRequested = false, staffNotificationQueued = false }) {
+function aiAvailableForProfile(profile) {
+  return Boolean(profile && profile.engine !== 'guided'
+    && !(profile.engine === 'hybrid' && profile.config?.aiFallback === false)
+    && profile.config?.aiDataProcessingConfirmed === true);
+}
+
+function aiHandlesStaffRoute(profile, route) {
+  return aiAvailableForProfile(profile) && ['human', 'handoff', 'certificate'].includes(route);
+}
+
+function safeConversationalReply({ language, context, message, state = {}, staffRequested = false, staffNotificationQueued = false }) {
   const course = context?.evidence?.find(item => item.kind === 'course');
-  const courseName = course?.name ? ` about ${course.name}` : '';
+  const courseName = course?.name || '';
+  const history = Array.isArray(state?.recentConversation) ? state.recentConversation.slice(-4).map(item => item.text || '').join(' ') : '';
+  const requestContext = `${history} ${message || ''}`;
+  const urgentStart = /\b(?:immediately|right away|asap|start now|start immediately)\b|(?:فوراً|فورًا|في أقرب وقت)/iu.test(requestContext);
+  const askingWho = /\bwho are you\b|\bwhat are you\b|من أنت|من انتم|من أنتم/u.test(message || '');
   if (language === 'ar') {
-    if (staffNotificationQueued) return `سجّلت ما تحتاجه وطلبت من فريق القبول التحقق. أستطيع مساعدتك هنا أيضاً${course?.name ? ` بخصوص ${course.name}` : ''} — ما أهم تفصيل تود معرفته؟`;
-    if (staffRequested) return `بالتأكيد، أستطيع متابعة مساعدتك هنا. ما التفصيل الذي تريد من فريقنا التركيز عليه؟`;
-    if (/\bwho are you\b|\bwhat are you\b|من أنت|من انتم|من أنتم/u.test(message)) return 'أنا المساعد الافتراضي لمركز التدريب، ويسعدني مساعدتك في استفسارك.';
-    return `لا أملك تأكيداً لهذه المعلومة حالياً${course?.name ? ` عن ${course.name}` : ''}. ما التفصيل الذي تود أن أتحقق منه أولاً؟`;
+    if (askingWho) return staffNotificationQueued
+      ? 'أنا المساعد الافتراضي لمركز التدريب. طلبت من فريق القبول التحقق من استفسارك، وسأواصل مساعدتك هنا.'
+      : 'أنا المساعد الافتراضي لمركز التدريب، ويسعدني مساعدتك في استفسارك.';
+    if (staffNotificationQueued) {
+      if (courseName && urgentStart) return `بالتأكيد. طلبت من فريق القبول تأكيد أقرب موعد لبدء ${courseName}. أفهم أنك ترغب في البدء فوراً، لكن لا أملك موعداً مؤكداً بعد. سأواصل مساعدتك هنا أثناء التحقق.`;
+      if (courseName) return `بالتأكيد. طلبت من فريق القبول التحقق من ذلك بخصوص ${courseName}. لا أملك تأكيداً بعد، وسأواصل مساعدتك هنا أثناء التحقق.`;
+      return 'بالتأكيد. طلبت من فريق القبول التحقق من ذلك، وسأواصل مساعدتك هنا أثناء التحقق.';
+    }
+    if (staffRequested) return courseName
+      ? `أفهم طلبك. لا أستطيع تأكيد وصول طلب التواصل إلى فريق القبول الآن، لكن يمكنني متابعة مساعدتك هنا بخصوص ${courseName}.`
+      : 'أفهم طلبك. لا أستطيع تأكيد وصول طلب التواصل إلى فريق القبول الآن، لكن يمكنني متابعة مساعدتك هنا.';
+    if (courseName && urgentStart) return `أفهم أنك ترغب في البدء فوراً. لا أملك موعداً مؤكداً لبدء ${courseName} بعد، ويمكن لفريق القبول التحقق من أقرب دفعة.`;
+    if (courseName) return `لا أملك هذه المعلومة مؤكدة عن ${courseName} حالياً. يمكن لفريق القبول التحقق منها، وسأساعدك هنا بما لدي من تفاصيل الدورة.`;
+    return 'لا أملك هذه المعلومة مؤكدة بعد. أخبرني بالتفصيل الذي تبحث عنه وسأحاول مساعدتك.';
   }
-  if (staffNotificationQueued) return `I’ve noted what you need and asked admissions to check. I can still help${courseName} while they do—what detail would you like first?`;
-  if (staffRequested) return 'Of course. I can keep helping here; what would you like the team to focus on?';
-  if (/\bwho are you\b|\bwhat are you\b/i.test(message)) return 'I’m the training center’s virtual assistant, here to help with your enquiry.';
-  return `I don’t have that confirmed yet${courseName}. What would be most helpful for me to check first?`;
+  if (askingWho) return staffNotificationQueued
+    ? 'I’m the training center’s virtual assistant. I’ve asked admissions to check your enquiry, and I can keep helping you here.'
+    : 'I’m the training center’s virtual assistant, here to help with your enquiry.';
+  if (staffNotificationQueued) {
+    if (courseName && urgentStart) return `Of course. I’ve asked admissions to confirm the next ${courseName} intake. I understand you’d like to start right away, but I don’t have a confirmed date yet. I’ll keep helping you here while they check.`;
+    if (courseName) return `Of course. I’ve asked admissions to check that for your ${courseName} enquiry. I can keep helping you here while they do.`;
+    return 'Of course. I’ve asked admissions to check that for you, and I can keep helping here while they do.';
+  }
+  if (staffRequested) return courseName
+    ? `I understand. I can’t confirm that your request reached admissions yet, but I can keep helping with your ${courseName} enquiry here.`
+    : 'I understand. I can’t confirm that your request reached admissions yet, but I can keep helping you here.';
+  if (courseName && urgentStart) return `I understand you’d like to start right away. I don’t have a confirmed start date for ${courseName} yet; admissions can check the next intake.`;
+  if (courseName) return `I don’t have that detail confirmed for ${courseName} yet. Admissions can verify it, and I can help with the course information I have.`;
+  return 'I don’t have that detail confirmed yet. Tell me what you’re trying to find out and I’ll help with what I can verify.';
 }
 
 function tokenEstimate(text) { return Math.min(12000, Math.max(256, Math.ceil(Buffer.byteLength(text, 'utf8') / 1.5) + 700)); }
@@ -616,7 +663,7 @@ function certificateTurn(message, context, state, route) {
   };
 }
 
-async function generateAiAnswer({ ctx, profile, uid, customerMessage, chatId = null, channelKind = null, channelRef = null, state = null, factsOverride = null, referral = null, intakeCourse = null, admissionsIntake = false, continuity = false, onStage = null }) {
+async function generateAiAnswer({ ctx, profile, uid, customerMessage, chatId = null, channelKind = null, channelRef = null, state = null, factsOverride = null, referral = null, intakeCourse = null, admissionsIntake = false, admissionsProgress = null, historyOverride = null, continuity = false, simulateStaffNotificationQueued = false, onStage = null }) {
   if (uid && chatId && await shouldPause(uid, chatId, channelKind, channelRef)) return { paused: true };
   if (!customerMessage) return { handedOff: true, code: 'UNSUPPORTED_MESSAGE_TYPE' };
   const pack = getDomainPack(ctx.category.key, ctx.category.version);
@@ -679,6 +726,10 @@ async function generateAiAnswer({ ctx, profile, uid, customerMessage, chatId = n
   if (staffReason && uid && chatId && channelKind && channelRef) {
     const claim = await handoffConversation(ctx, chatId, channelKind, channelRef, staffReason, profile, uid, null, { pause: false }).catch(() => null);
     staffNotificationQueued = Boolean(claim?.id);
+  } else if (staffReason && simulateStaffNotificationQueued) {
+    // Private mockup drafts model the customer copy after a successful staff notice;
+    // they never create a handoff, pause a chat, or send a WhatsApp message.
+    staffNotificationQueued = true;
   }
   const repeatedFact = businessContext.repeatedCourseFact(repeat, context);
   if (repeatedFact && !staffReason) return { canAnswer: true, confidence: 1, reply: repeatedFact.reply, state: nextState, route: 'facts', repeat: true,
@@ -702,12 +753,20 @@ async function generateAiAnswer({ ctx, profile, uid, customerMessage, chatId = n
       staffNotificationQueued = Boolean(claim?.id);
     }
     return ((!staffRequested && !staffNotificationQueued && (courseOverview || admissionsIntake)) && factualOverviewFallback(context)) || {
-      canAnswer: true, confidence: 0, reply: safeConversationalReply({ language: context.language, context, message: customerMessage, staffRequested, staffNotificationQueued }),
+      canAnswer: true, confidence: 0, reply: safeConversationalReply({ language: context.language, context, message: customerMessage, state: session, staffRequested, staffNotificationQueued }),
       state: nextState, route: 'safe_fallback', reason: 'AI_PROVIDER_NOT_CONFIGURED', staffRequested, staffNotificationQueued,
       metrics: { inputTokens: 0, outputTokens: 0, cacheHit: false, sources: context.sources },
     };
   }
-  const historySafe = Array.isArray(session.recentConversation) ? session.recentConversation.slice(-4).map(item => ({ role: item.role, text: businessContext.redactCustomerText(item.text) })) : [];
+  const persistedHistory = Array.isArray(historyOverride) && historyOverride.length
+    ? historyOverride : await loadConversationHistory({ uid, chatId, origin: channelKind === 'whatsapp_qr' ? 'qr' : channelKind === 'whatsapp_meta' ? 'meta' : null, currentMessage: customerMessage });
+  const conversationHistory = persistedHistory.length ? persistedHistory : session.recentConversation;
+  if (persistedHistory.length) {
+    session = { ...session, recentConversation: persistedHistory };
+    nextState.recentConversation = persistedHistory;
+  }
+  const historySafe = Array.isArray(conversationHistory) ? conversationHistory.slice(-8)
+    .map(item => ({ role: item.role, text: businessContext.redactCustomerText(item.text) })) : [];
   const key = businessContext.fingerprint({ tenant: ctx.tenant.id, profile: profile.id, revision: context.revision, model: settings.model, provider: settings.provider, question: businessContext.normalized(customerMessage), language: context.language, history: historySafe, selected: session.selectedCourseCode, staffRequested, staffNotificationQueued });
   const cached = replyCache.get(key);
   if (cached && cached.expiresAt > Date.now()) return { ...cached.answer, state: nextState, metrics: { ...cached.answer.metrics, cacheHit: true, inputTokens: 0, outputTokens: 0, cachedInputTokens: 0, cacheWriteTokens: 0 } };
@@ -724,8 +783,8 @@ async function generateAiAnswer({ ctx, profile, uid, customerMessage, chatId = n
     }))
     : context.evidence;
   const compactEvidence = aiEvidence.map((item, index) => { const alias = 's' + index; sourceAliases.set(alias, item.sourceId); return { ...item, sourceId: alias }; });
-  const { system, context: promptContext, user: input, inputBytes } = buildAiPrompt({ pack, profile, customerMessage: businessContext.redactCustomerText(customerMessage), facts: compactEvidence, history: historySafe, courseOverview, admissionsIntake, repeat: Boolean(repeat), staffRequested, staffNotificationQueued });
-  if (inputBytes > 12000) return ((!staffRequested && !staffNotificationQueued) && factualOverviewFallback(context)) || { canAnswer: true, reply: safeConversationalReply({ language: context.language, context, message: customerMessage, staffRequested, staffNotificationQueued }), confidence: 0, state: nextState, route: 'safe_fallback', staffRequested, staffNotificationQueued };
+  const { system, context: promptContext, user: input, inputBytes } = buildAiPrompt({ pack, profile, customerMessage: businessContext.redactCustomerText(customerMessage), facts: compactEvidence, history: historySafe, admissionsProgress, courseOverview, admissionsIntake, repeat: Boolean(repeat), staffRequested, staffNotificationQueued });
+  if (inputBytes > 12000) return ((!staffRequested && !staffNotificationQueued) && factualOverviewFallback(context)) || { canAnswer: true, reply: safeConversationalReply({ language: context.language, context, message: customerMessage, state: session, staffRequested, staffNotificationQueued }), confidence: 0, state: nextState, route: 'safe_fallback', staffRequested, staffNotificationQueued };
   const prompt = `${system}\n\n${promptContext}\n\n${input}`;
   const estimate = tokenEstimate(prompt);
   let reservation = null;
@@ -751,7 +810,7 @@ async function generateAiAnswer({ ctx, profile, uid, customerMessage, chatId = n
         const claim = await handoffConversation(ctx, chatId, channelKind, channelRef, error.code || 'AI_PROVIDER_ERROR', profile, uid, null, { pause: false }).catch(() => null);
         staffNotificationQueued = Boolean(claim?.id);
       }
-      return { canAnswer: true, confidence: 0, reply: safeConversationalReply({ language: context.language, context, message: customerMessage, staffRequested, staffNotificationQueued }),
+      return { canAnswer: true, confidence: 0, reply: safeConversationalReply({ language: context.language, context, message: customerMessage, state: session, staffRequested, staffNotificationQueued }),
         state: nextState, route: 'safe_fallback', reason: error.code || 'AI_PROVIDER_ERROR', staffRequested, staffNotificationQueued,
         metrics: { inputTokens: 0, outputTokens: 0, cacheHit: false, sources: context.sources } };
     }
@@ -772,14 +831,14 @@ async function generateAiAnswer({ ctx, profile, uid, customerMessage, chatId = n
   const threshold = Number(profile.config?.confidenceThreshold ?? 0.72);
   if (!validation.valid || response.confidence < threshold) {
     if (courseOverview && !staffRequested && !staffNotificationQueued && factualOverviewFallback(context)) return factualOverviewFallback(context);
-    return { canAnswer: true, confidence: 0, reply: safeConversationalReply({ language: context.language, context, message: customerMessage, staffRequested, staffNotificationQueued }),
+    return { canAnswer: true, confidence: 0, reply: safeConversationalReply({ language: context.language, context, message: customerMessage, state: session, staffRequested, staffNotificationQueued }),
       state: nextState, route: 'safe_fallback', reason: validation.code || 'LOW_CONFIDENCE', staffRequested, staffNotificationQueued, metrics };
   }
   // Re-read live facts after the model call; never deliver a price or date
   // generated from data that changed while the provider was working.
   const fresh = businessContext.retrieveContext({ facts: await loadFacts(), knowledgeEntries: mergeKnowledgeEntries(profile.config?.knowledgeEntries || [], await loadApprovedFaqs(ctx.tenant.id)), message: customerMessage, state: session, profileRevision: profile.revision, referral, includeRelatedFaqs: admissionsIntake });
   if (fresh.revision !== context.revision) return factualOverviewFallback(fresh) || { canAnswer: true, confidence: 0,
-    reply: safeConversationalReply({ language: context.language, context: fresh, message: customerMessage, staffRequested, staffNotificationQueued }),
+    reply: safeConversationalReply({ language: context.language, context: fresh, message: customerMessage, state: session, staffRequested, staffNotificationQueued }),
     state: nextState, route: 'safe_fallback', reason: 'BUSINESS_DATA_CHANGED', staffRequested, staffNotificationQueued, metrics };
   const usedCourses = context.evidence.filter(item => item.kind === 'course' && response.sourceIds.includes(item.sourceId));
   if (usedCourses.length === 1 && businessContext.normalized(response.reply).includes(businessContext.normalized(usedCourses[0].name))) nextState.selectedCourseCode = usedCourses[0].code;
@@ -821,9 +880,7 @@ async function aiTurn({ ctx, profile, uid, message, user, sessionId, origin, cha
   onStage?.('bot-routing');
   const incomingText = textOf(message);
   const continuity = mockup.ownsInbox(uid, origin);
-  const aiAvailableForTurn = profile.engine !== 'guided'
-    && !(profile.engine === 'hybrid' && profile.config?.aiFallback === false)
-    && profile.config?.aiDataProcessingConfirmed === true;
+  const aiAvailableForTurn = aiAvailableForProfile(profile);
   if (ctx.category.key === 'training_center' && continuity && !profile.config?.flowId && !profile.config?.introFlowId
     && businessContext.isTrainingGreeting(incomingText)) {
     const dispatched = await trainingCenterGuidedTurn({ ctx, profile, uid, message, sessionId, origin, chatId, leadInfo, onStage });
@@ -884,8 +941,8 @@ async function aiTurn({ ctx, profile, uid, message, user, sessionId, origin, cha
       }
     }
     const applicationAccepted = acceptsRegistrationForm(session, incoming);
-    const aiHandlesStaffRoute = aiAvailableForTurn && ['human', 'handoff', 'certificate'].includes(route);
-    if ((route !== 'answer' && !aiHandlesStaffRoute) || leadInfo?.nameOnly || applicationAccepted || bareCourseSelection || fullCourseOpening || (profile.engine === 'hybrid' && profile.config.aiFallback === false)) {
+    const routeUsesAi = aiHandlesStaffRoute(profile, route);
+    if ((route !== 'answer' && !routeUsesAi) || leadInfo?.nameOnly || applicationAccepted || bareCourseSelection || fullCourseOpening || (profile.engine === 'hybrid' && profile.config.aiFallback === false)) {
       onStage?.('training-center-guided-reply');
       const handoffIntent = route === 'human' || route === 'handoff'
         ? (businessContext.languageFor(incoming, session || {}) === 'ar' ? 'موظف' : 'agent')
@@ -909,7 +966,10 @@ async function aiTurn({ ctx, profile, uid, message, user, sessionId, origin, cha
         state: leadInfo.intake.session, route: 'admissions-intake' }
     : await generateAiAnswer({ ctx, profile, uid, customerMessage: incomingText, chatId, channelKind: channelFor(origin),
         channelRef: sessionId, factsOverride: leadInfo?.facts, referral: message?.msgContext?.referral || null,
-        admissionsIntake: !!leadInfo?.intake, intakeCourse: leadInfo?.intake ? leadInfo.courseInterest : null, continuity, onStage });
+        admissionsIntake: !!leadInfo?.intake, intakeCourse: leadInfo?.intake ? leadInfo.courseInterest : null,
+        admissionsProgress: leadInfo?.intake ? { nameProvided: leadInfo.intake.state?.nameConfirmed === true,
+          nameConfirmationPending: leadInfo.intake.state?.waiting === 'confirmName',
+          preferredStart: leadInfo.intake.preferredStart || null } : null, continuity, onStage });
   if (leadInfo?.intake && !acknowledgement && !answer.paused) answer = admissions.planReply(answer, leadInfo);
   if (answer.handedOff || answer.paused) return answer;
   const pack = getDomainPack(ctx.category.key, ctx.category.version);
@@ -954,7 +1014,7 @@ async function previewConfiguredBot({ ctx, profile, uid, message, state = null }
   prior.language = businessContext.languageFor(message, prior);
   const pack = getDomainPack(ctx.category.key, ctx.category.version);
   const route = businessContext.controlRoute(message, profile.config, prior, [], { courseCertificates: ctx.category.key === 'training_center' });
-  if (pack.guidedReply && route !== 'answer' && route !== 'certificate') {
+  if (pack.guidedReply && route !== 'answer' && route !== 'certificate' && !aiHandlesStaffRoute(profile, route)) {
     const db = await dbPool.getConnection();
     let facts;
     try { facts = await pack.loadFacts({ db, tenantId: ctx.tenant.id, platformOrigin: process.env.SALEMAX_PLATFORM_ORIGIN, config: profile.config }); } finally { db.release(); }
@@ -991,6 +1051,9 @@ async function previewMockupTurn({ uid, tenantId, chatId, channelKind, channelRe
   const capture = require('./chatbot-lead-capture');
   let facts;
   let lead;
+  let qualification = {};
+  let liveState = null;
+  let transcriptRows = [];
   let savedName;
   let referral;
   try {
@@ -1002,12 +1065,20 @@ async function previewMockupTurn({ uid, tenantId, chatId, channelKind, channelRe
         LEFT JOIN pipeline_contacts p ON p.uid_hash=l.uid_hash AND p.uid=l.uid AND p.id=l.contact_id
         WHERE c.uid_hash=? AND l.uid=? AND c.chat_id=? AND c.origin=? ORDER BY c.id DESC LIMIT 1`,
       [uidHash, uid, chatId, origin]);
-      if (!state?.mockupIntake?.nameConfirmed && !state?.mockupIntake?.replaceName) {
+      try { qualification = typeof lead?.qualification_data === 'string' ? JSON.parse(lead.qualification_data) : lead?.qualification_data || {}; } catch { qualification = {}; }
+      const savedIntake = qualification?.botCapture?.admissions || {};
+      if (!state?.mockupIntake?.nameConfirmed && !savedIntake.nameConfirmed && !savedIntake.replaceName) {
         const [[chat]] = await db.query(`SELECT sender_mobile FROM beta_chats WHERE uid=? AND chat_id=? AND origin=?
           AND (?<>'qr' OR origin_instance_unique_id=?) LIMIT 1`, [uid, chatId, origin, origin, channelRef]);
         const phone = require('../../helper/pipeline/leadPipeline').normalizePhone(chat?.sender_mobile);
         savedName = await capture.savedContactName(db, { uid, uidHash, category: ctx.tenant.categoryKey, phone, lead, checkByPhone: true });
       }
+      const [[session]] = await db.query(`SELECT state FROM sx_chatbot_guided_sessions
+        WHERE tenant_id=? AND profile_id=? AND channel_kind=? AND channel_ref=? AND conversation_id=?
+          AND expires_at>UTC_TIMESTAMP(3) LIMIT 1`, [tenantId, profile.id, channelKind, channelRef, chatId]);
+      try { liveState = typeof session?.state === 'string' ? JSON.parse(session.state) : session?.state || null; } catch { liveState = null; }
+      [transcriptRows] = await db.query(`SELECT route,msgContext FROM beta_conversation
+        WHERE uid=? AND chat_id=? AND origin=? AND route IN ('INCOMING','OUTGOING') ORDER BY id DESC LIMIT 12`, [uid, chatId, origin]);
     }
     if (businessContext.isGenericAdInterest(message)) {
       const [rows] = await db.query(`SELECT CASE WHEN JSON_VALID(m.msgContext) THEN JSON_EXTRACT(m.msgContext,'$.referral') END AS referral
@@ -1017,16 +1088,26 @@ async function previewMockupTurn({ uid, tenantId, chatId, channelKind, channelRe
       referral = typeof current === 'string' ? JSON.parse(current) : current;
     }
   } finally { db.release(); }
-  const prior = { ...state, language };
+  const qualifiedCourse = facts.find(item => !item.kind && item.code && [item.code, item.nameEn, item.nameAr]
+    .some(value => value && businessContext.normalized(value) === businessContext.normalized(qualification.courseInterest || '')));
+  const liveHistory = conversationHistoryFromRows(transcriptRows, message);
+  const sessionHistory = liveHistory.length ? liveHistory : Array.isArray(liveState?.recentConversation) ? liveState.recentConversation.slice(-8) : [];
+  const prior = {
+    ...(liveState || {}), ...(state || {}),
+    ...(qualifiedCourse ? { selectedCourseCode: qualifiedCourse.code } : {}),
+    ...(sessionHistory.length ? { recentConversation: sessionHistory } : {}),
+    mockupCourseInterest: qualification.courseInterest || qualifiedCourse?.nameEn || qualifiedCourse?.nameAr
+      || state?.mockupCourseInterest || liveState?.mockupCourseInterest || undefined,
+    language,
+  };
   const discovery = () => businessContext.trainingGreeting({ message, state: prior, facts, welcome:
     profile.config?.guidedContent?.messages?.greeting?.[language] || pack.guidedContentDefaults.messages.greeting[language] });
   if (businessContext.isTrainingGreeting(message)) return { revision, route: 'greeting', ...discovery() };
   const context = businessContext.retrieveContext({ facts, message, state: prior, referral });
   const course = facts.find(item => item.code === context.selectedCourseCode);
-  const qualification = typeof lead?.qualification_data === 'string' ? JSON.parse(lead.qualification_data) : lead?.qualification_data || {};
   const courseInterest = (course?.nameEn || course?.nameAr) || admissions.courseInterest(message)
     || prior.mockupCourseInterest || qualification.courseInterest || null;
-  const previousIntake = prior.mockupIntake || {};
+  const previousIntake = { ...(prior.mockupIntake || {}), ...(qualification?.botCapture?.admissions || {}) };
   const acknowledgement = admissions.acknowledgement(message, language);
   const name = acknowledgement ? null : capture.customerName(message,
     ['name', 'confirmName'].includes(previousIntake.waiting) && !context.explicitCourses);
@@ -1043,9 +1124,11 @@ async function previewMockupTurn({ uid, tenantId, chatId, channelKind, channelRe
   if (route === 'answer' && businessContext.shouldClarifyGenericCourseInterest(message, context, prior)) {
     return { revision, route: 'clarification', ...discovery() };
   }
-  const localReply = route === 'answer' && (acknowledgement || intake.answerOnly);
-  const repeat = route === 'answer' && !localReply && businessContext.repeatQuestion(message, context, state || {});
-  const guided = !localReply && (profile.engine === 'guided' || route !== 'answer' ||
+  const immediateStartNeedsReview = intake.start?.window === 'asap'
+    && !businessContext.hasPublishedSchedule(facts, context.selectedCourseCode || prior.selectedCourseCode || null);
+  const localReply = route === 'answer' && (acknowledgement || (intake.answerOnly && !immediateStartNeedsReview));
+  const repeat = route === 'answer' && !localReply && businessContext.repeatQuestion(message, context, prior);
+  const guided = !localReply && (profile.engine === 'guided' || (route !== 'answer' && !aiHandlesStaffRoute(profile, route)) ||
     acceptsRegistrationForm(prior, message) || businessContext.isBareCourseSelection(message, context) || profile.config.aiFallback === false);
   const opening = route === 'answer' && !localReply
     ? courseOpening.planOpening({ facts, message, context, state: prior, config: profile.config }) : null;
@@ -1075,7 +1158,11 @@ async function previewMockupTurn({ uid, tenantId, chatId, channelKind, channelRe
     return { revision, reason: 'AI_DATA_PROCESSING_ACK_REQUIRED' };
   } else {
     answer = await generateAiAnswer({ ctx, profile, customerMessage: message, state: prior, factsOverride: facts, referral,
-      admissionsIntake: true, intakeCourse: courseInterest, continuity: true });
+      admissionsIntake: true, intakeCourse: courseInterest,
+      admissionsProgress: { nameProvided: intake.state?.nameConfirmed === true,
+        nameConfirmationPending: intake.state?.waiting === 'confirmName',
+        preferredStart: intake.start?.detail || (intake.state?.startConfirmed ? admissions.savedStartLabel(qualification, language) : null) },
+      historyOverride: liveHistory, continuity: true, simulateStaffNotificationQueued: true });
   }
   const leadInfo = { language, courseInterest, intake: { ...intake, session: prior } };
   if (!acknowledgement) answer = admissions.planReply(answer, leadInfo);
@@ -1083,7 +1170,8 @@ async function previewMockupTurn({ uid, tenantId, chatId, channelKind, channelRe
   if (!answer.reply) return { revision, reason: 'MOCKUP_EMPTY_REPLY' };
   const next = { ...answer.state, greeted: true, mockupCourseInterest: courseInterest,
     mockupIntake: { ...intake.state, ...(intake.start ? { preferredStart: intake.start } : {}) } };
-  const question = (guided && !opening && !prior.greeted) || ((acknowledgement || repeat) && previousIntake.waiting)
+  const question = (answer.staffRequested || answer.staffNotificationQueued)
+    ? null : (guided && !opening && !prior.greeted) || ((acknowledgement || repeat) && previousIntake.waiting)
     ? null : { ...leadInfo, intake: { ...intake, session: next } };
   const standalone = capture.standaloneNamePrompt(question);
   const main = opening ? answer.reply : capture.addQuestion(answer.reply, question, profile.config, pack.guidedContentDefaults);
@@ -1244,4 +1332,5 @@ async function runConfiguredBot({ uid, message, user, sessionId, origin, chatId 
   }
 }
 
-module.exports = { canSendNow, handleHandoffPriorityMessage, runConfiguredBot, previewConfiguredBot, previewMockupTurn, resolveTenant, loadGuidedFlow, parseGuidedFlow, executionFlowId };
+module.exports = { canSendNow, handleHandoffPriorityMessage, runConfiguredBot, previewConfiguredBot, previewMockupTurn, resolveTenant, loadGuidedFlow, parseGuidedFlow, executionFlowId,
+  aiAvailableForProfile, aiHandlesStaffRoute, safeConversationalReply };

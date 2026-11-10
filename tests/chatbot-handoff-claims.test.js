@@ -3,11 +3,9 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const claims = require('../modules/platform/chatbot-handoff-claims');
 
-test('staff claim parser accepts clear English and Arabic availability replies and optional codes', () => {
-  assert.deepEqual(claims.parseYes(' YES '), { code: null });
-  assert.deepEqual(claims.parseYes('available'), { code: null });
+test('staff claim commands require an explicit handoff code so customer yes replies pass through to the bot', () => {
+  for (const text of ['YES', 'available', 'متاح', 'نعم']) assert.equal(claims.parseYes(text), null, text);
   assert.deepEqual(claims.parseYes('Yes ABC123'), { code: 'ABC123' });
-  assert.deepEqual(claims.parseYes('متاح'), { code: null });
   assert.deepEqual(claims.parseYes('نعم 12ab9f'), { code: '12AB9F' });
 });
 
@@ -57,7 +55,7 @@ test('concurrent eligible YES replies assign an open conversation exactly once',
       },
     };
   } };
-  const input = { ctx: { tenant: { id: 'tenant-id' } }, uid: 'owner-uid', message: { senderMobile: '97450000001' }, text: 'YES', channelKind: 'whatsapp_qr', channelRef: 'connected-qr', chatId: 'staff-chat' };
+  const input = { ctx: { tenant: { id: 'tenant-id' } }, uid: 'owner-uid', message: { senderMobile: '97450000001' }, text: 'YES ABC123', channelKind: 'whatsapp_qr', channelRef: 'connected-qr', chatId: 'staff-chat' };
   try {
     const outcomes = await Promise.all([claims.handleStaffClaim(pool, input), claims.handleStaffClaim(pool, input)]);
     assert.equal(state.assignments, 1);
