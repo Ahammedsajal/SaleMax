@@ -14,6 +14,7 @@ ROOT = Path('/opt/salemax')
 BASE = '/opt/salemax/releases/training-pipeline-correction-v3-9867ca72-20261104'
 ACTIVE_APP_OVERLAY = '/opt/salemax/releases/training-owner-report-c94b149fd307-20261110/compose.training-owner-report-app.json'
 WORKER_BASE_COMPOSE = '/opt/salemax/releases/business-summary-55b5f11-20261024/deploy/compose.yml'
+PREVIOUS_WORKER_OVERLAY = '/opt/salemax/releases/training-owner-report-7775551a04ab-20261110/compose.training-owner-report-worker.json'
 ACTIVE_WORKER_OVERLAY = '/opt/salemax/releases/training-owner-report-c94b149fd307-20261110/compose.training-owner-report-worker.json'
 PRIOR_VARS = ROOT / 'shared/rollback-private-inventory-84644fdfebee/compose-manual-vars.json'
 APP = 'salemax-app-1'
@@ -128,7 +129,7 @@ def validate_baseline(app, worker, app_meta, worker_meta):
         raise RuntimeError('Active report worker state or image differs from reviewed baseline')
     if app_meta['files'][-1] != ACTIVE_APP_OVERLAY:
         raise RuntimeError('Active app overlay differs from reviewed baseline')
-    if worker_meta['files'] != [WORKER_BASE_COMPOSE, ACTIVE_WORKER_OVERLAY]:
+    if worker_meta['files'] != [WORKER_BASE_COMPOSE, PREVIOUS_WORKER_OVERLAY, ACTIVE_WORKER_OVERLAY]:
         raise RuntimeError('Active report worker Compose chain differs from reviewed baseline')
 
 def make_mounts(release, names):
