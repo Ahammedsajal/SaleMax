@@ -91,8 +91,8 @@ async function enqueueDue(db, tenantId) {
     FROM sx_chatbot_followup_previews p
     WHERE p.tenant_id=? AND p.source IN ('reviewed','scheduled') AND p.status='ready'
       AND p.day_two_at IS NOT NULL AND p.day_two_at<=UTC_TIMESTAMP(3)
-    ON DUPLICATE KEY UPDATE due_at=IF(status='queued',VALUES(due_at),due_at),
-      updated_at=IF(status='queued',UTC_TIMESTAMP(3),updated_at)`, [tenantId]);
+    ON DUPLICATE KEY UPDATE due_at=IF(sx_chatbot_followup_deliveries.status='queued',VALUES(due_at),sx_chatbot_followup_deliveries.due_at),
+      updated_at=IF(sx_chatbot_followup_deliveries.status='queued',UTC_TIMESTAMP(3),sx_chatbot_followup_deliveries.updated_at)`, [tenantId]);
 
   await db.query(`INSERT INTO sx_chatbot_followup_deliveries
     (tenant_id,lead_id,step,due_at,status)
@@ -102,8 +102,8 @@ async function enqueueDue(db, tenantId) {
       AND d2.step='day2' AND d2.status='sent'
     WHERE p.tenant_id=? AND p.source IN ('reviewed','scheduled') AND p.status='ready'
       AND p.day_seven_at IS NOT NULL AND p.last_customer_at<=d2.sent_at
-    ON DUPLICATE KEY UPDATE due_at=IF(status='queued',VALUES(due_at),due_at),
-      updated_at=IF(status='queued',UTC_TIMESTAMP(3),updated_at)`, [tenantId]);
+    ON DUPLICATE KEY UPDATE due_at=IF(sx_chatbot_followup_deliveries.status='queued',VALUES(due_at),sx_chatbot_followup_deliveries.due_at),
+      updated_at=IF(sx_chatbot_followup_deliveries.status='queued',UTC_TIMESTAMP(3),sx_chatbot_followup_deliveries.updated_at)`, [tenantId]);
 
   await db.query(`UPDATE sx_chatbot_followup_deliveries d
     JOIN sx_chatbot_followup_previews p ON p.tenant_id=d.tenant_id AND p.lead_id=d.lead_id
