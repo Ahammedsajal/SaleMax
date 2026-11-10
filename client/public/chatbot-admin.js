@@ -233,8 +233,8 @@
         border-radius:10px;background:var(--mock-surface);padding:0
       }
       #sx-live-reply-mockup .sx-mockup-icon:hover,#sx-live-reply-mockup .sx-mockup-more:hover{background:var(--mock-tint)}
-      #sx-live-reply-mockup .sx-mockup-layout{display:grid;grid-template-columns:clamp(260px,29%,340px) minmax(0,1fr);min-height:0}
-      #sx-live-reply-mockup .sx-mockup-list-pane{display:grid;grid-template-rows:auto minmax(0,1fr);min-width:0;border-inline-end:1px solid var(--mock-line)}
+      #sx-live-reply-mockup .sx-mockup-layout{display:grid;grid-template-columns:clamp(260px,29%,340px) minmax(0,1fr);grid-template-rows:minmax(0,1fr);min-height:0}
+      #sx-live-reply-mockup .sx-mockup-list-pane{display:grid;grid-template-rows:auto minmax(0,1fr);min-width:0;min-height:0;border-inline-end:1px solid var(--mock-line)}
       #sx-live-reply-mockup .sx-mockup-tools{padding:14px 14px 11px;border-bottom:1px solid var(--mock-line)}
       #sx-live-reply-mockup .sx-mockup-search-row{display:flex;gap:8px;margin-top:9px}
       #sx-live-reply-mockup .sx-mockup-search{
@@ -244,6 +244,7 @@
       #sx-live-reply-mockup .sx-mockup-search input{width:100%;min-width:0;height:42px;border:0;background:transparent}
       #sx-live-reply-mockup .sx-mockup-search input::placeholder{color:var(--mock-muted)}
       #sx-live-reply-mockup .sx-mockup-list,#sx-live-reply-mockup .sx-mockup-history{min-width:0;min-height:0;overflow:auto;overscroll-behavior:contain}
+      #sx-live-reply-mockup :is(.sx-mockup-list,.sx-mockup-history):focus-visible{outline:2px solid var(--mock-accent);outline-offset:-2px}
       #sx-live-reply-mockup .sx-mockup-contact{
         display:grid;grid-template-columns:40px minmax(0,1fr);align-items:center;gap:10px;width:100%;text-align:start;
         padding:12px 12px;border:0;border-inline-start:3px solid transparent;border-block-end:1px solid var(--mock-line);background:var(--mock-surface)
@@ -334,7 +335,7 @@
               ${button('refresh','refresh',tr('Refresh conversations','تحديث المحادثات'))}
             </div>
           </div>
-          <div class="sx-mockup-list"><div data-mockup-list aria-live="polite"></div><button class="sx-mockup-more" type="button" data-mockup-more hidden>${esc(tr('Older conversations','محادثات أقدم'))}</button></div>
+          <div class="sx-mockup-list" tabindex="0" role="region" aria-label="${esc(tr('Conversation list','قائمة المحادثات'))}"><div data-mockup-list aria-live="polite"></div><button class="sx-mockup-more" type="button" data-mockup-more hidden>${esc(tr('Older conversations','محادثات أقدم'))}</button></div>
         </section>
         <section class="sx-mockup-thread-pane" aria-label="${esc(tr('Draft conversation','مسودات المحادثة'))}">
           <header class="sx-mockup-thread-head">
@@ -346,7 +347,7 @@
             </div>
             ${button('thread-refresh','refresh',tr('Refresh drafts','تحديث المسودات'),'hidden')}
           </header>
-          <div class="sx-mockup-history"><button class="sx-mockup-more" type="button" data-mockup-older hidden>${esc(tr('Older messages','رسائل أقدم'))}</button>
+          <div class="sx-mockup-history" tabindex="0" role="region" aria-label="${esc(tr('Message history','سجل الرسائل'))}"><button class="sx-mockup-more" type="button" data-mockup-older hidden>${esc(tr('Older messages','رسائل أقدم'))}</button>
             <div class="sx-mockup-thread-items" data-mockup-thread aria-live="polite"></div>
           </div>
           <div class="sx-mockup-footer sx-mockup-muted">${icon('lock')}<span>${esc(tr('Private drafts. Staff reply in Inbox.','مسودات خاصة. يرد الموظفون من صندوق الوارد.'))}</span></div>
@@ -359,6 +360,18 @@
     const list = element('list');
     const thread = element('thread');
     const history = thread.parentElement;
+    for (const pane of [list.parentElement, history]) {
+      pane.addEventListener('keydown', event => {
+        if (event.target !== pane || event.altKey || event.ctrlKey || event.metaKey) return;
+        const distances = {
+          ArrowUp: -40, ArrowDown: 40, PageUp: -pane.clientHeight, PageDown: pane.clientHeight,
+          Home: -pane.scrollHeight, End: pane.scrollHeight,
+        };
+        if (!Object.hasOwn(distances, event.key)) return;
+        event.preventDefault();
+        pane.scrollTop += distances[event.key];
+      });
+    }
     const search = dialog.querySelector('input[type=search]');
     const more = element('more');
     const older = element('older');

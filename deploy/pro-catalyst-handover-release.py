@@ -19,6 +19,7 @@ REPLACED_FILES = {
 }
 SCOPE_ENV = 'SALEMAX_CHATBOT_ONE_HOUR_HANDOFF_TENANT_ID'
 SLUG = 'pro-catalyst-handover'
+RELEASE_DATE = '20261109'
 NEW_FILES = ()
 ADD_SCOPE = True
 LIVE_SOURCE_EDITS = {}
@@ -203,6 +204,22 @@ def configure_test_replies():
     ADD_SCOPE = False
 
 
+def configure_mockup_scroll():
+    global ACTIVE_OVERLAY, REPLACED_FILES, SCOPE_ENV, SLUG, RELEASE_DATE, ADD_SCOPE, LIVE_SOURCE_EDITS
+    ACTIVE_OVERLAY = '/opt/salemax/releases/pro-catalyst-test-replies-029e6def676a-20261109/compose.pro-catalyst-test-replies.json'
+    REPLACED_FILES = {
+        'client/public/chatbot-admin.js': '969ef4785181b1d2a02abe7ae7124a5b6f83b365f1fe4d94a2369ed5a3be15ad',
+        'client/public/training-sidebar.js': 'f45331670dc5e0b64098d84152172d5a0e72f6233b95ca18a0a8e5f4e7ada66b',
+    }
+    LIVE_SOURCE_EDITS = {
+        'client/public/training-sidebar.js': (b'/chatbot-admin.js?v=20261109-test-replies1', b'/chatbot-admin.js?v=20261110-mockup-scroll1'),
+    }
+    SCOPE_ENV = 'SALEMAX_CHATBOT_MOCKUP_TENANT_ID'
+    SLUG = 'pro-catalyst-mockup-scroll'
+    RELEASE_DATE = '20261110'
+    ADD_SCOPE = False
+
+
 def apply_mockup_migration(source):
     script = """const fs = require('node:fs');
     const crypto = require('node:crypto');
@@ -293,8 +310,8 @@ def deploy(stage, commit):
     if not env_files or not all(Path(p).is_file() for p in files + env_files):
         raise RuntimeError('Active Compose inputs are incomplete')
 
-    release = ROOT / 'releases' / f'{SLUG}-{commit[:12]}-20261109'
-    backup = ROOT / 'shared' / f'rollback-{SLUG}-{commit[:12]}-20261109'
+    release = ROOT / 'releases' / f'{SLUG}-{commit[:12]}-{RELEASE_DATE}'
+    backup = ROOT / 'shared' / f'rollback-{SLUG}-{commit[:12]}-{RELEASE_DATE}'
     if release.exists() or backup.exists():
         raise RuntimeError('Release or rollback path already exists')
     release.mkdir(mode=0o755)
@@ -515,7 +532,7 @@ def reset(backup):
 
 
 if __name__ == '__main__':
-    if len(sys.argv) == 4 and sys.argv[1] in ('deploy', 'deploy-admissions', 'deploy-name-question', 'deploy-knowledge', 'deploy-mockup', 'deploy-mockup-inbox', 'deploy-lead-report-period', 'deploy-followup-preview', 'deploy-followup-chat-link', 'deploy-ad-aware-followups', 'deploy-ad-overview', 'deploy-test-replies'):
+    if len(sys.argv) == 4 and sys.argv[1] in ('deploy', 'deploy-admissions', 'deploy-name-question', 'deploy-knowledge', 'deploy-mockup', 'deploy-mockup-inbox', 'deploy-lead-report-period', 'deploy-followup-preview', 'deploy-followup-chat-link', 'deploy-ad-aware-followups', 'deploy-ad-overview', 'deploy-test-replies', 'deploy-mockup-scroll'):
         if sys.argv[1] == 'deploy-admissions':
             configure_admissions()
         elif sys.argv[1] == 'deploy-name-question':
@@ -538,10 +555,12 @@ if __name__ == '__main__':
             configure_ad_overview()
         elif sys.argv[1] == 'deploy-test-replies':
             configure_test_replies()
+        elif sys.argv[1] == 'deploy-mockup-scroll':
+            configure_mockup_scroll()
         deploy(Path(sys.argv[2]), sys.argv[3])
     elif len(sys.argv) == 3 and sys.argv[1] == 'reset':
         reset(Path(sys.argv[2]))
-    elif len(sys.argv) == 3 and sys.argv[1] in ('restore', 'restore-admissions', 'restore-name-question', 'restore-knowledge', 'restore-mockup', 'restore-mockup-inbox', 'restore-lead-report-period', 'restore-followup-preview', 'restore-followup-chat-link', 'restore-ad-aware-followups', 'restore-ad-overview', 'restore-test-replies'):
+    elif len(sys.argv) == 3 and sys.argv[1] in ('restore', 'restore-admissions', 'restore-name-question', 'restore-knowledge', 'restore-mockup', 'restore-mockup-inbox', 'restore-lead-report-period', 'restore-followup-preview', 'restore-followup-chat-link', 'restore-ad-aware-followups', 'restore-ad-overview', 'restore-test-replies', 'restore-mockup-scroll'):
         if sys.argv[1] == 'restore-admissions':
             configure_admissions()
         elif sys.argv[1] == 'restore-name-question':
@@ -564,6 +583,8 @@ if __name__ == '__main__':
             configure_ad_overview()
         elif sys.argv[1] == 'restore-test-replies':
             configure_test_replies()
+        elif sys.argv[1] == 'restore-mockup-scroll':
+            configure_mockup_scroll()
         restore(Path(sys.argv[2]))
     else:
-        raise SystemExit('Usage: pro-catalyst-handover-release.py deploy[-admissions|-name-question|-knowledge|-mockup|-mockup-inbox|-lead-report-period|-followup-preview|-followup-chat-link|-ad-aware-followups|-ad-overview|-test-replies] <stage> <commit> | reset <backup> | restore[-admissions|-name-question|-knowledge|-mockup|-mockup-inbox|-lead-report-period|-followup-preview|-followup-chat-link|-ad-aware-followups|-ad-overview|-test-replies] <backup>')
+        raise SystemExit('Usage: pro-catalyst-handover-release.py deploy[-admissions|-name-question|-knowledge|-mockup|-mockup-inbox|-lead-report-period|-followup-preview|-followup-chat-link|-ad-aware-followups|-ad-overview|-test-replies|-mockup-scroll] <stage> <commit> | reset <backup> | restore[-admissions|-name-question|-knowledge|-mockup|-mockup-inbox|-lead-report-period|-followup-preview|-followup-chat-link|-ad-aware-followups|-ad-overview|-test-replies|-mockup-scroll] <backup>')
