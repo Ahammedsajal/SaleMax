@@ -1,8 +1,11 @@
 'use strict';
 const test=require('node:test');
 const assert=require('node:assert/strict');
+const crypto=require('node:crypto');
 const schedules=require('../modules/platform/training-report-schedules');
 const runner=require('../modules/platform/training-report-runner');
+const reports=require('../helper/pipeline/reports');
+const plans=require('../modules/platform/plans');
 const {trainingCenter}=require('../modules/platform/categories');
 const base={period:'daily',timezone:'Asia/Qatar',localTime:'20:00',emailEnabled:true,emailDestination:'owner@example.qa',whatsappEnabled:true,whatsappDestination:'+97455123456'};
 function context(overrides={}){return {audience:'tenant',identity:{id:'identity-a'},tenant:{id:'tenant-a',status:'active',categoryKey:'training_center',categoryVersion:1},membership:{id:'member-a',tenantId:'tenant-a',role:'owner',status:'active',delegatedPermissions:[]},category:trainingCenter,subscription:{status:'active',capabilities:['reports.read','reports.schedule']},...overrides};}
@@ -36,6 +39,26 @@ test('scheduled snapshots use the intended completed period and local cutoff',()
   const midnight=runner.windowFor({period:'daily',timezone:'Asia/Qatar',scheduledAt:'2026-10-02 21:00:00.000'});
   assert.deepEqual(midnight,{period:'daily',timezone:'Asia/Qatar',date:'2026-10-02',start:'2026-10-01 21:00:00.000',end:'2026-10-02 21:00:00.000',cutoffAt:'2026-10-02 21:00:00.000'});
   assert.equal(runner.nextRunAfter({period:'daily',timezone:'Asia/Qatar',localTime:'19:30'},'2026-10-01 16:30:00.000'),'2026-10-02 16:30:00.000');
+});
+test('weekly snapshots include the current owner follow-up summary',async()=>{
+  const original={getActivityReport:reports.getActivityReport,getJourneyReport:reports.getJourneyReport,getLeadReportSummary:reports.getLeadReportSummary,loadEntitlements:plans.loadEntitlements};
+  const uid='synthetic-owner',tenantId='tenant-a',current={today:2,live:8,unattended:3,unassigned:1,hotLeadsNoFollowUp:1,firstContact:{count:4,averageMinutes:12.5},leadAge:{underOneDay:1,oneToThreeDays:2,fourToSevenDays:3,overSevenDays:2}};
+  reports.getActivityReport=async()=>({from:'2026-11-01 21:00:00.000',to:'2026-11-08 21:00:00.000',cutoffAt:'2026-11-09 05:00:00.000',total:5,summary:{leadsCreated:5,followUpsDue:1,followUpsOverdue:1},finance:null});
+  reports.getJourneyReport=async()=>({summary:{salesConverted:1},sources:[],stages:[],agents:[],cohortFunnel:{newLeads:5,attended:3,interested:2,applications:1,salesConverted:1,invoicesIssued:0,paymentReceived:0},learnerJourney:{},journeyActivity:{}});
+  reports.getLeadReportSummary=async()=>({current,agents:[],businessUsers:[]});
+  plans.loadEntitlements=async()=>({status:'active',capabilities:['reports.read','reports.schedule']});
+  const connection={release(){},async query(sql){
+    if(sql.includes('FROM sx_tenants WHERE id=?'))return [[{id:tenantId,status:'active',category_key:'training_center',category_version:1}]];
+    if(sql.includes('FROM sx_legacy_ownership o'))return [[{uid,legacy_uid_hash:crypto.createHash('sha256').update(uid).digest('hex')}]];
+    if(sql.includes('FROM sx_training_batches'))return [[]];
+    throw new Error(`Unexpected weekly snapshot query: ${sql}`);
+  }};
+  try{
+    const snapshot=await runner.buildSnapshot({async getConnection(){return connection;}},{tenant_id:tenantId,period:'weekly',timezone:'Asia/Qatar',cutoff_at:'2026-11-09 05:00:00.000',schedule_revision:1,metric_definition_version:2,revision:1});
+    assert.deepEqual(snapshot.current,current);assert.equal(snapshot.customerDetailsIncluded,false);assert.ok(snapshot.actionItems.some(item=>item.key==='hot_leads_no_followup_3d'&&item.count===1));
+  }finally{
+    reports.getActivityReport=original.getActivityReport;reports.getJourneyReport=original.getJourneyReport;reports.getLeadReportSummary=original.getLeadReportSummary;plans.loadEntitlements=original.loadEntitlements;
+  }
 });
 test('daily report cutoffs must stay inside the selected Qatar-local calendar day',()=>{
   const reports=require('../helper/pipeline/reports');

@@ -12,11 +12,12 @@ import time
 
 ROOT = Path('/opt/salemax')
 BASE = '/opt/salemax/releases/training-pipeline-correction-v3-9867ca72-20261104'
-ACTIVE_APP_OVERLAY = '/opt/salemax/releases/training-owner-report-40f4a65eae66-20261110/compose.training-owner-report-app.json'
+ACTIVE_APP_OVERLAY = '/opt/salemax/releases/training-owner-report-695a6dde6fe4-20261110/compose.training-owner-report-app.json'
 WORKER_BASE_COMPOSE = '/opt/salemax/releases/business-summary-55b5f11-20261024/deploy/compose.yml'
 PREVIOUS_WORKER_OVERLAY = '/opt/salemax/releases/training-owner-report-7775551a04ab-20261110/compose.training-owner-report-worker.json'
 PREVIOUS_REPORT_WORKER_OVERLAY = '/opt/salemax/releases/training-owner-report-c94b149fd307-20261110/compose.training-owner-report-worker.json'
-ACTIVE_WORKER_OVERLAY = '/opt/salemax/releases/training-owner-report-40f4a65eae66-20261110/compose.training-owner-report-worker.json'
+PRIOR_REPORT_WORKER_OVERLAY = '/opt/salemax/releases/training-owner-report-40f4a65eae66-20261110/compose.training-owner-report-worker.json'
+ACTIVE_WORKER_OVERLAY = '/opt/salemax/releases/training-owner-report-695a6dde6fe4-20261110/compose.training-owner-report-worker.json'
 PRIOR_VARS = ROOT / 'shared/rollback-private-inventory-84644fdfebee/compose-manual-vars.json'
 APP = 'salemax-app-1'
 WORKER = 'salemax-report-worker-1'
@@ -24,25 +25,25 @@ SUPPORT = ('salemax-db-1', 'salemax-libretranslate-1', 'salemax-recruitment-foun
 EXPECTED_IMAGES = {APP: 'salemax-app:openai-ads-lead-01fde9e1-20261103', WORKER: 'salemax-app:business-summary-55b5f11-20261024'}
 APP_FILES = {
     'helper/pipeline/reports.js': '26a27d6d5c158a0104551d2431cdb012ee262ace98c90bf1b9b94b2c40b6dc5d',
-    'modules/platform/training-report-runner.js': '13b7bf6e04eca0f9312030bb273e305bf3b37a1f8d4cc0b7c6ecf6f34f46b389',
+    'modules/platform/training-report-runner.js': 'a90ccd235becccabb48da9b4c1adf58d66aa85a97f156823d4a55201b840ff2e',
     'modules/platform/training-report-delivery-worker.js': 'd1d786f9c008ed6725bc54bb08c2497a59db2187cd986819c8c824ad268cae9b',
     'client/public/pipeline/reports.js': 'da2eaee6c3a96794fd3e12054fddd074a34f99985d6a1893bed5f91588aeb97a',
     'client/public/pipeline/index.html': 'cddb158d1b061bc75c3a7acd71132e50f69211fa8e65c288a602c310c5acd8bf',
 }
 WORKER_FILES = {
     'helper/pipeline/reports.js': '26a27d6d5c158a0104551d2431cdb012ee262ace98c90bf1b9b94b2c40b6dc5d',
-    'modules/platform/training-report-runner.js': '13b7bf6e04eca0f9312030bb273e305bf3b37a1f8d4cc0b7c6ecf6f34f46b389',
+    'modules/platform/training-report-runner.js': 'a90ccd235becccabb48da9b4c1adf58d66aa85a97f156823d4a55201b840ff2e',
     'modules/platform/training-report-delivery-worker.js': 'd1d786f9c008ed6725bc54bb08c2497a59db2187cd986819c8c824ad268cae9b',
 }
 APP_PREIMAGES = {
-    'helper/pipeline/reports.js': '0b40c413fa948125f6ea1dcc2094ee3ab5b04630f4d0ba802c8bbe6ac00d0552',
+    'helper/pipeline/reports.js': '26a27d6d5c158a0104551d2431cdb012ee262ace98c90bf1b9b94b2c40b6dc5d',
     'modules/platform/training-report-runner.js': '13b7bf6e04eca0f9312030bb273e305bf3b37a1f8d4cc0b7c6ecf6f34f46b389',
     'modules/platform/training-report-delivery-worker.js': 'd1d786f9c008ed6725bc54bb08c2497a59db2187cd986819c8c824ad268cae9b',
     'client/public/pipeline/reports.js': 'da2eaee6c3a96794fd3e12054fddd074a34f99985d6a1893bed5f91588aeb97a',
     'client/public/pipeline/index.html': 'cddb158d1b061bc75c3a7acd71132e50f69211fa8e65c288a602c310c5acd8bf',
 }
 WORKER_PREIMAGES = {
-    'helper/pipeline/reports.js': '0b40c413fa948125f6ea1dcc2094ee3ab5b04630f4d0ba802c8bbe6ac00d0552',
+    'helper/pipeline/reports.js': '26a27d6d5c158a0104551d2431cdb012ee262ace98c90bf1b9b94b2c40b6dc5d',
     'modules/platform/training-report-runner.js': '13b7bf6e04eca0f9312030bb273e305bf3b37a1f8d4cc0b7c6ecf6f34f46b389',
     'modules/platform/training-report-delivery-worker.js': 'd1d786f9c008ed6725bc54bb08c2497a59db2187cd986819c8c824ad268cae9b',
 }
@@ -130,7 +131,7 @@ def validate_baseline(app, worker, app_meta, worker_meta):
         raise RuntimeError('Active report worker state or image differs from reviewed baseline')
     if app_meta['files'][-1] != ACTIVE_APP_OVERLAY:
         raise RuntimeError('Active app overlay differs from reviewed baseline')
-    if worker_meta['files'] != [WORKER_BASE_COMPOSE, PREVIOUS_WORKER_OVERLAY, PREVIOUS_REPORT_WORKER_OVERLAY, ACTIVE_WORKER_OVERLAY]:
+    if worker_meta['files'] != [WORKER_BASE_COMPOSE, PREVIOUS_WORKER_OVERLAY, PREVIOUS_REPORT_WORKER_OVERLAY, PRIOR_REPORT_WORKER_OVERLAY, ACTIVE_WORKER_OVERLAY]:
         raise RuntimeError('Active report worker Compose chain differs from reviewed baseline')
 
 def make_mounts(release, names):

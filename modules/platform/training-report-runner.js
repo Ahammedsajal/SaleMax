@@ -96,7 +96,7 @@ async function buildSnapshot(pool,run){
     const priorJourney=await reports.getJourneyReport({pool,uid:ownerUid,role:'owner',period:run.period,at:date,timezone:run.timezone});
     comparisons[key]={from:prior.from,to:prior.to,activityCount:prior.total,summary:prior.summary,finance:prior.finance||null,journey:{summary:priorJourney.summary,cohortFunnel:priorJourney.cohortFunnel}};
   }
-  const summary=report.summary||{},finance=report.finance||null;
+  const summary=report.summary||{},finance=report.finance||null,current=live.current||{};
   const liveAgentMap=new Map((live.agents||[]).map(agent=>[Number(agent.agentId),agent]));
   const agentSummary=(journey.agents||[]).map(agent=>({...agent,unattendedLeads:Number(liveAgentMap.get(Number(agent.agentId))?.unattendedLeads||0),hotLeadsNoFollowUp:Number(liveAgentMap.get(Number(agent.agentId))?.hotLeadsNoFollowUp||0)}));
   let dashboardFinance=null;
