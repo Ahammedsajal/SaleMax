@@ -220,6 +220,25 @@ def configure_mockup_scroll():
     ADD_SCOPE = False
 
 
+def configure_course_certification():
+    global ACTIVE_OVERLAY, REPLACED_FILES, SCOPE_ENV, SLUG, RELEASE_DATE, ADD_SCOPE, LIVE_SOURCE_EDITS
+    ACTIVE_OVERLAY = '/opt/salemax/releases/pro-catalyst-mockup-scroll-af2216c33db4-20261110/compose.pro-catalyst-mockup-scroll.json'
+    REPLACED_FILES = {
+        'client/public/index.html': '945c9a9b7ff09a7e5ca0b0110af5c2feb6ed155dbef0b2edfc31c93bc5c550c5',
+        'client/public/training-courses.js': '511e8e4419b5e2cc24b30c02298c5bb4580322be9e6853235fb9fa44375f73d1',
+        'modules/platform/chatbot-business-context.js': '31816df4151badc1412ecfb4686a9257afcd43567a7bd729959fdea00a9e755c',
+        'modules/platform/chatbot-lead-capture.js': 'ad572f33566478d081cee52373175628be79b8b6eca990396452dc2ffc10e026',
+        'modules/platform/chatbot-runtime.js': '96df24b364d5367c7b6205b04c9dc3f29f1c88b93d1ba22686e5f28c52415616',
+    }
+    LIVE_SOURCE_EDITS = {
+        'client/public/index.html': (b'/training-courses.js?v=20261107-retail-catalogue1', b'/training-courses.js?v=20261110-course-certification1'),
+    }
+    SCOPE_ENV = 'SALEMAX_CHATBOT_MOCKUP_TENANT_ID'
+    SLUG = 'course-certification'
+    RELEASE_DATE = '20261110'
+    ADD_SCOPE = False
+
+
 def apply_mockup_migration(source):
     script = """const fs = require('node:fs');
     const crypto = require('node:crypto');
@@ -532,7 +551,7 @@ def reset(backup):
 
 
 if __name__ == '__main__':
-    if len(sys.argv) == 4 and sys.argv[1] in ('deploy', 'deploy-admissions', 'deploy-name-question', 'deploy-knowledge', 'deploy-mockup', 'deploy-mockup-inbox', 'deploy-lead-report-period', 'deploy-followup-preview', 'deploy-followup-chat-link', 'deploy-ad-aware-followups', 'deploy-ad-overview', 'deploy-test-replies', 'deploy-mockup-scroll'):
+    if len(sys.argv) == 4 and sys.argv[1] in ('deploy', 'deploy-admissions', 'deploy-name-question', 'deploy-knowledge', 'deploy-mockup', 'deploy-mockup-inbox', 'deploy-lead-report-period', 'deploy-followup-preview', 'deploy-followup-chat-link', 'deploy-ad-aware-followups', 'deploy-ad-overview', 'deploy-test-replies', 'deploy-mockup-scroll', 'deploy-course-certification'):
         if sys.argv[1] == 'deploy-admissions':
             configure_admissions()
         elif sys.argv[1] == 'deploy-name-question':
@@ -557,10 +576,12 @@ if __name__ == '__main__':
             configure_test_replies()
         elif sys.argv[1] == 'deploy-mockup-scroll':
             configure_mockup_scroll()
+        elif sys.argv[1] == 'deploy-course-certification':
+            configure_course_certification()
         deploy(Path(sys.argv[2]), sys.argv[3])
     elif len(sys.argv) == 3 and sys.argv[1] == 'reset':
         reset(Path(sys.argv[2]))
-    elif len(sys.argv) == 3 and sys.argv[1] in ('restore', 'restore-admissions', 'restore-name-question', 'restore-knowledge', 'restore-mockup', 'restore-mockup-inbox', 'restore-lead-report-period', 'restore-followup-preview', 'restore-followup-chat-link', 'restore-ad-aware-followups', 'restore-ad-overview', 'restore-test-replies', 'restore-mockup-scroll'):
+    elif len(sys.argv) == 3 and sys.argv[1] in ('restore', 'restore-admissions', 'restore-name-question', 'restore-knowledge', 'restore-mockup', 'restore-mockup-inbox', 'restore-lead-report-period', 'restore-followup-preview', 'restore-followup-chat-link', 'restore-ad-aware-followups', 'restore-ad-overview', 'restore-test-replies', 'restore-mockup-scroll', 'restore-course-certification'):
         if sys.argv[1] == 'restore-admissions':
             configure_admissions()
         elif sys.argv[1] == 'restore-name-question':
@@ -585,6 +606,8 @@ if __name__ == '__main__':
             configure_test_replies()
         elif sys.argv[1] == 'restore-mockup-scroll':
             configure_mockup_scroll()
+        elif sys.argv[1] == 'restore-course-certification':
+            configure_course_certification()
         restore(Path(sys.argv[2]))
     else:
-        raise SystemExit('Usage: pro-catalyst-handover-release.py deploy[-admissions|-name-question|-knowledge|-mockup|-mockup-inbox|-lead-report-period|-followup-preview|-followup-chat-link|-ad-aware-followups|-ad-overview|-test-replies|-mockup-scroll] <stage> <commit> | reset <backup> | restore[-admissions|-name-question|-knowledge|-mockup|-mockup-inbox|-lead-report-period|-followup-preview|-followup-chat-link|-ad-aware-followups|-ad-overview|-test-replies|-mockup-scroll] <backup>')
+        raise SystemExit('Usage: pro-catalyst-handover-release.py deploy[-admissions|-name-question|-knowledge|-mockup|-mockup-inbox|-lead-report-period|-followup-preview|-followup-chat-link|-ad-aware-followups|-ad-overview|-test-replies|-mockup-scroll|-course-certification] <stage> <commit> | reset <backup> | restore[-admissions|-name-question|-knowledge|-mockup|-mockup-inbox|-lead-report-period|-followup-preview|-followup-chat-link|-ad-aware-followups|-ad-overview|-test-replies|-mockup-scroll|-course-certification] <backup>')

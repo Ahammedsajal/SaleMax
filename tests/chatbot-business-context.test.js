@@ -342,3 +342,34 @@ test('repeat fee and duration questions use fresh phrasing with the same publish
  const length = 'How long is it?';
  assert.equal(repeatedCourseFact(repeatQuestion(length, contextFor(length), state), contextFor(length)).reply, 'It runs for 8 weeks.');
 });
+
+test('attestation questions ask for the course and use only that course’s saved certificate details', () => {
+ const { courseCertificateReply, certificateFollowUp } = require('../modules/platform/chatbot-business-context');
+ const catalogue = [
+  { ...facts[0], certificateDetailsEn: 'Completion certificate issued by Northstar Academy and attested by Qatar Chamber.',
+   certificateDetailsAr: 'شهادة إتمام صادرة عن أكاديمية نورث ستار.' },
+  { ...facts[1], nameEn: 'Certificate in Excel Essentials' },
+ ];
+ const config = {}, options = { courseCertificates: true };
+ const question = 'Also do you give attested certificates (from ministry of Qatar)?';
+ const contextFor = (message, state = {}) => retrieveContext({ facts: catalogue, message, state });
+ assert.equal(controlRoute(question, config, {}, catalogue, options), 'certificate');
+ assert.equal(require('../modules/platform/chatbot-lead-capture').customerName('Attested certificates', true), null);
+ assert.equal(contextFor(question).selectedCourseCode, null);
+ assert.match(courseCertificateReply(question, contextFor(question)).reply, /Which course/);
+ assert.equal(controlRoute('I have not received my certificate', config, {}, catalogue, options), 'handoff');
+ assert.equal(controlRoute('What is the fee for Certificate in Excel Essentials?', config, {}, catalogue, options), 'answer');
+ assert.equal(certificateFollowUp('Business English', contextFor('Business English'), { pendingCertificateQuestion: question }), true);
+ assert.equal(certificateFollowUp('What is the fee for Business English?', contextFor('What is the fee for Business English?'), { pendingCertificateQuestion: question }), false);
+ assert.equal(contextFor(question, { selectedCourseCode: 'ENG' }).selectedCourseCode, 'ENG');
+ const verified = courseCertificateReply(question, contextFor('Business English'));
+ assert.match(verified.reply, /attested by Qatar Chamber/);
+ assert.match(verified.reply, /Admissions can confirm/);
+ assert.doesNotMatch(verified.reply, /ministry/i);
+ const unverified = courseCertificateReply(question, contextFor('Certificate in Excel Essentials'));
+ assert.equal(unverified.reason, 'CERTIFICATE_DETAILS_UNVERIFIED');
+ assert.match(unverified.reply, /Certificate in Excel Essentials/);
+ const arabic = 'هل الشهادة مصدقة من الوزارة؟';
+ assert.equal(controlRoute(arabic, config, {}, catalogue, options), 'certificate');
+ assert.match(courseCertificateReply(arabic, contextFor(arabic, { selectedCourseCode: 'ENG' })).reply, /شهادة إتمام/);
+});

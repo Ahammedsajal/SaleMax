@@ -6,7 +6,7 @@ const { keywordReply } = require('./chatbot-keyword-replies');
 const { findApprovedFaq, keywords: faqKeywords } = require('./chatbot-faq');
 
 const normalized = value => normalizeDigits(value).toLowerCase().normalize('NFKC').replace(/[أإآ]/g, 'ا').replace(/ى/g, 'ي').replace(/[^\p{L}\p{N}]+/gu, ' ').trim();
-const STOP_WORDS = new Set('the for your our are can you what how want would like tell about course courses training please help certificate certification professional class classes session sessions شهادة الشهادة شهادات احترافي اريد دورة الدورات التدريب ماهي ممكن لو سمحت'.split(' '));
+const STOP_WORDS = new Set('the for your our are can you what how want would like tell about course courses training please help certificate certification professional class classes session sessions certificates certifications accreditation accredited attestation attested certified شهادة الشهادة شهادات الشهادات اعتماد معتمدة تصديق مصدقة احترافي اريد دورة الدورات التدريب ماهي ممكن لو سمحت'.split(' '));
 const tokens = value => normalized(value).split(' ').filter(word => word.length > 2 && !STOP_WORDS.has(word));
 function isBareCourseSelection(message, context) {
   if (Number(context?.explicitCourses) !== 1 || !context?.selectedCourseCode) return false;
@@ -51,22 +51,32 @@ function languageFor(message, state = {}) {
   return state.language === 'ar' ? 'ar' : 'en';
 }
 
-function controlRoute(message, config, state = {}, facts = []) {
+function isCertificateQuestion(message, facts = []) {
+  let text = ` ${normalized(message)} `;
+  if (!/\b(?:certificates?|certifications?|certified|accreditation|accredited|attestation|attested|legalized|legalised)\b|شهاد[ةات]|الشهادات|اعتماد|معتمد|تصديق|مصدق/u.test(text)) return false;
+  for (const item of facts) {
+    if (item.kind && item.kind !== 'course') continue;
+    for (const name of [item.name, item.nameEn, item.nameAr]) {
+      if (name) text = text.replaceAll(` ${normalized(name)} `, ' ');
+    }
+  }
+  return /\b(?:certificates?|certifications?|accreditation|accredited|attestation|attested|legalized|legalised)\b|\b(?:is|are)\b.{0,60}\bcertified\b|شهاد[ةات]|الشهادات|اعتماد|معتمد|تصديق|مصدق/u.test(text);
+}
+
+function controlRoute(message, config, state = {}, facts = [], { courseCertificates = false } = {}) {
   const text = normalized(message);
   // Controls must be whole messages. Natural questions mentioning a course,
   // registration or a staff member must remain conversational.
   if (/^(agent|human|staff|person|talk to (a )?(human|person)|موظف|بشر|موظفة|اريد موظف|ابي موظف)$/.test(text) || /\b(?:speak|talk|connect|transfer|chat)\b.*\b(?:person|human|agent|staff|advisor|team)\b|(?:التحدث|التواصل|تحويل|اكلم).*(?:موظف|فريق|شخص)/.test(text)) return 'human';
   if (/\b(?:image|photo|picture|screenshot|document|file|voice note|audio|video|location pin)\b|\b(?:shared|sent|dropped) my location\b|\b(?:attached|sent|shared|uploaded)\b.{0,45}\b(?:media|attachment|file)\b|ارفق|مرفق|صورة|ملف|مقطع صوت|رسالة صوتية|فيديو|موقعي/u.test(text)) return 'handoff';
   if (/\b(?:job|jobs|career|careers|employment|vacancy|vacancies|hiring|recruitment|recruiter|cv|resume|work permit)\b|وظيفة|وظائف|توظيف|فرصة عمل|فرص عمل|سيرة ذاتية/u.test(text)) return 'handoff';
-  const existingStudentQuestion = /\b(?:existing student|current student|already enrolled|already registered|my registration|my account|student account|payment|paid|receipt|invoice|refund|complaint|not received|haven't received|have not received)\b|طالب حالي|طالبة حالية|انا طالب|انا طالبة|مسجل مسبقا|مسجلة مسبقة|حسابي|مشكلتي|شكوى|شكوي|استرداد|استرجاع|مشكلة دفع|مشكلة في الدفع|لم يصلني|ما وصلني|لم استلم|ما استلمت/u.test(text);
+  const existingStudentQuestion = /\b(?:existing student|current student|already enrolled|already registered|my registration|my account|my certificate|collect (?:the|a) certificate|student account|payment|paid|receipt|invoice|refund|complaint|not received|haven't received|have not received)\b|شهادتي|استلام الشهادة|طالب حالي|طالبة حالية|انا طالب|انا طالبة|مسجل مسبقا|مسجلة مسبقة|حسابي|مشكلتي|شكوى|شكوي|استرداد|استرجاع|مشكلة دفع|مشكلة في الدفع|لم يصلني|ما وصلني|لم استلم|ما استلمت/u.test(text);
   if (existingStudentQuestion) return 'handoff';
-  const certificateQuestion = /\b(?:what certificate|which certificate|certificate do i get|certificate will i get|certificate after|certificate for this course|certification|accreditation|accredited|attestation)\b|اي شهادة|ما الشهادة|شهادة احصل|شهادة الدورة|الشهادة التي سأحصل|اعتماد الدورة/u.test(text);
-  if (certificateQuestion) {
-    const context = retrieveContext({ facts: Array.isArray(facts) ? facts : [], message, state });
-    if (context.selectedCourseCode && context.evidence.filter(item => item.kind === 'course' && item.certificateDetails).length === 1) return 'answer';
-    return 'handoff';
+  if (isCertificateQuestion(message, facts)) {
+    if (courseCertificates) return 'certificate';
+    const context = retrieveContext({ facts, message, state });
+    return context.selectedCourseCode && context.evidence.some(item => item.kind === 'course' && item.certificateDetails) ? 'answer' : 'handoff';
   }
-  if (/\b(?:existing student|current student|already enrolled|already registered|my registration|my account|student account|payment|paid|receipt|invoice|refund|complaint|not received|haven't received|have not received|certificate|accreditation|accredited|attestation)\b|طالب حالي|طالبة حالية|انا طالب|انا طالبة|مسجل مسبقا|مسجلة مسبقا|حسابي|مشكلتي|شكوى|شكوي|استرداد|استرجاع|مشكلة دفع|مشكلة في الدفع|شهادة|اعتماد|لم يصلني|ما وصلني|لم استلم|ما استلمت/u.test(text)) return 'handoff';
   if (/^(hi|hello|hey|good morning|good evening|salam|مرحبا|اهلا|السلام عليكم|صباح الخير|مساء الخير|menu|back|القائمة|رجوع|0|english|en|arabic|ar|العربية|عربي)$/.test(text)) return 'guided';
   if (/^(courses|course list|show courses|available courses|what courses do you have|الدورات|دورات|عرض الدورات|قائمة الدورات|next|previous|التالي|السابق|form|enquiry form|registration form|نموذج|نموذج التسجيل)$/.test(text)) return 'guided';
   if (/^\d{1,2}$/.test(text) && state.step) return 'guided';
@@ -149,14 +159,17 @@ function retrieveContext({ facts, knowledgeEntries = [], message, state = {}, pr
   const direct = courses.filter(item => [item.code, item.nameEn, item.nameAr].some(name => name && normalized(message).includes(normalized(name)))
     || [...nameWords.get(item.code)].some(word => tokens(message).includes(word) && courses.filter(other => nameWords.get(other.code).has(word)).length === 1));
   const genericAdInterest = isGenericAdInterest(message);
-  const referralCourse = direct.length || !genericAdInterest ? null : courseFromVerifiedReferral(facts, referral);
+  const certificateQuestion = isCertificateQuestion(message, courses);
+  const referralCourse = !direct.length && (genericAdInterest || (certificateQuestion && !state.selectedCourseCode))
+    ? courseFromVerifiedReferral(facts, referral) : null;
   const ranked = courses.map(item => ({ item, score: score(message, [item.code, item.nameEn, item.nameAr, item.descriptionEn, item.descriptionAr, item.outcomesEn, item.outcomesAr].join(' ')) }))
     .sort((a, b) => b.score - a.score);
   const generalBusinessQuestion = /where|location|address|refund|policy|discount|اين|عنوان|موقع|استرداد|استرجاع|سياسة|خصم/i.test(message);
   let selected = direct.length ? direct.slice(0, 3) : referralCourse ? [referralCourse] : generalBusinessQuestion || genericAdInterest ? [] : ranked.filter(row => row.score >= 3).slice(0, 3).map(row => row.item);
   const followUp = /\b(?:that|this|it|its|the course|how much|how long|when does|when is|certificate|certification|online|offline|in person|face to face|classroom|remote|hybrid|delivery|study mode|course format)\b|هذه|تلك|مدتها|رسومها|موعدها|كم الرسوم|كم مدتها|متى تبدأ|شهادة|الشهادة|اعتماد|اونلاين|عن بعد|حضوري|طريقة الدراسة|طريقة التقديم/iu.test(message);
-  if (!direct.length && !referralCourse && followUp && state.selectedCourseCode) selected = courses.filter(item => item.code === state.selectedCourseCode);
+  if (!direct.length && !referralCourse && (followUp || certificateQuestion) && state.selectedCourseCode) selected = courses.filter(item => item.code === state.selectedCourseCode);
   if (!selected.length && state.selectedCourseCode) selected = courses.filter(item => item.code === state.selectedCourseCode);
+  if (certificateQuestion && !direct.length && !referralCourse) selected = selected.filter(item => item.code === state.selectedCourseCode);
   const recommendation = /recommend|compare|difference|best|improve|career|beginner|توصي|تنصح|افضل|مقارن|الفرق|مبتدئ/i.test(message);
   if (!selected.length && recommendation) selected = ranked.slice(0, 3).map(row => row.item);
   const evidence = [];
@@ -230,7 +243,7 @@ function validateAnswer(response, context) {
   for (const number of reply.match(/\d+(?:[.,]\d+)?/g) || []) {
     if (!permittedNumbers.has(Number(number.replace(/,/g, '')))) return { valid: false, code: 'ANSWER_NUMBER_INVALID' };
   }
-  if (/\b(?:certificate|certification|accreditation|accredited|attestation)\b|شهادة|اعتماد/u.test(reply) && !evidence.some(item => item.kind === 'course' && item.certificateDetails)) return { valid: false, code: 'ANSWER_CERTIFICATE_UNVERIFIED' };
+  if (isCertificateQuestion(reply) && !evidence.some(item => item.kind === 'course' && item.certificateDetails)) return { valid: false, code: 'ANSWER_CERTIFICATE_UNVERIFIED' };
   if (/\b(?:i have|i've|we have|we've|you are|you're)\s+(?:booked|enrolled|registered|reserved|confirmed your)|تم (?:تسجيلك|حجز|تأكيد تسجيلك)/i.test(reply)) return { valid: false, code: 'ANSWER_COMMITMENT_INVALID' };
   return { valid: true };
 }
@@ -373,18 +386,44 @@ function repeatedCourseFact(repeat, context) {
   return { reply: choices.find(text => normalized(text) !== normalized(repeat.previousReply)) || choices[0], sourceIds: [course.sourceId] };
 }
 
+function certificateFollowUp(message, context, state) {
+  if (!state.pendingCertificateQuestion || !context.selectedCourseCode || Number(context.explicitCourses) !== 1) return false;
+  const course = context.evidence.find(item => item.kind === 'course' && item.code === context.selectedCourseCode);
+  return Boolean(course && ([course.code, course.name].some(value => value && normalized(value) === normalized(message))
+    || isBareCourseSelection(message, context)));
+}
+
+function courseCertificateReply(message, context) {
+  const ar = context.language === 'ar';
+  const course = context.evidence.find(item => item.kind === 'course' && item.code === context.selectedCourseCode);
+  if (!course) return { route: 'clarification', sourceIds: [], reply: ar
+    ? 'أي دورة تقصد؟ تختلف تفاصيل الشهادات والتصديق من دورة لأخرى.'
+    : 'Which course are you considering? Certificate and attestation details vary by course.' };
+  const details = String(course.certificateDetails || '').trim();
+  if (!details) return { route: 'clarification', sourceIds: [course.sourceId], reason: 'CERTIFICATE_DETAILS_UNVERIFIED', reply: ar
+    ? `ليست لدي تفاصيل مؤكدة عن شهادة دورة ${course.name} حاليًا. يمكن لفريق القبول التحقق منها لك.`
+    : `Admissions can check this for you. I don’t have confirmed certificate details for ${course.name} yet.` };
+
+  // Publish the saved wording verbatim. A certificate or a named issuer alone
+  // does not establish attestation by the authority the customer asked about.
+  const text = normalized(message), saved = normalized(details);
+  const attestation = /\b(?:attestation|attest(?:ed|s)?|accreditation|accredited|legalized|legalised)\b|تصديق|مصدق|اعتماد|معتمد/u;
+  const authority = /\b(?:ministry|ministries|mofa|moehe|government|chamber)\b|وزار|حكوم|غرف/u;
+  const asksAuthority = authority.test(text);
+  const needsCheck = asksAuthority || (attestation.test(text) && !attestation.test(saved));
+  const note = needsCheck ? (ar
+    ? '\n\nيمكن لفريق القبول التحقق مما إذا كانت الشهادة تستوفي التصديق أو الاعتماد الذي تحتاجه.'
+    : '\n\nAdmissions can confirm whether this meets the attestation or accreditation you need.') : '';
+  return { route: 'facts', sourceIds: [course.sourceId], reply: `${course.name}\n${details}${note}` };
+}
+
 function simpleFactualReply(message, context, config = {}) {
   const text = normalized(message), ar = context.language === 'ar';
   const courses = context.evidence.filter(item => item.kind === 'course');
   if (courses.length !== 1 || /\b(?:compare|recommend|difference|best|better|cheaper)\b|مقارن|افضل|الفرق|تنصح/.test(text)) return null;
   const course = courses[0];
   const asksDuration = /how long|duration|مدة|مدتها/i.test(message);
-  const asksCertificate = /\b(?:certificate|certification|accreditation|accredited|attestation)\b|شهادة|اعتماد/u.test(text);
-  if (asksCertificate) {
-    if (!course.certificateDetails) return null;
-    const template = ar ? 'تفاصيل الشهادة المنشورة لدورة {course}: {details}. هل ترغب في معرفة شيء آخر عنها؟' : 'The published certificate details for {course} are: {details}. Would you like to know anything else about it?';
-    return { reply: template.replaceAll('{course}', course.name).replaceAll('{details}', course.certificateDetails), sourceIds: [course.sourceId] };
-  }
+  if (isCertificateQuestion(message, courses)) return course.certificateDetails ? courseCertificateReply(message, context) : null;
   const asksDelivery = /\b(?:online|offline|in person|face to face|classroom|remote|hybrid|delivery|availability|available online)\b|عن بعد|اونلاين|حضوري|مدمج|طريقة الدراسة|طريقة التقديم/u.test(message);
   if (asksDelivery && course.delivery) {
     const mode = String(course.delivery).toLowerCase();
@@ -477,6 +516,9 @@ function previewState(value) {
   if (!value || typeof value !== 'object' || Array.isArray(value) || Buffer.byteLength(JSON.stringify(value)) > 4000) throw Object.assign(new Error('INVALID_PREVIEW_STATE'), { code: 'INVALID_PREVIEW_STATE' });
   const result = {};
   for (const key of ['step', 'language', 'selectedCourseCode']) if (typeof value[key] === 'string' && value[key].length <= 80) result[key] = value[key];
+  if (typeof value.pendingCertificateQuestion === 'string' && value.pendingCertificateQuestion.length <= 240 && isCertificateQuestion(value.pendingCertificateQuestion)) {
+    result.pendingCertificateQuestion = value.pendingCertificateQuestion;
+  }
   if (typeof value.greeted === 'boolean') result.greeted = value.greeted;
   if (Number.isSafeInteger(value.page) && value.page >= 0 && value.page <= 250) result.page = value.page;
   if (Array.isArray(value.courseCodes)) result.courseCodes = value.courseCodes.filter(item => typeof item === 'string' && item.length <= 40).slice(0, 9);
@@ -504,4 +546,4 @@ function polishGuidedReply({ result, profile, message, state, defaults }) {
   return result;
 }
 
-module.exports = { normalized, fingerprint, languageFor, controlRoute, isScheduleQuestion, hasPublishedSchedule, courseDetailNeedsCoordinator, trainingCenterCoordinatorReason, publishedDurationRange, retrieveContext, validateAnswer, clarification, unavailableReply, publishedTrainingReply, simpleFactualReply, isCourseOverviewRequest, shouldSkipApprovedFaq, isGenericAdInterest, shouldClarifyGenericCourseInterest, isBareCourseSelection, previewState, redactCustomerText, polishGuidedReply, qrAdReferral, courseFromVerifiedReferral, isTrainingGreeting, trainingGreeting, repeatQuestion, repeatedCourseFact };
+module.exports = { normalized, fingerprint, languageFor, controlRoute, isScheduleQuestion, hasPublishedSchedule, courseDetailNeedsCoordinator, trainingCenterCoordinatorReason, publishedDurationRange, retrieveContext, validateAnswer, clarification, unavailableReply, publishedTrainingReply, simpleFactualReply, isCourseOverviewRequest, shouldSkipApprovedFaq, isGenericAdInterest, shouldClarifyGenericCourseInterest, isBareCourseSelection, previewState, redactCustomerText, polishGuidedReply, qrAdReferral, courseFromVerifiedReferral, isTrainingGreeting, trainingGreeting, repeatQuestion, repeatedCourseFact, isCertificateQuestion, courseCertificateReply, certificateFollowUp };

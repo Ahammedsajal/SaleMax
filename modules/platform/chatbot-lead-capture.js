@@ -14,7 +14,7 @@ function customerName(text, waitingForName = false) {
   const explicit = String(text || '').match(/(?:^|[.!?،]\s*)(?:my name is|my name's|call me|اسمي|انا اسمي)\s+([^.!?؟،\n]+)/iu);
   let value = explicit?.[1]?.split(/\s+(?:and\b|(?:و?اريد|و?أريد|و?مهتم)(?=\s|$)|interested\b|looking\b|i want\b)/iu)[0]?.trim();
   const candidate = String(text || '').trim();
-  if (!value && context.isTrainingGreeting(candidate)) return null;
+  if (!value && (context.isTrainingGreeting(candidate) || context.isCertificateQuestion(candidate))) return null;
   const questionOrCourseQuery = /[?؟]|^(?:which|what|how|when|where|why|who|can|could|will|would|is|are|do|does|did|should)\b|^(?:ما|ماذا|هل|كيف|متى|اين|أين|ايش)|\b(?:certificate|certification|accredited|accreditation|syllabus|curriculum|module|topic|duration|fee|price|cost|schedule|timing|location|online|class|course|training)\b|(?:شهاد|اعتماد|منهج|مدة|رسوم|سعر|مواعيد|جدول|موقع|دورة|تدريب)/iu.test(candidate);
   if (!value && waitingForName && !questionOrCourseQuery && /^[\p{L}\p{M} .'-]{2,80}$/u.test(candidate)) value = candidate;
   if (/^(?:i |i'm |can |do |is |the |انا |أنا |هل |عندي |ممكن )/iu.test(value || '')) return null;

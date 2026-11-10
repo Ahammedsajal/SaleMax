@@ -447,6 +447,9 @@ async function trainingCenterGuidedTurn({ ctx, profile, uid, message, sessionId,
     } else {
       const referral = message?.msgContext?.referral || null;
       const referralContext = businessContext.retrieveContext({ facts, message: intent || textOf(message), state: priorState || {}, referral });
+      const route = ctx.category.key === 'training_center' && !intent
+        ? businessContext.controlRoute(textOf(message), profile.config, priorState || {}, facts, { courseCertificates: true }) : null;
+      const certificate = route && certificateTurn(textOf(message), referralContext, priorState || {}, route);
       const referralCourse = referralContext.courseContextSource === 'meta_referral'
         ? facts.find(item => item.code === referralContext.selectedCourseCode) : null;
       const selectedCourse = businessContext.isBareCourseSelection(textOf(message), referralContext)
@@ -457,7 +460,8 @@ async function trainingCenterGuidedTurn({ ctx, profile, uid, message, sessionId,
           ? `${textOf(message)} ${referralContext.language === 'ar' ? (referralCourse.nameAr || referralCourse.nameEn) : (referralCourse.nameEn || referralCourse.nameAr)}`
           : intent || textOf(message);
       onStage?.('training-guide-compose');
-      reply = pack.guidedReply({ message: guideMessage, state: priorState, facts, config: { ...(profile.config?.guidedContent || {}), knowledgeEntries } });
+      reply = certificate || pack.guidedReply({ message: guideMessage, state: priorState, facts, config: { ...(profile.config?.guidedContent || {}), knowledgeEntries } });
+      if (certificate?.route === 'clarification') deferLeadQuestion = true;
     }
     // A lead-capture name prompt must never erase a substantive safety route
     // (for example, a certificate question that needs staff confirmation).
@@ -561,6 +565,19 @@ function guidedFlowNodeGuard({ctx,profile,uid,origin,sessionId,chatId,message}){
   };
 }
 
+function certificateTurn(message, context, state, route) {
+  const question = route === 'certificate' ? message
+    : route === 'answer' && businessContext.certificateFollowUp(message, context, state) ? state.pendingCertificateQuestion : null;
+  if (!question) return null;
+  return {
+    ...businessContext.courseCertificateReply(question, context),
+    state: {
+      ...state, greeted: true, language: context.language, selectedCourseCode: context.selectedCourseCode,
+      pendingCertificateQuestion: context.selectedCourseCode ? null : businessContext.redactCustomerText(question).slice(0, 240),
+    },
+  };
+}
+
 async function generateAiAnswer({ ctx, profile, uid, customerMessage, chatId = null, channelKind = null, channelRef = null, state = null, factsOverride = null, referral = null, intakeCourse = null, admissionsIntake = false, continuity = false, onStage = null }) {
   if (uid && chatId && await shouldPause(uid, chatId, channelKind, channelRef)) return { paused: true };
   if (!customerMessage) return { handedOff: true, code: 'UNSUPPORTED_MESSAGE_TYPE' };
@@ -574,10 +591,18 @@ async function generateAiAnswer({ ctx, profile, uid, customerMessage, chatId = n
   onStage?.('course-facts');
   const facts = factsOverride || await loadFacts();
   let session = state || (chatId ? await loadDomainGuidedSession({ ctx, profile, chatId, channelKind, channelRef }) : null) || {};
-  if (intakeCourse && !session.selectedCourseCode) {
+  const courseCertificates = ctx.category.key === 'training_center';
+  const courseRoute = courseCertificates ? businessContext.controlRoute(customerMessage, profile.config, session, facts, { courseCertificates }) : null;
+  if (intakeCourse && !session.selectedCourseCode && courseRoute !== 'certificate') {
     const matches = facts.filter(item => !item.kind && [item.nameEn, item.nameAr, item.code]
       .some(name => name && businessContext.normalized(name) === businessContext.normalized(intakeCourse)));
     if (matches.length === 1) session = { ...session, selectedCourseCode: matches[0].code };
+  }
+  if (courseCertificates && (courseRoute === 'certificate' || session.pendingCertificateQuestion)) {
+    const context = businessContext.retrieveContext({ facts, message: customerMessage, state: session, referral });
+    const answer = certificateTurn(customerMessage, context, session, courseRoute);
+    if (answer) return { ...answer, canAnswer: true, confidence: 1,
+      metrics: { inputTokens: 0, outputTokens: 0, cacheHit: false, sources: context.sources.filter(source => answer.sourceIds.includes(source.id)) } };
   }
   onStage?.('approved-faqs');
   const knowledgeEntries = mergeKnowledgeEntries(profile.config?.knowledgeEntries || [], await loadApprovedFaqs(ctx.tenant.id));
@@ -588,6 +613,7 @@ async function generateAiAnswer({ ctx, profile, uid, customerMessage, chatId = n
     // An explicit multi-course question has no single selected course. Clear
     // the prior single-course context so the next follow-up cannot mix it in.
     selectedCourseCode: context.explicitCourses ? context.selectedCourseCode : session.selectedCourseCode || null,
+    ...(session.pendingCertificateQuestion ? { pendingCertificateQuestion: null } : {}),
   };
   const repeat = continuity ? businessContext.repeatQuestion(customerMessage, context, session) : null;
   if (typeof businessContext.shouldClarifyGenericCourseInterest === 'function' && businessContext.shouldClarifyGenericCourseInterest(customerMessage, context, session)) {
@@ -752,12 +778,13 @@ async function aiTurn({ ctx, profile, uid, message, user, sessionId, origin, cha
     return dispatched ? { flowDispatched: true, route: 'greeting' } : { handedOff: true, code: 'OPENING_GREETING_UNAVAILABLE' };
   }
   if (profile.engine === 'hybrid' && !profile.config?.flowId && profile.config?.guidedMode !== 'domain_default') return { handedOff: true, code: 'GUIDED_FLOW_REQUIRED' };
-  const certificateQuestion = /\b(?:what certificate|which certificate|certificate do i get|certificate will i get|certificate after|certificate for this course|certification|accreditation|accredited|attestation)\b|اي شهادة|ما الشهادة|شهادة احصل|شهادة الدورة|الشهادة التي سأحصل|اعتماد الدورة/iu.test(incomingText);
-  const safetyRoute = businessContext.controlRoute(incomingText, profile.config || {}, {}, leadInfo?.facts || []);
-  if (safetyRoute === 'handoff' && ctx.category.key === 'training_center' && !certificateQuestion) {
-    const language = businessContext.languageFor(textOf(message));
-    const dispatched = await trainingCenterGuidedTurn({ ctx, profile, uid, message, sessionId, origin, chatId, leadInfo, intent: language === 'ar' ? 'موظف' : 'agent', onStage });
-    return dispatched ? { flowDispatched: true, route: 'handoff' } : { handedOff: true, code: 'HUMAN_REVIEW_REQUIRED' };
+  const courseCertificates = ctx.category.key === 'training_center';
+  const safetyRoute = businessContext.controlRoute(incomingText, profile.config, {}, leadInfo?.facts || [], { courseCertificates });
+  if (courseCertificates && ['handoff', 'certificate'].includes(safetyRoute)) {
+    const language = businessContext.languageFor(incomingText);
+    const intent = safetyRoute === 'certificate' ? null : language === 'ar' ? 'موظف' : 'agent';
+    const dispatched = await trainingCenterGuidedTurn({ ctx, profile, uid, message, sessionId, origin, chatId, leadInfo, intent, onStage });
+    return dispatched ? { flowDispatched: true, route: safetyRoute } : { handedOff: true, code: 'HUMAN_REVIEW_REQUIRED' };
   }
   const acknowledgement = leadInfo?.intake && admissions.acknowledgement(incomingText, leadInfo.language);
   const intakeAnswer = leadInfo?.intake && (leadInfo.intake.answerOnly || acknowledgement) && safetyRoute === 'answer';
@@ -810,7 +837,7 @@ async function aiTurn({ ctx, profile, uid, message, user, sessionId, origin, cha
   const pack = getDomainPack(ctx.category.key, ctx.category.version);
   const onboarding = ctx.tenant.categoryKey === 'training_center' && !answer.state?.greeted;
   if (onboarding) answer.state = { ...(answer.state || {}), greeted: true };
-  const questionLeadInfo = (answer.route === 'clarification' && continuity) || ((acknowledgement || answer.repeat) && leadInfo?.intake?.state.waiting) ? null : leadInfo?.intake
+  const questionLeadInfo = (answer.route === 'clarification' && (continuity || answer.reason === 'CERTIFICATE_DETAILS_UNVERIFIED')) || ((acknowledgement || answer.repeat) && leadInfo?.intake?.state.waiting) ? null : leadInfo?.intake
     ? { ...leadInfo, intake: { ...leadInfo.intake, session: answer.state || {} } }
     : onboarding ? null : leadInfo;
   const answerBeforeIntake = answer.reply;
@@ -846,8 +873,8 @@ async function previewConfiguredBot({ ctx, profile, uid, message, state = null }
   const prior = businessContext.previewState(state);
   prior.language = businessContext.languageFor(message, prior);
   const pack = getDomainPack(ctx.category.key, ctx.category.version);
-  const route = businessContext.controlRoute(message, profile.config, prior);
-  if (pack.guidedReply && route !== 'answer') {
+  const route = businessContext.controlRoute(message, profile.config, prior, [], { courseCertificates: ctx.category.key === 'training_center' });
+  if (pack.guidedReply && route !== 'answer' && route !== 'certificate') {
     const db = await dbPool.getConnection();
     let facts;
     try { facts = await pack.loadFacts({ db, tenantId: ctx.tenant.id, platformOrigin: process.env.SALEMAX_PLATFORM_ORIGIN, config: profile.config }); } finally { db.release(); }
@@ -928,7 +955,11 @@ async function previewMockupTurn({ uid, tenantId, chatId, channelKind, channelRe
   const storedName = savedName?.split(/\s+/u)[0];
   const intake = admissions.advance({ prior: previousIntake, text: message, name, nameOnly, savedName: storedName,
     savedStart: admissions.savedStartLabel(qualification, language), language, recognizeImmediate: true });
-  const route = businessContext.controlRoute(message, profile.config, prior, facts);
+  const route = businessContext.controlRoute(message, profile.config, prior, facts, { courseCertificates: true });
+  const certificate = certificateTurn(message, context, prior, route);
+  if (certificate) return { revision, reply: certificate.reply, route: certificate.route, reason: certificate.reason,
+    state: certificate.state };
+  if (prior.pendingCertificateQuestion) prior.pendingCertificateQuestion = null;
   if (route === 'answer' && businessContext.shouldClarifyGenericCourseInterest(message, context, prior)) {
     return { revision, route: 'clarification', ...discovery() };
   }
