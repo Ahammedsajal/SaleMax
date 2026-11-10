@@ -1,6 +1,6 @@
 ## Pro Catalyst automatic original-QR follow-ups — production, 10 November 2026
 
-The owner-enabled worker prepares Day 2 and Day 7 course-specific messages, with randomized 2–10 minute spacing and a cap of 20 per Qatar day. It sends only through each lead’s original QR instance and suppresses messages after a customer reply, staff follow-up, opt-out, or lead progression. Production confirms all 20 reviewed Day 2 follow-ups are queued, with zero sent. Six newer records are waiting for their silence window; 13 have no verified course match and are held rather than sent a guessed pitch. The source QR currently has zero open sockets, so delivery will start only after that same QR session reconnects; no alternate number or Meta transport is used. The owner screen could not be visually verified because the Edge tab lookup timed out. `DEPLOYMENT.md` records source commits, migration, runtime hash, queue evidence and rollback.
+The owner-enabled worker prepares Day 2 and Day 7 course-specific messages, with randomized 2–10 minute spacing and a cap of 20 per Qatar day. It sends only through each lead’s original QR instance and suppresses messages after a customer reply, staff follow-up, opt-out, or lead progression. Production confirmed the first Day 2 message sent from the same +974 6684 7844 QR instance used by Inbox; 19 remain queued and the worker continues automatically. Six newer records are waiting for their silence window; 13 have no verified course match and are held rather than sent a guessed pitch. The health socket count and Online/Offline display are not used to infer whether the QR send path works. No alternate number or Meta transport is used. The owner screen could not be visually verified because the Edge tab lookup timed out. `DEPLOYMENT.md` records source commits, migration, runtime hash, queue evidence and rollback.
 
 ## Pro Catalyst staff-style first course replies — production, 10 November 2026
 
@@ -24,7 +24,7 @@ The existing Live Reply Mockup recognizes informal greetings, offers discovery b
 
 ## Ad-aware Pro Catalyst replies and AI-written drafts — production, 9 November 2026
 
-The scoped QR handler retains click-to-WhatsApp context when supplied. Private replies use verified ad context to answer about the matching published course, or ask the customer which course they mean when the evidence is unavailable. AI writes follow-up pairs from bounded conversation topics and the verified course. The reviewed cohort is retained. Automated QR follow-up delivery is now enabled; the 20-lead batch is queued while the original QR socket is offline. `DEPLOYMENT.md` records the current rollout and gate.
+The scoped QR handler retains click-to-WhatsApp context when supplied. Private replies use verified ad context to answer about the matching published course, or ask the customer which course they mean when the evidence is unavailable. AI writes follow-up pairs from bounded conversation topics and the verified course. The reviewed cohort is retained. Automated QR follow-up delivery is enabled and the newest production entry records actual sends and the remaining queue. `DEPLOYMENT.md` records the current rollout and gate.
 
 ## Direct Inbox links from Pro Catalyst follow-ups — production, 9 November 2026
 
@@ -32,7 +32,7 @@ Follow-up cards now open the linked WhatsApp conversation in a new Inbox tab. Pr
 
 ## Pro Catalyst private follow-up pilot — production, 9 November 2026
 
-Live Reply Mockup has an owner-only Follow-ups view with 20 reviewed pairs. New enquiries are evaluated for day 2 and day 7 messages based on customer inactivity, course interest, lead progress and staff activity. The AI selector uses a bounded summary to choose between 15 English and Arabic variants. Automated delivery is enabled and uses each lead’s original QR instance; production has 20 Day 2 messages queued. Actual sending awaits reconnection of that QR session. `DEPLOYMENT.md` records the release and rollback.
+Live Reply Mockup has an owner-only Follow-ups view with 20 reviewed pairs. New enquiries are evaluated for day 2 and day 7 messages based on customer inactivity, course interest, lead progress and staff activity. The AI selector uses a bounded summary to choose between 15 English and Arabic variants. Automated delivery uses each lead’s original QR instance; production has begun sending the reviewed batch and the remaining messages continue through the configured delay schedule. `DEPLOYMENT.md` records the release and rollback.
 
 ## Lead Reports period totals and Pro Catalyst draft intake — production, 9 November 2026
 
