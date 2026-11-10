@@ -155,7 +155,10 @@ async function resolveOriginalQr(pool, uid, tenantId, leadId) {
     || normalizedNumber(parts[1]) !== normalizedNumber(chat.senderMobile)) return null;
   const { getSession } = require('../../helper/addon/qr');
   const session = getSession(chat.instanceId);
-  if (!session || session.ws?.readyState !== 1 || !session.user?.id) return { ...chat, offline: true };
+  // Inbox sends through this same session object without imposing a separate
+  // WebSocket-ready/user-id gate. Let the QR transport report whether it can
+  // send; a stricter preflight can reject an Inbox-usable session.
+  if (!session) return { ...chat, sessionUnavailable: true };
   return { ...chat, session };
 }
 
@@ -216,8 +219,8 @@ async function processOne(pool, db, tenantId) {
       WHERE id=? AND status='queued'`, [item.id]);
     return false;
   }
-  if (target.offline) {
-    await db.query(`UPDATE sx_chatbot_followup_deliveries SET last_error_code='ORIGINAL_QR_OFFLINE'
+  if (target.sessionUnavailable) {
+    await db.query(`UPDATE sx_chatbot_followup_deliveries SET last_error_code='ORIGINAL_QR_SESSION_UNAVAILABLE'
       WHERE id=? AND status='queued'`, [item.id]);
     return false;
   }
@@ -325,8 +328,8 @@ async function tick(pool, tenantId = tenantFromEnv()) {
         WHERE id=? AND status='queued'`, [item.id]);
       return false;
     }
-    if (target.offline) {
-      await db.query(`UPDATE sx_chatbot_followup_deliveries SET last_error_code='ORIGINAL_QR_OFFLINE'
+    if (target.sessionUnavailable) {
+      await db.query(`UPDATE sx_chatbot_followup_deliveries SET last_error_code='ORIGINAL_QR_SESSION_UNAVAILABLE'
         WHERE id=? AND status='queued'`, [item.id]);
       return false;
     }
