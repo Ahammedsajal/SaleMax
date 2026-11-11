@@ -155,7 +155,13 @@ def verify_overlay(meta, env, overlays, service, mounts):
 
 def migration_state():
     source = "(async()=>{const p=require('/app/database/config.js').promise();try{const [c]=await p.query(\"SELECT COUNT(*) n FROM information_schema.columns WHERE table_schema=DATABASE() AND table_name='sx_training_form_submissions' AND column_name IN ('archived_at','archived_by_identity_id')\");const [m]=await p.query(\"SELECT migration_name,status,checksum,statement_count,statements_completed FROM salemax_schema_migrations WHERE migration_name='20270204_training_form_submission_archive.sql'\");const [r]=await p.query('SELECT COUNT(*) n FROM sx_training_form_submissions');console.log(JSON.stringify({columns:Number(c[0].n),migration:m[0]||null,submissions:Number(r[0].n)}));}finally{await p.end()}})().catch(e=>{console.log(e.code||'DATABASE_PROBE_FAILED');process.exitCode=1})"
-    return json.loads(run('docker', 'exec', APP, 'node', '-e', source))
+    output = run('docker', 'exec', APP, 'node', '-e', source)
+    for line in reversed(output.splitlines()):
+        try:
+            return json.loads(line)
+        except json.JSONDecodeError:
+            continue
+    raise RuntimeError('Database migration status probe returned no JSON')
 
 
 def write_private(path, value):
