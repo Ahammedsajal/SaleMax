@@ -144,3 +144,11 @@ html[data-sx-theme=dark] .reports .followup-brief-more{background:#18212c;border
 html[data-sx-theme=dark] .reports .followup-brief-more>summary{color:#b7d3f1}
 html[data-sx-theme=dark] .reports .followup-brief-status.is-auto{background:#302a20;color:#f1cf8d}
 html[data-sx-theme=dark] .reports .followup-brief-status.is-never{background:#35232c;color:#f0b3c6}
+html[data-sx-theme=dark] .reports .report-followup-automation{background:linear-gradient(135deg,#1c2736,#1a302e);border-color:#354252;border-inline-start-color:#36b899;color:#e7edf5}
+html[data-sx-theme=dark] .reports .report-followup-automation h3{color:#f0f4f9}
+html[data-sx-theme=dark] .reports .report-followup-automation .report-snapshot-heading p,html[data-sx-theme=dark] .reports .followup-automation-status{color:#aebaca}
+html[data-sx-theme=dark] .reports .followup-automation-toggle{color:#d5deea}
+html[data-sx-theme=dark] .reports .followup-automation-time{color:#aebaca}
+html[data-sx-theme=dark] .reports .followup-automation-time strong{color:#e7edf5}
+html[data-sx-theme=dark] .reports .report-followup-automation .report-scope{background:#173c38;color:#92e7d2;border-color:#285d50}
+@media(max-width:700px){.report-followup-automation{padding:15px}.followup-automation-controls{align-items:stretch;flex-direction:column}.followup-automation-toggle{flex:1 1 auto}.followup-automation-time{width:100%}.followup-automation-actions{width:100%}.followup-automation-actions button{flex:1 1 auto}}

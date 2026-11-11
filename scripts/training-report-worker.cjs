@@ -4,6 +4,7 @@ if(process.env.SALEMAX_TRAINING_REPORT_WORKER_ENABLED!=='true')throw new Error('
 const os=require('node:os');
 const runner=require('../modules/platform/training-report-runner');
 const deliveryWorker=require('../modules/platform/training-report-delivery-worker');
+const followUpAssignment=require('../modules/platform/pipeline-follow-up-assignment');
 const pool=require('../database/config').promise();
 const workerId=process.env.SALEMAX_REPORT_WORKER_ID||`reports-${os.hostname().replace(/[^A-Za-z0-9._:-]/g,'-').slice(0,60)}-${process.pid}`;
 const once=process.argv.includes('--once');
@@ -16,6 +17,8 @@ async function tick(){
   if(registrationDelivery.processed)console.log(JSON.stringify({registrationDelivery}));
   const delivery=await deliveryWorker.tick(pool,{workerId:`${workerId.slice(0,88)}-delivery`,limit:10});
   if(result.queued||result.processed.length||delivery.claimed)console.log(JSON.stringify({queued:result.queued,duplicatePeriods:result.duplicatePeriods,processed:result.processed.map(item=>({status:item.status,errorCode:item.errorCode||undefined,deliveriesQueued:item.deliveriesQueued})),delivery:{claimed:delivery.claimed,accepted:delivery.accepted,failed:delivery.failed,retrying:delivery.retrying,unknown:delivery.unknown},externallySent:delivery.externallySent,externalWrites:delivery.externalWrites}));
+  const followUp=await followUpAssignment.tick(pool,{workerId:`${workerId.slice(0,80)}-follow-up`,limit:10});
+  if(followUp.runs.length||followUp.delivery.claimed)console.log(JSON.stringify({followUpRuns:followUp.runs.map(run=>({status:run.status,assigned:run.assigned||0,skipped:run.skipped||0,failed:run.failed||0,queued:run.queued||0,errorCode:run.errorCode})),followUpDelivery:followUp.delivery}));
 }
 async function stop(){if(stopping)return;stopping=true;if(timer)clearTimeout(timer);await pool.end();}
 async function loop(){if(stopping)return;try{await tick();}catch(error){console.error(JSON.stringify({workerError:error.code||'REPORT_WORKER_FAILED',externallySent:false,externalWrites:false}));}if(!once&&!stopping)timer=setTimeout(loop,interval);else await stop();}

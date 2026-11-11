@@ -87,7 +87,9 @@
   Object.assign(copy.ar,{followUpNoticeTitle:'توجد متابعات تتطلب الانتباه',followUpNoticeOpen:'عرض ملخص اليوم',followUpNoticeDismiss:'إخفاء',followUpBriefSuggested:'فرص مقترحة'});
   Object.assign(copy.en,{followUpBriefPdfFirst20:'The PDF lists the first 20 suggested leads.'});
   Object.assign(copy.ar,{followUpBriefPdfFirst20:'يعرض ملف PDF أول 20 فرصة مقترحة.'});
-  const state = {page:1,report:null,journey:null,summary:null,followUpBrief:null,issues:[],from:initialFrom,to:initialTo,assignment:'',qrInstanceId:'',qrInstances:[],sequence:0,drilldown:null,drilldownPage:1,drilldownSequence:0,taskPage:1,taskPeriod:'all',taskSequence:0,taskTimezone:'Asia/Qatar',tasks:null,schedules:null,scheduleError:'',scheduleSequence:0,downloadAfterLoad:false};
+  Object.assign(copy.en,{followUpAutomationTitle:'Daily follow-up assignment',followUpAutomationDescription:'Share high-interest open leads fairly across active agents. Staff receive one short WhatsApp assignment; the owner and managers receive a team summary.',followUpAutomationEnabled:'Enable daily assignment and staff WhatsApp summaries',followUpAutomationOn:'Enabled',followUpAutomationOff:'Paused',followUpAutomationTime:'Daily delivery',followUpAutomationSavedSchedule:'Follows the saved daily report time: {time} · {timezone}.',followUpAutomationDefaultSchedule:'No daily report time is saved; using {time} · {timezone}.',followUpAutomationSave:'Save automation',followUpAutomationRun:'Assign today’s leads',followUpAutomationReadOnly:'Only the owner can change this automation.',followUpAutomationSaved:'Automation settings saved.',followUpAutomationSaveFailed:'Could not save automation settings.',followUpAutomationQueueing:'Preparing today’s assignments…',followUpAutomationQueued:'Today’s assignment is queued. WhatsApp messages will go out at the saved time.',followUpAutomationRunFailed:'Could not prepare assignments. No leads were changed.',followUpAutomationLastRun:'Latest run',followUpAutomationNoRun:'No assignments have run yet.',followUpAutomationRunSummary:'{assigned} assigned of {identified} · {high} high · {warm} warm · {aged} waiting 72h+',followUpAutomationRetry:'Retry'});
+  Object.assign(copy.ar,{followUpAutomationTitle:'التوزيع اليومي للمتابعات',followUpAutomationDescription:'وزّع الفرص المفتوحة ذات الاهتمام المرتفع بالتساوي على الموظفين النشطين. يتلقى الموظفون رسالة واتساب قصيرة، ويتلقى المالك والمديرون ملخص الفريق.',followUpAutomationEnabled:'تفعيل التوزيع اليومي وملخصات واتساب للموظفين',followUpAutomationOn:'مفعّل',followUpAutomationOff:'متوقف مؤقتًا',followUpAutomationTime:'موعد الإرسال اليومي',followUpAutomationSavedSchedule:'يتبع الموعد اليومي المحفوظ للتقرير: {time} · {timezone}.',followUpAutomationDefaultSchedule:'لا يوجد موعد يومي محفوظ؛ سيُستخدم {time} · {timezone}.',followUpAutomationSave:'حفظ الإعدادات',followUpAutomationRun:'توزيع فرص اليوم',followUpAutomationReadOnly:'يمكن للمالك فقط تغيير هذه الأتمتة.',followUpAutomationSaved:'تم حفظ إعدادات الأتمتة.',followUpAutomationSaveFailed:'تعذر حفظ إعدادات الأتمتة.',followUpAutomationQueueing:'جارٍ تجهيز متابعات اليوم…',followUpAutomationQueued:'تم تجهيز توزيع اليوم. سترسل رسائل واتساب في الموعد المحفوظ.',followUpAutomationRunFailed:'تعذر تجهيز التوزيع. لم يتم تغيير أي فرصة.',followUpAutomationLastRun:'آخر تشغيل',followUpAutomationNoRun:'لم يتم تشغيل التوزيع بعد.',followUpAutomationRunSummary:'تم توزيع {assigned} من أصل {identified} · اهتمام جاد {high} · اهتمام بالدورة {warm} · انتظار 72 ساعة فأكثر {aged}',followUpAutomationRetry:'إعادة المحاولة'});
+  const state = {page:1,report:null,journey:null,summary:null,followUpBrief:null,followUpAssignment:null,followUpAssignmentError:'',issues:[],from:initialFrom,to:initialTo,assignment:'',qrInstanceId:'',qrInstances:[],sequence:0,drilldown:null,drilldownPage:1,drilldownSequence:0,taskPage:1,taskPeriod:'all',taskSequence:0,taskTimezone:'Asia/Qatar',tasks:null,schedules:null,scheduleError:'',scheduleSequence:0,downloadAfterLoad:false};
   const host = $('#reports'), taskHost = $('#followups'), toolbar = $('.toolbar');
   if (!host || !$('#reportsMode')) return;
 
@@ -150,6 +152,33 @@
     const fraction=new Intl.NumberFormat(locale,{useGrouping:false,minimumIntegerDigits:2,maximumFractionDigits:0}).format(Number(absolute%100n));
     return `${negative?'−':''}${whole}.${fraction} ${arabic()?'ر.ق':'QAR'}`;
   }
+  function followUpAssignmentHtml(){
+    if(!ownerSession())return '';
+    if(state.followUpAssignmentError)return `<section class="report-followup-automation" role="status"><h3>${escape(t('followUpAutomationTitle'))}</h3><p class="report-state">${escape(t('followUpAutomationSaveFailed'))} <button type="button" class="report-retry" id="followUpAssignmentRetry">${escape(t('followUpAutomationRetry'))}</button></p></section>`;
+    const settings=state.followUpAssignment;
+    if(!settings)return `<section class="report-followup-automation" role="status"><h3>${escape(t('followUpAutomationTitle'))}</h3><p class="report-state">${escape(t('loading'))}</p></section>`;
+    const last=settings.lastRun;
+    const lastText=last?t('followUpAutomationRunSummary').replace('{assigned}',fmtCount(last.assigned)).replace('{identified}',fmtCount(last.identified)).replace('{high}',fmtCount(last.high)).replace('{warm}',fmtCount(last.warm)).replace('{aged}',fmtCount(last.waiting72h)):t('followUpAutomationNoRun');
+    const scheduleText=(settings.scheduleSource==='daily_report'?t('followUpAutomationSavedSchedule'):t('followUpAutomationDefaultSchedule')).replace('{time}',settings.sendTime||'09:00').replace('{timezone}',settings.timezone||'Asia/Qatar');
+    return `<section class="report-followup-automation" aria-labelledby="followUpAutomationHeading"><div class="report-snapshot-heading"><div><h3 id="followUpAutomationHeading">${escape(t('followUpAutomationTitle'))}</h3><p>${escape(t('followUpAutomationDescription'))}</p></div><span class="report-scope">${settings.enabled?escape(t('followUpAutomationOn')):escape(t('followUpAutomationOff'))}</span></div><div class="followup-automation-controls"><label class="followup-automation-toggle"><input id="followUpAssignmentEnabled" type="checkbox" ${settings.enabled?'checked':''} ${settings.canManage?'':'disabled'}><span>${escape(t('followUpAutomationEnabled'))}</span></label><div class="followup-automation-time"><span>${escape(t('followUpAutomationTime'))}</span><strong>${escape(scheduleText)}</strong></div><div class="followup-automation-actions"><button type="button" class="soft" id="saveFollowUpAssignment" ${settings.canManage?'':'disabled'}>${escape(t('followUpAutomationSave'))}</button><button type="button" class="primary" id="runFollowUpAssignment" ${settings.canManage&&settings.enabled?'':'disabled'}>${escape(t('followUpAutomationRun'))}</button></div></div><p class="followup-automation-status" id="followUpAssignmentStatus" aria-live="polite">${escape(last?`${t('followUpAutomationLastRun')}: ${last.date} · ${lastText}`:lastText)}${!settings.canManage?` · ${escape(t('followUpAutomationReadOnly'))}`:''}</p></section>`;
+  }
+  async function saveFollowUpAssignment(){
+    const status=$('#followUpAssignmentStatus'),button=$('#saveFollowUpAssignment');if(!button||!state.followUpAssignment?.canManage)return;
+    button.disabled=true;if(status)status.textContent=t('loading');
+    try{const response=await fetch('/api/workspace/pipeline/reports/follow-up-assignment',{method:'PUT',headers:{Authorization:`Bearer ${token()}`,'Content-Type':'application/json','Accept':'application/json'},body:JSON.stringify({enabled:$('#followUpAssignmentEnabled')?.checked===true})}),body=await response.json().catch(()=>({}));if(!response.ok||!body.success)throw new Error(body.code||'SAVE_FAILED');state.followUpAssignment=body.data;state.followUpAssignmentError='';render(state.report);window.salemaxPipelineToast?.(t('followUpAutomationSaved'));}
+    catch(_){if(status)status.textContent=t('followUpAutomationSaveFailed');button.disabled=false;}
+  }
+  async function requestFollowUpAssignment(){
+    const status=$('#followUpAssignmentStatus'),button=$('#runFollowUpAssignment');if(!button||!state.followUpAssignment?.canManage)return;
+    button.disabled=true;if(status)status.textContent=t('followUpAutomationQueueing');
+    try{const response=await fetch('/api/workspace/pipeline/reports/follow-up-assignment/run',{method:'POST',headers:{Authorization:`Bearer ${token()}`,'Content-Type':'application/json','Accept':'application/json'},body:'{}'}),body=await response.json().catch(()=>({}));if(!response.ok||!body.success)throw new Error(body.code||'RUN_FAILED');if(status)status.textContent=t('followUpAutomationQueued');}
+    catch(_){if(status)status.textContent=t('followUpAutomationRunFailed');button.disabled=false;}
+  }
+  function bindFollowUpAssignment(){
+    $('#followUpAssignmentRetry')?.addEventListener('click',load);
+    $('#saveFollowUpAssignment')?.addEventListener('click',saveFollowUpAssignment);
+    $('#runFollowUpAssignment')?.addEventListener('click',requestFollowUpAssignment);
+  }
   function render(report) {
     state.report=report;
     const s=report.summary||{};
@@ -182,6 +211,7 @@
     const briefCards=`<div class="report-kpis followup-brief-kpis">${metric(t('followUpBriefUnanswered'),fmtCount(briefSummary.unansweredOpen))}${metric(t('followUpBriefHigh'),fmtCount(briefSummary.highIntent))}${metric(t('followUpBriefWarm'),fmtCount(briefSummary.warmInterest))}${metric(t('followUpBriefWait'),fmtCount(briefSummary.waiting72Hours))}${metric(t('followUpBriefUnassigned'),fmtCount(briefSummary.unassigned))}${metric(t('followUpBriefNeverMessaged'),fmtCount(briefSummary.noBusinessMessage))}${metric(t('followUpBriefAutoReply'),fmtCount(briefSummary.automatedReplyAwaitingStaff))}${metric(t('followUpBriefReview'),fmtCount(briefSummary.needsReview))}</div>`;
     const briefItemsHtml=briefItems.length?`<div class="followup-brief-list">${visibleBriefItems.map(renderBriefItem).join('')}</div>${remainingBriefItems.length?`<details class="followup-brief-more"><summary>${escape(t('followUpBriefShowRemaining'))} (${fmtCount(remainingBriefItems.length)})</summary><div class="followup-brief-list">${remainingBriefItems.map(renderBriefItem).join('')}</div></details>`:''}`:`<div class="report-state">${escape(t('followUpBriefNoItems'))}</div>`;
     const followUpBriefHtml=brief?`<section class="report-followup-brief" aria-labelledby="followUpBriefHeading"><div class="report-snapshot-heading"><div><h3 id="followUpBriefHeading">${escape(t('followUpBriefTitle'))}</h3><p>${escape(t('followUpBriefSubtitle'))}</p></div><span class="report-scope">${fmtCount(briefSummary.total)} ${escape(t('followUpBriefSuggested'))}</span></div>${briefCards}<p class="report-chart-note">${escape(t('followUpBriefRule'))}</p>${briefItemsHtml}${brief.hasMore?`<p class="report-state">${escape(t('followUpBriefShowingFirst'))}</p>`:''}</section>`:`<section class="report-followup-brief" role="status"><h3>${escape(t('followUpBriefTitle'))}</h3><p class="report-state">${escape(t('followUpBriefUnavailable'))}</p></section>`;
+    const followUpAssignmentSection=followUpAssignmentHtml();
     const drilldownHtml=state.drilldown?renderDrilldown(state.drilldown):'';
     const businessUserRows=(range?.businessUsers||[]).map(user=>`<tr><td>${escape(user.attribution==='unavailable'?t('businessAccountUnknown'):user.userName)}</td><td>${fmtCount(user.attendedLeads)}</td><td>${fmtCount(user.messagesSent)}</td><td><strong>${fmtCount(user.salesClosed)}</strong></td></tr>`).join('');
     const businessUserHtml=ownerSession()&&businessUserRows?`<section class="journey-cohort" aria-labelledby="businessUserAttendanceTitle"><h3 id="businessUserAttendanceTitle">${t('businessUserAttendance')}</h3><div class="report-table-wrap"><table class="report-table"><thead><tr><th>${t('agentName')}</th><th>${t('attendedCount')}</th><th>${t('businessUserReplies')}</th><th>${t('businessUserSales')}</th></tr></thead><tbody>${businessUserRows}</tbody></table></div></section>`:'';
@@ -189,10 +219,11 @@
     const reportActions=ownerSession()?`<div class="report-download-actions"><button type="button" class="report-download" id="downloadVisualReport">${t('downloadReport')}</button><button type="button" class="report-download report-download-secondary" id="saveVisualReportPdf">${t('saveReportPdf')}</button><button type="button" class="report-download report-download-secondary" id="downloadDailyReport">${t('downloadDailyReport')}</button></div>`:'';
     const detailsHtml=`<details class="report-more"><summary>${t('moreDetails')}</summary>${ownerSession()?scheduleSection():''}${journeyHtml}${cohortHtml}${journeyActivityHtml}<div class="report-kpis">${metrics.map(([key,value])=>metric(t(key),Number(value||0).toLocaleString(arabic()?'ar-QA':'en-QA'))).join('')}</div>${outcomeHtml}${financeHtml}<h3>${escape(t('title'))} · ${escape(periodText)}</h3>${state.report?.items?.length?`<button class="report-export" type="button" id="reportExport">${t('exportPage')}</button>`:''}${listHtml}</details>`;
     const issueBanner=state.issues.length?`<div class="report-partial-alert" role="status"><span aria-hidden="true">i</span><div><strong>${t('partialLoad')}</strong><small>${state.issues.map(key=>t(key)).map(escape).join(' · ')}</small></div></div>`:'';
-    host.innerHTML=shell(`${issueBanner}<div class="report-period-bar"><p class="report-period">${escape(fmtDay(state.from))} – ${escape(fmtDay(state.to))}</p>${reportActions}</div>${insightsHtml}${followUpBriefHtml}${summaryCards}<section class="report-primary-section"><h3>${t('dailyLeads')}</h3>${dailyTable}</section><section class="report-primary-section"><h3>${t('agentAttendance')}</h3>${agentTable}</section>${businessUserHtml}${drilldownHtml}${detailsHtml}`);
+    host.innerHTML=shell(`${issueBanner}<div class="report-period-bar"><p class="report-period">${escape(fmtDay(state.from))} – ${escape(fmtDay(state.to))}</p>${reportActions}</div>${insightsHtml}${followUpAssignmentSection}${followUpBriefHtml}${summaryCards}<section class="report-primary-section"><h3>${t('dailyLeads')}</h3>${dailyTable}</section><section class="report-primary-section"><h3>${t('agentAttendance')}</h3>${agentTable}</section>${businessUserHtml}${drilldownHtml}${detailsHtml}`);
     const dialog=$('.report-lead-dialog',host);if(dialog&&!dialog.open)try{dialog.showModal();}catch(_){}
     bindFilters();
     bindScheduleForms();
+    bindFollowUpAssignment();
     $('#downloadVisualReport')?.addEventListener('click',()=>downloadVisualReport(false));
     $('#saveVisualReportPdf')?.addEventListener('click',()=>downloadVisualReport(true));
     $('#downloadDailyReport')?.addEventListener('click',()=>{const form=$('#reportFilters'),today=qatarToday();state.downloadAfterLoad=true;state.from=today;state.to=today;state.page=1;form.elements.from.value=today;form.elements.to.value=today;form.requestSubmit();});
@@ -324,18 +355,22 @@
       const requestPart=async(url)=>{try{const response=await fetch(url,{headers}),body=await response.json().catch(()=>({}));if(!response.ok||!body.success)throw Object.assign(new Error(body.message||'REPORT_REQUEST_FAILED'),{code:body.code||response.status});return {data:body.data};}catch(error){return {error};}};
       const followUpQuery=new URLSearchParams({assignment:state.assignment,qrInstanceId:state.qrInstanceId});
       followUpQuery.set('includeItems','true');
-      const [activity,journey,summary,filters,followUp]=await Promise.all([
+      const assignmentSettingsRequest=ownerSession()?requestPart('/api/workspace/pipeline/reports/follow-up-assignment'):Promise.resolve({data:null});
+      const [activity,journey,summary,filters,followUp,assignmentSettings]=await Promise.all([
         requestPart('/api/pipeline/reports/activity?'+query),
         requestPart('/api/pipeline/reports/journey?'+rangeQuery),
         requestPart('/api/pipeline/reports/summary?'+rangeQuery),
         requestPart('/api/pipeline/filter-options'),
-        requestPart('/api/pipeline/reports/follow-up-brief?'+followUpQuery)
+        requestPart('/api/pipeline/reports/follow-up-brief?'+followUpQuery),
+        assignmentSettingsRequest
       ]);
       if(request!==state.sequence)return;
       if(activity.error)throw activity.error;
       state.journey=journey.data||null;
       state.summary=summary.data||null;
       state.followUpBrief=followUp.data||null;
+      state.followUpAssignment=assignmentSettings.data||null;
+      state.followUpAssignmentError=assignmentSettings.error?.code||'';
       state.qrInstances=filters.data?.qrInstances||[];
       state.issues=[...(journey.error?['journeyUnavailable']:[]),...(summary.error?['summaryUnavailable']:[]),...(filters.error?['filtersUnavailable']:[]),...(followUp.error?['followUpBriefUnavailable']:[])];
       render(activity.data);
