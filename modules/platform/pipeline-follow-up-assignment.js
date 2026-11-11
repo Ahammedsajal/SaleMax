@@ -47,6 +47,7 @@ function nextScheduledAt(now, time, timezone = DEFAULT_TIMEZONE) {
   return due;
 }
 function dbDate(value) { return new Date(value).toISOString().slice(0, 23).replace('T', ' '); }
+function dateOnly(value) { return value instanceof Date ? value.toISOString().slice(0, 10) : String(value || '').slice(0, 10); }
 function utcMillis(value) {
   if (value instanceof Date) return value.getTime();
   const text = String(value || '');
@@ -111,7 +112,7 @@ function recipientsByPhone(agentRows, identityRows) {
   return { groups: [...groups.values()].map(group => ({ ...group, roles: [...group.roles] })), noPhoneAgents };
 }
 function shortDate(date) {
-  const [year, month, day] = String(date).slice(0, 10).split('-').map(Number);
+  const [year, month, day] = dateOnly(date).split('-').map(Number);
   return new Intl.DateTimeFormat('en', { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'UTC' }).format(new Date(Date.UTC(year, month - 1, day, 12)));
 }
 function makeDigests({ date, agents, runItems, brief, noPhoneAgents, identifiedCount = 0, existingAssigned = 0 }) {
@@ -193,7 +194,7 @@ async function deliverySchedule(db, tenantId) {
 }
 function settingsShape(row, latestRun = null) {
   return { enabled: Number(row?.enabled) === 1, timezone: row?.timezone || DEFAULT_TIMEZONE, sendTime: row?.send_time || DEFAULT_SEND_TIME,
-    updatedAt: row?.updated_at || null, lastRun: latestRun ? { date: String(latestRun.local_date).slice(0, 10), status: latestRun.status,
+    updatedAt: row?.updated_at || null, lastRun: latestRun ? { date: dateOnly(latestRun.local_date), status: latestRun.status,
       assigned: Number(latestRun.assigned_count || 0), identified: Number(latestRun.candidate_count || 0), existingAssigned: Number(latestRun.existing_assigned_count || 0), high: Number(latestRun.high_count || 0), warm: Number(latestRun.warm_count || 0),
       waiting72h: Number(latestRun.waiting_72h_count || 0), reviewExcluded: Number(latestRun.review_excluded_count || 0),
       notifications: Number(latestRun.notification_count || 0), completedAt: latestRun.completed_at || null } : null };
@@ -391,7 +392,7 @@ async function queueDigests(source, config, run) {
   const agents = await loadAgents(db, { tenantId: config.tenantId, uid: config.uid });
   const brief = { summary: { needsReview: Number(run.review_excluded_count || 0) } };
   const recipients = await lookupRecipientsForDigests(db, config.tenantId, config.uid, agents);
-  const digests = makeDigests({ date: String(run.local_date).slice(0, 10), agents, runItems: rows, brief, noPhoneAgents: recipients.noPhoneAgents,
+  const digests = makeDigests({ date: dateOnly(run.local_date), agents, runItems: rows, brief, noPhoneAgents: recipients.noPhoneAgents,
     identifiedCount: Number(run.candidate_count || 0), existingAssigned: Number(run.existing_assigned_count || 0) });
   const deliveryAt = new Date(run.deliver_at);
   let queued = 0, index = 0;
@@ -560,4 +561,4 @@ async function tick(source, { workerId = `followup-${process.pid}`, now = new Da
   return { runs, delivery };
 }
 
-module.exports = { DEFAULT_TIMEZONE, DEFAULT_SEND_TIME, qatarDate, qatarTime, zonedDateTime, nextScheduledAt, normalizePhone, agentQueue, recipientsByPhone, makeDigests, getSettings, saveSettings, requestRun, buildPlan, processRun, claimItems, processItem, claimOutbox, resolveOutboxRecipient, sendOutbox, finishOutbox, deliverOutbox, tick, _private: { actorContext, dbDate, utcMillis, digest, loadAgents, loadSummaryRecipients, deliverySchedule, stillNeedsFollowUp, syncChatAssignments, queueDigests, shortDate, qrInternalUrl } };
+module.exports = { DEFAULT_TIMEZONE, DEFAULT_SEND_TIME, qatarDate, qatarTime, zonedDateTime, nextScheduledAt, normalizePhone, agentQueue, recipientsByPhone, makeDigests, getSettings, saveSettings, requestRun, buildPlan, processRun, claimItems, processItem, claimOutbox, resolveOutboxRecipient, sendOutbox, finishOutbox, deliverOutbox, tick, _private: { actorContext, dbDate, dateOnly, utcMillis, digest, loadAgents, loadSummaryRecipients, deliverySchedule, stillNeedsFollowUp, syncChatAssignments, queueDigests, shortDate, qrInternalUrl } };

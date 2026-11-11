@@ -47,6 +47,9 @@ test('creates concise agent and owner digests with aggregate counts only', () =>
   assert.match(result.ownerText, /28 no-signal chats excluded/);
   assert.equal(result.ownerText.includes('lead-'), false);
   assert.equal(result.agentMessages.get(5).includes('customer'), false);
+  const dateResult = assignment.makeDigests({ date: new Date('2026-11-11T00:00:00.000Z'), agents, runItems: items,
+    brief: { summary: { needsReview: 0 } }, noPhoneAgents: 0 });
+  assert.match(dateResult.ownerText, /Nov 11, 2026/);
 });
 
 test('schedules delivery using Asia/Qatar wall time and advances to tomorrow after the send time', () => {
