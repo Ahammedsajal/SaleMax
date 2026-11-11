@@ -306,9 +306,23 @@ def deploy(stage, commit):
             team_logout = False
         if app_route != '200' or forms_api not in ('401', '302') or not (team_api in ('401', '302') or team_api == '200' and team_logout):
             raise RuntimeError('Public route or authenticated API boundary verification failed')
+        # The public domain root is the 7Network marketing site, not the business
+        # application shell. Verify the changed application index through /user
+        # by checking its versioned asset references; the container hash check
+        # above verifies the complete index file itself.
+        application_shell = run('curl', '-fsS', 'https://7network.live/user?page=dashboard')
+        expected_asset_refs = {}
+        index_html = contents['client/public/index.html'].decode('utf-8')
+        for name in ('team-access.css', 'team-invitations.js', 'training-forms.css', 'training-forms.js'):
+            match = re.search(r'/' + re.escape(name) + r'\?v=[^"\']+', index_html)
+            if match is None:
+                raise RuntimeError('Updated application index is missing an asset version reference')
+            asset_ref = match.group(0)
+            if asset_ref not in application_shell:
+                raise RuntimeError('Public application shell does not reference the updated assets')
+            expected_asset_refs[name] = asset_ref
         served = {}
         urls = {
-            'client/public/index.html': 'https://7network.live/',
             'client/public/team-access.css': 'https://7network.live/team-access.css?v=20261111-team-member-actions1',
             'client/public/team-invitations.js': 'https://7network.live/team-invitations.js?v=20261111-team-member-actions1',
             'client/public/training-forms.css': 'https://7network.live/training-forms.css?v=20261111-application-archive1',
@@ -325,7 +339,7 @@ def deploy(stage, commit):
                   'migration': after_schema['migration'], 'schemaColumns': after_schema['columns'],
                   'submissionCountUnchanged': after_schema['submissions'] == before_schema['submissions'],
                   'appRoute': app_route, 'anonymousFormsApi': forms_api, 'anonymousTeamApi': team_api,
-                  'anonymousTeamLogout': team_logout,
+                  'anonymousTeamLogout': team_logout, 'applicationShellReferences': expected_asset_refs,
                   'supportServicesUnchanged': True, 'healthz': '200', 'appOverlay': str(app_overlay),
                   'migrationOverlay': str(migration_overlay)}
         write_private(backup / 'result.json', result)
