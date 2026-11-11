@@ -1,3 +1,20 @@
+# 2026-11-11 — Clickable Pro Catalyst brief metrics and consistent 7Network loading brand
+
+- Source commit 6f4a2795d43bd092239a36d0bfc1fa36db6c2eb4 is pushed to Ahammedsajal/SaleMax main and deployed as app-only overlay /opt/salemax/releases/pipeline-followup-filter-brand-6f4a2795d43b-20261111. Base release remains /opt/salemax/releases/training-pipeline-correction-v3-9867ca72-20261104; app image is unchanged. Protected rollback is /opt/salemax/shared/rollback-pipeline-followup-filter-brand-6f4a2795d43b-20261111.
+- All eight follow-up brief metrics and the suggested-leads total are buttons. Selecting a metric filters the lead cards to that category; 50 leads are shown per page with the selected category and exact total. The unclassified/review group now returns its own lead cards, so it can be opened from its count. The endpoint returns at most 500 suggested and 500 review cards; the screen flags a category whose total exceeds its loaded records.
+- The maintained 7network-brand.js hook rebrands the legacy platform loader logo and exact default SaleMaX title in the same bounded loader container, while leaving tenant/customer content alone. Its spinner uses the 7Network blue. The compiled React bundle was not edited. Root and Pipeline asset URLs were cache-busted. This change affects the authenticated web report only; it does not add clickable PDF controls.
+- Runtime and public asset SHA-256 values match:
+  - client/public/pipeline/reports.js: fd62680cc2761dae4de3e3ddddd47c6b1480a320bf0c2f11bee9cb75918dafbf
+  - client/public/pipeline/index.html: a59d87d04ed64b42727b01e05fea58fd269b173f5fe247c4a94860238e25ace1
+  - client/public/pipeline/pipeline.css: 072a5e7f3ccc42ca578a17feb3ffab8f95ba2e502f978ac057cf7eb095005181
+  - client/public/pipeline/pipeline-theme.css: 3c30ec2328c493ba6f0b1ee50b82351ecf480ac75dfbcbd9c79aac232e3669bc
+  - client/public/index.html: 8adc21a7d80be569b0c471acde7e12bce9e618e88ce8b11a835460461c8bd6b7
+  - client/public/7network-brand.js: 613677b47a74f0d9fda85365ca566b0d732a5f7955a786bcf5e3bc3aa111a4dd
+  - client/public/7network-brand.css: 55c1cda55a23f7da2f97f89fa91a214ee5a466f2009e9f4114e31b53ed65fde1
+  - modules/platform/pipeline-follow-up-brief.js: 748b0963cd494f484f2c4a273777b72ae5fb5d90331477dda296ec3f290c9bfb
+- The app is healthy; /healthz and /user?page=lead-reports return HTTP 200; the anonymous follow-up brief API returns HTTP 401. The root user shell references the updated loader script and CSS. Database, report worker, and other support-service identities are unchanged. No migration, lead/team assignment, recipient, automation schedule, WhatsApp message, or customer record changed. JavaScript/Python syntax checks and git diff --check passed; no test suite was run. Signed-in visual click-flow acceptance remains open because local browser use is disabled in Work settings.
+- While this remains the active app overlay, restore the prior app chain with: sudo -n /opt/salemax/shared/with-production-lock.sh python3 /opt/salemax/releases/pipeline-followup-filter-brand-6f4a2795d43b-20261111/deploy/pipeline-followup-filter-brand-release.py restore /opt/salemax/shared/rollback-pipeline-followup-filter-brand-6f4a2795d43b-20261111. This restores the exact previous mounts and preimages; it does not alter the database or report worker.
+
 # 2026-11-11 — Direct chat links in Pro Catalyst follow-up brief cards
 
 - Source commit `395924b267e230c90e022123b6dc41904fe104d8` is pushed to `Ahammedsajal/SaleMax` `main`. App-only overlay `/opt/salemax/releases/pipeline-report-chat-link-395924b267e2-20261111` is active over the existing app/worker chain; protected rollback is `/opt/salemax/shared/rollback-pipeline-report-chat-link-395924b267e2-20261111`. Base release remains `/opt/salemax/releases/training-pipeline-correction-v3-9867ca72-20261104`; app image unchanged.

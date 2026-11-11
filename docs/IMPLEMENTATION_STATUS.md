@@ -1,3 +1,9 @@
+## Pro Catalyst brief metric filters and 7Network loader branding — deployed, 11 November 2026
+
+The eight daily follow-up counts and the suggested-lead total are clickable; each filters the cards to its matching category. The review count now opens its actual leads. The result list shows up to 50 cards per page and the selected group total; if the 500-item server cap is exceeded for a category, the screen flags that more records are available. The app’s maintained brand hook also changes the legacy platform loader logo, exact default name and spinner color to 7Network without rewriting tenant or customer content. The compiled bundle was not edited.
+
+Source 6f4a2795d43bd092239a36d0bfc1fa36db6c2eb4 is live in an app-only overlay with no migration or business-data changes. Health, route, anonymous API authorization and served asset hashes passed. The PDF export and report schedule were not changed. Signed-in filter interaction and loader appearance still need browser acceptance because local browser use is disabled in Work settings. See DEPLOYMENT.md for hashes and guarded rollback.
+
 ## Owner-requested Pro Catalyst test lead assignment — one assigned, one held safely, 11 November 2026
 
 The first open, unassigned lead with two direct chats was assigned to the least-loaded eligible agent, excluding Agent 1; both Pipeline and Inbox ownership were verified. One internal QR notification was accepted. A fresh audit of the second lead found zero active agent accounts in its separate legacy workspace, so it remains open and unassigned; cross-workspace assignment was not attempted. The test number and customer received no message. The protected pre-change snapshot is outside Git. See `DEPLOYMENT.md`; the rest of the daily automation remains unchanged.
