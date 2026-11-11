@@ -20,6 +20,10 @@ SUPPORT = ('salemax-db-1', WORKER, 'salemax-libretranslate-1',
 EXPECTED_IMAGE = 'salemax-app:openai-ads-lead-01fde9e1-20261103'
 EXPECTED_HEAD = '/opt/salemax/releases/pipeline-follow-up-assignment-domain-c9267469ad33-20261111/compose.follow-up-domain-app.json'
 FILES = ('client/public/pipeline/reports.js', 'client/public/pipeline/index.html')
+PREVIOUS_MOUNTS = {
+    '/app/client/public/pipeline/reports.js': '/opt/salemax/releases/pipeline-follow-up-assignment-4eb0f60d4bd7-20261111/runtime/client/public/pipeline/reports.js',
+    '/app/client/public/pipeline/index.html': '/opt/salemax/releases/pipeline-follow-up-assignment-4eb0f60d4bd7-20261111/runtime/client/public/pipeline/index.html',
+}
 PREIMAGES = {
     'client/public/pipeline/reports.js': 'd3c0e28cd7fd126f9b69bcbb0f0414deb444af280486089912bdd7e53fb58cda',
     'client/public/pipeline/index.html': 'e7a63bb6d979604698b3d5149e22446023c444c6c090d6a69804bf29cc3c8ae5',
@@ -115,9 +119,16 @@ def verify_overlay(meta, env, overlay, mounts):
     old = copy.deepcopy(before['services']['app'])
     new = copy.deepcopy(after['services']['app'])
     old_mounts = {row['target']: row for row in old.get('volumes', [])}
-    if any(mount['target'] in old_mounts for mount in mounts):
-        raise RuntimeError('Candidate Compose replaces an existing app mount')
     expected = dict(old_mounts)
+    for mount in mounts:
+        if mount['target'] in old_mounts:
+            previous = old_mounts[mount['target']]
+            previous_source = PREVIOUS_MOUNTS.get(mount['target'])
+            expected_hash = PREIMAGES.get(mount['target'].removeprefix('/app/'))
+            if (previous.get('type') != 'bind' or previous.get('source') != previous_source
+                    or previous.get('read_only') is not True or not previous_source or not expected_hash
+                    or not Path(previous_source).is_file() or sha(Path(previous_source).read_bytes()) != expected_hash):
+                raise RuntimeError('Candidate Compose would replace an unreviewed app mount')
     expected.update({mount['target']: mount for mount in mounts})
     actual = {row['target']: row for row in new.get('volumes', [])}
     if set(actual) != set(expected):
