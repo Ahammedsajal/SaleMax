@@ -1,3 +1,7 @@
+## 7Network links in Pro Catalyst follow-up assignment messages — deployed, 11 November 2026
+
+New owner and agent follow-up assignment digests use `https://7network.live/user?page=pipeline`. The 7Network public route is verified; the legacy hostname remains a compatibility alias. The source overlay is live in both the app and report worker with no migration or data/settings change. App health, worker state, route HTTP 200, anonymous API HTTP 401 and runtime hashes passed. See `DEPLOYMENT.md` for commit and protected rollback details. Signed-in browser acceptance and the full Training Center release gates remain open.
+
 ## Pro Catalyst daily lead assignment and staff WhatsApp briefs — deployed, 11 November 2026
 
 Production has an owner-controlled daily automation in the existing Reports screen. The fresh audit found 80 actionable open direct chats (35 high intent, 45 warm course interest; 57 waiting 72h+) and 29 no-signal chats kept for staff review. It assigned 79 unassigned leads evenly across five agents (16 / 16 / 16 / 16 / 15); the one pre-owned lead remained unchanged. All 79 database assignments match Pipeline ownership.
