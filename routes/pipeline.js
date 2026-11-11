@@ -19,8 +19,12 @@ const trainingTasks = require('../modules/platform/task-management');
 const crypto = require('node:crypto');
 const {createTaskRouter}=require('../modules/platform/task-router');
 
+function attachActorContext(ctx,actor) {
+  return {...ctx,uid:actor.uid,uidHash:crypto.createHash('sha256').update(String(actor.uid),'utf8').digest('hex'),role:actor.role,actorType:actor.actorType,actorId:String(actor.actorId),agentId:actor.agentId,scopeAgentIds:actor.scopeAgentIds,scopeIdentityIds:actor.scopeIdentityIds};
+}
+
 async function saleContext(actor) {
-  if(actor.canonicalContext)return {...actor.canonicalContext,uid:actor.uid,uidHash:crypto.createHash('sha256').update(String(actor.uid),'utf8').digest('hex'),role:actor.role,actorType:actor.actorType,actorId:String(actor.actorId),agentId:actor.agentId,scopeAgentIds:actor.scopeAgentIds,scopeIdentityIds:actor.scopeIdentityIds};
+  if(actor.canonicalContext)return attachActorContext(actor.canonicalContext,actor);
   const ctx=await trainingCourses.legacyOwnerContext(require('../database/config.js').promise(),actor.uid);
   if(actor.role==='manager'){
     ctx.identity={id:actor.identityId};
@@ -28,7 +32,7 @@ async function saleContext(actor) {
   }else{
     ctx.membership={...ctx.membership,role:actor.role,id:actor.role==='agent'?`legacy-agent-${actor.agentId}`:ctx.membership.id,delegatedPermissions:[]};
   }
-  return ctx;
+  return attachActorContext(ctx,actor);
 }
 
 async function taskContext(actor,permission='tasks.read'){
