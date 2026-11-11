@@ -313,7 +313,11 @@ def deploy(stage, commit):
                   'anonymousAssignmentApi': anonymous_status, 'publicFiles': public_files, 'healthz': '200'}
         (backup / 'result.json').write_text(json.dumps(result, indent=2) + '\n')
         print(json.dumps(result))
-    except Exception:
+    except Exception as error:
+        try:
+            (backup / 'deployment-failure.txt').write_text(f'{type(error).__name__}: {error}\n')
+        except Exception:
+            pass
         compose_up(app_meta, app_env, None, 'app')
         wait_app()
         compose_up(worker_meta, worker_env, None, 'report-worker')
