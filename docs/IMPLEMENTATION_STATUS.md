@@ -2425,3 +2425,7 @@ The public header and 3D hero share a navy surface. The header uses translucent 
 ### Training applications and staff member actions — 11 November 2026
 
 Submitted applications can be archived and restored, with linked business records retained. Owner/manager team screens can edit display name and mobile or deactivate/reactivate eligible team memberships; login email remains unchanged and ownership history is preserved. Source `0d18a98dd4e7ab91d65416e3034a881f6017575d` is pushed and active in production. The archive migration is applied; live health, auth boundaries, shell asset references and served CSS/JS hashes are recorded in `DEPLOYMENT.md`. Signed-in workflow, role, Arabic/RTL, responsive and theme acceptance remain open; “Delete” is a recoverable archive/deactivation action.
+
+### Pro Catalyst daily follow-up cadence fallback — 11 November 2026
+
+The production worker prioritizes eligible Day 2 follow-ups, then uses Day 7 as a fallback when no eligible Day 2 work is waiting. The fallback skips leads with any prior Day 2 delivery record. Source `63519bd0859b5d82c730d9330025a28eb51ab456` is deployed in `/opt/salemax/releases/pro-catalyst-followup-cadence-63519bd0859b-20261111`; automation is enabled. At verification, no eligible fallback lead was due: 14 ready leads already had Day 2 sent and their Day 7 entries wait until 15 November; uncertain-course and staff-followed-up leads remain suppressed. A fallback provider send is not yet verified. See `DEPLOYMENT.md` for health, queue counts and guarded rollback.
