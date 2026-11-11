@@ -170,6 +170,20 @@ async function loadAgents(db, { tenantId, uid }) {
     JOIN sx_identities i ON i.id=m.identity_id AND i.status='active'
     WHERE a.owner_uid=? AND a.role='agent' AND a.is_active=1 ORDER BY a.id`, [tenantId, uid]);
 }
+function parseAgentIds(value) {
+  if (value == null || value === '') return null;
+  let ids;
+  try { ids = Array.isArray(value) ? value : JSON.parse(String(value)); } catch { fail('INVALID_AGENT_SELECTION', 409); }
+  if (!Array.isArray(ids)) fail('INVALID_AGENT_SELECTION', 409);
+  const normalized = ids.map(Number);
+  if (normalized.some(id => !Number.isSafeInteger(id) || id < 1)) fail('INVALID_AGENT_SELECTION', 409);
+  return [...new Set(normalized)];
+}
+function selectedActiveAgents(activeAgents, savedIds) {
+  if (savedIds == null) return activeAgents;
+  const selected = new Set(savedIds);
+  return activeAgents.filter(agent => selected.has(Number(agent.id)));
+}
 async function loadSummaryRecipients(db, tenantId) {
   return queryRows(db, `SELECT m.role,m.identity_id,i.display_name,
       o.source_table,o.source_id,
@@ -204,8 +218,13 @@ async function getSettings(source, ctx) {
   await assertTrainingCenter(db, actor.tenantId);
   const [settings] = await queryRows(db, 'SELECT * FROM sx_pipeline_followup_assignment_settings WHERE tenant_id=? AND uid_hash=? LIMIT 1', [actor.tenantId, actor.uidHash]);
   const [latest] = await queryRows(db, 'SELECT * FROM sx_pipeline_followup_assignment_runs WHERE tenant_id=? ORDER BY local_date DESC LIMIT 1', [actor.tenantId]);
+  const activeAgents = await loadAgents(db, actor);
+  const savedIds = parseAgentIds(settings?.eligible_agent_ids_json);
+  const eligibleAgentIds = selectedActiveAgents(activeAgents, savedIds).map(agent => Number(agent.id));
+  const selected = new Set(eligibleAgentIds);
   const schedule = await deliverySchedule(db, actor.tenantId);
-  return { ...settingsShape(settings, latest), ...schedule };
+  return { ...settingsShape(settings, latest), ...schedule, activeAgentCount: activeAgents.length,
+    eligibleAgentIds, agents: activeAgents.map(({ id, name }) => ({ id: Number(id), name, selected: selected.has(Number(id)), active: true })) };
 }
 async function saveSettings(source, ctx, input = {}) {
   const actor = actorContext(ctx);
@@ -218,10 +237,18 @@ async function saveSettings(source, ctx, input = {}) {
   const conn = await db.getConnection();
   try {
     await assertTrainingCenter(db, actor.tenantId);
+    const activeAgents = await loadAgents(db, actor);
+    const [existingSettings] = await queryRows(db, 'SELECT eligible_agent_ids_json FROM sx_pipeline_followup_assignment_settings WHERE tenant_id=? AND uid_hash=? LIMIT 1', [actor.tenantId, actor.uidHash]);
+    const existingIds = parseAgentIds(existingSettings?.eligible_agent_ids_json);
+    const requestedIds = input.agentIds === undefined ? existingIds : parseAgentIds(input.agentIds);
+    const selectedAgents = selectedActiveAgents(activeAgents, requestedIds);
+    if (input.agentIds !== undefined && requestedIds !== null && selectedAgents.length !== requestedIds.length) fail('INVALID_AGENT_SELECTION', 409);
+    if (input.enabled && selectedAgents.length === 0) fail('NO_ELIGIBLE_AGENTS', 409);
+    const agentIds = selectedAgents.map(agent => Number(agent.id));
     await conn.beginTransaction();
-    await conn.query(`INSERT INTO sx_pipeline_followup_assignment_settings(tenant_id,uid_hash,enabled,timezone,send_time,updated_by_identity_id)
-      VALUES(?,?,?,?,?,?) ON DUPLICATE KEY UPDATE enabled=VALUES(enabled),timezone=VALUES(timezone),send_time=VALUES(send_time),updated_by_identity_id=VALUES(updated_by_identity_id)`,
-      [actor.tenantId, actor.uidHash, input.enabled ? 1 : 0, timezone, sendTime, actor.identityId]);
+    await conn.query(`INSERT INTO sx_pipeline_followup_assignment_settings(tenant_id,uid_hash,enabled,eligible_agent_ids_json,timezone,send_time,updated_by_identity_id)
+      VALUES(?,?,?,?,?,?,?) ON DUPLICATE KEY UPDATE enabled=VALUES(enabled),eligible_agent_ids_json=VALUES(eligible_agent_ids_json),timezone=VALUES(timezone),send_time=VALUES(send_time),updated_by_identity_id=VALUES(updated_by_identity_id)`,
+      [actor.tenantId, actor.uidHash, input.enabled ? 1 : 0, JSON.stringify(agentIds), timezone, sendTime, actor.identityId]);
     if (!input.enabled) await conn.query("UPDATE sx_pipeline_followup_assignment_outbox SET status='cancelled',last_error_code='AUTOMATION_DISABLED',lease_token=NULL,lease_until=NULL WHERE tenant_id=? AND status='queued'", [actor.tenantId]);
     await conn.commit();
   } catch (error) { try { await conn.rollback(); } catch {} throw error; }
@@ -239,8 +266,12 @@ async function buildPlan(source, config, { now = new Date(), runMode = 'manual',
   if (prior) return { runId: prior.id, status: prior.status, repeated: true, counts: { planned: Number(prior.planned_count), assigned: Number(prior.assigned_count), skipped: Number(prior.skipped_count), failed: Number(prior.failed_count) } };
   const brief = await followUpBrief.getBrief({ pool: db, uid: config.uid, role: 'owner', timezone: config.timezone || DEFAULT_TIMEZONE, includeItems: true, now: now.getTime() });
   if (brief.hasMore) fail('FOLLOW_UP_QUEUE_TOO_LARGE', 503);
-  const agents = await loadAgents(db, { tenantId: config.tenantId, uid: config.uid });
-  if (!agents.length && brief.summary.total) fail('NO_ACTIVE_AGENTS', 409);
+  const activeAgents = await loadAgents(db, { tenantId: config.tenantId, uid: config.uid });
+  const [assignmentSettings] = await queryRows(db, 'SELECT eligible_agent_ids_json FROM sx_pipeline_followup_assignment_settings WHERE tenant_id=? AND uid_hash=? LIMIT 1', [config.tenantId, config.uidHash]);
+  const savedAgentIds = parseAgentIds(assignmentSettings?.eligible_agent_ids_json);
+  const agents = selectedActiveAgents(activeAgents, savedAgentIds);
+  const unassignedCandidates = (brief.items || []).some(item => item.ownerAgentId == null && ['high', 'warm'].includes(item.priority));
+  if (!agents.length && unassignedCandidates) fail('NO_ELIGIBLE_AGENTS', 409);
   const assignments = agentQueue(brief, agents);
   const localSchedule = runMode === 'manual' ? nextScheduledAt(now, config.sendTime || DEFAULT_SEND_TIME, config.timezone || DEFAULT_TIMEZONE) : now;
   const deliveryAt = deliverAt || (runMode === 'manual' && localSchedule > now ? localSchedule : now);

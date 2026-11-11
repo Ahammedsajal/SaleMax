@@ -378,7 +378,7 @@ router.put('/reports/follow-up-assignment',async(req,res)=>{
     res.setHeader('Cache-Control','no-store');res.json({success:true,data:{...data,canManage:true}});
   }catch(error){
     const code=error?.code||'FOLLOW_UP_ASSIGNMENT_SETTINGS_UNAVAILABLE';
-    const status=error?.status||(['PERMISSION_DENIED'].includes(code)?403:code==='CATEGORY_UNAVAILABLE'?409:code.startsWith('INVALID_')?400:500);
+    const status=error?.status||(['PERMISSION_DENIED'].includes(code)?403:code==='CATEGORY_UNAVAILABLE'||['NO_ELIGIBLE_AGENTS','INVALID_AGENT_SELECTION'].includes(code)?409:code.startsWith('INVALID_')?400:500);
     if(status>=500)console.error('Follow-up assignment settings failed:',code);
     res.status(status).json({success:false,code:status===500?'FOLLOW_UP_ASSIGNMENT_SETTINGS_UNAVAILABLE':code});
   }
@@ -392,7 +392,7 @@ router.post('/reports/follow-up-assignment/run',async(req,res)=>{
     res.setHeader('Cache-Control','no-store');res.status(result.repeated?200:202).json({success:true,data:result});
   }catch(error){
     const code=error?.code||'FOLLOW_UP_ASSIGNMENT_UNAVAILABLE';
-    const status=error?.status||(['PERMISSION_DENIED'].includes(code)?403:code==='CATEGORY_UNAVAILABLE'||code==='NO_ACTIVE_AGENTS'?409:code==='FOLLOW_UP_QUEUE_TOO_LARGE'?503:500);
+    const status=error?.status||(['PERMISSION_DENIED'].includes(code)?403:code==='CATEGORY_UNAVAILABLE'||['NO_ACTIVE_AGENTS','NO_ELIGIBLE_AGENTS','INVALID_AGENT_SELECTION'].includes(code)?409:code==='FOLLOW_UP_QUEUE_TOO_LARGE'?503:500);
     if(status>=500)console.error('Follow-up assignment run failed:',code);
     res.status(status).json({success:false,code:status===500?'FOLLOW_UP_ASSIGNMENT_UNAVAILABLE':code});
   }

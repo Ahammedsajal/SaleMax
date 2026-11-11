@@ -229,3 +229,22 @@
 .followup-brief-badge.is-review{background:#fff6e7;color:#87550c}
 @media(prefers-reduced-motion:reduce){.followup-brief-kpi{transition:none}.followup-brief-kpi:hover{transform:none}}
 .followup-brief-scope[aria-pressed="true"]{box-shadow:0 0 0 2px #0b9273}
+
+.report-health-metrics{display:grid;grid-template-columns:minmax(210px,.8fr) minmax(360px,1.4fr);gap:12px;margin-top:12px}
+.report-health-card{min-width:0;padding:15px 17px;border:1px solid #e4ebf3;border-radius:11px;background:linear-gradient(145deg,#fff,#f8fbff)}
+.report-health-card h4{margin:0 0 9px;color:#526780;font-size:12px;font-weight:700}
+.report-health-contact{border-top:3px solid #12a9c7}.report-health-age{border-top:3px solid #8655d6}
+.report-health-primary{display:flex;align-items:baseline;gap:6px;color:#17314e}.report-health-primary strong{font:750 27px/1.1 Manrope,Arial,sans-serif}.report-health-primary span{color:#6b7d91;font-size:12px;font-weight:650}
+.report-health-card>p{margin:5px 0 0;color:#718198;font-size:11px}
+.report-age-buckets{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px}
+.report-age-buckets>div{display:grid;gap:7px;min-width:0;padding:9px 10px;border-radius:8px;background:#f4f7fc}
+.report-age-buckets small{color:#687b91;font-size:10px;line-height:1.3}.report-age-buckets strong{color:#203652;font:750 17px/1.1 Manrope,Arial,sans-serif}
+.followup-automation-selection{display:flex;align-items:center;justify-content:space-between;gap:14px;margin:10px 0;padding:12px 14px;border:1px solid #dce8f2;border-radius:11px;background:#ffffffb8}
+.followup-automation-selection>div{display:grid;gap:4px;min-width:0}.followup-automation-selection span{color:#526780;font-size:11px;font-weight:700}.followup-automation-selection strong{color:#233a54;font-size:14px}.followup-automation-selection small{color:#718198;font-size:11px;line-height:1.45}.followup-automation-selection button{flex:none;min-height:40px}.followup-automation-selection button:disabled{opacity:.6;cursor:not-allowed}
+.followup-agent-dialog{box-sizing:border-box;width:min(560px,calc(100vw - 28px));max-width:none;max-height:min(86dvh,720px);padding:0;overflow:hidden;border:1px solid #d7e1ed;border-radius:16px;background:#fff;color:#203247;box-shadow:0 24px 72px #0e274433}
+.followup-agent-dialog::backdrop{background:#10233b66;backdrop-filter:blur(3px)}
+.followup-agent-dialog form{display:grid;gap:12px;max-height:inherit;padding:20px}
+.followup-agent-dialog header{display:flex;align-items:flex-start;justify-content:space-between;gap:14px}.followup-agent-dialog header h4{margin:0;color:#1b314b;font:750 17px/1.35 Manrope,Arial,sans-serif}.followup-agent-dialog header p{margin:5px 0 0;color:#667b91;font-size:12px;line-height:1.5}.followup-agent-dialog header button{flex:none;min-width:38px;min-height:38px;padding:4px;font-size:18px}
+.followup-agent-count{margin:0;color:#087a64;font-size:12px;font-weight:750}.followup-agent-list{display:grid;gap:7px;max-height:min(45dvh,360px);overflow:auto;padding:2px}.followup-agent-row{display:flex;align-items:center;gap:10px;min-height:48px;padding:8px 11px;border:1px solid #e3eaf2;border-radius:9px;background:#fbfcfe;cursor:pointer}.followup-agent-row input{width:18px;height:18px;accent-color:#159879}.followup-agent-row span{flex:1;min-width:0;color:#263b52;font-size:13px;font-weight:650;overflow-wrap:anywhere}.followup-agent-row small{padding:3px 7px;border-radius:999px;background:#e6f5ef;color:#087a64;font-size:10px;font-weight:750}.followup-agent-empty,.followup-agent-status{margin:0;color:#718198;font-size:12px;line-height:1.5}.followup-agent-status:empty{display:none}.followup-agent-dialog footer{display:flex;justify-content:flex-end;gap:8px;padding-top:4px}.followup-agent-dialog footer button{min-height:40px}
+@media(max-width:900px){.report-health-metrics{grid-template-columns:minmax(0,1fr)}}
+@media(max-width:620px){.report-health-metrics{gap:8px}.report-health-card{padding:12px}.report-age-buckets{grid-template-columns:repeat(2,minmax(0,1fr));gap:7px}.followup-automation-selection{align-items:stretch;flex-direction:column}.followup-automation-selection button{width:100%}.followup-agent-dialog form{padding:15px}.followup-agent-dialog footer{flex-direction:column-reverse}.followup-agent-dialog footer button{width:100%}}

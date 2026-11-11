@@ -161,3 +161,19 @@ html[data-sx-theme=dark] .reports .followup-brief-clear{background:#202c3a;borde
 html[data-sx-theme=dark] .reports .followup-brief-limited{background:#302a20;border-color:#655333;color:#f1cf8d}
 html[data-sx-theme=dark] .reports .followup-brief-badge.is-review{background:#302a20;color:#f1cf8d}
 html[data-sx-theme=dark] .reports .followup-brief-scope[aria-pressed="true"]{box-shadow:0 0 0 2px #36b899}
+html[data-sx-theme=dark] .reports .report-health-card{background:linear-gradient(145deg,#1f2936,#202d3b);border-color:#354252;color:#e7edf5}
+html[data-sx-theme=dark] .reports .report-health-card h4,html[data-sx-theme=dark] .reports .report-health-card>p{color:#aebaca}
+html[data-sx-theme=dark] .reports .report-health-primary{color:#e7edf5}
+html[data-sx-theme=dark] .reports .report-health-primary span{color:#aebaca}
+html[data-sx-theme=dark] .reports .report-age-buckets>div{background:#18212c}
+html[data-sx-theme=dark] .reports .report-age-buckets small{color:#aebaca}
+html[data-sx-theme=dark] .reports .report-age-buckets strong{color:#e7edf5}
+html[data-sx-theme=dark] .reports .followup-automation-selection{background:#202d3b;border-color:#354252}
+html[data-sx-theme=dark] .reports .followup-automation-selection span,html[data-sx-theme=dark] .reports .followup-automation-selection small{color:#aebaca}
+html[data-sx-theme=dark] .reports .followup-automation-selection strong{color:#e7edf5}
+html[data-sx-theme=dark] .followup-agent-dialog{background:#1f2936;color:#e7edf5;border-color:#354252}
+html[data-sx-theme=dark] .followup-agent-dialog header h4{color:#f0f4f9}
+html[data-sx-theme=dark] .followup-agent-dialog header p,html[data-sx-theme=dark] .followup-agent-empty,html[data-sx-theme=dark] .followup-agent-status{color:#aebaca}
+html[data-sx-theme=dark] .followup-agent-row{background:#18212c;border-color:#354252}
+html[data-sx-theme=dark] .followup-agent-row span{color:#e7edf5}
+html[data-sx-theme=dark] .followup-agent-row small{background:#173c38;color:#92e7d2}
