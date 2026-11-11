@@ -7,11 +7,11 @@ module.exports=function createRouter({agent=false,pool:injectedPool,authenticate
  router.use(authenticate||(agent?require('../../middlewares/agent'):require('../../middlewares/user')));
  router.use(async(req,res,next)=>{let db;try{db=await pool.getConnection();req.phonebookContext=req.featureSession?await service.sessionContext(db,req.featureSession):await service.context(db,req.decode.userData,agent?'agents':'user',req.owner);next();}catch(e){res.status(e.status||503).json({success:false,code:e.code||'PHONEBOOK_UNAVAILABLE'});}finally{db?.release();}});
  const handle=fn=>async(req,res)=>{let db;try{db=await pool.getConnection();res.set('Cache-Control','no-store');res.json({success:true,...await fn(db,req.phonebookContext,req)});}catch(e){res.status(e.status||500).json({success:false,code:e.status?e.code:'PHONEBOOK_UNAVAILABLE',...(e.row?{row:e.row}:{})});}finally{db?.release();}};
- router.get('/bootstrap',handle(async(db,ctx)=>({config:await service.settings(db,ctx),books:await service.books(db,ctx),manage:ctx.manage,category:ctx.category})));
+ router.get('/bootstrap',handle(async(db,ctx)=>({config:await service.settings(db,ctx),books:await service.books(db,ctx),manage:ctx.manage,category:ctx.category,emailMarketing:ctx.emailMarketing===true})));
  router.post('/books',handle((db,ctx,req)=>service.createBook(db,ctx,req.body)));
  router.post('/books/delete',handle((db,ctx,req)=>service.deleteBook(db,ctx,req.body)));
  router.post('/add-contacts',handle((db,ctx,req)=>service.addContacts(db,ctx,req.body)));
- router.post('/import',(req,res,next)=>req.phonebookContext.manage?next():res.status(403).json({success:false,code:'READ_ONLY_SHARE'}),require('express-fileupload')({limits:{fileSize:2*1024*1024},abortOnLimit:true}),handle(async(db,ctx,req)=>service.addContacts(db,ctx,{bookId:req.body?.bookId,rows:await service.parseContactCsv(req.files?.file)}))); 
+ router.post('/import',(req,res,next)=>req.phonebookContext.manage?next():res.status(403).json({success:false,code:'READ_ONLY_SHARE'}),require('express-fileupload')({limits:{fileSize:2*1024*1024},abortOnLimit:true}),handle(async(db,ctx,req)=>service.addContacts(db,ctx,{bookId:req.body?.bookId,emailConsentConfirmed:req.body?.emailConsentConfirmed==='true',rows:await service.parseContactCsv(req.files?.file,{emailMarketing:ctx.emailMarketing===true})})));
  router.post('/contacts',handle(async(db,ctx,req)=>service.list(db,ctx,req.body)));
  router.post('/contact-matches',handle(async(db,ctx,req)=>service.contactsByMobile(db,ctx,req.body)));
  router.post('/values',handle(async(db,ctx,req)=>service.unique(db,ctx,req.body)));

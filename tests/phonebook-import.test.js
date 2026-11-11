@@ -26,6 +26,16 @@ test('rejects missing names and overlong values before inserting CSV rows',()=>{
   assert.throws(()=>normalizeImportRows([{name:'Centre',mobile:'',var3:'x'.repeat(1000)}]),{code:'CONTACT_FIELD_TOO_LONG'});
 });
 
+test('email-only phonebook imports require a valid address and explicit consent confirmation',()=>{
+  const rows=normalizeImportRows([{name:'Email contact',email:'Sales@Example.com',email_marketing_consent:'yes'}],{emailMarketing:true});
+  assert.equal(rows[0][1],null);
+  assert.equal(rows[0][7],'sales@example.com');
+  assert.equal(rows[0][8],0);
+  const confirmed=normalizeImportRows([{name:'Email contact',email:'Sales@Example.com',email_marketing_consent:'yes'}],{emailMarketing:true,consentConfirmed:true});
+  assert.equal(confirmed[0][8],1);
+  assert.throws(()=>normalizeImportRows([{name:'Email contact',email:'invalid'}],{emailMarketing:true}),{code:'INVALID_EMAIL_ADDRESS'});
+});
+
 test('only contacts with a real nonblank mobile are campaign and call recipients',()=>{
   const rows=sendableContacts([
     {name:'Phone',mobile:'+97440000000'},

@@ -50,6 +50,9 @@ function mountExistingUpgrade(app,{pool,key,origin,insecureLoopback=false,legacy
   app.use('/api/user/chatbots/settings/provider',aiSettings);
   const phonebook=require('./phonebook-workspace-router')({pool,authenticate:featureSession.guard});
   app.use(['/api/workspace/phonebook','/api/phonebook/workspace','/api/agent/phonebook'],phonebook);
+  app.use('/api/workspace/email-marketing',require('./email-marketing-router').createEmailMarketingRouter({pool,authenticate:featureSession.guard,origin,key}));
+  app.use('/api/public/email',require('./email-marketing-router').createPublicEmailRouter({pool,key}));
+  require('./email-marketing-worker').start(pool,{key,origin});
   const courseReplies=require('./course-quick-reply-router')({pool,origin,authenticate:featureSession.guard});
   const inboxGroups=require('./qr-inbox-groups-router')({pool,origin,authenticate:featureSession.guard});
   app.use(['/api/workspace/inbox/groups','/api/inbox/groups','/api/agent/inbox/groups'],inboxGroups);
@@ -65,6 +68,7 @@ function mountExistingUpgrade(app,{pool,key,origin,insecureLoopback=false,legacy
   app.use('/api/admin/business-contracts',createExistingBusinessRouter({pool,legacyGuard,canonicalGuard:boundary.guard}));
   const access=createExistingPlatformAccessRouters({pool,origin});
   app.use('/api/admin/platform-access',legacyGuard,boundary.guard,access.admin);
+  app.use('/api/admin/email-marketing-settings',legacyGuard,boundary.guard,require('./email-marketing-admin-router').createEmailMarketingAdminRouter({pool,key,origin}));
   app.use('/api/admin/asterisk',legacyGuard,boundary.guard,createAsteriskRouter({pool}));
   app.use('/api/admin/staff-invitations',access.accept);
   const team=createTeamInvitationRouters({pool,origin,userGuard,insecureLoopback});
@@ -101,7 +105,7 @@ function mountExistingUpgrade(app,{pool,key,origin,insecureLoopback=false,legacy
   return boundary;
 }
 function mountConfiguredUpgrade(app){
-  if(process.env.SALEMAX_PLATFORM_ENABLED!=='true'){app.use(['/api/workspace','/api/inbox/course-replies','/api/agent/course-replies','/api/phonebook/workspace','/api/agent/phonebook','/api/admin/platform-auth','/api/admin/plan-contracts','/api/admin/business-contracts','/api/admin/platform-access','/api/admin/asterisk','/api/admin/staff-invitations','/api/user/business-auth','/api/crm','/api/user/sales-organization','/api/user/sales-commissions','/api/user/sales-finance','/api/user/sales-targets','/api/user/sales-audit','/api/user/team-invitations','/api/workspace/team','/api/user/training/courses','/api/user/training/tasks','/api/user/training/students','/api/user/training/profile','/api/user/training/finance-policies','/api/user/training/forms','/api/user/chatbots','/api/user/recruitment','/api/public/recruitment','/api/user/call-center','/api/public/training/forms','/api/public/training/documents','/api/public/training/reminder-preferences','/api/agent/invitations'],(req,res)=>res.status(503).json({code:'PLATFORM_UPGRADE_NOT_ENABLED'}));return false;}
+  if(process.env.SALEMAX_PLATFORM_ENABLED!=='true'){app.use(['/api/workspace','/api/inbox/course-replies','/api/agent/course-replies','/api/phonebook/workspace','/api/agent/phonebook','/api/admin/platform-auth','/api/admin/plan-contracts','/api/admin/business-contracts','/api/admin/platform-access','/api/admin/email-marketing-settings','/api/admin/asterisk','/api/admin/staff-invitations','/api/user/business-auth','/api/crm','/api/user/sales-organization','/api/user/sales-commissions','/api/user/sales-finance','/api/user/sales-targets','/api/user/sales-audit','/api/user/team-invitations','/api/workspace/team','/api/user/training/courses','/api/user/training/tasks','/api/user/training/students','/api/user/training/profile','/api/user/training/finance-policies','/api/user/training/forms','/api/user/chatbots','/api/user/recruitment','/api/public/recruitment','/api/user/call-center','/api/public/training/forms','/api/public/training/documents','/api/public/training/reminder-preferences','/api/public/email','/api/agent/invitations'],(req,res)=>res.status(503).json({code:'PLATFORM_UPGRADE_NOT_ENABLED'}));return false;}
   const secret=process.env.SALEMAX_PLATFORM_KEY_BASE64;
   if(typeof secret!=='string'||!/^[A-Za-z0-9+/]{43}=$/.test(secret))throw new Error('PLATFORM_KEY_REQUIRED');
   const key=Buffer.from(secret,'base64');if(key.length!==32||key.toString('base64')!==secret)throw new Error('PLATFORM_KEY_INVALID');

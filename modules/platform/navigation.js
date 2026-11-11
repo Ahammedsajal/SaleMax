@@ -10,6 +10,7 @@ const items = [
   ['templates', 'messaging.templates', 'templates.manage', 'Create Meta Template', 'إنشاء قالب ميتا', 'Marketing', 'التسويق'],
   ['campaigns', 'campaigns.send', 'campaigns.manage', 'Send Campaign', 'إرسال حملة', 'Marketing', 'التسويق'],
   ['campaign-dashboard', 'campaigns.dashboard', 'campaigns.manage', 'Campaign Dashboard', 'لوحة الحملات', 'Marketing', 'التسويق'],
+  ['email', 'email.marketing', 'email.marketing.manage', 'Email', 'البريد الإلكتروني', 'Marketing', 'التسويق'],
   ['leads', 'crm.leads', 'leads.read', 'Lead Pipeline', 'مسار العملاء المحتملين', 'Sales', 'المبيعات'],
   ['contacts', 'crm.contacts', 'contacts.read', 'Phonebook', 'دليل الهاتف', 'Sales', 'المبيعات'],
   ['agent-login', 'team.members', 'team.read', 'Agent Login', 'دخول الوكلاء', 'Sales', 'المبيعات'],
@@ -77,6 +78,7 @@ async function sidebarForMembership(pool,context,rows){
 // receipts in one workspace. A screen assignment admits those views; the
 // member's action permissions still decide which operations are available.
 function keysForCapability(capability){
+  if(capability==='email.marketing')return ['email'];
   if(['finance.invoices','finance.installments','finance.payments','finance.receipts'].includes(capability))return ['invoices','installments','payments','receipts'];
   return items.filter(item=>item.capability===capability).map(item=>item.key);
 }

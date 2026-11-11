@@ -2,8 +2,11 @@
 const crypto=require('node:crypto');
 const hash=value=>crypto.createHash('sha256').update(String(value)).digest('hex');
 const fail=(code,status=400)=>{throw Object.assign(new Error(code),{code,status});};
-const fields=['name','mobile','phonebook_name','var1','var2','var3','var4','var5','createdAt'];
+const fields=['name','mobile','phonebook_name','var1','var2','var3','var4','var5','var6','createdAt'];
+const emailFields=['email','email_marketing_consent'];
 const normalize=value=>String(value||'').normalize('NFKC').toLocaleLowerCase().replace(/\s+/g,' ').trim();
+const normalizeEmail=value=>String(value||'').trim().toLowerCase();
+const validEmail=value=>!value||String(value).length<=254&&/^[^\s@<>]+@[^\s@<>]+\.[^\s@<>]+$/.test(String(value));
 function ids(input){if(!Array.isArray(input)||!input.length||input.length>500||input.some(id=>!Number.isSafeInteger(Number(id))||Number(id)<1))fail('INVALID_SELECTION');return [...new Set(input.map(Number))];}
 function validateConfig(input){
  if(!input||typeof input!=='object')fail('INVALID_CONFIGURATION');
@@ -29,13 +32,13 @@ async function context(db,user,type='user',owner=null){
  const [links]=await db.query(`SELECT o.legacy_uid_hash AS uidHash,o.tenant_id AS tenantId,m.role,m.status,t.status AS tenantStatus,i.status AS identityStatus
  FROM sx_legacy_ownership o LEFT JOIN sx_memberships m ON m.id=o.membership_id AND m.tenant_id=o.tenant_id LEFT JOIN sx_tenants t ON t.id=o.tenant_id LEFT JOIN sx_identities i ON i.id=m.identity_id
  WHERE o.source_table='user' AND o.source_id=? LIMIT 2`,[String(user.id)]);
- if(!links.length)return {uid:user.uid,hash:hash(user.uid),type,id:Number(user.id),manage:true,category:'legacy'};
+ if(!links.length)return {uid:user.uid,hash:hash(user.uid),type,id:Number(user.id),manage:true,category:'legacy',emailMarketing:false};
  const link=links[0];if(links.length!==1||link.uidHash!==hash(user.uid)||link.status!=='active'||link.identityStatus!=='active'||link.tenantStatus!=='active')fail('ACCESS_DENIED',403);
  const [owners]=await db.query(`SELECT u.uid,o.legacy_uid_hash AS uidHash FROM sx_legacy_ownership o JOIN sx_memberships m ON m.id=o.membership_id AND m.tenant_id=o.tenant_id JOIN user u ON BINARY CAST(u.id AS CHAR)=BINARY o.source_id
  WHERE o.source_table='user' AND o.tenant_id=? AND m.role='owner' AND m.status='active' LIMIT 2`,[link.tenantId]);
  if(owners.length!==1||owners[0].uidHash!==hash(owners[0].uid))fail('ACCESS_DENIED',403);
  const uid=owners[0].uid;
- return {uid,hash:hash(uid),type,id:Number(user.id),manage:['owner','manager'].includes(link.role),category:await category(db,uid)};
+ return {uid,hash:hash(uid),type,id:Number(user.id),manage:['owner','manager'].includes(link.role),category:await category(db,uid),emailMarketing:false};
 }
 async function category(db,uid){const [rows]=await db.query(`SELECT t.category_key FROM user u JOIN sx_legacy_ownership o ON o.source_table='user' AND BINARY o.source_id=BINARY CAST(u.id AS CHAR) JOIN sx_tenants t ON t.id=o.tenant_id WHERE u.uid=? LIMIT 1`,[uid]);return rows[0]?.category_key||'legacy';}
 async function sessionContext(db,session){
@@ -43,8 +46,10 @@ async function sessionContext(db,session){
  const policy=require('./policy'),read=policy.decision(session.context,{capability:'crm.contacts',permission:'contacts.read'});
  if(!read.allowed)fail(read.code,403);
  const manage=policy.decision(session.context,{capability:'crm.contacts',permission:'contacts.manage'}).allowed;
+ const emailMarketing=policy.decision(session.context,{capability:'email.marketing',permission:'email.marketing.manage'}).allowed;
  if(!manage&&!session.actor)fail('ACCESS_DENIED',403);
- return {uid:session.ownerUid,hash:hash(session.ownerUid),type:session.agent?'agents':'user',id:session.actor?.id||null,manage,category:session.context.tenant.categoryKey};
+ return {uid:session.ownerUid,hash:hash(session.ownerUid),type:session.agent?'agents':'user',id:session.actor?.id||null,manage,category:session.context.tenant.categoryKey,
+  emailMarketing,tenantId:emailMarketing?session.context.tenant.id:null,identityId:emailMarketing?session.context.identity?.id:null};
 }
 async function createBook(db,ctx,input){
  manage(ctx);const name=typeof input?.name==='string'?input.name.trim():'';
@@ -74,21 +79,29 @@ async function phonebookWritable(db,ctx,bookId,amount=0){
 }
 async function addContacts(db,ctx,input){
  manage(ctx);const bookId=input?.bookId;let rows;
- if(input?.manual){const r=input.manual;if(!r||typeof r!=='object'||!String(r.mobile||'').trim())fail('INVALID_CONTACT');
-  rows=[[r.name,r.mobile,r.var1,r.var2,r.var3,r.var4,r.var5].map(v=>String(v??'').trim())];
-  if(rows[0].some(v=>v.length>999))fail('CONTACT_FIELD_TOO_LONG');
- }else {if(!Array.isArray(input?.rows)||input.rows.length>5000)fail('INVALID_CONTACT_IMPORT');try{rows=require('./phonebook-import').normalizeImportRows(input.rows);}catch(e){e.status=400;throw e;}}
+ if(input?.manual){const r=input.manual;if(!r||typeof r!=='object')fail('INVALID_CONTACT');
+  const contact={name:String(r.name??'').trim(),mobile:String(r.mobile??'').trim(),vars:[r.var1,r.var2,r.var3,r.var4,r.var5].map(v=>String(v??'').trim()),email:ctx.emailMarketing?normalizeEmail(r.email):'',consent:ctx.emailMarketing&&input.emailMarketingConsent===true};
+  if((!contact.mobile&&!(ctx.emailMarketing&&contact.email))||!validEmail(contact.email)||contact.consent&&!contact.email)fail('INVALID_CONTACT');
+  rows=[contact];if([contact.name,contact.mobile,...contact.vars,contact.email].some(v=>v.length>999))fail('CONTACT_FIELD_TOO_LONG');
+ }else {if(!Array.isArray(input?.rows)||input.rows.length>5000)fail('INVALID_CONTACT_IMPORT');try{rows=require('./phonebook-import').normalizeImportRows(input.rows,{emailMarketing:ctx.emailMarketing,consentConfirmed:input.emailConsentConfirmed===true}).map(row=>({name:row[0],mobile:row[1]||'',vars:row.slice(2,7),email:row[7]||'',consent:row[8]===1}));}catch(e){e.status=400;throw e;}}
  await db.beginTransaction();try{const book=await phonebookWritable(db,ctx,bookId,rows.length);
-  const values=rows.map(row=>[ctx.uid,book.id,book.name,...row]);
-  await db.query('INSERT INTO contact (uid,phonebook_id,phonebook_name,name,mobile,var1,var2,var3,var4,var5) VALUES ?',[values]);
-  await db.commit();return {imported:rows.length,withoutMobile:rows.filter(r=>!r[1]).length};
+  const source=input?.manual?'phonebook_manual':'phonebook_csv',marker=ctx.emailMarketing?'pb:'+crypto.randomUUID():null;
+  if(ctx.emailMarketing){
+   const values=rows.map(row=>{const consent=row.consent&&!!row.email;return [ctx.uid,book.id,book.name,row.name,row.mobile||null,...row.vars.slice(0,5),row.email||null,consent?1:0,consent?new Date():null,consent?marker:null];});
+   await db.query('INSERT INTO contact (uid,phonebook_id,phonebook_name,name,mobile,var1,var2,var3,var4,var5,email,email_marketing_consent,email_marketing_consent_at,email_marketing_consent_source) VALUES ?',[values]);
+  }else{
+   const values=rows.map(row=>[ctx.uid,book.id,book.name,row.name,row.mobile||null,...row.vars.slice(0,5)]);
+   await db.query('INSERT INTO contact (uid,phonebook_id,phonebook_name,name,mobile,var1,var2,var3,var4,var5) VALUES ?',[values]);
+  }
+  if(marker){const [consented]=await db.query('SELECT id,email FROM contact WHERE uid=? AND phonebook_id=? AND email_marketing_consent_source=? AND email_marketing_consent=1',[ctx.uid,book.id,marker]);if(consented.length){const events=consented.map(row=>[ctx.tenantId,row.id,normalizeEmail(row.email),source,ctx.identityId]);await db.query("INSERT INTO sx_email_consent_events(tenant_id,contact_id,normalized_email,consented,source,actor_identity_id) VALUES ?",[events.map(row=>[row[0],row[1],row[2],1,row[3],row[4]])]);await db.query('UPDATE contact SET email_marketing_consent_source=? WHERE uid=? AND phonebook_id=? AND email_marketing_consent_source=?',[source,ctx.uid,book.id,marker]);}}
+  await db.commit();return {imported:rows.length,withoutMobile:rows.filter(r=>!r.mobile).length};
  }catch(e){await db.rollback();throw e;}
 }
-async function parseContactCsv(file){
+async function parseContactCsv(file,{emailMarketing=false}={}){
  if(!file||Array.isArray(file)||!file.data||!String(file.name||'').toLowerCase().endsWith('.csv')||file.data.length>2*1024*1024)fail('INVALID_CONTACT_IMPORT');
  const csv=require('csv-parser'),{Readable}=require('node:stream'),normalizer=require('./phonebook-import');
  return new Promise((resolve,reject)=>{const rows=[];const parser=csv({mapHeaders:({header})=>normalizer.normalizeHeader(header),maxRowBytes:65536,strict:true});
- parser.on('headers',headers=>{if(!headers.includes('name')||!headers.some(h=>['mobile','var3','var4','var5'].includes(h)))parser.destroy(Object.assign(Error('INVALID_CONTACT_IMPORT'),{code:'INVALID_CONTACT_IMPORT',status:400}));});
+ parser.on('headers',headers=>{if(!headers.includes('name')||!headers.some(h=>['mobile','var3','var4','var5',...(emailMarketing?['email']:[])].includes(h)))parser.destroy(Object.assign(Error('INVALID_CONTACT_IMPORT'),{code:'INVALID_CONTACT_IMPORT',status:400}));});
  parser.on('data',row=>{rows.push(row);if(rows.length>5000)parser.destroy(Object.assign(Error('INVALID_CONTACT_IMPORT'),{code:'INVALID_CONTACT_IMPORT',status:400}));});
  parser.on('error',e=>reject(Object.assign(e,{code:e.code||'INVALID_CONTACT_IMPORT',status:400})));parser.on('end',()=>resolve(rows));Readable.from(file.data).pipe(parser);});
 }
@@ -107,10 +120,21 @@ async function deleteBook(db,ctx,input){
 }
 async function edit(db,ctx,input){
  manage(ctx);const id=ids([input?.contactId])[0],keys=['name','mobile','var1','var2','var3','var4','var5','var6'];
- if(keys.some(key=>input[key]!=null&&(typeof input[key]!=='string'||input[key].length>999))||!String(input.mobile||'').trim())fail('INVALID_CONTACT');
- const values=keys.map(key=>input[key]??'');
- const [result]=await db.query('UPDATE contact SET name=?,mobile=?,var1=?,var2=?,var3=?,var4=?,var5=?,var6=? WHERE uid=? AND id=?',[...values,ctx.uid,id]);
- if(!result.affectedRows)fail('CONTACT_NOT_FOUND',404);return {updated:true};
+ if(keys.some(key=>input[key]!=null&&(typeof input[key]!=='string'||input[key].length>999)))fail('INVALID_CONTACT');
+ const values=keys.map(key=>input[key]??'');await db.beginTransaction();try{
+  const [[current]]=await db.query('SELECT email,email_marketing_consent,email_marketing_consent_at FROM contact WHERE uid=? AND id=? FOR UPDATE',[ctx.uid,id]);if(!current)fail('CONTACT_NOT_FOUND',404);
+  if(ctx.emailMarketing){
+   const oldEmail=normalizeEmail(current.email),oldConsent=Number(current.email_marketing_consent)===1,email=input.email===undefined?oldEmail:normalizeEmail(input.email),consent=input.emailMarketingConsent===undefined?oldConsent:input.emailMarketingConsent===true,emailChanged=oldEmail!==email;
+   if(!validEmail(email)||consent&&!email)fail('INVALID_EMAIL_ADDRESS');
+   if(!String(input.mobile||'').trim()&&!email)fail('INVALID_CONTACT');
+   if(oldEmail&&emailChanged&&oldConsent){await db.query("INSERT INTO sx_email_consent_events(tenant_id,contact_id,normalized_email,consented,source,actor_identity_id) VALUES(?,?,?,0,'phonebook_email_changed',?)",[ctx.tenantId,id,oldEmail,ctx.identityId]);await db.query("INSERT INTO sx_email_suppressions(tenant_id,normalized_email,reason,source) VALUES(?,?,'unsubscribe','phonebook_email_changed') ON DUPLICATE KEY UPDATE reason=IF(reason IN ('bounce','complaint'),'reason','unsubscribe'),source=IF(reason IN ('bounce','complaint'),source,'phonebook_email_changed')",[ctx.tenantId,oldEmail]);}
+   if(email&&consent){if(emailChanged||!oldConsent)await db.query("INSERT INTO sx_email_consent_events(tenant_id,contact_id,normalized_email,consented,source,actor_identity_id) VALUES(?,?,?,1,'phonebook_edit',?)",[ctx.tenantId,id,email,ctx.identityId]);await db.query("DELETE FROM sx_email_suppressions WHERE tenant_id=? AND normalized_email=? AND reason='unsubscribe'",[ctx.tenantId,email]);}
+   else if(email&&oldConsent&&!emailChanged){await db.query("INSERT INTO sx_email_consent_events(tenant_id,contact_id,normalized_email,consented,source,actor_identity_id) VALUES(?,?,?,0,'phonebook_edit',?)",[ctx.tenantId,id,email,ctx.identityId]);await db.query("INSERT INTO sx_email_suppressions(tenant_id,normalized_email,reason,source) VALUES(?,?,'unsubscribe','phonebook_edit') ON DUPLICATE KEY UPDATE reason=IF(reason IN ('bounce','complaint'),'reason','unsubscribe'),source=IF(reason IN ('bounce','complaint'),source,'phonebook_edit')",[ctx.tenantId,email]);}
+   await db.query('UPDATE contact SET name=?,mobile=?,var1=?,var2=?,var3=?,var4=?,var5=?,var6=?,email=?,email_marketing_consent=?,email_marketing_consent_at=?,email_marketing_consent_source=?,email_unsubscribed_at=? WHERE uid=? AND id=?',
+    [...values,email||null,consent?1:0,consent?(oldConsent&&!emailChanged?current.email_marketing_consent_at||new Date():new Date()):null,consent?'phonebook_edit':null,email&&oldConsent&&!consent&&!emailChanged?new Date():null,ctx.uid,id]);
+  }else{if(!String(input.mobile||'').trim())fail('INVALID_CONTACT');const [result]=await db.query('UPDATE contact SET name=?,mobile=?,var1=?,var2=?,var3=?,var4=?,var5=?,var6=? WHERE uid=? AND id=?',[...values,ctx.uid,id]);if(!result.affectedRows)fail('CONTACT_NOT_FOUND',404);}
+  await db.commit();return {updated:true};
+ }catch(error){await db.rollback();throw error;}
 }
 async function remove(db,ctx,input){manage(ctx);const selected=ids(input?.selected);const [result]=await db.query('DELETE FROM contact WHERE uid=? AND id IN (?)',[ctx.uid,selected]);return {count:result.affectedRows};}
 function visibility(ctx,alias='c'){
@@ -126,12 +150,13 @@ async function books(db,ctx){
 function where(ctx,input={}){
  const v=visibility(ctx);let sql=v.sql,params=[...v.params];
  if(input.bookId){if(!Number.isSafeInteger(Number(input.bookId))||Number(input.bookId)<1)fail('INVALID_BOOK');sql+=' AND c.phonebook_id=?';params.push(Number(input.bookId));}
- if(input.search){if(String(input.search).length>100)fail('INVALID_SEARCH');sql+=' AND (c.name LIKE ? OR c.mobile LIKE ?)';const term='%'+String(input.search).replace(/[\\%_]/g,'\\$&')+'%';params.push(term,term);}
+ if(input.search){if(String(input.search).length>100)fail('INVALID_SEARCH');sql+=ctx.emailMarketing?' AND (c.name LIKE ? OR c.mobile LIKE ? OR c.email LIKE ?)':' AND (c.name LIKE ? OR c.mobile LIKE ?)';const term='%'+String(input.search).replace(/[\\%_]/g,'\\$&')+'%';params.push(term,term);if(ctx.emailMarketing)params.push(term);}
  const filters=input.filters||[];if(!Array.isArray(filters)||filters.length>10)fail('INVALID_FILTERS');
- for(const filter of filters){if(!filter||!fields.includes(filter.field)||typeof filter.value!=='string'||filter.value.length>1000)fail('INVALID_FILTER');sql+=` AND COALESCE(CAST(c.\`${filter.field}\` AS CHAR),'')=?`;params.push(filter.value);}
+ const allowedFields=ctx.emailMarketing?[...fields,...emailFields]:fields;
+ for(const filter of filters){if(!filter||!allowedFields.includes(filter.field)||typeof filter.value!=='string'||filter.value.length>1000)fail('INVALID_FILTER');sql+=` AND COALESCE(CAST(c.\`${filter.field}\` AS CHAR),'')=?`;params.push(filter.value);}
  return {sql,params};
 }
-async function list(db,ctx,input={}){const w=where(ctx,input);const page=Math.max(0,Number(input.page)||0);if(!Number.isSafeInteger(page)||page>100000)fail('INVALID_PAGE');const [[count]]=await db.query(`SELECT COUNT(*) AS total FROM contact c WHERE ${w.sql}`,w.params);const [rows]=await db.query(`SELECT c.* FROM contact c WHERE ${w.sql} ORDER BY c.id DESC LIMIT 100 OFFSET ?`,[...w.params,page*100]);return {rows,total:Number(count.total),page};}
+async function list(db,ctx,input={}){const w=where(ctx,input);const page=Math.max(0,Number(input.page)||0);if(!Number.isSafeInteger(page)||page>100000)fail('INVALID_PAGE');const [[count]]=await db.query(`SELECT COUNT(*) AS total FROM contact c WHERE ${w.sql}`,w.params);const base='c.id,c.phonebook_id,c.phonebook_name,c.name,c.mobile,c.var1,c.var2,c.var3,c.var4,c.var5,c.var6,c.createdAt';const email=ctx.emailMarketing?',c.email,c.email_marketing_consent,c.email_unsubscribed_at':'';const [rows]=await db.query(`SELECT ${base}${email} FROM contact c WHERE ${w.sql} ORDER BY c.id DESC LIMIT 100 OFFSET ?`,[...w.params,page*100]);return {rows,total:Number(count.total),page};}
 function mobileCandidates(value){let digits=String(value||'').replace(/\D/g,'');if(digits.startsWith('00'))digits=digits.slice(2);if(digits.length<7||digits.length>15)fail('INVALID_MOBILE');const values=new Set([digits,'00'+digits]);if(digits.startsWith('974')&&digits.length===11){values.add(digits.slice(3));values.add('00'+digits.slice(3));}else if(digits.length===8){values.add('974'+digits);values.add('00974'+digits);}return [...values];}
 async function contactsByMobile(db,ctx,input={}){
  const candidates=mobileCandidates(input.mobile),v=visibility(ctx);
@@ -144,7 +169,7 @@ async function contactsByMobile(db,ctx,input={}){
  const contacts=rows.slice(0,100).map(row=>({id:row.id,phonebookName:row.phonebookName||'',name:row.name||'',mobile:row.mobile||'',createdAt:row.createdAt||null,fields:[1,2,3,4,5,6].map(index=>({label:index<=5?(config.labels?.[index-1]||`Variable ${index}`):'Variable 6',value:row[`var${index}`]??''})).filter(field=>String(field.value).trim())}));
  return {contacts,truncated:rows.length>100};
 }
-async function unique(db,ctx,input){if(!fields.includes(input.field))fail('INVALID_COLUMN');const w=where(ctx,input);const [rows]=await db.query(`SELECT DISTINCT COALESCE(CAST(c.\`${input.field}\` AS CHAR),'') AS value FROM contact c WHERE ${w.sql} ORDER BY value LIMIT 1001`,w.params);return {values:rows.slice(0,1000).map(x=>x.value),truncated:rows.length>1000};}
+async function unique(db,ctx,input){const allowedFields=ctx.emailMarketing?[...fields,...emailFields]:fields;if(!allowedFields.includes(input.field))fail('INVALID_COLUMN');const w=where(ctx,input);const [rows]=await db.query(`SELECT DISTINCT COALESCE(CAST(c.\`${input.field}\` AS CHAR),'') AS value FROM contact c WHERE ${w.sql} ORDER BY value LIMIT 1001`,w.params);return {values:rows.slice(0,1000).map(x=>x.value),truncated:rows.length>1000};}
 function manage(ctx){if(!ctx.manage)fail('READ_ONLY_SHARE',403);}
 async function saveSettings(db,ctx,input){manage(ctx);const config=validateConfig(input);await db.beginTransaction();try{
  const [owner]=await db.query('SELECT id FROM user WHERE uid=? FOR UPDATE',[ctx.uid]);if(owner.length!==1)fail('ACCESS_DENIED',403);

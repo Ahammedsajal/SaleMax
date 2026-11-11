@@ -12,6 +12,7 @@ const permissions = {
   'channels.qr.manage': { owner: 'tenant', accountant: 'tenant', manager: 'tenant', team_leader: 'tenant', agent: 'tenant' },
   'automation.manage': { owner: 'tenant' },
   'campaigns.manage': { owner: 'tenant' },
+  'email.marketing.manage': { owner: 'tenant', manager: 'tenant' },
   'conversations.read': { owner: 'tenant', manager: 'tenant', team_leader: 'team', agent: 'assigned' },
   'conversations.reply': { owner: 'tenant', manager: 'tenant', agent: 'assigned' },
   'leads.read': { owner: 'tenant', accountant: 'billing', manager: 'tenant', team_leader: 'team', agent: 'assigned' },
@@ -83,6 +84,7 @@ const capabilities = Object.freeze({
   'messaging.qr': ['channels.configure', 'channels.qr.create', 'channels.qr.manage'], 'messaging.meta': ['channels.configure'],
   'automation.flows': ['automation.manage'], 'automation.chatbot': ['automation.manage'],
   'messaging.templates': ['templates.manage'], 'campaigns.send': ['campaigns.manage'],
+  'email.marketing': ['email.marketing.manage'],
   'sales.deals': ['deals.read', 'deals.request', 'deals.approve'],
   'sales.commissions': ['commission.policy.manage', 'commissions.read', 'commission.payout.approve', 'commission.payout.pay'],
   'sales.finance': ['sales.finance.read','sales.invoice.issue','sales.receipt.record','sales.receipt.allocate','sales.finance.report'],
@@ -143,9 +145,11 @@ function decision(context, { capability, permission, resource, external = false 
       (subscription.categoryKey!==category.key||subscription.categoryVersion!==category.version))return {allowed:false,code:'FEATURE_UNAVAILABLE'};
   const internalRecruitmentOwner = capability === 'hr.recruitment' && category.key === '7network_sales' && membership.role === 'owner';
   const internalSalesIcp = capability === 'sales.icp' && category.key === '7network_sales';
+  const internalSalesEmail = capability === 'email.marketing' && category.key === '7network_sales' && ['owner','manager'].includes(membership.role);
+  if (capability === 'email.marketing' && !internalSalesEmail) return { allowed: false, code: 'PERMISSION_DENIED' };
   // Recruitment is an owner-only internal 7Network workspace feature, not a customer plan add-on.
   // Keep the tenant's active-plan requirement while avoiding mutation of its published plan version.
-  if (!subscription || !['active', 'trial', 'grace'].includes(subscription.status) || !Array.isArray(subscription.capabilities) || (!internalRecruitmentOwner && !internalSalesIcp && !subscription.capabilities.includes(capability))) return { allowed: false, code: 'FEATURE_UNAVAILABLE' };
+  if (!subscription || !['active', 'trial', 'grace'].includes(subscription.status) || !Array.isArray(subscription.capabilities) || (!internalRecruitmentOwner && !internalSalesIcp && !internalSalesEmail && !subscription.capabilities.includes(capability))) return { allowed: false, code: 'FEATURE_UNAVAILABLE' };
   // Internal 7Network accountants work from Finance and payout records. The
   // legacy Sales Lead Pipeline does not provide the finance-only detail view.
   // Keep Training Center billing-linked lead access unchanged.

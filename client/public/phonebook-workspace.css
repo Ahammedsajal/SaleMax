@@ -2,3 +2,19 @@
 #sx-phonebook [hidden],.sx-pb-dialog [hidden]{display:none!important}
 
 .sx-pb-native-hidden{position:absolute!important;visibility:hidden!important;pointer-events:none!important;width:8px!important;min-width:8px!important;height:8px!important;min-height:8px!important;overflow:hidden!important}#sx-phonebook{min-height:280px}
+
+.sx-pb-dialog .pb-email-consent{display:grid;grid-template-columns:20px minmax(0,1fr);align-items:start;gap:11px;padding:12px;border:1px solid var(--pb-line);border-radius:10px;background:var(--pb-soft);cursor:pointer}.sx-pb-dialog .pb-email-consent input[type=checkbox]{width:18px;height:18px;min-height:18px;margin:2px 0;accent-color:#ae0045;cursor:pointer}.sx-pb-dialog .pb-email-consent span{display:grid;gap:3px}.sx-pb-dialog .pb-email-consent small{color:var(--pb-muted);font-size:12px;font-weight:400}.sx-pb-dialog .pb-sub{overflow-wrap:anywhere}html[data-theme=dark] #sx-phonebook{--pb-ink:#eaecf0;--pb-muted:#c0c5d0;--pb-line:#344054;--pb-card:#171a21;--pb-soft:#20242d;--pb-brand:#f370a0}html[data-theme=dark] .sx-pb-dialog{background:#171a21;color:#eaecf0;border-color:#344054}html[data-theme=dark] .sx-pb-dialog .pb-dialog-head,html[data-theme=dark] .sx-pb-dialog .pb-dialog-foot{background:#171a21;border-color:#344054}
+
+/* Keep contact-entry controls legible in both themes and avoid full-width radio buttons. */
+.sx-pb-dialog .pb-mode{background:var(--pb-soft);border-color:var(--pb-line);color:var(--pb-ink)}
+.sx-pb-dialog .pb-mode[aria-selected=true]{background:#ae0045;border-color:#ae0045;color:#fff}
+.sx-pb-dialog .pb-mode:focus-visible{outline:3px solid #d997b4;outline-offset:2px}
+.sx-pb-dialog input[type=checkbox],.sx-pb-dialog input[type=radio]{width:18px;min-width:18px;height:18px;min-height:18px;padding:0;accent-color:#ae0045;cursor:pointer}
+.sx-pb-dialog .pb-choice fieldset{min-width:0;margin:12px 0 0;padding:12px;border:1px solid var(--pb-line);border-radius:10px;background:var(--pb-soft)}
+.sx-pb-dialog .pb-choice legend{padding-inline:5px;font-weight:700}
+.sx-pb-dialog .pb-choice label{display:flex;align-items:flex-start;gap:10px;padding:8px 4px;font-weight:500;cursor:pointer}
+.sx-pb-dialog .pb-choice label input[type=radio]{flex:none;margin:1px 0}
+.sx-pb-dialog .pb-choice .pb-pick-books{display:grid;gap:4px}
+html[data-theme=dark] .sx-pb-dialog{--pb-card:#171a21;--pb-ink:#eaecf0;--pb-muted:#c0c5d0;--pb-line:#344054;--pb-soft:#20242d}
+html[data-theme=dark] .sx-pb-dialog .pb-error{color:#ffd7df;background:#3a1c27;border-color:#74354a}
+html[data-theme=dark] .sx-pb-dialog .pb-mode[aria-selected=true]{background:#c61959;border-color:#c61959}

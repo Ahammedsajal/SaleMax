@@ -5,10 +5,10 @@ function clean(value) {
 }
 
 function normalizeHeader(header) {
-  return String(header || '').replace(/^\uFEFF/, '');
+  return String(header || '').replace(/^\uFEFF/, '').trim().toLowerCase();
 }
 
-function normalizeImportRows(rows) {
+function normalizeImportRows(rows, { emailMarketing = false, consentConfirmed = false } = {}) {
   if (!Array.isArray(rows) || !rows.length) {
     throw Object.assign(new Error('INVALID_CONTACT_IMPORT'), { code: 'INVALID_CONTACT_IMPORT' });
   }
@@ -16,18 +16,24 @@ function normalizeImportRows(rows) {
     const name = clean(row.name);
     const mobile = clean(row.mobile);
     const variables = [row.var1, row.var2, row.var3, row.var4, row.var5].map(clean);
+    const email = emailMarketing ? clean(row.email).toLowerCase() : '';
+    const consentFlag = ['yes', 'true', '1'].includes(clean(row.email_marketing_consent).toLowerCase());
+    const consent = Boolean(emailMarketing && consentConfirmed && consentFlag && email);
     // Category and country alone do not make an email/social-only row useful.
-    if (!name || (!mobile && !variables.slice(2).some(Boolean))) {
+    if (!name || (!mobile && !email && !variables.slice(2).some(Boolean))) {
       throw Object.assign(new Error('INVALID_CONTACT_IMPORT_ROW'), {
         code: 'INVALID_CONTACT_IMPORT_ROW', row: index + 2,
       });
+    }
+    if (email && (email.length > 254 || !/^[^\s@<>]+@[^\s@<>]+\.[^\s@<>]+$/.test(email))) {
+      throw Object.assign(new Error('INVALID_EMAIL_ADDRESS'), { code: 'INVALID_EMAIL_ADDRESS', row: index + 2 });
     }
     if ([name, mobile, ...variables].some(value => value.length > 999)) {
       throw Object.assign(new Error('CONTACT_FIELD_TOO_LONG'), {
         code: 'CONTACT_FIELD_TOO_LONG', row: index + 2,
       });
     }
-    return [name, mobile || null, ...variables];
+    return [name, mobile || null, ...variables, email || null, consent ? 1 : 0];
   });
 }
 
