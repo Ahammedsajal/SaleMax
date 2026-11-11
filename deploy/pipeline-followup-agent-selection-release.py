@@ -265,9 +265,7 @@ def deploy(stage, commit):
         compose_up(app_meta, app_env, [migration_overlay], 'app')
         wait_service(APP)
         migration_started = True
-        migration_result = json_output(run('docker', 'exec', APP, 'node', '/app/database/migrate-pipeline.js', '--apply', '--only', Path(MIGRATION).name))
-        if Path(MIGRATION).name not in migration_result.get('applied', []) and Path(MIGRATION).name not in migration_result.get('skipped', []):
-            raise RuntimeError('Agent selection migration was not recorded')
+        run('docker', 'exec', APP, 'node', '/app/database/migrate-pipeline.js', '--apply', '--only', Path(MIGRATION).name)
         schema_after = probe_schema()
         if schema_after['column'] != 1 or schema_after['migration'] is None or schema_after['migration']['status'] != 'applied':
             raise RuntimeError('Agent selection migration verification failed')
