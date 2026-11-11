@@ -14,6 +14,7 @@ const legacyPipelineActor = require('../modules/platform/legacy-pipeline-actor')
 const trainingLeadJourney = require('../modules/platform/training-lead-journey');
 const followUpBrief = require('../modules/platform/pipeline-follow-up-brief');
 const followUpAssignment = require('../modules/platform/pipeline-follow-up-assignment');
+const chatbotFollowupPreview = require('../modules/platform/chatbot-followup-preview');
 const leadFilters = require('../helper/pipeline/lead-filters');
 const trainingTasks = require('../modules/platform/task-management');
 const crypto = require('node:crypto');
@@ -353,6 +354,29 @@ router.get('/reports/follow-up-brief',async(req,res)=>{
     const status=error?.status||(['PERMISSION_DENIED','INVALID_REPORT_ACTOR'].includes(code)?403:code==='INVALID_TIMEZONE'?400:code==='FOLLOW_UP_HISTORY_TOO_LARGE'?503:500);
     if(status>=500)console.error('Follow-up brief request failed:',code);
     res.status(status).json({success:false,code:status===500?'FOLLOW_UP_BRIEF_UNAVAILABLE':code});
+  }
+});
+
+router.get('/reports/automated-follow-ups',async(req,res)=>{
+  res.setHeader('Cache-Control','private, no-store');
+  const actor=req.pipelineActor;
+  if(!['owner','manager','team_leader','agent'].includes(actor.role))return res.status(403).json({success:false,code:'PERMISSION_DENIED'});
+  try{
+    if(actor.categoryKey&&actor.categoryKey!=='training_center')return res.json({success:true,data:{enabled:false,items:[],next:null,summary:{}}});
+    let ctx;
+    try{ctx=await saleContext(actor);}
+    catch(error){if(['CATEGORY_UNAVAILABLE','FEATURE_UNAVAILABLE','VERIFIED_BUSINESS_OWNER_REQUIRED'].includes(error.code))return res.json({success:true,data:{enabled:false,items:[],next:null,summary:{}}});throw error;}
+    if(ctx.category?.key!=='training_center'||!chatbotFollowupPreview.enabled(ctx.tenant.id))return res.json({success:true,data:{enabled:false,items:[],next:null,summary:{}}});
+    const before=req.query.before??null;
+    const data=await chatbotFollowupPreview.listForPipeline(require('../database/config.js').promise(),ctx.tenant.id,before,actor,{
+      assignment:req.query.assignment,qrInstanceId:req.query.qrInstanceId,
+    });
+    res.json({success:true,data:{enabled:true,...data}});
+  }catch(error){
+    const code=error?.code||'AUTOMATED_FOLLOW_UPS_UNAVAILABLE';
+    const status=error?.status||(['PERMISSION_DENIED','INVALID_REPORT_ACTOR'].includes(code)?403:code==='INVALID_REPORT_CURSOR'||code.startsWith('INVALID_')?400:500);
+    if(status>=500)console.error('Automated follow-up report failed:',code);
+    res.status(status).json({success:false,code:status===500?'AUTOMATED_FOLLOW_UPS_UNAVAILABLE':code});
   }
 });
 

@@ -179,3 +179,12 @@ html[data-sx-theme=dark] .followup-agent-row span{color:#e7edf5}
 html[data-sx-theme=dark] .followup-agent-row small{background:#173c38;color:#92e7d2}
 
 html[data-sx-theme=dark] .column .empty-more{border-color:#52647a;background:#1b2633;color:#c7d3e1}
+html[data-sx-theme=dark] .report-automated-followups{color:#e7edf5;background:linear-gradient(145deg,#1a222d,#17212e);border-color:#354252}
+html[data-sx-theme=dark] .report-automated-followups h3,html[data-sx-theme=dark] .automated-followup-person h4,html[data-sx-theme=dark] .automated-followup-kpi b{color:#e7edf5}
+html[data-sx-theme=dark] .report-automated-followups .report-snapshot-heading p,html[data-sx-theme=dark] .automated-followup-person p,html[data-sx-theme=dark] .automated-followup-person small,html[data-sx-theme=dark] .automated-followup-kpi small,html[data-sx-theme=dark] .automated-followup-step>span,html[data-sx-theme=dark] .automated-followup-step>small{color:#aebaca}
+html[data-sx-theme=dark] .automated-followup-kpi,html[data-sx-theme=dark] .automated-followup-item{color:#e7edf5;background:#1a222d;border-color:#354252}
+html[data-sx-theme=dark] .automated-followup-step{background:#202a37}
+html[data-sx-theme=dark] .automated-followup-status{background:#243a57;color:#b9d7ff}
+html[data-sx-theme=dark] .automated-followup-status-sent{background:#1c3b34;color:#a4e5c8}
+html[data-sx-theme=dark] .automated-followup-status-skipped,html[data-sx-theme=dark] .automated-followup-status-review,html[data-sx-theme=dark] .automated-followup-status-uncertain{background:#45351e;color:#f4d295}
+html[data-sx-theme=dark] .automated-followup-status-waiting,html[data-sx-theme=dark] .automated-followup-status-waiting_day2{background:#33294b;color:#d1b9ff}
