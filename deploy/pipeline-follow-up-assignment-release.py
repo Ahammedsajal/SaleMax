@@ -59,6 +59,15 @@ def sha(data):
     return hashlib.sha256(data).hexdigest()
 
 
+def json_output(output):
+    for line in reversed(output.splitlines()):
+        try:
+            return json.loads(line)
+        except json.JSONDecodeError:
+            continue
+    raise RuntimeError('Command output did not contain a JSON result')
+
+
 def service_compose(info, service):
     labels = info['Config']['Labels']
     if labels.get('com.docker.compose.project') != 'salemax' or labels.get('com.docker.compose.service') != service:
@@ -263,7 +272,7 @@ def deploy(stage, commit):
         compose_up(app_meta, app_env, app_overlay, 'app')
         current_app = wait_app()
         migration_code = "const runner=require('/app/database/migration-runner');const pool=require('/app/database/config');(async()=>{const db=await pool.promise().getConnection();try{const migrations=runner.discover('/app/database/migrations');const result=await runner.applyMigrations(db,migrations,{only:'20270202_pipeline_followup_assignment.sql'});console.log(JSON.stringify(result));}finally{db.release();await pool.promise().end();}})().catch(e=>{console.error(e.code||'MIGRATION_FAILED');process.exit(1)});"
-        migration_result = json.loads(run('docker', 'exec', APP, 'node', '-e', migration_code))
+        migration_result = json_output(run('docker', 'exec', APP, 'node', '-e', migration_code))
         if migration_result.get('applied') != ['20270202_pipeline_followup_assignment.sql'] and migration_result.get('skipped') != ['20270202_pipeline_followup_assignment.sql']:
             raise RuntimeError('Follow-up assignment migration was not applied or verified')
         compose_up(worker_meta, worker_env, worker_overlay, 'report-worker')
@@ -287,7 +296,7 @@ def deploy(stage, commit):
         if anonymous_status != '401':
             raise RuntimeError('Follow-up assignment API did not enforce authentication')
         migration_status = run('docker', 'exec', APP, 'node', '-e', "const pool=require('/app/database/config');pool.promise().query('SELECT status,statement_count,statements_completed FROM salemax_schema_migrations WHERE migration_name=?',['20270202_pipeline_followup_assignment.sql']).then(([r])=>{console.log(JSON.stringify(r[0]||{}));return pool.promise().end()}).catch(()=>process.exit(1))")
-        migration_row = json.loads(migration_status)
+        migration_row = json_output(migration_status)
         if migration_row.get('status') != 'applied' or int(migration_row.get('statement_count') or 0) != 4 or int(migration_row.get('statements_completed') or 0) != 4:
             raise RuntimeError('Follow-up assignment migration ledger verification failed')
         app_chain = current_app['Config']['Labels']['com.docker.compose.project.config_files'].split(',')
