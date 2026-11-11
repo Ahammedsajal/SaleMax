@@ -177,3 +177,5 @@ html[data-sx-theme=dark] .followup-agent-dialog header p,html[data-sx-theme=dark
 html[data-sx-theme=dark] .followup-agent-row{background:#18212c;border-color:#354252}
 html[data-sx-theme=dark] .followup-agent-row span{color:#e7edf5}
 html[data-sx-theme=dark] .followup-agent-row small{background:#173c38;color:#92e7d2}
+
+html[data-sx-theme=dark] .column .empty-more{border-color:#52647a;background:#1b2633;color:#c7d3e1}
