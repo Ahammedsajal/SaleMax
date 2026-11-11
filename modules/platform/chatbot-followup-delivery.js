@@ -91,6 +91,8 @@ async function enqueueDue(db, tenantId) {
     FROM sx_chatbot_followup_previews p
     WHERE p.tenant_id=? AND p.source IN ('reviewed','scheduled') AND p.status='ready'
       AND p.day_two_at IS NOT NULL AND p.day_two_at<=UTC_TIMESTAMP(3)
+      AND NOT EXISTS (SELECT 1 FROM sx_chatbot_followup_deliveries d7
+        WHERE d7.tenant_id=p.tenant_id AND d7.lead_id=p.lead_id AND d7.step='day7')
     ON DUPLICATE KEY UPDATE due_at=IF(sx_chatbot_followup_deliveries.status='queued',VALUES(due_at),sx_chatbot_followup_deliveries.due_at),
       updated_at=IF(sx_chatbot_followup_deliveries.status='queued',UTC_TIMESTAMP(3),sx_chatbot_followup_deliveries.updated_at)`, [tenantId]);
 
@@ -102,6 +104,26 @@ async function enqueueDue(db, tenantId) {
       AND d2.step='day2' AND d2.status='sent'
     WHERE p.tenant_id=? AND p.source IN ('reviewed','scheduled') AND p.status='ready'
       AND p.day_seven_at IS NOT NULL AND p.last_customer_at<=d2.sent_at
+    ON DUPLICATE KEY UPDATE due_at=IF(sx_chatbot_followup_deliveries.status='queued',VALUES(due_at),sx_chatbot_followup_deliveries.due_at),
+      updated_at=IF(sx_chatbot_followup_deliveries.status='queued',UTC_TIMESTAMP(3),sx_chatbot_followup_deliveries.updated_at)`, [tenantId]);
+
+  // If no due Day 2 work is waiting, use Day 7 as a fallback for leads that
+  // never received (or even entered) the Day 2 delivery flow. A Day 2 row of
+  // any status excludes the same lead so late retries cannot double-contact it.
+  await db.query(`INSERT INTO sx_chatbot_followup_deliveries
+    (tenant_id,lead_id,step,due_at,status)
+    SELECT p.tenant_id,p.lead_id,'day7',p.day_seven_at,'queued'
+    FROM sx_chatbot_followup_previews p
+    WHERE p.tenant_id=? AND p.source IN ('reviewed','scheduled') AND p.status='ready'
+      AND p.day_seven_at IS NOT NULL AND p.day_seven_at<=UTC_TIMESTAMP(3)
+      AND NOT EXISTS (SELECT 1 FROM sx_chatbot_followup_deliveries d2
+        WHERE d2.tenant_id=p.tenant_id AND d2.lead_id=p.lead_id AND d2.step='day2')
+      AND NOT EXISTS (SELECT 1
+        FROM sx_chatbot_followup_previews p2
+        JOIN sx_chatbot_followup_deliveries d2 ON d2.tenant_id=p2.tenant_id AND d2.lead_id=p2.lead_id
+          AND d2.step='day2' AND d2.status IN ('queued','sending')
+        WHERE p2.tenant_id=p.tenant_id AND p2.source IN ('reviewed','scheduled') AND p2.status='ready'
+          AND p2.day_two_at IS NOT NULL AND p2.day_two_at<=UTC_TIMESTAMP(3))
     ON DUPLICATE KEY UPDATE due_at=IF(sx_chatbot_followup_deliveries.status='queued',VALUES(due_at),sx_chatbot_followup_deliveries.due_at),
       updated_at=IF(sx_chatbot_followup_deliveries.status='queued',UTC_TIMESTAMP(3),sx_chatbot_followup_deliveries.updated_at)`, [tenantId]);
 
@@ -231,10 +253,17 @@ async function processOne(pool, db, tenantId) {
     return false;
   }
 
-  const currentDue = item.step === 'day2' ? toEpoch(item.dueAt) : Math.max(toEpoch(item.dueAt), toEpoch(item.dayTwoSentAt) + 5 * 86400000);
+  const dayTwoSentAt = toEpoch(item.dayTwoSentAt);
+  const daySevenDueAt = value => {
+    const due = toEpoch(value);
+    return Number.isFinite(due) && Number.isFinite(dayTwoSentAt)
+      ? Math.max(due, dayTwoSentAt + 5 * 86400000)
+      : due;
+  };
+  const currentDue = item.step === 'day2' ? toEpoch(item.dueAt) : daySevenDueAt(item.dueAt);
   const checked = await revalidate(pool, tenantId, uid, item);
-  if (item.step === 'day7' && Number.isFinite(toEpoch(checked.lastAt))
-    && toEpoch(checked.lastAt) > toEpoch(item.dayTwoSentAt)) {
+  if (item.step === 'day7' && Number.isFinite(dayTwoSentAt) && Number.isFinite(toEpoch(checked.lastAt))
+    && toEpoch(checked.lastAt) > dayTwoSentAt) {
     await markSuppressed(db, item, 'CUSTOMER_REPLIED');
     return false;
   }
@@ -242,7 +271,7 @@ async function processOne(pool, db, tenantId) {
     await markSuppressed(db, item, checked.reason);
     return false;
   }
-  const recomputedDue = item.step === 'day2' ? checked.two : Math.max(checked.seven, toEpoch(item.dayTwoSentAt) + 5 * 86400000);
+  const recomputedDue = item.step === 'day2' ? checked.two : daySevenDueAt(checked.seven);
   if (checked.status !== 'ready' || !Number.isFinite(recomputedDue) || recomputedDue > Date.now() || currentDue > Date.now()) {
     await db.query(`UPDATE sx_chatbot_followup_deliveries SET due_at=?,status='queued',last_error_code=?,
       lease_token=NULL,lease_until=NULL WHERE id=? AND status='queued'`,

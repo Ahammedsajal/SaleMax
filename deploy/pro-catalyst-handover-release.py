@@ -308,6 +308,21 @@ def configure_followup_inbox_parity():
     ADD_SCOPE = False
 
 
+def configure_followup_cadence():
+    global ACTIVE_OVERLAY, REPLACED_FILES, NEW_FILES, SCOPE_ENV, SLUG, RELEASE_DATE, ADD_SCOPE, LIVE_SOURCE_EDITS, MOCKUP_MIGRATION
+    ACTIVE_OVERLAY = '/opt/salemax/releases/training-applications-team-actions-0d18a98dd4e7-20261111/compose.applications-team-actions.json'
+    REPLACED_FILES = {
+        'modules/platform/chatbot-followup-delivery.js': '186c8e59e1efe7633ef35aa8e70cb0f15b8c3e165647adac71b8762449b3a5fb',
+    }
+    NEW_FILES = ()
+    SCOPE_ENV = 'SALEMAX_CHATBOT_MOCKUP_TENANT_ID'
+    SLUG = 'pro-catalyst-followup-cadence'
+    RELEASE_DATE = '20261111'
+    ADD_SCOPE = False
+    LIVE_SOURCE_EDITS = {}
+    MOCKUP_MIGRATION = None
+
+
 def configure_ai_handoff():
     global ACTIVE_OVERLAY, REPLACED_FILES, NEW_FILES, SCOPE_ENV, SLUG, RELEASE_DATE, ADD_SCOPE, LIVE_SOURCE_EDITS, MOCKUP_MIGRATION
     ACTIVE_OVERLAY = '/opt/salemax/releases/pro-catalyst-followup-inbox-parity-c2c95e8b0520-20261110/compose.pro-catalyst-followup-inbox-parity.json'
@@ -759,7 +774,7 @@ def reset(backup):
 
 
 if __name__ == '__main__':
-    if len(sys.argv) == 4 and sys.argv[1] in ('deploy', 'deploy-admissions', 'deploy-name-question', 'deploy-knowledge', 'deploy-mockup', 'deploy-mockup-inbox', 'deploy-lead-report-period', 'deploy-followup-preview', 'deploy-followup-chat-link', 'deploy-ad-aware-followups', 'deploy-ad-overview', 'deploy-test-replies', 'deploy-mockup-scroll', 'deploy-course-certification', 'deploy-course-opening', 'deploy-followup-delivery', 'deploy-followup-queue-fix', 'deploy-followup-inbox-parity', 'deploy-ai-handoff', 'deploy-ai-handoff-cache', 'deploy-ai-handoff-guard', 'deploy-human-replies', 'deploy-human-replies-history', 'deploy-human-reply-validation', 'deploy-friendly-intake-copy', 'deploy-reply-quality'):
+    if len(sys.argv) == 4 and sys.argv[1] in ('deploy', 'deploy-admissions', 'deploy-name-question', 'deploy-knowledge', 'deploy-mockup', 'deploy-mockup-inbox', 'deploy-lead-report-period', 'deploy-followup-preview', 'deploy-followup-chat-link', 'deploy-ad-aware-followups', 'deploy-ad-overview', 'deploy-test-replies', 'deploy-mockup-scroll', 'deploy-course-certification', 'deploy-course-opening', 'deploy-followup-delivery', 'deploy-followup-queue-fix', 'deploy-followup-inbox-parity', 'deploy-followup-cadence', 'deploy-ai-handoff', 'deploy-ai-handoff-cache', 'deploy-ai-handoff-guard', 'deploy-human-replies', 'deploy-human-replies-history', 'deploy-human-reply-validation', 'deploy-friendly-intake-copy', 'deploy-reply-quality'):
         if sys.argv[1] == 'deploy-admissions':
             configure_admissions()
         elif sys.argv[1] == 'deploy-name-question':
@@ -794,6 +809,8 @@ if __name__ == '__main__':
             configure_followup_queue_fix()
         elif sys.argv[1] == 'deploy-followup-inbox-parity':
             configure_followup_inbox_parity()
+        elif sys.argv[1] == 'deploy-followup-cadence':
+            configure_followup_cadence()
         elif sys.argv[1] == 'deploy-ai-handoff':
             configure_ai_handoff()
         elif sys.argv[1] == 'deploy-ai-handoff-cache':
@@ -813,7 +830,7 @@ if __name__ == '__main__':
         deploy(Path(sys.argv[2]), sys.argv[3])
     elif len(sys.argv) == 3 and sys.argv[1] == 'reset':
         reset(Path(sys.argv[2]))
-    elif len(sys.argv) == 3 and sys.argv[1] in ('restore', 'restore-admissions', 'restore-name-question', 'restore-knowledge', 'restore-mockup', 'restore-mockup-inbox', 'restore-lead-report-period', 'restore-followup-preview', 'restore-followup-chat-link', 'restore-ad-aware-followups', 'restore-ad-overview', 'restore-test-replies', 'restore-mockup-scroll', 'restore-course-certification', 'restore-course-opening', 'restore-followup-delivery', 'restore-followup-queue-fix', 'restore-followup-inbox-parity', 'restore-ai-handoff', 'restore-ai-handoff-cache', 'restore-ai-handoff-guard', 'restore-human-replies', 'restore-human-replies-history', 'restore-human-reply-validation', 'restore-friendly-intake-copy', 'restore-reply-quality'):
+    elif len(sys.argv) == 3 and sys.argv[1] in ('restore', 'restore-admissions', 'restore-name-question', 'restore-knowledge', 'restore-mockup', 'restore-mockup-inbox', 'restore-lead-report-period', 'restore-followup-preview', 'restore-followup-chat-link', 'restore-ad-aware-followups', 'restore-ad-overview', 'restore-test-replies', 'restore-mockup-scroll', 'restore-course-certification', 'restore-course-opening', 'restore-followup-delivery', 'restore-followup-queue-fix', 'restore-followup-inbox-parity', 'restore-followup-cadence', 'restore-ai-handoff', 'restore-ai-handoff-cache', 'restore-ai-handoff-guard', 'restore-human-replies', 'restore-human-replies-history', 'restore-human-reply-validation', 'restore-friendly-intake-copy', 'restore-reply-quality'):
         if sys.argv[1] == 'restore-admissions':
             configure_admissions()
         elif sys.argv[1] == 'restore-name-question':
@@ -848,6 +865,8 @@ if __name__ == '__main__':
             configure_followup_queue_fix()
         elif sys.argv[1] == 'restore-followup-inbox-parity':
             configure_followup_inbox_parity()
+        elif sys.argv[1] == 'restore-followup-cadence':
+            configure_followup_cadence()
         elif sys.argv[1] == 'restore-ai-handoff':
             configure_ai_handoff()
         elif sys.argv[1] == 'restore-ai-handoff-cache':
