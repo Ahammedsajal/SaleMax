@@ -142,7 +142,7 @@ function makeDigests({ date, agents, runItems, brief, noPhoneAgents, identifiedC
     `${Number(brief.summary?.needsReview || 0)} no-signal chats excluded for staff review; existing assignments were preserved.`,
     noPhoneAgents ? `${noPhoneAgents} agent(s) could not receive WhatsApp because no valid staff number is on file.` : null,
     'Open Lead Pipeline to review chats and record follow-up outcomes.',
-    'https://crm.salemax.qa/user?page=pipeline',
+    'https://7network.live/user?page=pipeline',
   ].filter(Boolean).join('\n');
   const messages = new Map();
   for (const row of byAgent.values()) {
@@ -151,7 +151,7 @@ function makeDigests({ date, agents, runItems, brief, noPhoneAgents, identifiedC
       `7Network follow-up assignment · ${shortDate(date)}`,
       `${row.newCount} new leads assigned to you: ${row.high} high intent, ${row.warm} course interest; ${row.aged} have waited 72h+.`,
       'Please review each chat, contact the lead today, and record the outcome in Pipeline.',
-      'https://crm.salemax.qa/user?page=pipeline',
+      'https://7network.live/user?page=pipeline',
     ].join('\n'));
   }
   return { byAgent, ownerText, agentMessages: messages, counts: { assigned: newCount, high, warm, aged } };
