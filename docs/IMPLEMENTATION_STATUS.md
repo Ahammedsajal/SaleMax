@@ -1,3 +1,7 @@
+## Legacy Training Center Report settings context — deployed, 11 November 2026
+
+Fixed the report's `WORKSPACE_REQUIRED` load error. The legacy Pipeline context adapter now supplies the owner UID, UID hash, role and actor scope used by the report-settings module, matching its canonical path. Managers retain read-only access; owner-only controls and settings are unchanged. The app-only overlay is healthy, and public route/auth checks pass. Signed-in owner/manager browser confirmation remains open. No database migration, report setting, lead, recipient, or message changed. See `DEPLOYMENT.md` for the source commit, rollback and verification evidence.
+
 ## Pro Catalyst brief metric filters and 7Network loader branding — deployed, 11 November 2026
 
 The eight daily follow-up counts and the suggested-lead total are clickable; each filters the cards to its matching category. The review count now opens its actual leads. The result list shows up to 50 cards per page and the selected group total; if the 500-item server cap is exceeded for a category, the screen flags that more records are available. The app’s maintained brand hook also changes the legacy platform loader logo, exact default name and spinner color to 7Network without rewriting tenant or customer content. The compiled bundle was not edited.
