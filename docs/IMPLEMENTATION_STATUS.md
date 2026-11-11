@@ -1,6 +1,10 @@
-## Owner-requested Pro Catalyst test lead assignment — completed, 11 November 2026
+## Owner-requested Pro Catalyst test lead assignment — one assigned, one held safely, 11 November 2026
 
-The live audit found one open, unassigned lead with two direct chats in the active Pro Catalyst automation workspace. It was assigned to the least-loaded eligible agent, excluding Agent 1, and both Pipeline and Inbox chat ownership were verified. One internal QR notification was accepted; the test number received no message. The protected pre-change snapshot is outside Git. See `DEPLOYMENT.md`; the rest of the daily automation remains unchanged.
+The first open, unassigned lead with two direct chats was assigned to the least-loaded eligible agent, excluding Agent 1; both Pipeline and Inbox ownership were verified. One internal QR notification was accepted. A fresh audit of the second lead found zero active agent accounts in its separate legacy workspace, so it remains open and unassigned; cross-workspace assignment was not attempted. The test number and customer received no message. The protected pre-change snapshot is outside Git. See `DEPLOYMENT.md`; the rest of the daily automation remains unchanged.
+
+## Pro Catalyst follow-up brief chat links — deployed, 11 November 2026
+
+The brief cards’ **Open chat** button now opens that card’s linked QR/Meta conversation directly in Inbox through the existing exact-chat deep link. Automation settings load failures are identified as load failures and show a safe API reference, separate from save errors. Source `395924b267e230c90e022123b6dc41904fe104d8` is live in an app-only overlay, with no migration or data/settings change. Public assets and health checks match the source. Signed-in click-flow verification remains open because local browser use is disabled in Work settings. See `DEPLOYMENT.md` for hashes, rollback and other verification evidence.
 
 ## 7Network links in Pro Catalyst follow-up assignment messages — deployed, 11 November 2026
 
@@ -16,7 +20,7 @@ Source `4eb0f60d4bd7d5c8788272849f9c8bb0425ff802` is live in `/opt/salemax/relea
 
 ## Pro Catalyst daily staff follow-up brief — production, 10 November 2026
 
-The existing Pipeline also shows an in-app daily brief of linked, open QR/Meta leads that need human follow-up. It ranks rule-based high/warm interest and separately labels unanswered leads with no intent signal for review; bot-only replies do not count as staff follow-up, and opt-outs, closed leads and group chats are excluded. Cards link to the lead and chat, with a responsible owner when assigned. This read-only brief is separate from the owner-controlled assignment automation documented above. The production audit artifact remains outside Git. Signed-in browser, translation/theme and role acceptance remain open. No external AI call is used by the brief or assignment rules.
+The existing Pipeline also shows an in-app daily brief of linked, open QR/Meta leads that need human follow-up. It ranks rule-based high/warm interest and separately labels unanswered leads with no intent signal for review; bot-only replies do not count as staff follow-up, and opt-outs, closed leads and group chats are excluded. Cards identify the responsible owner when assigned; the Open chat button now jumps directly to the linked Inbox conversation. This read-only brief is separate from the owner-controlled assignment automation documented above. The production audit artifact remains outside Git. Signed-in browser, translation/theme and role acceptance remain open. No external AI call is used by the brief or assignment rules.
 
 ## Pro Catalyst owner reports and message-status drilldowns — production, 10 November 2026
 
