@@ -1,3 +1,7 @@
+## Lead Reports client rendering and 7Network loading brand — deployed, 11 November 2026
+
+Production showed the activity API returning HTTP 200 while Lead Reports failed during client rendering. The saved follow-up run summary reached a helper that referenced a formatter scoped to another function. The helper now formats its own counts, and future request/render errors show a stable reference. The brand hook runs before the compiled app and redirects legacy logo paths to cache-busted 7Network assets. The actual legacy logo file is absent; its URL remains a compatibility alias to the canonical 7Network artwork. App-only release is healthy with no migration, lead, report setting, schedule, recipient, or message changes. Signed-in visual confirmation remains open because local browser use is disabled in Work settings. See `DEPLOYMENT.md` for commit, hashes, rollback and evidence.
+
 ## Legacy Training Center Report settings context — deployed, 11 November 2026
 
 Fixed the report's `WORKSPACE_REQUIRED` load error. The legacy Pipeline context adapter now supplies the owner UID, UID hash, role and actor scope used by the report-settings module, matching its canonical path. Managers retain read-only access; owner-only controls and settings are unchanged. The app-only overlay is healthy, and public route/auth checks pass. Signed-in owner/manager browser confirmation remains open. No database migration, report setting, lead, recipient, or message changed. See `DEPLOYMENT.md` for the source commit, rollback and verification evidence.
