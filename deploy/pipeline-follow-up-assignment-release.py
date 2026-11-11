@@ -279,8 +279,8 @@ def deploy(stage, commit):
         current_worker = wait_worker()
         verify_files(APP, {name: sha(contents[name]) for name in APP_FILES})
         verify_files(WORKER, {name: sha(contents[name]) for name in WORKER_FILES})
-        app_check = "require('/app/modules/platform/pipeline-follow-up-assignment.js');require('/app/routes/pipeline.js');process.stdout.write('app follow-up modules loaded\\n')"
-        worker_check = "require('/app/modules/platform/pipeline-follow-up-assignment.js');require('/app/modules/platform/pipeline-follow-up-brief.js');require('/app/helper/pipeline/leadPipeline.js');process.stdout.write('worker follow-up modules loaded\\n')"
+        app_check = "require('/app/modules/platform/pipeline-follow-up-assignment.js');require('/app/routes/pipeline.js');process.stdout.write('app follow-up modules loaded\\n');process.exit(0)"
+        worker_check = "require('/app/modules/platform/pipeline-follow-up-assignment.js');require('/app/modules/platform/pipeline-follow-up-brief.js');require('/app/helper/pipeline/leadPipeline.js');process.stdout.write('worker follow-up modules loaded\\n');process.exit(0)"
         run('docker', 'exec', APP, 'node', '-e', app_check)
         run('docker', 'exec', WORKER, 'node', '-e', worker_check)
         if support_ids() != support:

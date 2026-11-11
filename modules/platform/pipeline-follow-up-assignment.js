@@ -279,7 +279,7 @@ async function requestRun(source, ctx, { now = new Date() } = {}) {
   return buildPlan(source, config, { now, runMode: 'manual' });
 }
 async function stillNeedsFollowUp(db, { uid, uidHash, leadId, expectedAgentId, assignedAt }) {
-  const [leads] = await queryRows(db, `SELECT id,uid,uid_hash,chat_id,primary_origin,status,stage_key,owner_agent_id,contact_name,learner_name,title
+  const leads = await queryRows(db, `SELECT id,uid,uid_hash,chat_id,primary_origin,status,stage_key,owner_agent_id,contact_name,learner_name,title
     FROM pipeline_leads WHERE uid_hash=? AND uid=? AND id=? LIMIT 1`, [uidHash, uid, leadId]);
   const lead = leads[0];
   if (!lead || lead.status !== 'open') return { ok: false, reason: 'LEAD_CLOSED' };
@@ -371,8 +371,8 @@ async function processItem(source, config, run, item) {
     return { status: 'assigned', agentUid };
   } catch (error) {
     if (error?.code === 'ALREADY_ASSIGNED') {
-      const [lead] = await queryRows(db, 'SELECT owner_agent_id FROM pipeline_leads WHERE uid_hash=? AND uid=? AND id=? LIMIT 1', [config.uidHash, config.uid, item.lead_id]);
-      const status = Number(lead[0]?.owner_agent_id) === Number(item.agent_id) ? 'assigned' : 'skipped';
+      const leads = await queryRows(db, 'SELECT owner_agent_id FROM pipeline_leads WHERE uid_hash=? AND uid=? AND id=? LIMIT 1', [config.uidHash, config.uid, item.lead_id]);
+      const status = Number(leads[0]?.owner_agent_id) === Number(item.agent_id) ? 'assigned' : 'skipped';
       await finishItem(db, item, { status });
       return status;
     }
@@ -419,7 +419,7 @@ async function queueDigests(source, config, run) {
 }
 async function processRun(source, config, runId, { workerId = `followup-${process.pid}` } = {}) {
   const db = poolOf(source);
-  const [runs] = await queryRows(db, `SELECT * FROM sx_pipeline_followup_assignment_runs WHERE id=? AND tenant_id=? LIMIT 1`, [runId, config.tenantId]);
+  const runs = await queryRows(db, `SELECT * FROM sx_pipeline_followup_assignment_runs WHERE id=? AND tenant_id=? LIMIT 1`, [runId, config.tenantId]);
   const run = runs[0];
   if (!run || ['complete', 'partial', 'failed'].includes(run.status)) return { status: run?.status || 'missing', assigned: Number(run?.assigned_count || 0), queued: 0 };
   let assigned = 0, skipped = 0, failed = 0;
@@ -439,7 +439,7 @@ async function processRun(source, config, runId, { workerId = `followup-${proces
   const pendingRows = await queryRows(db, `SELECT COUNT(*) AS count FROM sx_pipeline_followup_assignment_items WHERE run_id=? AND (status IN ('planned','processing') OR (status='failed' AND attempts<3 AND retry_after>UTC_TIMESTAMP(3)))`, [runId]);
   if (Number(pendingRows[0]?.count || 0)) return { status: 'assigning', assigned, skipped, failed, queued: 0 };
   const outbox = await queueDigests(db, config, run);
-  const [finalRows] = await queryRows(db, 'SELECT status,assigned_count,skipped_count,failed_count,notification_count FROM sx_pipeline_followup_assignment_runs WHERE id=?', [runId]);
+  const finalRows = await queryRows(db, 'SELECT status,assigned_count,skipped_count,failed_count,notification_count FROM sx_pipeline_followup_assignment_runs WHERE id=?', [runId]);
   return { status: finalRows[0]?.status || 'complete', assigned: Number(finalRows[0]?.assigned_count || 0), skipped: Number(finalRows[0]?.skipped_count || 0), failed: Number(finalRows[0]?.failed_count || 0), queued: outbox.queued };
 }
 async function claimOutbox(source, workerId, limit = 20) {
@@ -487,7 +487,7 @@ async function sendOutbox(source, item, { http = require('axios'), env = process
   const db = poolOf(source);
   const recipient = await resolveOutboxRecipient(db, item);
   if (!recipient) return { status: 'failed', errorCode: 'RECIPIENT_CHANGED_OR_UNAVAILABLE' };
-  const [instances] = await queryRows(db, 'SELECT number FROM instance WHERE uid=? AND status=\'ACTIVE\' ORDER BY id LIMIT 2', [recipient.uid]);
+  const instances = await queryRows(db, 'SELECT number FROM instance WHERE uid=? AND status=\'ACTIVE\' ORDER BY id LIMIT 2', [recipient.uid]);
   if (instances.length !== 1) return { status: 'failed', errorCode: instances.length ? 'QR_INSTANCE_AMBIGUOUS' : 'QR_INSTANCE_UNAVAILABLE' };
   const from = normalizePhone(instances[0].number);
   if (!from) return { status: 'failed', errorCode: 'QR_INSTANCE_NUMBER_INVALID' };

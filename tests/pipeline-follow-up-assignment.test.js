@@ -63,6 +63,48 @@ test('follows the saved daily report time and defaults to 09:00 Qatar when none 
   assert.deepEqual(fallback, { timezone: 'Asia/Qatar', sendTime: '09:00', scheduleSource: 'default' });
 });
 
+test('reads the first run row before processing a durable assignment run', async () => {
+  const db = { query: async () => [[{ id: 'run-1', status: 'complete', assigned_count: 79 }]] };
+  const result = await assignment.processRun(db, { tenantId: 'tenant-1' }, 'run-1');
+  assert.deepEqual(result, { status: 'complete', assigned: 79, queued: 0 });
+});
+
+test('rechecks the lead row and latest customer conversation before assignment', async () => {
+  const lead = { id: 'lead-1', uid: 'workspace', uid_hash: 'hash', chat_id: 'chat-1', primary_origin: 'qr',
+    status: 'open', stage_key: 'new', owner_agent_id: null, contact_name: 'Private Name', learner_name: null, title: 'Course inquiry' };
+  const inboundAt = Date.now() - 7200000;
+  const message = { chatId: 'chat-1', origin: 'qr', id: 10, type: 'text', route: 'INCOMING', sentBy: 'customer',
+    timestamp: inboundAt, createdAt: new Date(inboundAt), textBody: 'I am interested in course fees, please send details' };
+  const db = { query: async sql => {
+    if (sql.includes('FROM pipeline_leads')) return [[lead]];
+    if (sql.includes('FROM pipeline_conversations')) return [[{ chatId: 'chat-1', origin: 'qr' }]];
+    if (sql.includes('FROM beta_conversation')) return [[message]];
+    throw new Error('UNEXPECTED_QUERY');
+  } };
+  const result = await assignment._private.stillNeedsFollowUp(db, { uid: 'workspace', uidHash: 'hash', leadId: 'lead-1', expectedAgentId: 5, assignedAt: new Date(Date.now() - 3600000) });
+  assert.equal(result.ok, true);
+  assert.equal(result.priority, 'high');
+  assert.equal(result.lead.id, 'lead-1');
+});
+
+test('sends an internal QR digest after reading the single active sender row', async () => {
+  const phone = '97455160323';
+  const phoneHash = require('node:crypto').createHash('sha256').update(phone).digest('hex');
+  const db = { query: async sql => {
+    if (sql.includes('SELECT a.mobile AS phone')) return [[{ phone: `+${phone}`, uid: 'workspace' }]];
+    if (sql.includes('FROM instance')) return [[{ number: '+97444110000' }]];
+    throw new Error('UNEXPECTED_QUERY');
+  } };
+  let sent = 0;
+  const result = await assignment.sendOutbox(db, { recipient_type: 'agent', tenant_id: 'tenant-1', recipient_id: '5', phone_hash: phoneHash,
+    message_text: '7Network follow-up assignment', attempts: 1 }, {
+    env: { CRM_INTERNAL_SECRET: 'test-secret', PORT: '3010' },
+    http: { post: async (url, payload, config) => { sent++; assert.equal(url, 'http://app:3010/api/internal/qr/send-text'); assert.equal(payload.to, phone); assert.equal(config.headers['x-internal-secret'], 'test-secret'); return { data: { success: true, data: { messageId: 'message-1' } } }; } },
+  });
+  assert.deepEqual(result, { status: 'accepted', messageId: 'message-1' });
+  assert.equal(sent, 1);
+});
+
 test('normalizes valid WhatsApp numbers without persisting them in digest groups', () => {
   assert.equal(assignment.normalizePhone('(974) 5516-0323'), '97455160323');
   assert.equal(assignment.normalizePhone('not-a-number'), null);
