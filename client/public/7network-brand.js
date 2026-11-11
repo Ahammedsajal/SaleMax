@@ -51,21 +51,44 @@
     });
   }
 
-  function refreshChromeText() {
-    document.querySelectorAll(platformChrome).forEach(container => {
+  const trackedLegacyLogoContainers = new Set();
+  function legacyLoaderContainers() {
+    for (const container of trackedLegacyLogoContainers) if (!container.isConnected) trackedLegacyLogoContainers.delete(container);
+    document.querySelectorAll('img').forEach(img => {
+      let path;
+      try {
+        const url = new URL(img.getAttribute('src'), location.href);
+        if (url.origin !== location.origin) return;
+        path = url.pathname;
+      } catch { return; }
+      if (!platformLogoPaths.has(path)) return;
+      let container = img.parentElement;
+      for (let depth = 0; container && container !== document.body && depth < 8; depth++, container = container.parentElement) {
+        if (container.closest('[data-sx-tenant-brand], [data-customer-content], [contenteditable="true"]')) break;
+        if ((container.textContent || '').length > 240 || container.querySelectorAll('img').length > 3) break;
+        trackedLegacyLogoContainers.add(container);
+      }
+    });
+    return trackedLegacyLogoContainers;
+  }
+
+  function refreshChromeText(extraContainers = new Set()) {
+    const containers = new Set(document.querySelectorAll(platformChrome));
+    extraContainers.forEach(container => containers.add(container));
+    containers.forEach(container => {
       if (container.closest('[data-sx-tenant-brand], [data-customer-content], [contenteditable="true"]')) return;
       const walker = document.createTreeWalker(container, NodeFilter.SHOW_TEXT);
       const nodes = [];
       while (walker.nextNode()) nodes.push(walker.currentNode);
       for (const node of nodes) {
-        if (!/salemax/i.test(node.nodeValue || '') || node.parentElement?.closest('input,textarea,script,style,[contenteditable="true"],[data-sx-tenant-brand],[data-customer-content]')) continue;
+        if (!/salemax/i.test(node.nodeValue || '') || (extraContainers.has(container) && !/^\s*salemax\s*$/i.test(node.nodeValue || '')) || node.parentElement?.closest('input,textarea,script,style,[contenteditable="true"],[data-sx-tenant-brand],[data-customer-content]')) continue;
         node.nodeValue = node.nodeValue.replace(/salemax/gi, '7Network');
       }
     });
     if (/salemax/i.test(document.title)) document.title = document.title.replace(/salemax/gi, '7Network');
   }
 
-  function refresh() { queued = false; refreshImages(); refreshChromeText(); }
+  function refresh() { queued = false; const loadingContainers = legacyLoaderContainers(); refreshImages(); refreshChromeText(loadingContainers); }
   function schedule() { if (!queued) { queued = true; requestAnimationFrame(refresh); } }
   function start() {
     refresh();

@@ -107,32 +107,39 @@ function teamScope(role, agentId, scopeAgentIds) {
   }
   return { sql: '', args: [] };
 }
-function shapeBrief(items, { date, timezone = 'Asia/Qatar', needsReview = 0, unassigned = null,
+function shapeBrief(items, { date, timezone = 'Asia/Qatar', needsReview = 0, reviewItems = [], unassigned = null,
   noBusinessMessage = 0, automatedReplyAwaitingStaff = 0, includeItems = true } = {}) {
-  const high = items.filter(item => item.priority === 'high');
-  const warm = items.filter(item => item.priority === 'warm');
-  const review = items.filter(item => item.priority === 'review');
+  const suggested = items.filter(item => item.priority !== 'review');
+  const review = [...reviewItems, ...items.filter(item => item.priority === 'review')];
+  const high = suggested.filter(item => item.priority === 'high');
+  const warm = suggested.filter(item => item.priority === 'warm');
   const comparator = (a, b) => Number(b.daysWaiting >= 3) - Number(a.daysWaiting >= 3)
     || ({ high: 0, warm: 1, review: 2 }[a.priority] - { high: 0, warm: 1, review: 2 }[b.priority])
     || b.hoursWaiting - a.hoursWaiting;
-  const sorted = items.slice().sort(comparator);
+  const sorted = suggested.slice().sort(comparator);
+  const sortedReview = review.slice().sort(comparator);
+  const reviewCount = Math.max(Number(needsReview) || 0, sortedReview.length);
+  const maxReturnedItems = 500;
   return {
     date: date || localDate(timezone),
     timezone,
     asOf: new Date().toISOString(),
     summary: {
-      total: items.length,
-      unansweredOpen: items.length + (Number(needsReview) || review.length),
+      total: sorted.length,
+      unansweredOpen: sorted.length + reviewCount,
       highIntent: high.length,
       warmInterest: warm.length,
-      needsReview: Number(needsReview) || review.length,
-      waiting72Hours: items.filter(item => item.daysWaiting >= 3).length,
-      unassigned: unassigned === null ? items.filter(item => item.ownerAgentId == null).length : Number(unassigned) || 0,
+      needsReview: reviewCount,
+      waiting72Hours: sorted.filter(item => item.daysWaiting >= 3).length,
+      unassigned: unassigned === null ? [...sorted, ...sortedReview].filter(item => item.ownerAgentId == null).length : Number(unassigned) || 0,
       noBusinessMessage: Number(noBusinessMessage) || 0,
       automatedReplyAwaitingStaff: Number(automatedReplyAwaitingStaff) || 0,
     },
-    items: includeItems ? sorted.slice(0, 100) : [],
-    hasMore: sorted.length > 100,
+    items: includeItems ? sorted.slice(0, maxReturnedItems) : [],
+    reviewItems: includeItems ? sortedReview.slice(0, maxReturnedItems) : [],
+    hasMore: sorted.length > maxReturnedItems,
+    reviewHasMore: sortedReview.length > maxReturnedItems,
+    allHasMore: sorted.length > maxReturnedItems || sortedReview.length > maxReturnedItems,
     definition: 'Open leads are included when the latest customer message is newer than every human outbound message on a linked direct QR or Meta chat. Bot messages do not count as staff follow-up. Keyword signals are rule-based and need staff review.',
   };
 }
@@ -191,6 +198,7 @@ async function getBrief({ pool, uid, role = 'owner', agentId, scopeAgentIds, tim
     }
     const leadById = new Map(leads.map(row => [String(row.id), row]));
     const items = [];
+    const reviewItems = [];
     let needsReview = 0;
     let unassigned = 0;
     let noBusinessMessage = 0;
@@ -201,10 +209,10 @@ async function getBrief({ pool, uid, role = 'owner', agentId, scopeAgentIds, tim
       if (item.ownerAgentId == null) unassigned++;
       if (!item.businessMessageEverSent) noBusinessMessage++;
       if (item.automatedReplyAfterLatestCustomer) automatedReplyAwaitingStaff++;
-      if (item.priority === 'review') needsReview++;
+      if (item.priority === 'review') { needsReview++; reviewItems.push(item); }
       else items.push(item);
     }
-    return shapeBrief(items, { timezone, needsReview, unassigned, noBusinessMessage, automatedReplyAwaitingStaff, includeItems });
+    return shapeBrief(items, { timezone, needsReview, reviewItems, unassigned, noBusinessMessage, automatedReplyAwaitingStaff, includeItems });
   } finally { connection.release(); }
 }
 

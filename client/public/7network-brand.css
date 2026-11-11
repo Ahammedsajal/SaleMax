@@ -22,6 +22,7 @@ html { accent-color: var(--7network-blue); }
 #root .MuiRadio-colorPrimary.Mui-checked,
 #root .MuiSwitch-colorPrimary.Mui-checked { color: var(--7network-blue); }
 #root .MuiLinearProgress-colorPrimary { background-color: #d9e9ff; }
+#root .MuiCircularProgress-root { color: var(--7network-blue) !important; }
 #root .MuiLinearProgress-barColorPrimary { background-color: var(--7network-cyan); }
 #root .Mui-focused .MuiOutlinedInput-notchedOutline { border-color: var(--7network-blue); }
 #root .MuiDrawer-paper .Mui-selected { color: var(--7network-blue); }
