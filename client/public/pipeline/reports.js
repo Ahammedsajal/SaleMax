@@ -250,7 +250,7 @@
     dialog?.addEventListener('click',event=>{if(event.target===dialog){state.drilldown=null;render(report);}});
     $('#drilldownPrevious')?.addEventListener('click',()=>{state.drilldownPage=Math.max(1,state.drilldownPage-1);loadDrilldown(state.drilldown.kind,state.drilldown.date,state.drilldown.selectedAgentId);});
     $('#drilldownNext')?.addEventListener('click',()=>{state.drilldownPage+=1;loadDrilldown(state.drilldown.kind,state.drilldown.date,state.drilldown.selectedAgentId);});
-    $$('.report-open-chat',host).forEach(button=>button.addEventListener('click',()=>{const id=button.dataset.lead;setView('board');window.salemaxPipelineOpenLead?.(id);}));
+    $$('.report-open-chat:not([data-brief-chat])',host).forEach(button=>button.addEventListener('click',()=>{const id=button.dataset.lead;setView('board');window.salemaxPipelineOpenLead?.(id);}));
     $$('[data-brief-chat]',host).forEach(button=>button.addEventListener('click',()=>openBriefChat(button)));
   }
   const reportColors=['#1768d4','#12a9c7','#8655d6','#df4a83','#159879','#f09a24','#4c77e8','#d7653c'];

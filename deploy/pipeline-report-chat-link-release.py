@@ -18,15 +18,15 @@ WORKER = 'salemax-report-worker-1'
 SUPPORT = ('salemax-db-1', WORKER, 'salemax-libretranslate-1',
            'salemax-recruitment-founder-notification-worker-1', 'salemax-bot-lead-test-db')
 EXPECTED_IMAGE = 'salemax-app:openai-ads-lead-01fde9e1-20261103'
-EXPECTED_HEAD = '/opt/salemax/releases/pipeline-follow-up-assignment-domain-c9267469ad33-20261111/compose.follow-up-domain-app.json'
+EXPECTED_HEAD = '/opt/salemax/releases/pipeline-report-chat-link-395924b267e2-20261111/compose.pipeline-report-chat-link.json'
 FILES = ('client/public/pipeline/reports.js', 'client/public/pipeline/index.html')
 PREVIOUS_MOUNTS = {
-    '/app/client/public/pipeline/reports.js': '/opt/salemax/releases/pipeline-follow-up-assignment-4eb0f60d4bd7-20261111/runtime/client/public/pipeline/reports.js',
-    '/app/client/public/pipeline/index.html': '/opt/salemax/releases/pipeline-follow-up-assignment-4eb0f60d4bd7-20261111/runtime/client/public/pipeline/index.html',
+    '/app/client/public/pipeline/reports.js': '/opt/salemax/releases/pipeline-report-chat-link-395924b267e2-20261111/runtime/client/public/pipeline/reports.js',
+    '/app/client/public/pipeline/index.html': '/opt/salemax/releases/pipeline-report-chat-link-395924b267e2-20261111/runtime/client/public/pipeline/index.html',
 }
 PREIMAGES = {
-    'client/public/pipeline/reports.js': 'd3c0e28cd7fd126f9b69bcbb0f0414deb444af280486089912bdd7e53fb58cda',
-    'client/public/pipeline/index.html': 'e7a63bb6d979604698b3d5149e22446023c444c6c090d6a69804bf29cc3c8ae5',
+    'client/public/pipeline/reports.js': '9be521cb358bc67525b8d1775cd98e58a9600d601b548b643e3f395a26a4b644',
+    'client/public/pipeline/index.html': '591288d6be26009be3e39eb6093e0a30dfb87c7f299945cbaa6aeff13862e07d',
 }
 MANUAL_VARS = ROOT / 'shared/rollback-private-inventory-84644fdfebee/compose-manual-vars.json'
 
@@ -252,7 +252,7 @@ def deploy(stage, commit):
         served = {}
         for name, url in {
             'client/public/pipeline/index.html': 'https://7network.live/pipeline/index.html',
-            'client/public/pipeline/reports.js': 'https://7network.live/pipeline/reports.js?v=20261111-report-chat-direct2',
+            'client/public/pipeline/reports.js': 'https://7network.live/pipeline/reports.js?v=20261111-report-chat-direct3',
         }.items():
             body = run('curl', '-fsS', url).encode()
             served[name] = sha(body)
