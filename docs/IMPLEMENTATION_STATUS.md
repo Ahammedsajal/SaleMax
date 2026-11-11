@@ -2421,3 +2421,7 @@ Replaced the cursor-following glow with visible expanding pond-style ripple ring
 ### Public website navy header — 8 November 2026
 
 The public header and 3D hero share a navy surface. The header uses translucent glass on pointer hover and keyboard focus, and the touch menu uses solid navy. Local Chromium verification covered English and Arabic at 360, 390, 768, 1024 and 1440 pixels, including navigation contrast colors, layout, mobile menu opening, hover, focus and reduced motion. Deployed on 8 November 2026 as `/opt/salemax/releases/website-header-theme-dbd44c7af868-20261108`; the live browser confirms the header matches the navy hero. Runtime evidence and rollback steps are in `DEPLOYMENT.md`. Physical-device review, detailed Arabic/RTL theme acceptance and the wider 42-ticket upgrade remain open.
+
+### Training applications and staff member actions — 11 November 2026
+
+Submitted applications can be archived and restored, with linked business records retained. Owner/manager team screens can edit display name and mobile or deactivate/reactivate eligible team memberships; login email remains unchanged and ownership history is preserved. Source `0d18a98dd4e7ab91d65416e3034a881f6017575d` is pushed and active in production. The archive migration is applied; live health, auth boundaries, shell asset references and served CSS/JS hashes are recorded in `DEPLOYMENT.md`. Signed-in workflow, role, Arabic/RTL, responsive and theme acceptance remain open; “Delete” is a recoverable archive/deactivation action.
