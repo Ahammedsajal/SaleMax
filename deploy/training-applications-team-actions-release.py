@@ -18,8 +18,8 @@ WORKER = 'salemax-report-worker-1'
 SUPPORT = ('salemax-db-1', WORKER, 'salemax-libretranslate-1',
            'salemax-recruitment-founder-notification-worker-1', 'salemax-bot-lead-test-db')
 EXPECTED_IMAGE = 'salemax-app:openai-ads-lead-01fde9e1-20261103'
-EXPECTED_HEAD = ('/opt/salemax/releases/pipeline-board-stage-counts-8c14780bd7df-20261111/'
-                 'compose.pipeline-board-stage-counts.json')
+EXPECTED_HEAD = ('/opt/salemax/releases/training-applications-team-actions-32a9e6beaf31-20261111/'
+                 'compose.applications-migration.json')
 MIGRATION = 'database/migrations/20270204_training_form_submission_archive.sql'
 FILES = (
     'client/public/index.html',
@@ -203,8 +203,15 @@ def deploy(stage, commit):
         if live != expected:
             raise RuntimeError('Active application file differs from the reviewed preimage')
     before_schema = migration_state()
-    if before_schema['columns'] or before_schema['migration'] is not None:
-        raise RuntimeError('Application archive migration is already partially present')
+    expected_checksum = sha(contents[MIGRATION])
+    if (before_schema['columns'] != 2 or before_schema['migration'] is None
+            or before_schema['migration']['status'] != 'applied'
+            or before_schema['migration']['checksum'] != expected_checksum
+            or before_schema['migration']['statements_completed'] != 1):
+        raise RuntimeError('Application archive migration is not fully applied')
+    migration_overlay = Path(meta['files'][-1])
+    if run('docker', 'exec', APP, 'sha256sum', '/app/' + MIGRATION).split()[0] != expected_checksum:
+        raise RuntimeError('Retained migration mount differs from the reviewed migration source')
     if shutil.disk_usage(ROOT).free < 1024 * 1024 * 1024:
         raise RuntimeError('Insufficient production disk space')
 
@@ -254,16 +261,10 @@ def deploy(stage, commit):
     migration_runtime.parent.mkdir(parents=True, exist_ok=True, mode=0o755)
     migration_runtime.write_bytes(contents[MIGRATION])
     migration_runtime.chmod(0o644)
-    migration_mount = {'type': 'bind', 'source': str(migration_runtime), 'target': '/app/' + MIGRATION,
-                       'read_only': True, 'bind': {'create_host_path': False}}
-    migration_overlay = release / 'compose.applications-migration.json'
-    migration_overlay.write_text(json.dumps({'services': {'app': {'volumes': [migration_mount]}}}))
-    migration_overlay.chmod(0o644)
     app_overlay = release / 'compose.applications-team-actions.json'
     app_overlay.write_text(json.dumps({'services': {'app': {'volumes': mounts}}}))
     app_overlay.chmod(0o644)
-    verify_overlay(meta, env, [migration_overlay], 'app', [migration_mount])
-    verify_overlay(meta, env, [migration_overlay, app_overlay], 'app', [migration_mount, *mounts])
+    verify_overlay(meta, env, [app_overlay], 'app', mounts)
     helper = release / 'deploy' / 'training-applications-team-actions-release.py'
     helper.parent.mkdir(mode=0o755)
     helper.write_bytes(Path(__file__).read_bytes())
@@ -273,27 +274,17 @@ def deploy(stage, commit):
     if inspect(APP)['Id'] != app['Id'] or support_ids() != support:
         raise RuntimeError('A service changed during release preparation')
 
-    migration_started = False
     try:
-        compose_up(meta, env, [migration_overlay])
-        wait_app()
-        migration_started = True
-        run('docker', 'exec', APP, 'node', '/app/database/migrate-pipeline.js', '--apply', '--only', Path(MIGRATION).name)
+        compose_up(meta, env, [app_overlay])
+        current = wait_app()
         after_schema = migration_state()
-        expected_checksum = sha(contents[MIGRATION])
         if (after_schema['columns'] != 2 or after_schema['migration'] is None
                 or after_schema['migration']['status'] != 'applied'
                 or after_schema['migration']['checksum'] != expected_checksum
                 or after_schema['submissions'] != before_schema['submissions']):
-            raise RuntimeError('Application archive migration verification failed')
-        compose_up(meta, env, [migration_overlay, app_overlay])
-        current = wait_app()
+            raise RuntimeError('Application archive migration state changed during app release')
         for name, data in contents.items():
-            if name == MIGRATION:
-                target = '/app/' + name
-            else:
-                target = '/app/' + name
-            if run('docker', 'exec', APP, 'sha256sum', target).split()[0] != sha(data):
+            if run('docker', 'exec', APP, 'sha256sum', '/app/' + name).split()[0] != sha(data):
                 raise RuntimeError('Runtime file hash mismatch')
         for name in ('modules/platform/team-invitations.js', 'modules/platform/team-invitation-router.js',
                      'modules/platform/training-forms.js', 'modules/platform/training-form-router.js',
@@ -308,7 +299,12 @@ def deploy(stage, commit):
         app_route = run('curl', '-sS', '-o', '/dev/null', '-w', '%{http_code}', 'https://7network.live/user?page=dashboard').strip()
         forms_api = run('curl', '-sS', '-o', '/dev/null', '-w', '%{http_code}', 'https://7network.live/api/user/training/forms/submissions').strip()
         team_api = run('curl', '-sS', '-o', '/dev/null', '-w', '%{http_code}', 'https://7network.live/api/user/team-invitations').strip()
-        if app_route != '200' or forms_api not in ('401', '302') or team_api not in ('401', '302'):
+        team_body = run('curl', '-sS', 'https://7network.live/api/user/team-invitations')
+        try:
+            team_logout = json.loads(team_body).get('logout') is True
+        except (json.JSONDecodeError, AttributeError):
+            team_logout = False
+        if app_route != '200' or forms_api not in ('401', '302') or not (team_api in ('401', '302') or team_api == '200' and team_logout):
             raise RuntimeError('Public route or authenticated API boundary verification failed')
         served = {}
         urls = {
@@ -329,6 +325,7 @@ def deploy(stage, commit):
                   'migration': after_schema['migration'], 'schemaColumns': after_schema['columns'],
                   'submissionCountUnchanged': after_schema['submissions'] == before_schema['submissions'],
                   'appRoute': app_route, 'anonymousFormsApi': forms_api, 'anonymousTeamApi': team_api,
+                  'anonymousTeamLogout': team_logout,
                   'supportServicesUnchanged': True, 'healthz': '200', 'appOverlay': str(app_overlay),
                   'migrationOverlay': str(migration_overlay)}
         write_private(backup / 'result.json', result)
@@ -336,7 +333,7 @@ def deploy(stage, commit):
     except Exception as error:
         try:
             write_private(backup / 'deployment-failure.txt', f'{type(error).__name__}: {error}\n')
-            compose_up(meta, env, [migration_overlay] if migration_started else [])
+            compose_up(meta, env, [])
             wait_app()
         except Exception:
             pass
@@ -350,7 +347,6 @@ def restore(backup):
         raise RuntimeError('Rollback base release differs')
     before = json.loads((backup / 'app-before.json').read_text())
     release = Path((backup / 'release-path.txt').read_text().strip())
-    migration_overlay = release / 'compose.applications-migration.json'
     app_overlay = release / 'compose.applications-team-actions.json'
     active_files = inspect(APP)['Config']['Labels']['com.docker.compose.project.config_files'].split(',')
     if active_files[-1] != str(app_overlay):
@@ -367,7 +363,7 @@ def restore(backup):
     if schema['migration']['checksum'] != sha((release / 'runtime' / MIGRATION).read_bytes()):
         raise RuntimeError('Migration source checksum differs during code rollback')
     variables = json.loads((backup / 'compose-vars.json').read_text())
-    compose_up(before['compose'], dict(os.environ, **variables), [migration_overlay])
+    compose_up(before['compose'], dict(os.environ, **variables), [])
     restored = wait_app()
     if restored['Config']['Image'] != before['image']:
         raise RuntimeError('Rollback image mismatch')
