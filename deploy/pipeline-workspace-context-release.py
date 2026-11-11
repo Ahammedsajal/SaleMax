@@ -231,7 +231,7 @@ def deploy(stage, commit):
         if run('docker', 'exec', APP, 'sha256sum', '/app/' + FILES[0]).split()[0] != sha(contents[FILES[0]]):
             raise RuntimeError('Runtime Pipeline route hash mismatch')
         run('docker', 'exec', APP, 'node', '--check', '/app/' + FILES[0])
-        run('docker', 'exec', APP, 'node', '-e', "require('/app/routes/pipeline.js')")
+        run('docker', 'exec', APP, 'node', '-e', "require('/app/routes/pipeline.js');process.exit(0)")
         if support_ids() != support or current['Config']['Image'] != app['Config']['Image']:
             raise RuntimeError('An unrelated service or image changed')
         if current['Config']['Labels']['com.docker.compose.project.config_files'].split(',')[-1] != str(overlay):
