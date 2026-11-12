@@ -170,6 +170,22 @@ def compose_environment(app, files, env_files, backup):
     return base_helper.compose_environment(app, files, env_files, backup)
 
 
+def verify_live_compose_app(app, config):
+    service = config['services']['app']
+    if service.get('image') != app['Config']['Image']:
+        raise RuntimeError('Resolved Compose app image differs from the running app')
+    expected = {row['target']: row for row in service.get('volumes', []) if row.get('type') == 'bind'}
+    actual = {row['Destination']: row for row in app.get('Mounts', []) if row.get('Type') == 'bind'}
+    if set(expected) != set(actual):
+        raise RuntimeError('Resolved Compose bind mounts differ from the running app')
+    for target, volume in expected.items():
+        live = actual[target]
+        source_changed = os.path.realpath(volume.get('source', '')) != os.path.realpath(live.get('Source', ''))
+        read_only_changed = bool(volume.get('read_only', False)) != (not bool(live.get('RW', True)))
+        if source_changed or read_only_changed:
+            raise RuntimeError('Resolved Compose bind mount differs from the running app: ' + target)
+
+
 def same_except_app_mounts(before, after):
     before_without_mounts, after_without_mounts = copy.deepcopy(before), copy.deepcopy(after)
     before_without_mounts['services']['app'].pop('volumes', None)
@@ -267,7 +283,7 @@ def deploy(stage, commit):
     base_helper_spec = importlib.util.spec_from_file_location('mobile_call_center_base_release_helper', ACTIVE_HELPER)
     base_helper = importlib.util.module_from_spec(base_helper_spec)
     base_helper_spec.loader.exec_module(base_helper)
-    base_helper.verify_live_compose_app(app, before)
+    verify_live_compose_app(app, before)
     after = json.loads(run(*candidate, 'config', '--format', 'json', env=env))
     validate_mount_overlay(before, after, mounts)
     if any(sha(Path(name).read_bytes()) != digest for name, digest in input_hashes.items()):

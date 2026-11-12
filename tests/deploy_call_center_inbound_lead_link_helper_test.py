@@ -74,6 +74,26 @@ class CallCenterInboundLeadLinkReleaseHelperTest(unittest.TestCase):
         with self.assertRaisesRegex(RuntimeError, 'non-mount Compose configuration'):
             HELPER.validate_mount_overlay(previous, unsafe, mounts)
 
+    def test_live_compose_validation_requires_the_running_image_and_every_bind_mount_to_match(self):
+        app = {
+            'Config': {'Image': 'app:test'},
+            'Mounts': [{'Type': 'bind', 'Destination': '/app/file.js', 'Source': '/release/file.js', 'RW': False}],
+        }
+        config = {'services': {'app': {'image': 'app:test', 'volumes': [
+            {'type': 'bind', 'target': '/app/file.js', 'source': '/release/file.js', 'read_only': True},
+        ]}}}
+        HELPER.verify_live_compose_app(app, config)
+
+        wrong_image = json.loads(json.dumps(config))
+        wrong_image['services']['app']['image'] = 'app:other'
+        with self.assertRaisesRegex(RuntimeError, 'image differs'):
+            HELPER.verify_live_compose_app(app, wrong_image)
+
+        wrong_mount = json.loads(json.dumps(config))
+        wrong_mount['services']['app']['volumes'][0]['source'] = '/other/file.js'
+        with self.assertRaisesRegex(RuntimeError, 'bind mount differs'):
+            HELPER.verify_live_compose_app(app, wrong_mount)
+
 
 if __name__ == '__main__':
     unittest.main()
