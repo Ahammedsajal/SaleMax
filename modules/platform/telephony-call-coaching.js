@@ -2,13 +2,14 @@
 
 const crypto=require('node:crypto');
 const {decision}=require('./policy');
+const {categoryKeyMatches}=require('./categories');
 
 const UUID=/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const qualities=new Set(['effective','needs_improvement','follow_up_required']);
 const fail=code=>{throw Object.assign(new Error(code),{code});};
 
 function authorize(context,permission){
-  if(context?.tenant?.categoryKey!=='7network_sales')fail('CATEGORY_UNAVAILABLE');
+  if(!categoryKeyMatches(context?.tenant?.categoryKey,'7network_sales'))fail('CATEGORY_UNAVAILABLE');
   const result=decision(context,{capability:'telephony.call-center',permission});
   if(!result.allowed)fail(result.code);
   return result;

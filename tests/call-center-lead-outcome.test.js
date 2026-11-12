@@ -55,8 +55,8 @@ test('call outcome form is in Call Center and uses the existing scoped outcome A
   assert.match(ui,/salesCategory=data\.categoryKey==='7network_sales'/);assert.match(ui,/salesCategory\?\[\['do_not_call'/);
   assert.match(ui,/\['do_not_call','Do not call again'/);assert.match(ui,/CALL_LEAD_DO_NOT_CALL/);
   assert.match(html,/sales-design-tokens\.css[\s\S]*call-center\.css/);assert.match(html,/timezone-datetime\.js[\s\S]*call-center\.js/);
-  assert.match(html,/call-center\.css\?v=20261014-sales-call-outcome-review1/);assert.match(css,/\.call-outcome-summary[^{]*\{[^}]*var\(--sx-brand\)/);
-  assert.match(api,/calls\/:callId\/lead-outcome/);assert.match(api,/SELECT timezone FROM sx_tenants/);assert.match(api,/categoryKey:context\.tenant\.categoryKey/);assert.match(api,/CALL_LEAD_DO_NOT_CALL/);
+  assert.match(html,/call-center\.css\?v=20261112-sip-direct-dial1/);assert.match(css,/\.call-outcome-summary[^{]*\{[^}]*var\(--sx-brand\)/);
+  assert.match(api,/calls\/:callId\/lead-outcome/);assert.match(api,/SELECT timezone FROM sx_tenants/);assert.match(api,/categoryKey:canonicalCategoryKey\(context\.tenant\.categoryKey\)/);assert.match(api,/CALL_LEAD_DO_NOT_CALL/);
 });
 
 test('Sales follow-up entry treats typed time as Asia/Kolkata local time',()=>{

@@ -3,7 +3,7 @@
 const crypto = require('node:crypto');
 const { platformDecision } = require('./policy');
 const plans = require('./plans');
-const { getCategory, supportsBusinessCapability } = require('./categories');
+const { getCategory, categoryKeyMatches, supportsBusinessCapability } = require('./categories');
 
 const fail = code => { throw Object.assign(new Error(code), { code }); };
 const uuid = value => typeof value === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value);
@@ -59,7 +59,7 @@ async function eligible(db, tenant) {
   const entitlement = tenant.status === 'active' ? await plans.loadEntitlements(db, tenant.id) : null;
   return !!(supportsBusinessCapability(category, 'telephony.call-center') && entitlement
     && ['active', 'trial', 'grace'].includes(entitlement.status)
-    && entitlement.categoryKey === tenant.category_key && Number(entitlement.categoryVersion) === Number(tenant.category_version)
+    && categoryKeyMatches(entitlement.categoryKey, tenant.category_key) && Number(entitlement.categoryVersion) === Number(tenant.category_version)
     && entitlement.capabilities.includes('telephony.call-center'));
 }
 async function listTenants(db, context) {
@@ -98,9 +98,11 @@ async function previewRouting(db, context) {
     '; The ARI controller resolves each presented DID against current enabled 7Network channel policy.',
     '', '[from-dinstar-unrouted]',
     'exten => _+X.,1,NoOp(7Network inbound DID ${EXTEN})',
+    ' same => n,Ringing()',
     ' same => n,Stasis(salemax-call-center,inbound-did,${EXTEN})',
     ' same => n,Hangup()',
     'exten => _X.,1,NoOp(7Network inbound DID ${EXTEN})',
+    ' same => n,Ringing()',
     ' same => n,Stasis(salemax-call-center,inbound-did,${EXTEN})',
     ' same => n,Hangup()',
   ];

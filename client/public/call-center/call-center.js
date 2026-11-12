@@ -5,6 +5,7 @@
   const text=(en,ar)=>isArabic()?ar:en;
   const node=id=>document.getElementById(id);
   let browserSipState='disconnected';
+  let pageLeaving=false;
   let linkedLeadId='';
   let tenantTimezone='Asia/Qatar';
   let salesCategory=false;
@@ -41,6 +42,15 @@
     try{const data=await request('/calls/agents');callReview.agents=Array.isArray(data.agents)?data.agents:[];renderAgentReviewFilter();}
     catch(_){callReview.agents=[];callHistory.agentMembershipId='';renderAgentReviewFilter();}
   }
+  function fillMobileSipConfig(host,config,targetName=''){
+    host.replaceChildren();
+    const title=document.createElement('p');title.className='call-empty';title.textContent=targetName
+      ?text(`Private SIP settings for ${targetName}. Share them securely; staff sign in only to the SIP app, not 7Network.`,`إعدادات SIP الخاصة بـ ${targetName}. شاركها بأمان؛ يسجّل الموظف الدخول إلى تطبيق SIP فقط، دون الدخول إلى 7Network.`)
+      :text('Enter these settings in your SIP app. The endpoint profile has been synchronized with Asterisk. Keep the password private.','أدخل هذه الإعدادات في تطبيق SIP. تمت مزامنة ملف نقطة الاتصال مع أستريسك. احتفظ بكلمة المرور بشكل خاص.');host.append(title);
+    const values=[['Server',`${config.host}:${config.port}`,'text'],['Transport',config.transport,'text'],['Media encryption',config.mediaEncryption,'text'],['Username',config.username,'text'],['Password',config.password,'password']];
+    for(const [name,value,type] of values){const row=document.createElement('label');row.className='sip-credential-row';row.textContent=text(name,({Server:'الخادم',Transport:'النقل','Media encryption':'تشفير الوسائط',Username:'اسم المستخدم',Password:'كلمة المرور'})[name]||name);const input=document.createElement('input');input.type=type;input.readOnly=true;input.autocomplete='off';input.value=value;input.dir='ltr';input.setAttribute('aria-label',name);const copy=document.createElement('button');copy.type='button';copy.textContent=text('Copy','نسخ');copy.addEventListener('click',async()=>{try{await navigator.clipboard.writeText(input.value);copy.textContent=text('Copied','تم النسخ');setTimeout(()=>copy.textContent=text('Copy','نسخ'),1500);}catch(_){input.focus();input.select();}});row.append(input,copy);host.append(row);}
+    const note=document.createElement('small');note.textContent=text('Use TLS and SRTP. Staff can dial numbers and receive calls in the SIP app without a 7Network login; it does not show CRM leads. Dial international numbers with +country code. These settings are private; clear the page after sharing.','استخدم TLS وSRTP. يمكن للموظفين الاتصال بالأرقام واستقبال المكالمات في تطبيق SIP دون تسجيل الدخول إلى 7Network؛ ولا يعرض التطبيق العملاء المحتملين من CRM. اتصل بالأرقام الدولية مع رمز الدولة مسبوقًا بعلامة +. هذه الإعدادات خاصة؛ امسحها من الصفحة بعد المشاركة.');host.append(note);
+  }
   function renderExtensions(items){
     const section=node('extensionsSection'),host=node('extensionList');section.hidden=false;host.replaceChildren();
     if(!items.length){const empty=document.createElement('p');empty.className='extension-state';empty.textContent=text('No active calling team members are available.','لا يوجد أعضاء فريق نشطون متاحون للمكالمات.');host.append(empty);return;}
@@ -50,6 +60,14 @@
       const label=document.createElement('label');label.className='extension-field';label.textContent=text('Extension','الرقم الداخلي');const input=document.createElement('input');input.type='text';input.inputMode='numeric';input.autocomplete='off';input.maxLength=8;input.pattern='[0-9]{3,8}';input.placeholder=text('e.g. 1201','مثال: 1201');input.value=item.extension||'';input.setAttribute('aria-label',text(`Extension for ${item.displayName}`,`الرقم الداخلي لـ ${item.displayName}`));label.append(input);
       const button=document.createElement('button');button.type='button';button.textContent=text('Save','حفظ');const state=document.createElement('small');state.className='extension-state';state.dataset.state='';state.setAttribute('role','status');row.append(person,label,button,state);
       const credentialActions=document.createElement('div');credentialActions.className='credential-actions';credentialActions.hidden=!item.extension;
+      const mobileSettings=document.createElement('button');mobileSettings.type='button';mobileSettings.textContent=text('Show mobile app settings','عرض إعدادات تطبيق الهاتف');const mobileSettingsPanel=document.createElement('div');mobileSettingsPanel.className='mobile-sip-config';mobileSettingsPanel.hidden=true;
+      mobileSettings.addEventListener('click',async()=>{
+        if(!mobileSettingsPanel.hidden){mobileSettingsPanel.hidden=true;mobileSettingsPanel.replaceChildren();mobileSettings.textContent=text('Show mobile app settings','عرض إعدادات تطبيق الهاتف');return;}
+        mobileSettings.disabled=true;mobileSettingsPanel.hidden=false;mobileSettingsPanel.textContent=text('Loading private SIP settings…','جارٍ تحميل إعدادات SIP الخاصة…');
+        try{const config=await request(`/members/${encodeURIComponent(item.membershipId)}/sip-config`,'POST',{});if(pageLeaving)return;fillMobileSipConfig(mobileSettingsPanel,config,item.displayName);mobileSettings.textContent=text('Hide mobile app settings','إخفاء إعدادات تطبيق الهاتف');}
+        catch(error){mobileSettingsPanel.textContent=error.code==='ASTERISK_CONTROL_NOT_READY'?text('PBX calling is not enabled yet.','لم يتم تفعيل المقسم بعد.'):text('Mobile settings are unavailable. Confirm the extension and PBX setup.','إعدادات الهاتف غير متاحة. تحقق من الرقم الداخلي وإعداد المقسم.');}
+        finally{mobileSettings.disabled=false;}
+      });credentialActions.append(mobileSettings,mobileSettingsPanel);
       for(const clientType of ['mobile','browser']){const rotate=document.createElement('button');rotate.type='button';rotate.textContent=clientType==='mobile'?text('Reset mobile SIP password','إعادة تعيين كلمة مرور SIP للهاتف'):text('Reset browser SIP password','إعادة تعيين كلمة مرور SIP للمتصفح');rotate.addEventListener('click',async()=>{
         if(!window.confirm(text('This changes the stored SIP credential. The SIP password updates in Asterisk the next time settings are requested; the mobile app will need its password updated too. Continue?','سيغيّر هذا بيانات SIP المحفوظة. ستتحدث كلمة مرور SIP في أستريسك عند طلب الإعدادات مجددًا؛ ويجب تحديثها في تطبيق الهاتف أيضًا. هل تريد المتابعة؟')))return;
         rotate.disabled=true;state.dataset.kind='';state.textContent=text('Rotating endpoint credential…','جارٍ تدوير بيانات نقطة الاتصال…');
@@ -65,6 +83,7 @@
           row.dataset.revision=String(saved.revision);state.dataset.kind='success';state.textContent=saved.assigned?text('Assigned in 7Network; request your SIP settings to provision the Asterisk endpoint.','تم التعيين في 7Network؛ اطلب إعدادات SIP لتهيئة نقطة اتصال أستريسك.'):text('Assignment cleared.','تم إلغاء التعيين.');
           input.value=saved.extension;
           credentialActions.hidden=!saved.assigned;
+          if(!saved.assigned){mobileSettingsPanel.hidden=true;mobileSettingsPanel.replaceChildren();mobileSettings.textContent=text('Show mobile app settings','عرض إعدادات تطبيق الهاتف');}
           if(saved.membershipId===node('ownExtension').dataset.membershipId)node('ownExtension').textContent=saved.assigned?text(`Your extension is ${saved.extension}; request SIP settings to provision it on Asterisk.`,`رقمك الداخلي ${saved.extension}؛ اطلب إعدادات SIP لتهيئته على أستريسك.`):text('Requires an assigned extension and outbound route.','يتطلب رقمًا داخليًا ومسارًا صادرًا.');
         }catch(error){
           state.dataset.kind='error';state.textContent=error.code==='EXTENSION_ALREADY_ASSIGNED'?text('That extension is already assigned to another business member.','هذا الرقم الداخلي معيّن بالفعل لعضو آخر في النشاط.'):error.code==='EXTENSION_QUEUE_MUST_BE_DISABLED'?text('Disable or remove this member from enabled queues before changing their extension.','عطّل قوائم الانتظار أو أزل العضو منها قبل تغيير رقمه الداخلي.'):error.code==='STALE_EXTENSION_ASSIGNMENT'?text('This assignment changed. Refresh the page and try again.','تغير هذا التعيين. حدّث الصفحة ثم حاول مجددًا.'):text('Could not save this extension assignment.','تعذر حفظ تعيين الرقم الداخلي.');
@@ -111,7 +130,8 @@
       const started=call.startedAt?new Date(call.startedAt).toLocaleString(isArabic()?'ar-IN':'en-IN',{timeZone:tenantTimezone}):'';
       const handler=call.answeredByName||call.startedByName,handlerRole=call.answeredByRole||call.startedByRole;
       const attribution=handler?`${text('Handled by','المسؤول')}: ${handler}${handlerRole?` · ${roleLabel(handlerRole)}`:''}`:'';
-      meta.textContent=[started,text(`Gateway channel ${call.gatewayChannelNo}`,`قناة البوابة ${call.gatewayChannelNo}`),attribution].filter(Boolean).join(' · ');main.append(title,meta);
+      const remote=call.remoteNumber?`${text(call.direction==='inbound'?'Caller':'Dialed',call.direction==='inbound'?'المتصل':'الرقم المتصل به')}: ${call.remoteNumber}`:'';
+      meta.textContent=[started,remote,text(`Gateway channel ${call.gatewayChannelNo}`,`قناة البوابة ${call.gatewayChannelNo}`),attribution].filter(Boolean).join(' · ');main.append(title,meta);
       const state=document.createElement('span');state.className='call-status';const labels={ringing:text('Ringing','يرن'),connected:text('Connected','متصل'),ended:text('Ended','انتهت'),failed:text('Failed','فشلت')};state.textContent=labels[call.status]||call.status;
       row.append(main,state);
       if(call.outcome){
@@ -295,7 +315,7 @@
     const destination=field.value.trim();if(!/^\+[1-9][0-9]{7,14}$/.test(destination)){field.setCustomValidity(text('Enter a valid international number, such as +97455550000.','أدخل رقمًا دوليًا صحيحًا مثل ‎+97455550000.'));field.reportValidity();return;}field.setCustomValidity('');
     button.disabled=true;state.textContent=text('Requesting call…','جارٍ طلب المكالمة…');
     const clientType=node('callClientType').value;
-    if(clientType==='browser'&&!window.SaleMaXSip?.browserSipConnected?.()){state.textContent=text('Connect browser audio before selecting it.','وصّل صوت المتصفح قبل اختياره.');button.disabled=false;return;}
+    if(clientType==='browser'&&!window.SevenNetworkSip?.browserSipConnected?.()){state.textContent=text('Connect browser audio before selecting it.','وصّل صوت المتصفح قبل اختياره.');button.disabled=false;return;}
     try{const result=await request('/calls','POST',{destination,clientType,...(linkedLeadId?{leadId:linkedLeadId}:{})});field.value='';state.textContent=clientType==='browser'?text(`Call request accepted (${result.callId}). This browser should connect the call.`,`تم قبول طلب المكالمة (${result.callId}). من المفترض أن يتصل هذا المتصفح بالمكالمة.`):text(`Call request accepted (${result.callId}). Your mobile SIP app should ring.`,`تم قبول طلب المكالمة (${result.callId}). من المفترض أن يرن تطبيق SIP للهاتف.`);await loadCalls();}
     catch(error){const messages={PERMISSION_DENIED:text('Your account cannot place calls.','حسابك غير مخوّل لإجراء المكالمات.'),FEATURE_UNAVAILABLE:text('Call Center is not included in your active plan.','مركز الاتصال غير مشمول في خطتك الحالية.'),OUTBOUND_LEAD_REQUIRED:text('Open an accessible lead and start the call from its record so the call is linked and scoped.','افتح سجل عميل متاحًا وابدأ المكالمة منه لربطها بالسجل والتحقق من النطاق.'),CALL_LEAD_PHONE_INVALID:text('This lead needs a valid international phone number. Update the lead before calling.','يحتاج هذا العميل إلى رقم دولي صحيح. حدّث السجل قبل الاتصال.'),CALL_LEAD_DO_NOT_CALL:text('This lead asked not to receive further calls. The call has been blocked.','طلب هذا العميل عدم تلقي المزيد من المكالمات. تم حظر الاتصال.'),OUTBOUND_EXTENSION_NOT_READY:text('Assign and provision your mobile SIP extension first.','عيّن رقم SIP للهاتف وأكمل تهيئته أولًا.'),OUTBOUND_CHANNEL_UNAVAILABLE:text('No outbound GSM channel is available for your business right now.','لا توجد قناة GSM صادرة متاحة لنشاطك حاليًا.'),OUTBOUND_CALL_ALREADY_ACTIVE:text('End your active outbound call before starting another.','أنه المكالمة الصادرة الحالية قبل بدء مكالمة أخرى.'),OUTBOUND_CALL_RATE_LIMITED:text('Too many call attempts. Wait one minute before trying again.','محاولات اتصال كثيرة. انتظر دقيقة قبل المحاولة مرة أخرى.'),GATEWAY_ENDPOINT_NOT_READY:text('The GSM gateway is not verified as online. Ask your administrator to check it.','لم يتم التحقق من اتصال بوابة GSM. اطلب من المسؤول التحقق منها.'),ASTERISK_CONTROL_NOT_READY:text('Asterisk call control is not enabled. Ask your administrator to finish PBX setup.','التحكم في مكالمات أستريسك غير مفعّل. اطلب من المسؤول إكمال إعداد المقسم.'),ASTERISK_EVENTS_NOT_READY:text('7Network is disconnected from Asterisk call events. Ask your administrator to restore PBX event control.','انقطع اتصال 7Network بأحداث المكالمات في أستريسك. اطلب من المسؤول استعادة التحكم بأحداث المقسم.')};state.textContent=messages[error.code]||text('Call request failed. Check the mobile endpoint and telephony setup, then try again.','فشل طلب المكالمة. تحقق من نقطة اتصال الهاتف وإعداد الاتصالات ثم حاول مجددًا.');await loadCalls();}
     finally{button.disabled=false;}
@@ -318,37 +338,38 @@
     if(!host.hidden){host.hidden=true;host.replaceChildren();button.textContent=text('Show my mobile SIP settings','عرض إعداد SIP لهاتفي');return;}
     button.disabled=true;host.hidden=false;host.textContent=text('Loading your private mobile settings…','جارٍ تحميل إعدادات الهاتف الخاصة بك…');
     try{
-      const config=await request('/sip-config','POST',{});host.replaceChildren();
-      const title=document.createElement('p');title.className='call-empty';title.textContent=text('Enter these settings in your SIP app. The endpoint profile has been synchronized with Asterisk. Keep the password private.','أدخل هذه الإعدادات في تطبيق SIP. تمت مزامنة ملف نقطة الاتصال مع أستريسك. احتفظ بكلمة المرور بشكل خاص.');host.append(title);
-      const values=[['Server',`${config.host}:${config.port}`,'text'],['Transport',config.transport,'text'],['Media encryption',config.mediaEncryption,'text'],['Username',config.username,'text'],['Password',config.password,'password']];
-      for(const [name,value,type] of values){const row=document.createElement('label');row.className='sip-credential-row';row.textContent=text(name,({Server:'الخادم',Transport:'النقل','Media encryption':'تشفير الوسائط',Username:'اسم المستخدم',Password:'كلمة المرور'})[name]||name);const input=document.createElement('input');input.type=type;input.readOnly=true;input.autocomplete='off';input.value=value;input.dir='ltr';input.setAttribute('aria-label',name);const copy=document.createElement('button');copy.type='button';copy.textContent=text('Copy','نسخ');copy.addEventListener('click',async()=>{try{await navigator.clipboard.writeText(input.value);copy.textContent=text('Copied','تم النسخ');setTimeout(()=>copy.textContent=text('Copy','نسخ'),1500);}catch(_){input.focus();input.select();}});row.append(input,copy);host.append(row);}
-      const note=document.createElement('small');note.textContent=text('Use TLS and SRTP in your app. Browser refresh or sign-out clears these values from this page.','استخدم TLS وSRTP في التطبيق. يؤدي تحديث المتصفح أو تسجيل الخروج إلى إزالة هذه القيم من الصفحة.');host.append(note);button.textContent=text('Hide mobile SIP settings','إخفاء إعداد SIP للهاتف');
+          const config=await request('/sip-config','POST',{});if(pageLeaving)return;fillMobileSipConfig(host,config);button.textContent=text('Hide mobile SIP settings','إخفاء إعداد SIP للهاتف');
     }catch(_){host.textContent=text('Mobile SIP settings are unavailable. Check PBX setup and ask your administrator.','إعداد SIP للهاتف غير متاح. تحقق من إعداد المقسم وتواصل مع المسؤول.');}
     finally{button.disabled=false;}
   });
   function setBrowserState(state){
     browserSipState=state;
-    const labels={disconnected:text('Browser SIP is disconnected.','اتصال SIP بالمتصفح غير متصل.'),'requesting-microphone':text('Allow microphone access…','اسمح باستخدام الميكروفون…'),connected:text('Browser connected; registering…','تم اتصال المتصفح؛ جارٍ التسجيل…'),registered:text('Browser SIP is registered and ready.','تم تسجيل SIP للمتصفح وهو جاهز.'),ringing:text('Calling…','جارٍ الاتصال…'),answering:text('Connecting audio…','جارٍ توصيل الصوت…'),'in-call':text('Browser call is connected.','مكالمة المتصفح متصلة.'),'call-failed':text('Browser call could not connect.','تعذر توصيل مكالمة المتصفح.'),'connection-failed':text('Browser SIP connection failed. Check WSS and endpoint setup.','فشل اتصال SIP بالمتصفح. تحقق من إعداد WSS ونقطة الاتصال.')};
+    const labels={disconnected:text('Browser SIP is disconnected.','اتصال SIP بالمتصفح غير متصل.'),'requesting-microphone':text('Allow microphone access…','اسمح باستخدام الميكروفون…'),connected:text('Browser connected; registering…','تم اتصال المتصفح؛ جارٍ التسجيل…'),registered:text('Browser SIP is registered and ready.','تم تسجيل SIP للمتصفح وهو جاهز.'),ringing:text('Calling…','جارٍ الاتصال…'),answering:text('Connecting audio…','جارٍ توصيل الصوت…'),'incoming-call':text('Incoming browser call. Answer or decline.','مكالمة واردة إلى المتصفح. أجب أو ارفض.'),'in-call':text('Browser call is connected.','مكالمة المتصفح متصلة.'),'call-failed':text('Browser call could not connect.','تعذر توصيل مكالمة المتصفح.'),'connection-failed':text('Browser SIP connection failed. Check WSS and endpoint setup.','فشل اتصال SIP بالمتصفح. تحقق من إعداد WSS ونقطة الاتصال.')};
     node('browserSipState').textContent=labels[state]||labels.disconnected;
-    const connected=['registered','in-call','ringing','answering'].includes(state);
+    const connected=['registered','in-call','ringing','answering','incoming-call'].includes(state);
     node('browserCallOption').disabled=!connected;
     node('browserSipConnect').disabled=connected||state==='connected'||state==='requesting-microphone';
     node('browserSipConnect').textContent=connected?text('Disconnect browser','قطع اتصال المتصفح'):text('Connect browser audio','توصيل صوت المتصفح');
     node('browserSipHangup').hidden=!['in-call','ringing','answering'].includes(state);
+    node('browserSipAnswer').hidden=state!=='incoming-call';
+    node('browserSipDecline').hidden=state!=='incoming-call';
     node('browserCallState').textContent=connected?text('Ready','جاهز'):text('Not connected','غير متصل');
   }
   node('browserSipConnect').addEventListener('click',async()=>{
     const button=node('browserSipConnect');
-    if(window.SaleMaXSip?.browserSipConnected?.()){
-      button.disabled=true;try{await window.SaleMaXSip.disconnectBrowserSip();setBrowserState('disconnected');}catch(_){setBrowserState('connection-failed');}finally{button.disabled=false;}return;
+    if(window.SevenNetworkSip?.browserSipConnected?.()){
+      button.disabled=true;try{await window.SevenNetworkSip.disconnectBrowserSip();setBrowserState('disconnected');}catch(_){setBrowserState('connection-failed');}finally{button.disabled=false;}return;
     }
     button.disabled=true;
-    try{setBrowserState('requesting-microphone');const config=await request('/webrtc-config','POST',{});await window.SaleMaXSip.connectBrowserSip(config,node('remoteAudio'),event=>setBrowserState(event.state));setBrowserState('registered');}
+    try{setBrowserState('requesting-microphone');const config=await request('/webrtc-config','POST',{});await window.SevenNetworkSip.connectBrowserSip(config,node('remoteAudio'),event=>setBrowserState(event.state));setBrowserState('registered');}
     catch(_){setBrowserState('connection-failed');}
     finally{button.disabled=false;}
   });
-  node('browserSipHangup').addEventListener('click',async()=>{try{await window.SaleMaXSip?.hangupBrowserCall?.();}catch(_){setBrowserState('call-failed');}});
-  window.addEventListener('pagehide',()=>{node('mobileSipSetup').replaceChildren();window.SaleMaXSip?.disconnectBrowserSip?.();});
+  node('browserSipAnswer').addEventListener('click',async()=>{const button=node('browserSipAnswer');button.disabled=true;try{setBrowserState('answering');await window.SevenNetworkSip.answerBrowserCall();}catch(_){setBrowserState('call-failed');}finally{button.disabled=false;}});
+  node('browserSipDecline').addEventListener('click',async()=>{const button=node('browserSipDecline');button.disabled=true;try{await window.SevenNetworkSip.declineBrowserCall();setBrowserState('registered');}catch(_){setBrowserState('call-failed');}finally{button.disabled=false;}});
+  node('browserSipHangup').addEventListener('click',async()=>{try{await window.SevenNetworkSip?.hangupBrowserCall?.();}catch(_){setBrowserState('call-failed');}});
+  window.addEventListener('pagehide',()=>{pageLeaving=true;node('mobileSipSetup').replaceChildren();document.querySelectorAll('.mobile-sip-config').forEach(host=>host.replaceChildren());window.SevenNetworkSip?.disconnectBrowserSip?.();});
+  window.addEventListener('pageshow',()=>{pageLeaving=false;});
   node('recordingsOnly').addEventListener('click',event=>{callHistory.recordingsOnly=!callHistory.recordingsOnly;callHistory.generation++;callHistory.items=[];callHistory.nextCursor=null;event.currentTarget.setAttribute('aria-pressed',String(callHistory.recordingsOnly));event.currentTarget.textContent=callHistory.recordingsOnly?text('Show all calls','عرض كل المكالمات'):text('Show recordings ready to review','عرض التسجيلات الجاهزة للمراجعة');loadCalls();});
   node('agentReviewFilter').addEventListener('change',event=>{callHistory.agentMembershipId=event.currentTarget.value;callHistory.generation++;callHistory.items=[];callHistory.nextCursor=null;loadCalls();});
   applyLanguage();node('refresh').addEventListener('click',refresh);node('outgoingForm').addEventListener('submit',placeOutboundCall);loadLinkedLead();refresh();

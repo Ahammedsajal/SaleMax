@@ -1,5 +1,6 @@
 'use strict';
 const { capabilities } = require('./policy');
+const { legacyCategoryAliases, canonicalCategoryKey, categoryKeyMatches, categoryKeysFor } = require('./category-aliases');
 
 // Explicit contracts: adding a permission to policy must never enroll an
 // existing category into that feature. Version changes require reviewed adoption.
@@ -47,10 +48,6 @@ const retail = Object.freeze({
   migration: '20270125_private_business_inventory.sql'
 });
 const registry = require('./category-registry').createCategoryRegistry([trainingCenter, retail, sevenNetworkSales, realEstate, baseCrm, restaurantFixture], capabilities);
-const legacyCategoryAliases = Object.freeze({ salemax_sales: sevenNetworkSales.key });
-function canonicalCategoryKey(key) { return legacyCategoryAliases[key] || key; }
-function categoryKeyMatches(left, right) { return typeof left === 'string' && typeof right === 'string' && canonicalCategoryKey(left) === canonicalCategoryKey(right); }
-function categoryKeysFor(key) { const canonical = canonicalCategoryKey(key); return [canonical, ...Object.keys(legacyCategoryAliases).filter(alias => legacyCategoryAliases[alias] === canonical)]; }
 function getCategory(key, version) { return registry.get(canonicalCategoryKey(key), version); }
 function listCategories() { return registry.list(); }
 function supportsBusinessCapability(category, capability) {

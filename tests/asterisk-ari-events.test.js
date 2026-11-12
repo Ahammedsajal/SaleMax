@@ -9,7 +9,8 @@ const path = require('node:path');
 const { AsteriskAriEvents, eventsUrl, safeEvent, APP_NAME } = require('../modules/platform/asterisk-ari-events');
 const secrets = require('../modules/platform/asterisk-secrets');
 const { createAriClient } = require('../modules/platform/asterisk-ari-client');
-const { AsteriskCallControl, inboundArgs, outboundAgentArgs, outboundGatewayArgs } = require('../modules/platform/asterisk-call-control');
+const { AsteriskCallControl, inboundArgs, outboundAgentArgs, outboundGatewayArgs, mobileOutboundArgs,
+  mobileEndpointExtension, callerNumber, externalNumber } = require('../modules/platform/asterisk-call-control');
 
 test('inbound DID Stasis arguments normalize digits-only DIDs and reject invalid values', () => {
   assert.deepEqual(inboundArgs(['inbound-did','+97455550001']), { did: '+97455550001' });
@@ -19,7 +20,7 @@ test('inbound DID Stasis arguments normalize digits-only DIDs and reject invalid
 });
 const asteriskEventsRuntime = require('../modules/platform/asterisk-ari-events-worker-runtime');
 
-test('ARI event worker starts only outside local mode with explicit opt-in and is part of the 7Network app lifecycle', () => {
+test('ARI event worker starts only outside local mode with explicit opt-in and is part of the SaleMaX app lifecycle', () => {
   let calls = 0;
   let actual;
   const spawnProcess = (...args) => { calls++; actual = args; return { pid: 123 }; };
@@ -59,6 +60,35 @@ test('outbound Stasis arguments accept only a scoped call, member, client type, 
   assert.equal(outboundAgentArgs(['outbound-agent',callId,membershipId,'mobile','55550000']),null);
   assert.deepEqual(outboundGatewayArgs(['outbound-gateway',callId]),{callId});
   assert.equal(outboundGatewayArgs(['outbound-gateway','another-call']),null);
+});
+
+test('mobile SIP direct dialing accepts only E.164 and maps a registered mobile endpoint',()=>{
+  assert.deepEqual(mobileOutboundArgs(['mobile-outbound','+97455550000']),{destination:'+97455550000'});
+  assert.equal(mobileOutboundArgs(['mobile-outbound','55550000']),null);
+  assert.equal(mobileOutboundArgs(['mobile-outbound','+97455550000','extra']),null);
+  assert.equal(mobileEndpointExtension('PJSIP/salemax-1201-mobile-0000002a'),'1201');
+  assert.equal(mobileEndpointExtension('PJSIP/salemax-1201-browser-0000002a'),null);
+  assert.equal(mobileEndpointExtension('PJSIP/salemax-1201-mobile;context=trusted'),null);
+  assert.equal(externalNumber('+97455550000'),'+97455550000');
+  assert.equal(externalNumber('97455550000'),null);
+  assert.equal(callerNumber('+974 5555 0000'),'+97455550000');
+  assert.equal(callerNumber('00974 5555 0000'),'+97455550000');
+  assert.equal(callerNumber('5555 0000'),'55550000');
+  assert.equal(callerNumber('anonymous'),null);
+});
+
+test('browser incoming SIP calls wait for an explicit accept or decline and can reconnect',()=>{
+  const fs=require('node:fs'),path=require('node:path');
+  const sip=fs.readFileSync(path.join(__dirname,'../client/src/call-center-sip.js'),'utf8');
+  const ui=fs.readFileSync(path.join(__dirname,'../client/public/call-center/call-center.js'),'utf8');
+  assert.match(sip,/onCallReceived:\s*\(\)\s*=>\s*status\('incoming-call'\)/);
+  assert.doesNotMatch(sip,/onCallReceived:[^\n]*(?:\.answer\(|\.decline\()/);
+  assert.match(sip,/export async function answerBrowserCall\(\)/);
+  assert.match(sip,/export async function declineBrowserCall\(\)/);
+  assert.match(sip,/if \(!candidate\.isConnected\(\)\) await candidate\.connect\(\)/);
+  assert.match(ui,/window\.SevenNetworkSip\.answerBrowserCall\(\)/);
+  assert.match(ui,/window\.SevenNetworkSip\.declineBrowserCall\(\)/);
+  assert.doesNotMatch(ui,/window\.SaleMaXSip/);
 });
 
 test('ARI event client uses TLS validation, header authentication, singleton locking and event-only metadata', async () => {

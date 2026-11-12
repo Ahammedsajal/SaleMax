@@ -32,6 +32,10 @@ Before every production update, follow [`skills/7network-production-change/SKILL
 
 - Mobile business headers omit the platform icon and name at widths up to 900px so navigation and account controls have room. The existing company/platform branding remains in the menu drawer; desktop branding is unchanged.
 
+## Mobile SIP Call Center — 12 November 2026
+
+The existing Call Center and browser SIP identity use **7Network**. Staff-facing mobile setup tells staff to sign in only to their SIP app; the app provides direct number dialing and inbound answering without exposing CRM leads. Asterisk PJSIP object names, `SALEMAX_*` environment variables, the existing hostname, and historical category/plan keys remain operational compatibility identifiers and are not new customer-facing labels. The `salemax_sales` category alias resolves symmetrically with `7network_sales` for existing plan entitlements until the separately reviewed data migration is ready.
+
 ## Recruitment copy approved 28 October 2026
 
 - The first-party recruitment bot introduces **7 Network Automations (CR 251489)** as the Qatar-based software and marketing company, and Lucy as **7Network’s chatbot**. Talab remains the Qatar marketplace product; **7Network** is the customisable CRM and business software. Candidate-facing product links use **https://7network.live** and the owner-provided Talab store URLs. SaleMaX is removed from visible recruitment replies and buttons; operational aliases/IDs remain compatible.

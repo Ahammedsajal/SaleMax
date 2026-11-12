@@ -43,7 +43,7 @@ async function save(db,context,input){
     if(value.membershipIds.length){
       const [eligible]=await db.query(`SELECT m.id,x.extension FROM sx_memberships m JOIN sx_identities i ON i.id=m.identity_id AND i.status='active'
         JOIN sx_telephony_extensions x ON x.tenant_id=m.tenant_id AND x.membership_id=m.id AND x.extension IS NOT NULL AND x.extension<>''
-        WHERE m.tenant_id=? AND m.status='active' AND m.role IN ('owner','manager','agent') AND m.id IN (${value.membershipIds.map(()=>'?').join(',')}) FOR UPDATE`,[context.tenant.id,...value.membershipIds]);
+        WHERE m.tenant_id=? AND m.status='active' AND m.role IN ('owner','manager','team_leader','agent') AND m.id IN (${value.membershipIds.map(()=>'?').join(',')}) FOR UPDATE`,[context.tenant.id,...value.membershipIds]);
       if(eligible.length!==value.membershipIds.length)fail('TELEPHONY_QUEUE_MEMBER_EXTENSION_REQUIRED');
     }
     const id=value.id||crypto.randomUUID(),revision=value.expectedRevision+1;

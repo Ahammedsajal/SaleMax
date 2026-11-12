@@ -1,7 +1,7 @@
 'use strict';
 const crypto=require('node:crypto');
 const plans=require('./plans');
-const {salemaxSales,realEstate}=require('./categories');
+const {salemaxSales,realEstate,categoryKeyMatches}=require('./categories');
 const {getCategory}=require('./categories');
 const {decision}=require('./policy');
 const sha=value=>crypto.createHash('sha256').update(String(value),'utf8').digest('hex');
@@ -43,7 +43,7 @@ async function resolve(pool,user,{loadEntitlements=plans.loadEntitlements,catego
     // automation (including the one-time funnel setup) can run correctly.
     if(linked.role==='owner'&&legacyTraining)return {uid:user.uid,role:'owner',actorType:'user',actorId:String(user.uid),tenantId:linked.tenantId,categoryKey:linked.categoryKey,categoryVersion:category.version,legacyUserId:Number(user.id),legacyUid:user.uid,timezone:user.timezone||'Asia/Qatar'};
     if(linked.role==='accountant')return deny('PERMISSION_DENIED');
-    if(linked.role!=='owner'&&linked.role!=='manager'&&!([salemaxSales.key,realEstate.key].includes(linked.categoryKey)&&linked.role==='team_leader'))return deny('PERMISSION_DENIED');
+    if(linked.role!=='owner'&&linked.role!=='manager'&&!([salemaxSales.key,realEstate.key].includes(category.key)&&linked.role==='team_leader'))return deny('PERMISSION_DENIED');
     const entitlement=await loadEntitlements(db,linked.tenantId);
     if(!entitlement||!['active','trial','grace'].includes(entitlement.status)||!entitlement.capabilities?.includes('crm.leads'))return deny('FEATURE_UNAVAILABLE');
     const canonicalContext=categoryContext(linked,entitlement,category);
@@ -59,7 +59,7 @@ async function resolve(pool,user,{loadEntitlements=plans.loadEntitlements,catego
       WHERE o.tenant_id=? LIMIT 2`,[linked.tenantId]);
     if(owners.length!==1||owners[0].ownerUidHash!==sha(owners[0].uid))return deny('BUSINESS_LINK_INVALID');
     let scopeAgentIds,scopeIdentityIds;
-    if((linked.categoryKey===salemaxSales.key&&linked.role!=='owner')||(linked.categoryKey===realEstate.key&&linked.role==='team_leader')){
+    if((category.key===salemaxSales.key&&linked.role!=='owner')||(category.key===realEstate.key&&linked.role==='team_leader')){
       const scopeColumn=linked.role==='manager'?'h.manager_membership_id':'h.team_leader_membership_id';
       const [agents]=await db.query(`SELECT a.id,a.uid,o.legacy_uid_hash AS legacyUidHash
         FROM agents a JOIN sx_legacy_ownership o ON o.source_table='agents' AND o.source_id=CAST(a.id AS CHAR) AND o.tenant_id=?
@@ -76,7 +76,7 @@ async function resolve(pool,user,{loadEntitlements=plans.loadEntitlements,catego
       scopeIdentityIds=[...new Set([linked.identityId,...identities.map(row=>row.identityId)])];
     }
     return {uid:owners[0].uid,role:linked.role,actorType:'user',actorId:linked.identityId,identityId:linked.identityId,membershipId:linked.membershipId,
-      tenantId:linked.tenantId,categoryKey:linked.categoryKey,categoryVersion:category.version,legacyUserId:Number(user.id),legacyUid:user.uid,timezone:owners[0].timezone||'Asia/Qatar',
+      tenantId:linked.tenantId,categoryKey:category.key,categoryVersion:category.version,legacyUserId:Number(user.id),legacyUid:user.uid,timezone:owners[0].timezone||'Asia/Qatar',
       ...(!legacyTraining?{canonicalContext}:{}),...(scopeAgentIds?{scopeAgentIds,scopeIdentityIds}:{})};
   }finally{db.release();}
 }
@@ -98,7 +98,7 @@ async function resolveAgent(pool,agent,options={}){
       WHERE o.source_table='agents' AND o.source_id=CAST(? AS CHAR) AND o.tenant_id=? LIMIT 2`,[Number(agent.id),ownerActor.tenantId]);
     if(rows.length!==1)return deny('BUSINESS_LINK_INVALID');
     const linked=rows[0];
-    if(linked.legacyUidHash!==sha(agent.uid)||linked.categoryKey!==ownerActor.categoryKey||Number(linked.categoryVersion)!==ownerActor.categoryVersion||linked.tenantStatus!=='active'||linked.membershipStatus!=='active'||linked.identityStatus!=='active'||linked.role!=='agent'||normalizedEmail(linked.identityEmail)!==normalizedEmail(agent.email))return deny('BUSINESS_ACCESS_INACTIVE');
+    if(linked.legacyUidHash!==sha(agent.uid)||!categoryKeyMatches(linked.categoryKey,ownerActor.categoryKey)||Number(linked.categoryVersion)!==ownerActor.categoryVersion||linked.tenantStatus!=='active'||linked.membershipStatus!=='active'||linked.identityStatus!=='active'||linked.role!=='agent'||normalizedEmail(linked.identityEmail)!==normalizedEmail(agent.email))return deny('BUSINESS_ACCESS_INACTIVE');
     const canonicalContext=categoryContext(linked,ownerActor.canonicalContext.subscription,ownerActor.canonicalContext.category);
     if(!canonicalContext)return deny('BUSINESS_LINK_INVALID');
     const access=decision(canonicalContext,{capability:'crm.leads',permission:'leads.read'});

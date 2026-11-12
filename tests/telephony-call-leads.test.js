@@ -2,7 +2,7 @@
 const test=require('node:test');
 const assert=require('node:assert/strict');
 const crypto=require('node:crypto');
-const {resolveLeadLink,resolveOutboundRecipient}=require('../modules/platform/telephony-call-leads');
+const {resolveLeadLink,resolveOutboundRecipient,findUniqueLeadLinkByNumber,resolveAccessibleLeadLinkByNumber,phoneDigitsForMatch}=require('../modules/platform/telephony-call-leads');
 const {AsteriskCallControl}=require('../modules/platform/asterisk-call-control');
 const {salemaxSales}=require('../modules/platform/categories');
 
@@ -67,6 +67,50 @@ test('non-Sales categories retain manual outbound destinations',async()=>{
   assert.deepEqual(recipient,{leadLink:null,destination:'+97455551234'});
 });
 
+test('inbound caller numbers link only a unique same-business Sales lead without guessing country codes',async()=>{
+  const queries=[];
+  const db={async query(sql,args=[]){
+    queries.push({sql,args});
+    if(sql.includes('SELECT u.uid,o.legacy_uid_hash'))return [[{uid:ownerUid,legacyUidHash:uidHash}],[]];
+    if(sql.includes('FROM pipeline_leads l'))return [[{id:leadId}],[]];
+    throw new Error(`Unexpected caller lookup query: ${sql}`);
+  }};
+  assert.equal(phoneDigitsForMatch('0091 (9876) 543210'),'919876543210');
+  assert.equal(phoneDigitsForMatch('55551234'),'55551234');
+  assert.deepEqual(await findUniqueLeadLinkByNumber(db,{tenantId,categoryKey:'7network_sales',number:'+91 9876 543210'}),
+    {leadUidHash:uidHash,leadId});
+  assert.match(queries[1].sql,/LEFT\(REGEXP_REPLACE\(COALESCE\(l\.mobile/);
+  assert.equal(queries[1].args[1],'919876543210');
+  let queried=false;
+  assert.equal(await findUniqueLeadLinkByNumber({async query(){queried=true;return[[],[]];}},
+    {tenantId,categoryKey:'training_center',number:'+919876543210'}),null);
+  assert.equal(queried,false);
+});
+
+test('inbound caller numbers remain unlinked when more than one Sales lead shares the number',async()=>{
+  const db={async query(sql){
+    if(sql.includes('SELECT u.uid,o.legacy_uid_hash'))return [[{uid:ownerUid,legacyUidHash:uidHash}],[]];
+    if(sql.includes('FROM pipeline_leads l'))return [[{id:leadId},{id:'33333333-3333-4333-8333-333333333333'}],[]];
+    throw new Error(`Unexpected caller lookup query: ${sql}`);
+  }};
+  assert.equal(await findUniqueLeadLinkByNumber(db,{tenantId,categoryKey:'7network_sales',number:'+919876543210'}),null);
+});
+
+test('a direct-dial or inbound call links a matching lead only when the answering membership can access it',async()=>{
+  const makeDb=leadOwnerAgentId=>({async query(sql){
+    if(sql.includes('SELECT u.uid,o.legacy_uid_hash'))return [[{uid:ownerUid,legacyUidHash:uidHash}],[]];
+    if(sql.includes('SELECT l.id FROM pipeline_leads l'))return [[{id:leadId}],[]];
+    if(sql.includes('SELECT a.id,a.uid,o.legacy_uid_hash'))return [[{id:41,uid:'agent-uid',
+      legacyUidHash:crypto.createHash('sha256').update('agent-uid').digest('hex')}],[]];
+    if(sql.includes('SELECT id,owner_agent_id,mobile FROM pipeline_leads'))return [[{id:leadId,owner_agent_id:leadOwnerAgentId,mobile:'+919876543210'}],[]];
+    throw new Error(`Unexpected accessible lead query: ${sql}`);
+  }});
+  assert.deepEqual(await resolveAccessibleLeadLinkByNumber(makeDb(41),{tenantId,categoryKey:'7network_sales',
+    membershipId:'agent-membership',role:'agent',number:'+919876543210'}),{leadUidHash:uidHash,leadId});
+  assert.equal(await resolveAccessibleLeadLinkByNumber(makeDb(99),{tenantId,categoryKey:'7network_sales',
+    membershipId:'agent-membership',role:'agent',number:'+919876543210'}),null);
+});
+
 test('inaccessible and malformed lead identifiers fail closed before call creation',async()=>{
   let queried=false;const db={async query(){queried=true;return [[],[]];}};
   await assert.rejects(resolveLeadLink(db,context('owner'),'not-a-uuid'),{code:'INVALID_CALL_LEAD_ID'});
@@ -98,6 +142,8 @@ test('the existing Pipeline opens Call Center with a lead, verifies it, and subm
   assert.match(calls,/\{destination,clientType,\.\.\.\(linkedLeadId\?\{leadId:linkedLeadId\}/);
   assert.match(callControl,/callLeads\.resolveOutboundRecipient\(db,context,input\)/);
   assert.match(callControl,/destination: recipient\.destination/);
+  assert.match(callControl,/started_by_membership_id,lead_uid_hash,lead_id,remote_number/);
+  assert.match(callControl,/resolveAccessibleLeadLinkByNumber\(db,[\s\S]*?membershipId:input\.membershipId,role:row\.membership_role,number:row\.remote_number/);
   assert.match(calls,/OUTBOUND_LEAD_REQUIRED:text\('Open an accessible lead/);
   assert.match(html,/id="leadCallContext"/);
 });

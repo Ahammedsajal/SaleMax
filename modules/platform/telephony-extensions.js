@@ -27,8 +27,8 @@ async function list(db, context) {
       x.browser_credential_revision AS browserCredentialRevision,x.updated_at AS updatedAt
     FROM sx_memberships m JOIN sx_identities i ON i.id=m.identity_id AND i.status='active'
     LEFT JOIN sx_telephony_extensions x ON x.tenant_id=m.tenant_id AND x.membership_id=m.id
-    WHERE m.tenant_id=? AND m.status='active' AND m.role IN ('owner','manager','agent')
-    ORDER BY FIELD(m.role,'owner','manager','agent'),i.display_name,m.id`, [context.tenant.id]);
+    WHERE m.tenant_id=? AND m.status='active' AND m.role IN ('owner','manager','team_leader','agent')
+    ORDER BY FIELD(m.role,'owner','manager','team_leader','agent'),i.display_name,m.id`, [context.tenant.id]);
   return rows.map(row => ({ membershipId: row.membershipId, role: row.role, displayName: row.displayName,
     extension: row.extension || '', revision: Number(row.revision || 0), updatedAt: row.updatedAt || null,
     mobileCredentialRevision:Number(row.mobileCredentialRevision||1),browserCredentialRevision:Number(row.browserCredentialRevision||1),
@@ -63,7 +63,7 @@ async function save(db, context, input) {
   await db.beginTransaction();
   try {
     const [[member]] = await db.query(`SELECT id,role FROM sx_memberships
-      WHERE tenant_id=? AND id=? AND status='active' AND role IN ('owner','manager','agent') FOR UPDATE`,
+      WHERE tenant_id=? AND id=? AND status='active' AND role IN ('owner','manager','team_leader','agent') FOR UPDATE`,
     [context.tenant.id, value.membershipId]);
     if (!member) fail('TEAM_MEMBER_NOT_FOUND');
     const [[current]] = await db.query(`SELECT extension,revision FROM sx_telephony_extensions

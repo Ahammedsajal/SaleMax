@@ -15,6 +15,9 @@ const callCoaching=require('./telephony-call-coaching');
 const {createTelephonyCallOutcomes}=require('./telephony-call-outcomes');
 const {Readable,Transform}=require('node:stream');
 const {pipeline}=require('node:stream/promises');
+const {categoryKeyMatches,canonicalCategoryKey}=require('./categories');
+
+const isSalesCategory=value=>categoryKeyMatches(value,'7network_sales');
 
 function parseCallCursor(value){
   if(value===undefined)return null;
@@ -56,7 +59,7 @@ function createCallCenterRouter({pool,userGuard,canonicalGuard,origin,fetchImpl=
     if(userData){
       const actor=await legacyPipelineActor.resolve(pool,userData);
       if(actor?.denied)throw Object.assign(new Error(actor.code),{code:actor.code});
-      if(actor?.categoryKey==='7network_sales'&&actor.canonicalContext){context=actor.canonicalContext;context.timezone=actor.timezone||context.tenant.timezone||'Asia/Kolkata';}
+      if(isSalesCategory(actor?.categoryKey)&&actor.canonicalContext){context=actor.canonicalContext;context.timezone=actor.timezone||context.tenant.timezone||'Asia/Kolkata';}
     }
     if(!context)context=await courses.legacyOwnerContext(pool,uid);
     try{
@@ -77,6 +80,7 @@ function createCallCenterRouter({pool,userGuard,canonicalGuard,origin,fetchImpl=
   router.get('/extensions',wrap(async(req,res)=>res.json({success:true,data:await withDb(db=>extensions.list(db,req.callCenterContext))})));
   router.put('/extensions',wrap(async(req,res)=>res.json({success:true,data:await withDb(db=>extensions.save(db,req.callCenterContext,req.body))})));
   router.put('/extensions/credentials',wrap(async(req,res)=>res.json({success:true,data:await withDb(db=>extensions.rotateEndpointCredential(db,req.callCenterContext,req.body))})));
+  router.post('/members/:membershipId/sip-config',wrap(async(req,res)=>res.json({success:true,data:await withDb(db=>asteriskConfig.memberMobileEndpoint(db,req.callCenterContext,req.params.membershipId))})));
   router.get('/queues',wrap(async(req,res)=>res.json({success:true,data:await withDb(db=>queues.list(db,req.callCenterContext))})));
   router.post('/webrtc-config',wrap(async(req,res)=>res.json({success:true,data:await withDb(db=>asteriskConfig.ownBrowserEndpoint(db,req.callCenterContext))})));
   router.post('/sip-config',wrap(async(req,res)=>res.json({success:true,data:await withDb(db=>asteriskConfig.ownMobileEndpoint(db,req.callCenterContext))})));
@@ -92,7 +96,7 @@ function createCallCenterRouter({pool,userGuard,canonicalGuard,origin,fetchImpl=
   router.get('/calls/agents',wrap(async(req,res)=>{
     const context=req.callCenterContext;
     const access=decision(context,{capability:'telephony.call-center',permission:'calls.read'});
-    if(context.tenant.categoryKey!=='7network_sales'||!access.allowed||!['owner','manager','team_leader'].includes(context.membership.role))
+    if(!isSalesCategory(context.tenant.categoryKey)||!access.allowed||!['owner','manager','team_leader'].includes(context.membership.role))
       throw Object.assign(new Error('PERMISSION_DENIED'),{code:'PERMISSION_DENIED'});
     const agents=await withDb(async db=>{
       const role=context.membership.role;
@@ -133,11 +137,11 @@ function createCallCenterRouter({pool,userGuard,canonicalGuard,origin,fetchImpl=
     const cursor=parseCallCursor(req.query.cursor);
     const recordedOnly=req.query.recordedOnly===undefined?'0':req.query.recordedOnly;
     const agentMembershipId=req.query.agentMembershipId;
-    if(!['0','1'].includes(recordedOnly)||agentMembershipId!==undefined&&(typeof agentMembershipId!=='string'||!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(agentMembershipId)||context.tenant.categoryKey!=='7network_sales'))throw Object.assign(new Error('INVALID_CALL_FILTER'),{code:'INVALID_CALL_FILTER',status:400});
+    if(!['0','1'].includes(recordedOnly)||agentMembershipId!==undefined&&(typeof agentMembershipId!=='string'||!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(agentMembershipId)||!isSalesCategory(context.tenant.categoryKey)))throw Object.assign(new Error('INVALID_CALL_FILTER'),{code:'INVALID_CALL_FILTER',status:400});
     const cursorFilter=cursor?' AND (c.started_at < ? OR (c.started_at = ? AND c.id < ?))':'';
     const recordingFilter=recordedOnly==='1'?" AND r.state='ready' AND r.expires_at>UTC_TIMESTAMP(3)":'';
     const rows=await withDb(async db=>{
-      const salesTeam=['manager','team_leader'].includes(context.membership.role)&&context.tenant.categoryKey==='7network_sales';
+      const salesTeam=['manager','team_leader'].includes(context.membership.role)&&isSalesCategory(context.tenant.categoryKey);
       let teamMembershipIds=[];
       if(salesTeam){
         const teamColumn=context.membership.role==='manager'?'manager_membership_id':'team_leader_membership_id';
@@ -159,11 +163,11 @@ function createCallCenterRouter({pool,userGuard,canonicalGuard,origin,fetchImpl=
           SELECT 1 FROM sx_telephony_call_legs selected_leg WHERE selected_leg.tenant_id=c.tenant_id AND selected_leg.call_id=c.id AND selected_leg.membership_id=?))`;
         agentFilterArgs=[agentMembershipId,agentMembershipId,agentMembershipId];
       }
-      const outcomeSelect=context.tenant.categoryKey==='7network_sales'?`(SELECT pa.details FROM pipeline_activity pa WHERE c.lead_uid_hash IS NOT NULL AND pa.uid_hash=c.lead_uid_hash
+      const outcomeSelect=isSalesCategory(context.tenant.categoryKey)?`(SELECT pa.details FROM pipeline_activity pa WHERE c.lead_uid_hash IS NOT NULL AND pa.uid_hash=c.lead_uid_hash
         AND pa.lead_id=c.lead_id AND pa.activity_type='contact_outcome'
         AND (CASE WHEN JSON_VALID(pa.details) THEN JSON_UNQUOTE(JSON_EXTRACT(pa.details,'$.sourceCallId')) ELSE NULL END)=c.id
         ORDER BY pa.created_at DESC,pa.id DESC LIMIT 1) AS callOutcomeDetails`:'NULL AS callOutcomeDetails';
-      const [items]=await db.query(`SELECT c.id,c.direction,c.status,c.lead_id AS leadId,c.gateway_channel_no AS gatewayChannelNo,
+      const [items]=await db.query(`SELECT c.id,c.direction,c.status,c.lead_id AS leadId,c.remote_number AS remoteNumber,c.gateway_channel_no AS gatewayChannelNo,
           q.queue_name AS queueName,c.started_at AS startedAt,c.answered_at AS answeredAt,c.ended_at AS endedAt,
           DATE_FORMAT(c.started_at,'%Y-%m-%d %H:%i:%s.%f') AS cursorStartedAt,
           IF(c.answered_at IS NULL,NULL,IF(c.ended_at IS NULL,TIMESTAMPDIFF(SECOND,c.answered_at,UTC_TIMESTAMP(3)),c.duration_seconds)) AS durationSeconds,
@@ -188,14 +192,14 @@ function createCallCenterRouter({pool,userGuard,canonicalGuard,origin,fetchImpl=
         ...(salesTeam&&teamMembershipIds.length?[teamMembershipIds,teamMembershipIds,teamMembershipIds]:[]),...agentFilterArgs]);
       const hasMore=items.length>100,page=items.slice(0,100),last=page[page.length-1];
       const nextCursor=hasMore&&last?Buffer.from(JSON.stringify({startedAt:last.cursorStartedAt,callId:last.id})).toString('base64url'):null;
-      return {hasMore,nextCursor,items:page.map(row=>({callId:row.id,direction:row.direction,status:row.status,leadId:row.leadId||null,gatewayChannelNo:Number(row.gatewayChannelNo),
+      return {hasMore,nextCursor,items:page.map(row=>({callId:row.id,direction:row.direction,status:row.status,leadId:row.leadId||null,remoteNumber:row.remoteNumber||null,gatewayChannelNo:Number(row.gatewayChannelNo),
         queueName:row.queueName||'',startedAt:row.startedAt,answeredAt:row.answeredAt,endedAt:row.endedAt,
         durationSeconds:row.durationSeconds===null?null:Number(row.durationSeconds),answeredByMembershipId:row.answeredByMembershipId||null,
         answeredByName:row.answeredByName||'',answeredByRole:row.answeredByRole||'',startedByName:row.startedByName||'',startedByRole:row.startedByRole||'',
         outcome:shapeCallOutcome(row.callOutcomeDetails),
         recordingState:row.recordingState||'not_recorded',canListenRecording:row.recordingState==='ready'&&new Date(row.recordingExpiresAt).getTime()>Date.now()&&decision(context,{capability:'telephony.call-center',permission:'calls.recording.listen'}).allowed,
-        canCoach:context.tenant.categoryKey==='7network_sales'&&decision(context,{capability:'telephony.call-center',permission:'calls.coaching.write'}).allowed,
-        canViewCoaching:context.tenant.categoryKey==='7network_sales'&&decision(context,{capability:'telephony.call-center',permission:'calls.coaching.read'}).allowed,
+        canCoach:isSalesCategory(context.tenant.categoryKey)&&decision(context,{capability:'telephony.call-center',permission:'calls.coaching.write'}).allowed,
+        canViewCoaching:isSalesCategory(context.tenant.categoryKey)&&decision(context,{capability:'telephony.call-center',permission:'calls.coaching.read'}).allowed,
         canControl:context.membership.role==='owner'||context.membership.role==='manager'||salesTeam||row.startedByMembershipId===context.membership.id
           ||row.answeredByMembershipId===context.membership.id||Number(row.hasAssignedActiveLeg)===1}))};
     });
@@ -274,7 +278,7 @@ function createCallCenterRouter({pool,userGuard,canonicalGuard,origin,fetchImpl=
           :!['mobile','browser'].some(type=>ownEndpointState(type)==='online')?'AGENT_ENDPOINT_NOT_REGISTERED':null;
     res.json({success:true,data:{
       tenantId:context.tenant.id,
-      categoryKey:context.tenant.categoryKey,
+      categoryKey:canonicalCategoryKey(context.tenant.categoryKey),
       timezone:tenantSettings?.timezone||context.timezone||context.tenant.timezone||'Asia/Qatar',
       membershipRole:context.membership.role,
       asterisk:{configured,enabled:!!pbx?.enabled,revision:configured?Number(pbx.revision):0,health:configured?pbx.last_test_status||'unknown':'not_configured',lastTestedAt:pbx.last_tested_at||null,version:pbx.last_test_version||null,
