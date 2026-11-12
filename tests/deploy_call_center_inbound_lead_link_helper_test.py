@@ -42,18 +42,15 @@ class CallCenterInboundLeadLinkReleaseHelperTest(unittest.TestCase):
             with self.assertRaisesRegex(RuntimeError, 'Stage manifest differs'):
                 HELPER.validate_stage(stage, 'b' * 40)
 
-    def test_qatar_dial_overlay_starts_from_the_live_lead_link_release_and_mounts_all_changed_runtime_files(self):
+    def test_qatar_answer_fallback_overlay_starts_from_the_live_qatar_dial_release(self):
         self.assertEqual(HELPER.ACTIVE_OVERLAY,
-            '/opt/salemax/releases/call-center-inbound-lead-link-051cd5bf2969-20261112/compose.call-center-inbound-lead-link.json')
-        self.assertIn('modules/platform/telephony-numbering.js', HELPER.RUNTIME_FILES)
-        self.assertIn('modules/platform/asterisk-config.js', HELPER.RUNTIME_FILES)
-        self.assertIn('client/public/call-center/index.html', HELPER.RUNTIME_FILES)
-        self.assertIn('client/public/call-center/call-center.js', HELPER.RUNTIME_FILES)
-        self.assertEqual(len(HELPER.RUNTIME_FILES), 6)
-        self.assertIn('client/public/call-center/index.html', HELPER.EXPECTED_PREIMAGES)
-        self.assertEqual(HELPER.RELEASE_PREFIX, 'call-center-qatar-local-dial')
-        self.assertNotIn('modules/platform/telephony-numbering.js', HELPER.EXPECTED_PREIMAGES,
-            'the new source module does not exist in the current app image and has no prior content to restore')
+            '/opt/salemax/releases/call-center-qatar-local-dial-dda3adaf1e67-20261112/compose.call-center-inbound-lead-link.json')
+        runtime_file = 'modules/platform/asterisk-call-control.js'
+        self.assertEqual(HELPER.RUNTIME_FILES, (runtime_file,))
+        self.assertEqual(HELPER.EXPECTED_PREIMAGES, {
+            runtime_file: 'e7b5d97e65e1fee0cab51f130c593e87feedb8ebcd0a0c2099d6f5e2b9f145fa',
+        })
+        self.assertEqual(HELPER.RELEASE_PREFIX, 'call-center-qatar-inbound-fallback')
 
     def test_mount_overlay_replaces_only_the_reviewed_files(self):
         previous = {'services': {'app': {'image': 'app:test', 'command': ['node', 'server.js'], 'volumes': [
@@ -74,19 +71,24 @@ class CallCenterInboundLeadLinkReleaseHelperTest(unittest.TestCase):
         with self.assertRaisesRegex(RuntimeError, 'non-mount Compose configuration'):
             HELPER.validate_mount_overlay(previous, unsafe, mounts)
 
-    def test_runtime_materialization_includes_new_files_without_preimages(self):
+    def test_runtime_materialization_includes_configured_files_without_preimages(self):
         commit = 'c' * 40
+        original_runtime_files = HELPER.RUNTIME_FILES
+        new_file = 'modules/platform/new-runtime-module.js'
+        HELPER.RUNTIME_FILES = (*original_runtime_files, new_file)
         with tempfile.TemporaryDirectory() as temp:
-            root = Path(temp)
-            stage = self.make_stage(root, commit)
-            runtime = root / 'release' / 'runtime'
-            runtime.mkdir(parents=True)
-            content = HELPER.materialize_runtime_files(stage, runtime)
-            self.assertEqual(set(content), set(HELPER.RUNTIME_FILES))
-            new_file = 'modules/platform/telephony-numbering.js'
-            self.assertIn(new_file, content)
-            self.assertEqual((runtime / new_file).read_bytes(), b'runtime:' + new_file.encode())
-            self.assertEqual((runtime / new_file).stat().st_mode & 0o777, 0o644)
+            try:
+                root = Path(temp)
+                stage = self.make_stage(root, commit)
+                runtime = root / 'release' / 'runtime'
+                runtime.mkdir(parents=True)
+                content = HELPER.materialize_runtime_files(stage, runtime)
+                self.assertEqual(set(content), set(HELPER.RUNTIME_FILES))
+                self.assertIn(new_file, content)
+                self.assertEqual((runtime / new_file).read_bytes(), b'runtime:' + new_file.encode())
+                self.assertEqual((runtime / new_file).stat().st_mode & 0o777, 0o644)
+            finally:
+                HELPER.RUNTIME_FILES = original_runtime_files
 
     def test_live_compose_validation_requires_the_running_image_and_every_bind_mount_to_match(self):
         app = {

@@ -589,7 +589,7 @@ class AsteriskCallControl {
       await db.beginTransaction();
       const [[row]] = await db.query(`SELECT c.tenant_id,c.id,c.status,c.bridge_id,c.inbound_channel_id,c.answered_by_membership_id,
           c.remote_number,c.lead_uid_hash AS leadUidHash,c.lead_id AS leadId,
-          t.category_key,m.role AS membership_role,m.status AS membership_status,i.status AS identity_status,t.status AS tenant_status,
+          t.category_key,t.country_code,m.role AS membership_role,m.status AS membership_status,i.status AS identity_status,t.status AS tenant_status,
           l.id AS leg_id,l.membership_id,l.device_kind,l.status AS leg_status
         FROM sx_telephony_calls c JOIN sx_telephony_call_legs l ON l.tenant_id=c.tenant_id AND l.call_id=c.id
         JOIN sx_memberships m ON m.tenant_id=c.tenant_id AND m.id=l.membership_id
@@ -606,7 +606,7 @@ class AsteriskCallControl {
         if(!row.leadId&&row.remote_number&&categoryKeyMatches(row.category_key,'7network_sales')){
           try{
             leadLink=await callLeads.resolveAccessibleLeadLinkByNumber(db,{tenantId:row.tenant_id,categoryKey:row.category_key,
-              membershipId:input.membershipId,role:row.membership_role,number:row.remote_number});
+              countryCode:row.country_code,membershipId:input.membershipId,role:row.membership_role,number:row.remote_number});
           }catch(error){
             this.log({ariCallControl:'inbound_lead_link_failed',code:/^[A-Z0-9_]{2,80}$/.test(error.code||'')?error.code:'INBOUND_LEAD_LINK_FAILED'});
           }

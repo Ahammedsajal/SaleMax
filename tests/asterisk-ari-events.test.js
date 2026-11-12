@@ -12,6 +12,8 @@ const { createAriClient } = require('../modules/platform/asterisk-ari-client');
 const { AsteriskCallControl, inboundArgs, outboundAgentArgs, outboundGatewayArgs, mobileOutboundArgs,
   mobileEndpointExtension, callerNumber, externalNumber } = require('../modules/platform/asterisk-call-control');
 const gatewayPorts = require('../modules/platform/asterisk-gateway-ports');
+const callLeads = require('../modules/platform/telephony-call-leads');
+const callRecordings = require('../modules/platform/telephony-recordings');
 
 test('inbound DID Stasis arguments normalize digits-only DIDs and reject invalid values', () => {
   assert.deepEqual(inboundArgs(['inbound-did','+97455550001']), { did: '+97455550001' });
@@ -269,6 +271,45 @@ test('inbound queue is not rung when the caller cannot be given a ringing indica
   });
   await assert.rejects(control.startInbound(callerChannelId, {}), { code: 'ARI_UNAVAILABLE' });
   assert.deepEqual(sequence, ['bridge', 'ring', ['finish', 'tenant-id', reserved.callId, 'failed', 'INBOUND_RINGBACK_FAILED'], 'hangup', 'destroy']);
+});
+
+test('Qatar inbound answer fallback passes tenant country code when linking a local or E.164 lead', async () => {
+  const membershipId = 'membership-1201';
+  const bridgeId = crypto.randomUUID();
+  const countryCodes = [];
+  const callWrites = [];
+  const row = { tenant_id: 'tenant-id', id: 'call-id', status: 'ringing', bridge_id: bridgeId,
+    inbound_channel_id: 'PJSIP/gateway-00000003', answered_by_membership_id: null,
+    remote_number: '+97455550000', leadUidHash: null, leadId: null, category_key: '7network_sales', country_code: 'QA',
+    membership_role: 'agent', membership_status: 'active', identity_status: 'active', tenant_status: 'active',
+    leg_id: 'leg-id', membership_id: membershipId, device_kind: 'mobile', leg_status: 'originating' };
+  const db = {
+    async beginTransaction() {}, async commit() {}, async rollback() {}, release() {},
+    async query(sql, args = []) {
+      if (sql.includes('SELECT c.tenant_id,c.id,c.status')) return [[row], []];
+      if (sql.includes('SELECT asterisk_channel_id FROM sx_telephony_call_legs')) return [[], []];
+      if (sql.includes('UPDATE sx_telephony_calls SET lead_uid_hash')) callWrites.push(args);
+      return [{ affectedRows: 1 }, []];
+    },
+  };
+  const oldResolve = callLeads.resolveAccessibleLeadLinkByNumber;
+  const oldStartRecording = callRecordings.startForCall;
+  callLeads.resolveAccessibleLeadLinkByNumber = async (_db, input) => {
+    countryCodes.push(input.countryCode);
+    return { leadUidHash: 'owner-hash', leadId: 'lead-id' };
+  };
+  callRecordings.startForCall = async () => {};
+  const control = new AsteriskCallControl({ pool: { async getConnection() { return db; } } });
+  control.client = async () => ({ async answer() {}, async addToBridge() {} });
+  control.endOtherAgentLegs = async () => {};
+  try {
+    await control.connectInboundAgent('agent-channel', { callId: 'call-id', membershipId, clientType: 'mobile' });
+    assert.deepEqual(countryCodes, ['QA']);
+    assert.deepEqual(callWrites, [['owner-hash', 'lead-id', 'tenant-id', 'call-id']]);
+  } finally {
+    callLeads.resolveAccessibleLeadLinkByNumber = oldResolve;
+    callRecordings.startForCall = oldStartRecording;
+  }
 });
 
 test('ARI client applies only bounded dynamic PJSIP object types and accepts configuration tuple responses', async () => {
