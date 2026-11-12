@@ -599,8 +599,18 @@ def verify_runtime(contents, overlay, candidate_image, expected_migration, expec
                            'https://7network.live/api/workspace/email-marketing/setup', timeout=30).strip()
     admin_status = run('curl', '-sS', '-o', '/dev/null', '-w', '%{http_code}',
                        'https://7network.live/api/admin/email-marketing-settings/', timeout=30).strip()
-    if user_status != '200' or workspace_status not in ('401', '403') or admin_status not in ('401', '403'):
-        raise RuntimeError('Email route or anonymous authorization verification failed')
+    admin_body = run('curl', '-sS', '-H', 'Accept: application/json',
+                     'https://7network.live/api/admin/email-marketing-settings/', timeout=30)
+    try:
+        admin_result = json.loads(admin_body)
+    except json.JSONDecodeError:
+        admin_result = {}
+    admin_denied = (admin_status in ('401', '403') or
+                    (admin_status == '200' and admin_result.get('success') is False
+                     and admin_result.get('logout') is True))
+    if user_status != '200' or workspace_status not in ('401', '403') or not admin_denied:
+        raise RuntimeError(f'Email route status check failed user={user_status} '
+                           f'workspace={workspace_status} admin={admin_status}')
     served = {}
     requests = {
         'client/public/index.html': 'https://7network.live/',
