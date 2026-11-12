@@ -16,7 +16,7 @@ import time
 ROOT = Path('/opt/salemax')
 APP = 'salemax-app-1'
 BASE = '/opt/salemax/releases/training-pipeline-correction-v3-9867ca72-20261104'
-ACTIVE_OVERLAY = '/opt/salemax/releases/database-pool-process-budget-e067bbff2a31-20261112/compose.database-pool-process-budget.json'
+ACTIVE_OVERLAY = '/opt/salemax/releases/website-mobile-hero-compact-c767ab6c969e-20261112/compose.website-mobile-hero-compact.json'
 PRIOR_VARS = ROOT / 'shared/rollback-private-inventory-84644fdfebee/compose-manual-vars.json'
 SOURCE_FILES = (
     'client/public/website/index.html',
