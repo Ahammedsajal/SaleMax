@@ -83,7 +83,8 @@ SCHEMA_PROBE = r'''const db=require('/app/database/config').promise();(async()=>
 def run(*args, env=None):
     result = subprocess.run(args, env=env, capture_output=True, text=True)
     if result.returncode:
-        raise RuntimeError(f'{args[0]} failed with status {result.returncode}')
+        command = ' '.join(str(item) for item in args[:4])
+        raise RuntimeError(f'{command} failed with status {result.returncode}')
     return result.stdout
 
 
@@ -317,6 +318,18 @@ def deploy(stage, commit):
     input_hashes = {name: sha(Path(name).read_bytes()) for name in files + env_files}
     schema_before = schema_state()
     migration_action = expected_schema_before(schema_before)
+    migration_target = '/app/' + MIGRATION
+    migration_probe = subprocess.run(['docker', 'exec', '--user', '0', APP, 'test', '-e', migration_target],
+        capture_output=True, text=True)
+    if migration_probe.returncode not in (0, 1):
+        raise RuntimeError('Could not inspect the migration file in the live app container')
+    migration_file_state = {'present': migration_probe.returncode == 0}
+    if migration_file_state['present']:
+        migration_file_state['sha256'] = run('docker', 'exec', '--user', '0', APP, 'sha256sum', migration_target).split()[0]
+        migration_file_state['modeOwnerGroup'] = run('docker', 'exec', '--user', '0', APP,
+            'stat', '-c', '%a:%u:%g', migration_target).strip()
+        if migration_file_state['sha256'] != manifest['files'][MIGRATION]:
+            raise RuntimeError('An unexpected migration file already exists in the live app container')
 
     os.umask(0o077)
     release = ROOT / 'releases' / f'mobile-sip-call-center-{commit[:12]}-{RELEASE_DAY}'
@@ -331,8 +344,7 @@ def deploy(stage, commit):
         current_hash = run('docker', 'exec', APP, 'sha256sum', target).split()[0]
         if current_hash != expected:
             raise RuntimeError('Live file changed since source review: ' + name)
-    for name in NEW_FILES:
-        run('docker', 'exec', APP, 'test', '!', '-e', '/app/' + name)
+    run('docker', 'exec', APP, 'test', '!', '-e', '/app/modules/platform/category-aliases.js')
 
     release.mkdir(mode=0o755)
     backup.mkdir(mode=0o700)
@@ -344,6 +356,8 @@ def deploy(stage, commit):
     (backup / 'compose-input-hashes.json').write_text(json.dumps(input_hashes, indent=2) + '\n')
     (backup / 'schema-before.json').write_text(json.dumps(schema_before, indent=2) + '\n')
     (backup / 'stage-manifest.json').write_text(json.dumps(manifest, indent=2) + '\n')
+    (backup / 'new-file-state-before.json').write_text(json.dumps({MIGRATION: migration_file_state,
+        'modules/platform/category-aliases.js': {'present': False}}, indent=2) + '\n')
     (backup / 'container-inventory-before.json').write_text(json.dumps(production_inventory(), indent=2) + '\n')
 
     runtime = release / 'runtime'
@@ -357,8 +371,16 @@ def deploy(stage, commit):
         if sha(saved.read_bytes()) != expected:
             raise RuntimeError('Protected preimage copy changed: ' + name)
     absent = []
-    absent.extend(NEW_FILES)
+    if not migration_file_state['present']:
+        absent.append(MIGRATION)
+    absent.append('modules/platform/category-aliases.js')
     (backup / 'absent-paths.txt').write_text('\n'.join(absent) + '\n')
+    if migration_file_state['present']:
+        saved_migration = backup / 'preimages' / MIGRATION
+        saved_migration.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
+        run('docker', 'cp', APP + ':' + migration_target, str(saved_migration))
+        if sha(saved_migration.read_bytes()) != manifest['files'][MIGRATION]:
+            raise RuntimeError('Protected migration preimage copy changed')
 
     for name in RUNTIME_FILES:
         data = (stage / 'runtime' / name).read_bytes()
@@ -413,9 +435,11 @@ def deploy(stage, commit):
 
     migration_hash = manifest['files'][MIGRATION]
     if migration_action == 'pending':
-        # Install the additive migration into the current app container so its
-        # existing validated runner can check the full applied history first.
-        run('docker', 'cp', str(stage / 'runtime' / MIGRATION), f'{APP}:/app/{MIGRATION}')
+        # The app user must be able to read this SQL. Copy from the 0644 release
+        # file, or correct an exact pre-existing copy after backing it up.
+        if not migration_file_state['present']:
+            run('docker', 'cp', str(runtime / MIGRATION), f'{APP}:{migration_target}')
+        run('docker', 'exec', '--user', '0', APP, 'chmod', '0644', migration_target)
         run('docker', 'exec', APP, 'node', '/app/database/migrate-pipeline.js', '--apply', '--only', Path(MIGRATION).name)
     verify_migration(schema_state(), migration_hash)
     (backup / 'schema-after.json').write_text(json.dumps(schema_state(), indent=2) + '\n')
