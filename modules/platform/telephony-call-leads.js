@@ -2,6 +2,7 @@
 
 const crypto=require('node:crypto');
 const {categoryKeyMatches}=require('./categories');
+const {phoneDigitsForMatch,phoneDigitsCandidatesForMatch}=require('./telephony-numbering');
 const UUID=/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const fail=(code,status)=>{throw Object.assign(new Error(code),{code,status});};
 
@@ -56,17 +57,9 @@ async function resolveOutboundRecipient(db,context,input){
   return {leadLink,destination};
 }
 
-function phoneDigitsForMatch(value){
-  const raw=String(value||'').trim();
-  if(!raw||raw.length>64)return null;
-  let digits=raw.replace(/\D/g,'');
-  if(digits.startsWith('00'))digits=digits.slice(2);
-  return /^[0-9]{7,15}$/.test(digits)&&!/^0+$/.test(digits)?digits:null;
-}
-
-async function findUniqueLeadLinkByNumber(db,{tenantId,categoryKey,number}={}){
-  const digits=phoneDigitsForMatch(number);
-  if(!digits||!tenantId||!categoryKeyMatches(categoryKey,'7network_sales'))return null;
+async function findUniqueLeadLinkByNumber(db,{tenantId,categoryKey,number,countryCode}={}){
+  const candidates=phoneDigitsCandidatesForMatch(number,countryCode);
+  if(!candidates.length||!tenantId||!categoryKeyMatches(categoryKey,'7network_sales'))return null;
   const [owners]=await db.query(`SELECT u.uid,o.legacy_uid_hash AS legacyUidHash FROM sx_legacy_ownership o
     JOIN user u ON u.id=CAST(o.source_id AS UNSIGNED)
     JOIN sx_memberships m ON m.tenant_id=o.tenant_id AND m.id=o.membership_id AND m.role='owner' AND m.status='active'
@@ -78,13 +71,13 @@ async function findUniqueLeadLinkByNumber(db,{tenantId,categoryKey,number}={}){
     THEN SUBSTRING(REGEXP_REPLACE(COALESCE(l.mobile,''),'[^0-9]',''),3)
     ELSE REGEXP_REPLACE(COALESCE(l.mobile,''),'[^0-9]','') END`;
   const [matches]=await db.query(`SELECT l.id FROM pipeline_leads l
-    WHERE l.uid_hash=? AND ${normalizedMobile}=? LIMIT 2`,[uidHash,digits]);
+    WHERE l.uid_hash=? AND ${normalizedMobile} IN (?) LIMIT 2`,[uidHash,candidates]);
   if(matches.length!==1)return null;
   return {leadUidHash:uidHash,leadId:matches[0].id};
 }
 
-async function resolveAccessibleLeadLinkByNumber(db,{tenantId,categoryKey,membershipId,role,number}={}){
-  const candidate=await findUniqueLeadLinkByNumber(db,{tenantId,categoryKey,number});
+async function resolveAccessibleLeadLinkByNumber(db,{tenantId,categoryKey,countryCode,membershipId,role,number}={}){
+  const candidate=await findUniqueLeadLinkByNumber(db,{tenantId,categoryKey,countryCode,number});
   if(!candidate)return null;
   try{
     const accessible=await resolveAccessibleLead(db,{tenant:{id:tenantId,categoryKey},membership:{id:membershipId,role}},candidate.leadId);
@@ -130,5 +123,5 @@ async function accessibleLeadIds(db,context,leadIds=[]){
     .map(lead=>String(lead.id)));
 }
 
-module.exports={resolveLeadLink,resolveAccessibleLead,resolveOutboundRecipient,phoneDigitsForMatch,findUniqueLeadLinkByNumber,
-  resolveAccessibleLeadLinkByNumber,accessibleLeadIds};
+module.exports={resolveLeadLink,resolveAccessibleLead,resolveOutboundRecipient,phoneDigitsForMatch,phoneDigitsCandidatesForMatch,
+  findUniqueLeadLinkByNumber,resolveAccessibleLeadLinkByNumber,accessibleLeadIds};

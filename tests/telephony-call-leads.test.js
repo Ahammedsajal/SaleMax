@@ -2,8 +2,10 @@
 const test=require('node:test');
 const assert=require('node:assert/strict');
 const crypto=require('node:crypto');
-const {resolveLeadLink,resolveOutboundRecipient,findUniqueLeadLinkByNumber,resolveAccessibleLeadLinkByNumber,accessibleLeadIds,phoneDigitsForMatch}=require('../modules/platform/telephony-call-leads');
+const {resolveLeadLink,resolveOutboundRecipient,findUniqueLeadLinkByNumber,resolveAccessibleLeadLinkByNumber,accessibleLeadIds,phoneDigitsForMatch,
+  phoneDigitsCandidatesForMatch}=require('../modules/platform/telephony-call-leads');
 const {AsteriskCallControl}=require('../modules/platform/asterisk-call-control');
+const gatewayPorts=require('../modules/platform/asterisk-gateway-ports');
 const {salemaxSales}=require('../modules/platform/categories');
 
 const tenantId='11111111-1111-4111-8111-111111111111';
@@ -78,14 +80,60 @@ test('inbound caller numbers link only a unique same-business Sales lead without
   }};
   assert.equal(phoneDigitsForMatch('0091 (9876) 543210'),'919876543210');
   assert.equal(phoneDigitsForMatch('55551234'),'55551234');
+  assert.deepEqual(phoneDigitsCandidatesForMatch('+974 5555 0000','QA'),['97455550000','55550000']);
+  assert.deepEqual(phoneDigitsCandidatesForMatch('55550000','QA'),['55550000','97455550000']);
+  assert.deepEqual(phoneDigitsCandidatesForMatch('+97455550000','IN'),['97455550000']);
   assert.deepEqual(await findUniqueLeadLinkByNumber(db,{tenantId,categoryKey:'7network_sales',number:'+91 9876 543210'}),
     {leadUidHash:uidHash,leadId});
   assert.match(queries[1].sql,/LEFT\(REGEXP_REPLACE\(COALESCE\(l\.mobile/);
-  assert.equal(queries[1].args[1],'919876543210');
+  assert.match(queries[1].sql,/IN \(\?\)/);
+  assert.deepEqual(queries[1].args[1],['919876543210']);
   let queried=false;
   assert.equal(await findUniqueLeadLinkByNumber({async query(){queried=true;return[[],[]];}},
     {tenantId,categoryKey:'training_center',number:'+919876543210'}),null);
   assert.equal(queried,false);
+});
+
+test('Qatar inbound ANI matches a unique lead stored in either local or E.164 form',async()=>{
+  const lookups=[];
+  const db={async query(sql,args=[]){
+    lookups.push({sql,args});
+    if(sql.includes('SELECT u.uid,o.legacy_uid_hash'))return [[{uid:ownerUid,legacyUidHash:uidHash}],[]];
+    if(sql.includes('FROM pipeline_leads l'))return [[{id:leadId}],[]];
+    throw new Error(`Unexpected caller lookup query: ${sql}`);
+  }};
+  const linked=await findUniqueLeadLinkByNumber(db,{tenantId,categoryKey:'7network_sales',countryCode:'QA',number:'+974 5555 0000'});
+  assert.deepEqual(linked,{leadUidHash:uidHash,leadId});
+  assert.deepEqual(lookups[1].args[1],['97455550000','55550000']);
+  assert.match(lookups[1].sql,/IN \(\?\)/);
+});
+
+test('a Qatar local-number do-not-call lead blocks a direct E.164 mobile call',async()=>{
+  const oldEligible=gatewayPorts.eligible,statements=[],hangups=[];
+  gatewayPorts.eligible=async()=>true;
+  const db={async beginTransaction(){},async commit(){},async rollback(){},release(){},async query(sql,args=[]){
+    statements.push({sql,args});
+    if(sql.includes('FROM sx_platform_asterisk_config'))return [[{enabled:1}],[]];
+    if(sql.includes('FROM sx_platform_asterisk_runtime'))return [[{status:'connected',heartbeat_fresh:1}],[]];
+    if(sql.includes('SELECT x.tenant_id,x.membership_id'))return [[{tenant_id:tenantId,membership_id:'owner-membership',extension:'1201',role:'owner',
+      membership_status:'active',identity_status:'active',tenant_status:'active',category_key:'7network_sales',category_version:1,country_code:'QA'}],[]];
+    if(sql.includes('SELECT u.uid,o.legacy_uid_hash'))return [[{uid:ownerUid,legacyUidHash:uidHash}],[]];
+    if(sql.includes('SELECT l.id FROM pipeline_leads l')&&sql.includes('EXISTS(SELECT 1 FROM pipeline_activity'))return [[{id:leadId}],[]];
+    if(sql.includes('SELECT l.id FROM pipeline_leads l'))return [[{id:leadId}],[]];
+    if(sql.includes('SELECT id,owner_agent_id,mobile FROM pipeline_leads'))return [[{id:leadId,owner_agent_id:null,mobile:'55550000'}],[]];
+    if(sql.includes('SELECT o.legacy_uid_hash AS uidHash'))return [[{uidHash}],[]];
+    throw new Error(`Unexpected direct-dial query: ${sql}`);
+  }};
+  const control=new AsteriskCallControl({pool:{async getConnection(){return db;}}});
+  control.client=async()=>({async hangup(channelId){hangups.push(channelId);}});
+  try{
+    await assert.rejects(control.startMobileOutbound('mobile-channel-1',{channelName:'PJSIP/salemax-1201-mobile-00000001',destination:'+97455550000'}),
+      {code:'CALL_LEAD_DO_NOT_CALL'});
+    const suppression=statements.find(row=>row.sql.includes('EXISTS(SELECT 1 FROM pipeline_activity'));
+    assert.deepEqual(suppression.args,[uidHash,['97455550000','55550000']]);
+    assert.equal(statements.some(row=>row.sql.includes('INSERT INTO sx_telephony_calls')),false);
+    assert.deepEqual(hangups,['mobile-channel-1']);
+  }finally{gatewayPorts.eligible=oldEligible;}
 });
 
 test('inbound caller numbers remain unlinked when more than one Sales lead shares the number',async()=>{
@@ -219,4 +267,6 @@ test('the existing Pipeline opens Call Center with a lead, verifies it, and subm
   assert.match(callControl,/resolveAccessibleLeadLinkByNumber\(db,[\s\S]*?membershipId:input\.membershipId,role:row\.membership_role,number:row\.remote_number/);
   assert.match(calls,/OUTBOUND_LEAD_REQUIRED:text\('Open an accessible lead/);
   assert.match(html,/id="leadCallContext"/);
+  const callCenterHtml=fs.readFileSync(path.join(root,'client/public/call-center/index.html'),'utf8');
+  assert.match(callCenterHtml,/call-center\.js\?v=20261112-sip-direct-dial2/);
 });

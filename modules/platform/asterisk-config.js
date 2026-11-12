@@ -190,7 +190,7 @@ async function ownMobileEndpoint(db, context, clientFactory) {
   const [[pbx]]=await db.query(`SELECT enabled,revision,ari_base_url,ari_username,credential_ciphertext,credential_iv,credential_auth_tag
     FROM sx_platform_asterisk_config WHERE id=1`);
   if(!pbx?.enabled)fail('ASTERISK_CONTROL_NOT_READY');
-  const [[row]]=await db.query(`SELECT x.extension,x.revision AS extension_revision,x.mobile_credential_revision,m.status AS membership_status,i.status AS identity_status,t.status AS tenant_status
+  const [[row]]=await db.query(`SELECT x.extension,x.revision AS extension_revision,x.mobile_credential_revision,m.status AS membership_status,i.status AS identity_status,t.status AS tenant_status,t.country_code
     FROM sx_telephony_extensions x JOIN sx_memberships m ON m.tenant_id=x.tenant_id AND m.id=x.membership_id
     JOIN sx_identities i ON i.id=m.identity_id JOIN sx_tenants t ON t.id=m.tenant_id
     WHERE x.tenant_id=? AND x.membership_id=?`,[context.tenant.id,context.membership.id]);
@@ -199,7 +199,7 @@ async function ownMobileEndpoint(db, context, clientFactory) {
   const revision=Number(row.mobile_credential_revision);
   const password=secrets.endpointCredential({tenantId:context.tenant.id,membershipId:context.membership.id,extension:row.extension,clientType:'mobile',revision});
   await applyMemberEndpoint(db,context,row.extension,'mobile',Number(row.extension_revision),revision,pbx,password,clientFactory);
-  const config={host,port:5061,transport:'TLS',mediaEncryption:'SRTP',uri:`sip:${username}@${host}`,username,
+  const config={host,port:5061,transport:'TLS',mediaEncryption:'SRTP',countryCode:row.country_code,uri:`sip:${username}@${host}`,username,
     password};
   await auditEndpointCredentialAccess(db,context,'mobile');
   return config;
@@ -214,7 +214,7 @@ async function memberMobileEndpoint(db, context, membershipId, clientFactory) {
     FROM sx_platform_asterisk_config WHERE id=1`);
   if (!pbx?.enabled) fail('ASTERISK_CONTROL_NOT_READY');
   const [[row]] = await db.query(`SELECT x.extension,x.revision AS extension_revision,x.mobile_credential_revision,
-      m.status AS membership_status,m.role,i.status AS identity_status,t.status AS tenant_status,i.display_name
+      m.status AS membership_status,m.role,i.status AS identity_status,t.status AS tenant_status,t.country_code,i.display_name
     FROM sx_telephony_extensions x JOIN sx_memberships m ON m.tenant_id=x.tenant_id AND m.id=x.membership_id
     JOIN sx_identities i ON i.id=m.identity_id JOIN sx_tenants t ON t.id=m.tenant_id
     WHERE x.tenant_id=? AND x.membership_id=? AND m.role IN ('owner','manager','team_leader','agent')`, [context.tenant.id, membershipId]);
@@ -224,7 +224,7 @@ async function memberMobileEndpoint(db, context, membershipId, clientFactory) {
   const password = secrets.endpointCredential({ tenantId: context.tenant.id, membershipId, extension: row.extension, clientType: 'mobile', revision });
   await applyMemberEndpoint(db, context, row.extension, 'mobile', Number(row.extension_revision), revision, pbx, password, clientFactory, membershipId);
   await auditEndpointCredentialAccess(db, context, 'mobile', membershipId);
-  return { membershipId, displayName: row.display_name || '', host, port: 5061, transport: 'TLS', mediaEncryption: 'SRTP',
+  return { membershipId, displayName: row.display_name || '', host, port: 5061, transport: 'TLS', mediaEncryption: 'SRTP',countryCode:row.country_code,
     uri: `sip:${username}@${host}`, username, password };
 }
 
@@ -432,6 +432,10 @@ async function previewAgentEndpoints(db, context) {
     'exten => _+X.,1,NoOp(7Network mobile direct outbound ${EXTEN})',
     ' same => n,Ringing()',
     ' same => n,Stasis(salemax-call-center,mobile-outbound,${EXTEN})',
+    ' same => n,Hangup()',
+    'exten => _X.,1,NoOp(7Network mobile direct outbound ${EXTEN})',
+    ' same => n,Ringing()',
+    ' same => n,Stasis(salemax-call-center,mobile-outbound,${EXTEN})',
     ' same => n,Hangup()', '',
   ];
   for (const row of rows) {
@@ -519,6 +523,10 @@ function previewHostSetup(context) {
         '',
         '[from-salemax-mobile-outbound]',
         'exten => _+X.,1,NoOp(7Network mobile direct outbound ${EXTEN})',
+        ' same => n,Ringing()',
+        ' same => n,Stasis(salemax-call-center,mobile-outbound,${EXTEN})',
+        ' same => n,Hangup()',
+        'exten => _X.,1,NoOp(7Network mobile direct outbound ${EXTEN})',
         ' same => n,Ringing()',
         ' same => n,Stasis(salemax-call-center,mobile-outbound,${EXTEN})',
         ' same => n,Hangup()',

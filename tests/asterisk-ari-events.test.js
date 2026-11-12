@@ -11,6 +11,7 @@ const secrets = require('../modules/platform/asterisk-secrets');
 const { createAriClient } = require('../modules/platform/asterisk-ari-client');
 const { AsteriskCallControl, inboundArgs, outboundAgentArgs, outboundGatewayArgs, mobileOutboundArgs,
   mobileEndpointExtension, callerNumber, externalNumber } = require('../modules/platform/asterisk-call-control');
+const gatewayPorts = require('../modules/platform/asterisk-gateway-ports');
 
 test('inbound DID Stasis arguments normalize digits-only DIDs and reject invalid values', () => {
   assert.deepEqual(inboundArgs(['inbound-did','+97455550001']), { did: '+97455550001' });
@@ -62,19 +63,57 @@ test('outbound Stasis arguments accept only a scoped call, member, client type, 
   assert.equal(outboundGatewayArgs(['outbound-gateway','another-call']),null);
 });
 
-test('mobile SIP direct dialing accepts only E.164 and maps a registered mobile endpoint',()=>{
+test('mobile SIP direct dialing accepts international and national number strings and maps a registered mobile endpoint',()=>{
   assert.deepEqual(mobileOutboundArgs(['mobile-outbound','+97455550000']),{destination:'+97455550000'});
-  assert.equal(mobileOutboundArgs(['mobile-outbound','55550000']),null);
+  assert.deepEqual(mobileOutboundArgs(['mobile-outbound','55550000']),{destination:'55550000'});
+  assert.deepEqual(mobileOutboundArgs(['mobile-outbound','0097455550000']),{destination:'0097455550000'});
+  assert.equal(mobileOutboundArgs(['mobile-outbound','555555']),null);
   assert.equal(mobileOutboundArgs(['mobile-outbound','+97455550000','extra']),null);
   assert.equal(mobileEndpointExtension('PJSIP/salemax-1201-mobile-0000002a'),'1201');
   assert.equal(mobileEndpointExtension('PJSIP/salemax-1201-browser-0000002a'),null);
   assert.equal(mobileEndpointExtension('PJSIP/salemax-1201-mobile;context=trusted'),null);
   assert.equal(externalNumber('+97455550000'),'+97455550000');
   assert.equal(externalNumber('97455550000'),null);
+  assert.equal(externalNumber('55550000','QA'),'+97455550000');
+  assert.equal(externalNumber('55550000','IN'),null);
+  assert.equal(externalNumber('0097455550000'),'+97455550000');
   assert.equal(callerNumber('+974 5555 0000'),'+97455550000');
   assert.equal(callerNumber('00974 5555 0000'),'+97455550000');
   assert.equal(callerNumber('5555 0000'),'55550000');
   assert.equal(callerNumber('anonymous'),null);
+});
+
+test('a Qatar mobile app local dial is normalized before it is reserved and sent to the GSM gateway',async()=>{
+  const oldEligible=gatewayPorts.eligible,gatewayId='11111111-1111-4111-8111-111111111111';
+  const tenantId='22222222-2222-4222-8222-222222222222',membershipId='33333333-3333-4333-8333-333333333333';
+  let callId=null,recordedDestination=null,originated=null;
+  gatewayPorts.eligible=async()=>true;
+  const db={async beginTransaction(){},async commit(){},async rollback(){},release(){},async query(sql,args=[]){
+    if(sql.includes('FROM sx_platform_asterisk_config'))return [[{enabled:1}],[]];
+    if(sql.includes('FROM sx_platform_asterisk_runtime'))return [[{status:'connected',heartbeat_fresh:1}],[]];
+    if(sql.includes('SELECT x.tenant_id,x.membership_id'))return [[{tenant_id:tenantId,membership_id:membershipId,extension:'1201',role:'owner',
+      membership_status:'active',identity_status:'active',tenant_status:'active',category_key:'training_center',category_version:1,country_code:'QA'}],[]];
+    if(sql.includes('SELECT COALESCE(SUM(status IN'))return [[{active_calls:0,recent_attempts:0}],[]];
+    if(sql.includes('FROM sx_telephony_gateway_channels'))return [[{channel_no:1}],[]];
+    if(sql.includes('FROM sx_telephony_gateways'))return [[{id:gatewayId}],[]];
+    if(sql.includes('INSERT INTO sx_telephony_calls')){callId=args[1];recordedDestination=args.at(-1);return[{affectedRows:1}];}
+    if(sql.includes('FROM sx_telephony_calls c')&&sql.includes('JOIN sx_telephony_call_legs l'))return [[{tenant_id:tenantId,id:callId,status:'starting',gateway_id:gatewayId,
+      gateway_channel_no:1,started_by_membership_id:membershipId,bridge_id:null,membership_id:membershipId,device_kind:'mobile',leg_status:'originating'}],[]];
+    if(sql.includes('FROM sx_telephony_call_legs')&&sql.includes("leg_role='gateway'"))return[[],[]];
+    if(/^\s*SELECT\b/i.test(sql))throw new Error(`Unexpected mobile call query: ${sql}`);
+    return[{affectedRows:1}];
+  }};
+  const client={async createMixingBridge(){},async originateGateway(input){originated=input;}};
+  const control=new AsteriskCallControl({pool:{async getConnection(){return db;}}});control.client=async()=>client;
+  try{
+    assert.equal(mobileOutboundArgs(['mobile-outbound','55550000']).destination,'55550000');
+    assert.equal(await control.startMobileOutbound('mobile-channel-1',{channelName:'PJSIP/salemax-1201-mobile-00000001',destination:'55550000'}),true);
+    assert.equal(recordedDestination,'+97455550000');
+    assert.equal(originated.destination,'+97455550000');
+    assert.equal(originated.channelNo,1);
+    assert.deepEqual(originated.appArgs,['outbound-gateway',callId]);
+    assert.match(originated.endpointName,/^salemax_gw_[a-f0-9]{32}$/);
+  }finally{gatewayPorts.eligible=oldEligible;}
 });
 
 test('browser incoming SIP calls wait for an explicit accept or decline and can reconnect',()=>{

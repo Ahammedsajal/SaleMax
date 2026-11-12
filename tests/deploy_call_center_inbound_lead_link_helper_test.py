@@ -42,6 +42,19 @@ class CallCenterInboundLeadLinkReleaseHelperTest(unittest.TestCase):
             with self.assertRaisesRegex(RuntimeError, 'Stage manifest differs'):
                 HELPER.validate_stage(stage, 'b' * 40)
 
+    def test_qatar_dial_overlay_starts_from_the_live_lead_link_release_and_mounts_all_changed_runtime_files(self):
+        self.assertEqual(HELPER.ACTIVE_OVERLAY,
+            '/opt/salemax/releases/call-center-inbound-lead-link-051cd5bf2969-20261112/compose.call-center-inbound-lead-link.json')
+        self.assertIn('modules/platform/telephony-numbering.js', HELPER.RUNTIME_FILES)
+        self.assertIn('modules/platform/asterisk-config.js', HELPER.RUNTIME_FILES)
+        self.assertIn('client/public/call-center/index.html', HELPER.RUNTIME_FILES)
+        self.assertIn('client/public/call-center/call-center.js', HELPER.RUNTIME_FILES)
+        self.assertEqual(len(HELPER.RUNTIME_FILES), 6)
+        self.assertIn('client/public/call-center/index.html', HELPER.EXPECTED_PREIMAGES)
+        self.assertEqual(HELPER.RELEASE_PREFIX, 'call-center-qatar-local-dial')
+        self.assertNotIn('modules/platform/telephony-numbering.js', HELPER.EXPECTED_PREIMAGES,
+            'the new source module does not exist in the current app image and has no prior content to restore')
+
     def test_mount_overlay_replaces_only_the_reviewed_files(self):
         previous = {'services': {'app': {'image': 'app:test', 'command': ['node', 'server.js'], 'volumes': [
             {'type': 'bind', 'source': '/old/call-control.js', 'target': '/app/modules/platform/asterisk-call-control.js', 'read_only': True},

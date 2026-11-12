@@ -15,20 +15,26 @@ import time
 ROOT = Path('/opt/salemax')
 APP = 'salemax-app-1'
 BASE = '/opt/salemax/releases/training-pipeline-correction-v3-9867ca72-20261104'
-ACTIVE_OVERLAY = '/opt/salemax/releases/call-center-ringback-4c9ce1917500-20261112/compose.call-center-ringback.json'
-ACTIVE_HELPER = Path('/opt/salemax/releases/mobile-sip-call-center-706905be94ad-20261112/deploy/mobile-sip-call-center-release.py')
+ACTIVE_OVERLAY = '/opt/salemax/releases/call-center-inbound-lead-link-051cd5bf2969-20261112/compose.call-center-inbound-lead-link.json'
+ACTIVE_HELPER = Path('/opt/salemax/releases/call-center-inbound-lead-link-051cd5bf2969-20261112/deploy/call-center-inbound-lead-link-release.py')
 EXPECTED_IMAGE = 'sha256:753d77d421b3160872df0812e7b38505a1db7104cdb9d6c8b17415b2420de667'
 PROJECT = 'salemax'
 RELEASE_DAY = '20261112'
+RELEASE_PREFIX = 'call-center-qatar-local-dial'
 RUNTIME_FILES = (
     'modules/platform/asterisk-call-control.js',
-    'modules/platform/call-center-router.js',
     'modules/platform/telephony-call-leads.js',
+    'modules/platform/telephony-numbering.js',
+    'modules/platform/asterisk-config.js',
+    'client/public/call-center/index.html',
+    'client/public/call-center/call-center.js',
 )
 EXPECTED_PREIMAGES = {
-    'modules/platform/asterisk-call-control.js': '5b0f42115a92a9ec80ff34c628e3916ea00d59e46845f7d8edeb74055ec5e155',
-    'modules/platform/call-center-router.js': '0de8f9b20fc756a4b2713efccb9b0ed54aa12e206b0e06800e5ecce255ce0c02',
-    'modules/platform/telephony-call-leads.js': '0b047f60ae67edbd8f73b2674a2d27f9b7813cfb21aa3ad7fea290d50de13e9d',
+    'modules/platform/asterisk-call-control.js': '51a16e4b4b101a2aa57d1fd60726b0d0cafaf808d8928844f68555da40ca9043',
+    'modules/platform/telephony-call-leads.js': '20696bcc7b25cf36e25c2fea79cd6a83fa9f1379c190f2731f5dcaf5e8f88d27',
+    'modules/platform/asterisk-config.js': '8e5ce4aad745b5dc6307fcc536de5adcd4d9e1cb06750838d4a36c2c6f2ed272',
+    'client/public/call-center/index.html': '69f98644796fd3389280cd334a38417bfd0f330c645c58623e84e17c6c6fb21b',
+    'client/public/call-center/call-center.js': 'ffb7bb00ac4f03f7c425f88cd762eaaba5039e994e337bc0fbba52418e6ab502',
 }
 HELPER_NAME = 'deploy/call-center-inbound-lead-link-release.py'
 
@@ -206,8 +212,8 @@ def deploy(stage, commit):
         if live_hash != expected:
             raise RuntimeError('Live file changed since source review: ' + name)
 
-    release = ROOT / 'releases' / f'call-center-inbound-lead-link-{commit[:12]}-{RELEASE_DAY}'
-    backup = ROOT / 'shared' / f'rollback-call-center-inbound-lead-link-{commit[:12]}-{RELEASE_DAY}'
+    release = ROOT / 'releases' / f'{RELEASE_PREFIX}-{commit[:12]}-{RELEASE_DAY}'
+    backup = ROOT / 'shared' / f'rollback-{RELEASE_PREFIX}-{commit[:12]}-{RELEASE_DAY}'
     if release.exists() or backup.exists():
         raise RuntimeError('Release or rollback path already exists')
     release.mkdir(mode=0o755)

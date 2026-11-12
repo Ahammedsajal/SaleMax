@@ -6,6 +6,7 @@ const gatewayPorts = require('./asterisk-gateway-ports');
 const callRecordings = require('./telephony-recordings');
 const callLeads = require('./telephony-call-leads');
 const { categoryKeyMatches } = require('./categories');
+const telephonyNumbers=require('./telephony-numbering');
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const CHANNEL_ID = /^[A-Za-z0-9_.:-]{1,128}$/;
@@ -44,7 +45,7 @@ function outboundGatewayArgs(args) {
 
 function mobileOutboundArgs(args) {
   if (!Array.isArray(args) || args.length !== 2 || args[0] !== 'mobile-outbound'
-    || typeof args[1] !== 'string' || !/^\+[1-9][0-9]{7,14}$/.test(args[1])) return null;
+    || !mobileDialString(args[1])) return null;
   return { destination: args[1] };
 }
 
@@ -53,9 +54,12 @@ function mobileEndpointExtension(channelName) {
   return match ? match[1] : null;
 }
 
-function externalNumber(value) {
-  const number = String(value || '').trim();
-  return /^\+[1-9][0-9]{7,14}$/.test(number) ? number : null;
+function mobileDialString(value) {
+  return telephonyNumbers.dialString(value);
+}
+
+function externalNumber(value,countryCode) {
+  return telephonyNumbers.normalizeOutboundNumber(value,countryCode);
 }
 
 function callerNumber(value) {
@@ -237,8 +241,8 @@ class AsteriskCallControl {
 
   async startMobileOutbound(channelId, input) {
     const extension = mobileEndpointExtension(input?.channelName);
-    const destination = externalNumber(input?.destination);
-    if (!extension || !destination || !CHANNEL_ID.test(channelId || '')) {
+    const dialedNumber = mobileDialString(input?.destination);
+    if (!extension || !dialedNumber || !CHANNEL_ID.test(channelId || '')) {
       try { await (await this.client()).hangup(channelId); } catch (_) {}
       fail('MOBILE_OUTBOUND_ENDPOINT_INVALID');
     }
@@ -253,7 +257,7 @@ class AsteriskCallControl {
         FROM sx_platform_asterisk_runtime WHERE id=1 FOR UPDATE`);
       if (events?.status !== 'connected' || Number(events.heartbeat_fresh) !== 1) fail('ASTERISK_EVENTS_NOT_READY');
       const [[member]] = await db.query(`SELECT x.tenant_id,x.membership_id,x.extension,m.role,m.status AS membership_status,
-          i.status AS identity_status,t.status AS tenant_status,t.category_key,t.category_version
+          i.status AS identity_status,t.status AS tenant_status,t.category_key,t.category_version,t.country_code
         FROM sx_telephony_extensions x
         JOIN sx_telephony_endpoint_provisioning p ON p.tenant_id=x.tenant_id AND p.membership_id=x.membership_id
           AND p.client_type='mobile' AND p.extension=x.extension AND p.extension_revision=x.revision
@@ -263,13 +267,15 @@ class AsteriskCallControl {
         JOIN sx_identities i ON i.id=m.identity_id JOIN sx_tenants t ON t.id=m.tenant_id
         WHERE x.extension=? AND x.extension REGEXP '^[0-9]{3,8}$' AND m.role IN ('owner','manager','team_leader','agent') FOR UPDATE`,[extension]);
       if (!member || member.membership_status !== 'active' || member.identity_status !== 'active' || member.tenant_status !== 'active') fail('OUTBOUND_EXTENSION_NOT_READY');
+      const destination=externalNumber(dialedNumber,member.country_code);
+      if(!destination)fail('INVALID_OUTBOUND_CALL');
       if (!(await gatewayPorts.eligible(db, { id: member.tenant_id, status: member.tenant_status,
         category_key: member.category_key, category_version: member.category_version }))) fail('OUTBOUND_TENANT_NOT_ELIGIBLE');
 
       let leadLink=null;
       if (categoryKeyMatches(member.category_key,'7network_sales')) {
         leadLink=await callLeads.resolveAccessibleLeadLinkByNumber(db,{tenantId:member.tenant_id,categoryKey:member.category_key,
-          membershipId:member.membership_id,role:member.role,number:destination});
+          countryCode:member.country_code,membershipId:member.membership_id,role:member.role,number:destination});
         const [owners] = await db.query(`SELECT o.legacy_uid_hash AS uidHash FROM sx_legacy_ownership o
           JOIN sx_memberships m ON m.tenant_id=o.tenant_id AND m.id=o.membership_id AND m.role='owner' AND m.status='active'
           WHERE o.tenant_id=? AND o.source_table='user' LIMIT 2 FOR UPDATE`,[member.tenant_id]);
@@ -277,10 +283,11 @@ class AsteriskCallControl {
         const normalizedMobile=`CASE WHEN LEFT(REGEXP_REPLACE(COALESCE(l.mobile,''),'[^0-9]',''),2)='00'
           THEN SUBSTRING(REGEXP_REPLACE(COALESCE(l.mobile,''),'[^0-9]',''),3)
           ELSE REGEXP_REPLACE(COALESCE(l.mobile,''),'[^0-9]','') END`;
+        const numberCandidates=callLeads.phoneDigitsCandidatesForMatch(destination,member.country_code);
         const [[suppressed]] = await db.query(`SELECT l.id FROM pipeline_leads l
-          WHERE l.uid_hash=? AND ${normalizedMobile}=? AND EXISTS(SELECT 1 FROM pipeline_activity pa WHERE pa.uid_hash=l.uid_hash
+          WHERE l.uid_hash=? AND ${normalizedMobile} IN (?) AND EXISTS(SELECT 1 FROM pipeline_activity pa WHERE pa.uid_hash=l.uid_hash
             AND pa.lead_id=l.id AND pa.activity_type='contact_outcome' AND pa.summary='Contact outcome: do_not_call')
-          LIMIT 1 FOR UPDATE`,[owners[0].uidHash,destination.slice(1)]);
+          LIMIT 1 FOR UPDATE`,[owners[0].uidHash,numberCandidates]);
         if (suppressed) fail('CALL_LEAD_DO_NOT_CALL');
       }
 
@@ -461,7 +468,7 @@ class AsteriskCallControl {
     try {
       await db.beginTransaction();
       const [[mapping]] = await db.query(`SELECT p.channel_no,p.tenant_id,p.gateway_id,p.inbound_queue_id,t.status AS tenant_status,
-          t.category_key,t.category_version,q.enabled AS queue_enabled,q.ring_timeout_seconds,g.enabled AS gateway_enabled,g.connection_status
+          t.category_key,t.category_version,t.country_code,q.enabled AS queue_enabled,q.ring_timeout_seconds,g.enabled AS gateway_enabled,g.connection_status
         FROM sx_telephony_gateway_channels p JOIN sx_telephony_gateways g ON g.id=p.gateway_id AND g.tenant_id=p.tenant_id
         JOIN sx_tenants t ON t.id=p.tenant_id
         JOIN sx_telephony_queues q ON q.tenant_id=p.tenant_id AND q.id=p.inbound_queue_id
@@ -485,7 +492,8 @@ class AsteriskCallControl {
       let leadLink=null;
       if(callerAni&&categoryKeyMatches(mapping.category_key,'7network_sales')){
         try{
-          leadLink=await callLeads.findUniqueLeadLinkByNumber(db,{tenantId:mapping.tenant_id,categoryKey:mapping.category_key,number:callerAni});
+          leadLink=await callLeads.findUniqueLeadLinkByNumber(db,{tenantId:mapping.tenant_id,categoryKey:mapping.category_key,
+            countryCode:mapping.country_code,number:callerAni});
         }catch(error){
           this.log({ariCallControl:'inbound_lead_match_failed',code:/^[A-Z0-9_]{2,80}$/.test(error.code||'')?error.code:'INBOUND_LEAD_MATCH_FAILED'});
         }
