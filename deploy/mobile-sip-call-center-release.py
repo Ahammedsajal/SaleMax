@@ -173,6 +173,36 @@ def app_compose_context(app):
     return files, env_files, workdir
 
 
+def protected_prior_compose_values(keys):
+    candidates = {key: set() for key in keys}
+    owner_uid = os.geteuid()
+    for pattern in ('rollback-*/compose-vars.json', 'rollback-*/compose-manual-vars*.json'):
+        for path in (ROOT / 'shared').glob(pattern):
+            if path.is_symlink() or path.parent.is_symlink() or not path.is_file():
+                continue
+            try:
+                file_stat, dir_stat = path.stat(), path.parent.stat()
+                if (file_stat.st_uid != owner_uid or dir_stat.st_uid != owner_uid
+                        or file_stat.st_mode & 0o077 or dir_stat.st_mode & 0o077):
+                    continue
+                data = json.loads(path.read_text())
+            except (OSError, ValueError, TypeError):
+                continue
+            if not isinstance(data, dict):
+                continue
+            for key in keys:
+                value = data.get(key)
+                if isinstance(value, str) and value:
+                    candidates[key].add(value)
+    resolved = {}
+    for key, values in candidates.items():
+        if len(values) > 1:
+            raise RuntimeError('Protected prior Compose snapshots disagree for: ' + key)
+        if values:
+            resolved[key] = next(iter(values))
+    return resolved
+
+
 def compose_environment(app, files, env_files, backup):
     supplied = {key for name in env_files for key in re.findall(
         r'^\s*([A-Za-z_][A-Za-z0-9_]*)=', Path(name).read_text(), re.M)}
@@ -184,17 +214,36 @@ def compose_environment(app, files, env_files, backup):
     live_env = dict(os.environ)
     live_env.update(dict(item.split('=', 1) for item in app['Config']['Env'] if '=' in item))
     variables = {}
+    missing_required = set()
     for key, operator in references:
         if key in supplied:
             continue
-        if key not in live_env:
-            if operator in ('-', ':-', '+', ':+'):
-                continue
-            raise RuntimeError('Compose interpolation value is unavailable: ' + key)
-        variables[key] = live_env[key]
+        if key in live_env:
+            variables[key] = live_env[key]
+        elif operator not in ('-', ':-', '+', ':+'):
+            missing_required.add(key)
+    prior = protected_prior_compose_values(missing_required)
+    if missing_required - set(prior):
+        raise RuntimeError('Compose interpolation value is unavailable: ' + sorted(missing_required - set(prior))[0])
+    variables.update(prior)
     (backup / 'compose-vars.json').write_text(json.dumps(variables))
     (backup / 'compose-vars.json').chmod(0o600)
     return dict(os.environ, **variables)
+
+
+def verify_live_compose_app(app, config):
+    service = config['services']['app']
+    if service.get('image') != app['Config']['Image']:
+        raise RuntimeError('Resolved Compose app image differs from the running app')
+    expected = {row['target']: row for row in service.get('volumes', []) if row.get('type') == 'bind'}
+    actual = {row['Destination']: row for row in app.get('Mounts', []) if row.get('Type') == 'bind'}
+    if set(expected) != set(actual):
+        raise RuntimeError('Resolved Compose bind mounts differ from the running app')
+    for target, volume in expected.items():
+        live = actual[target]
+        if (os.path.realpath(volume.get('source', '')) != os.path.realpath(live.get('Source', ''))
+                or bool(volume.get('read_only', False)) != (not bool(live.get('RW', True)))):
+            raise RuntimeError('Resolved Compose bind mount differs from the running app: ' + target)
 
 
 def validate_manifest(stage, commit):
@@ -327,6 +376,7 @@ def deploy(stage, commit):
     candidate = common + ['-f', str(overlay)]
     env = compose_environment(app, files, env_files, backup)
     before = json.loads(run(*common, 'config', '--format', 'json', env=env))
+    verify_live_compose_app(app, before)
     after = json.loads(run(*candidate, 'config', '--format', 'json', env=env))
     old_app, new_app = before['services']['app'], after['services']['app']
     old_volumes = {row['target']: row for row in old_app.get('volumes', [])}
