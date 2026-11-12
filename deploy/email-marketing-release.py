@@ -21,7 +21,7 @@ SUPPORT = (DB, WORKER, 'salemax-libretranslate-1',
            'salemax-bot-lead-test-db')
 EXPECTED_IMAGE = 'salemax-app:openai-ads-lead-01fde9e1-20261103'
 EXPECTED_IMAGE_ID = 'sha256:c756899fdbf63edc71d45de0c71cffe1f063244d91378d90b15a2c98fc1d5135'
-EXPECTED_HEAD = '/opt/salemax/releases/pipeline-show-all-leads-28d21c99df43-20261111/compose.pipeline-show-all-leads.json'
+EXPECTED_HEAD = '/opt/salemax/releases/database-pool-budget-6b9af8a42ec9-20261112/compose.database-pool-recovery.json'
 MIGRATION = 'database/migrations/20270106_email_marketing.sql'
 IMAGE_DOCKERFILE = 'deploy/Dockerfile.email-marketing-sdk'
 RUNTIME_FILES = (
