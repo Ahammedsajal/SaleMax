@@ -1,6 +1,7 @@
 const router = require("express").Router();
 const {publicWebSettings}=require("../modules/platform/public-web-settings");
 const { query } = require("../database/dbpromise.js");
+const databasePool = require("../database/config").promise();
 const {
   validateEmail,
   getFileExtension,
@@ -16,7 +17,6 @@ const randomstring = require("randomstring");
 const path = require("path");
 const { appVersion, addON } = require("../env.js");
 const bcrypt = require("bcrypt");
-const mysql = require("mysql2/promise");
 const { getAllSocketData } = require("../socket.js");
 const {
   checkQr,
@@ -470,19 +470,10 @@ router.post("/update_app", async (req, res) => {
       });
     }
 
-    // Create a MySQL connection pool
-    const pool = mysql.createPool({
-      host: process.env.DBHOST || "localhost",
-      user: process.env.DBUSER,
-      password: process.env.DBPASS,
-      database: process.env.DBNAME,
-      connectionLimit: 10, // Limit the number of concurrent connections
-    });
-
     if (queries && JSON.parse(queries)?.length > 0) {
       const parsedQueries = JSON.parse(queries);
       if (Array.isArray(parsedQueries) && parsedQueries.length > 0) {
-        await executeQueries(parsedQueries, pool);
+        await executeQueries(parsedQueries, databasePool);
       }
     }
 
@@ -491,7 +482,7 @@ router.post("/update_app", async (req, res) => {
       await Promise.all(
         newQuery?.map(async (i) => {
           const { run, check } = i;
-          const connection = await pool.getConnection(); // Get a connection from the pool
+          const connection = await databasePool.getConnection(); // Share the application's bounded pool
           try {
             const checkExist = await connection.query(check);
             if (checkExist[0].length < 1) {

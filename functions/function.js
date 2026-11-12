@@ -563,15 +563,17 @@ async function saveMessageToConversation({
 }
 
 async function executeQueries(queries, pool) {
+  let connection;
   try {
-    const connection = await pool.getConnection(); // Get a connection from the pool
+    connection = await pool.getConnection(); // Get a connection from the shared pool
     for (const query of queries) {
       await connection.query(query);
     }
-    connection.release(); // Release the connection back to the pool
     return { success: true };
   } catch (err) {
     return { success: false, err };
+  } finally {
+    connection?.release(); // Release even when one of the updates fails
   }
 }
 

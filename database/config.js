@@ -1,7 +1,27 @@
 const mysql = require("mysql2");
 
+function poolOption(name, fallback, min, max) {
+  const raw = process.env[name];
+  const value = raw === undefined || raw === "" ? fallback : Number(raw);
+  if (!Number.isSafeInteger(value) || value < min || value > max) {
+    throw new Error(`Invalid database pool setting: ${name}`);
+  }
+  return value;
+}
+
+const connectionLimit = poolOption("DB_POOL_LIMIT", 100, 1, 120);
+const maxIdle = poolOption(
+  "DB_POOL_MAX_IDLE",
+  Math.min(30, connectionLimit - 1),
+  0,
+  connectionLimit - 1,
+);
+const idleTimeout = poolOption("DB_POOL_IDLE_TIMEOUT_MS", 60000, 1000, 3600000);
+
 const con = mysql.createPool({
-  connectionLimit: 200,
+  connectionLimit,
+  maxIdle,
+  idleTimeout,
   host: process.env.DBHOST || "localhost",
   port: process.env.DBPORT || 3306,
   ...(process.env.LOCAL_ONLY_MODE === "true" && process.env.SALEMAX_TEST_DB_SOCKET ? { socketPath: process.env.SALEMAX_TEST_DB_SOCKET } : {}),
