@@ -370,7 +370,7 @@ def verify_runtime(contents, overlay, candidate_image, expected_migration, befor
     current = wait_app()
     if current['Config']['Image'] != candidate_image:
         raise RuntimeError('Candidate app image is not active')
-    if current['Config'].get('Env', []).count('NODE_PATH=/opt/7network-email-node-modules') != 1:
+    if current['Config'].get('Env', []).count('NODE_PATH=/opt/7network-email-node-modules/node_modules') != 1:
         raise RuntimeError('SES runtime dependency path is missing')
     for name, data in contents.items():
         if container_hash(name) != sha(data):
@@ -570,7 +570,7 @@ def deploy(stage, commit):
     if inspect(APP)['Id'] != app['Id'] or support_ids() != support:
         raise RuntimeError('A service changed while building the candidate image')
     run('docker', 'run', '--rm', '--entrypoint', 'node', image_tag, '-e',
-        "if(!require.resolve('@aws-sdk/client-sesv2'))process.exit(2);if(process.env.NODE_PATH!=='/opt/7network-email-node-modules')process.exit(3)",
+        "if(!require.resolve('@aws-sdk/client-sesv2'))process.exit(2);if(process.env.NODE_PATH!=='/opt/7network-email-node-modules/node_modules')process.exit(3)",
         timeout=60)
     image_id = run('docker', 'image', 'inspect', '--format', '{{.Id}}', image_tag).strip()
     write_private(backup / 'candidate-image.json', {

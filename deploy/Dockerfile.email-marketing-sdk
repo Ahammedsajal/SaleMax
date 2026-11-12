@@ -2,7 +2,7 @@ ARG BASE_IMAGE
 FROM $BASE_IMAGE
 
 USER root
-ENV NODE_PATH=/opt/7network-email-node-modules
+ENV NODE_PATH=/opt/7network-email-node-modules/node_modules
 
 RUN npm install \
     --prefix /opt/7network-email-node-modules \
