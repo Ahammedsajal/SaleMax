@@ -74,6 +74,20 @@ class CallCenterInboundLeadLinkReleaseHelperTest(unittest.TestCase):
         with self.assertRaisesRegex(RuntimeError, 'non-mount Compose configuration'):
             HELPER.validate_mount_overlay(previous, unsafe, mounts)
 
+    def test_runtime_materialization_includes_new_files_without_preimages(self):
+        commit = 'c' * 40
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            stage = self.make_stage(root, commit)
+            runtime = root / 'release' / 'runtime'
+            runtime.mkdir(parents=True)
+            content = HELPER.materialize_runtime_files(stage, runtime)
+            self.assertEqual(set(content), set(HELPER.RUNTIME_FILES))
+            new_file = 'modules/platform/telephony-numbering.js'
+            self.assertIn(new_file, content)
+            self.assertEqual((runtime / new_file).read_bytes(), b'runtime:' + new_file.encode())
+            self.assertEqual((runtime / new_file).stat().st_mode & 0o777, 0o644)
+
     def test_live_compose_validation_requires_the_running_image_and_every_bind_mount_to_match(self):
         app = {
             'Config': {'Image': 'app:test'},

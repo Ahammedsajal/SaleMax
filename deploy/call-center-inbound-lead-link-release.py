@@ -186,6 +186,18 @@ def verify_live_compose_app(app, config):
             raise RuntimeError('Resolved Compose bind mount differs from the running app: ' + target)
 
 
+def materialize_runtime_files(stage, runtime):
+    content = {}
+    for name in RUNTIME_FILES:
+        data = (Path(stage) / 'runtime' / name).read_bytes()
+        output = runtime / name
+        output.parent.mkdir(mode=0o755, parents=True, exist_ok=True)
+        output.write_bytes(data)
+        output.chmod(0o644)
+        content[name] = data
+    return content
+
+
 def same_except_app_mounts(before, after):
     before_without_mounts, after_without_mounts = copy.deepcopy(before), copy.deepcopy(after)
     before_without_mounts['services']['app'].pop('volumes', None)
@@ -246,7 +258,7 @@ def deploy(stage, commit):
 
     runtime = release / 'runtime'
     runtime.mkdir(mode=0o755)
-    content = {}
+    content = materialize_runtime_files(stage, runtime)
     for name, expected in EXPECTED_PREIMAGES.items():
         target = '/app/' + name
         saved = backup / 'preimages' / name
@@ -254,12 +266,6 @@ def deploy(stage, commit):
         run('docker', 'cp', APP + ':' + target, str(saved))
         if sha(saved.read_bytes()) != expected:
             raise RuntimeError('Protected preimage copy changed: ' + name)
-        data = (Path(stage) / 'runtime' / name).read_bytes()
-        output = runtime / name
-        output.parent.mkdir(mode=0o755, parents=True, exist_ok=True)
-        output.write_bytes(data)
-        output.chmod(0o644)
-        content[name] = data
 
     mounts = [{'type': 'bind', 'source': str(runtime / name), 'target': '/app/' + name,
                'read_only': True, 'bind': {'create_host_path': False}} for name in RUNTIME_FILES]
