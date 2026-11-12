@@ -83,8 +83,8 @@ def support_ids():
 
 
 def node_process_count(container):
-    rows = run('docker', 'top', container, '-eo', 'comm').splitlines()[1:]
-    return sum(row.strip() == 'node' for row in rows)
+    rows = run('docker', 'top', container, '-eo', 'pid,ppid,comm').splitlines()[1:]
+    return sum(row.split()[-1] == 'node' for row in rows if row.split())
 
 
 def compose_meta(info, service, allow_idle_overlay=None):
