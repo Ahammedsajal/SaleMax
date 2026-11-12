@@ -613,13 +613,13 @@ def verify_runtime(contents, overlay, candidate_image, expected_migration, expec
                            f'workspace={workspace_status} admin={admin_status}')
     served = {}
     requests = {
-        'client/public/index.html': 'https://7network.live/user?page=campaign-dashboard&channel=email&asset-check=20261112-email-marketing2',
-        'client/public/workspace-api.js': 'https://7network.live/workspace-api.js?v=20261112-email-marketing2',
-        'client/public/phonebook-workspace.css': 'https://7network.live/phonebook-workspace.css?v=20261112-email-marketing2',
-        'client/public/phonebook-workspace.js': 'https://7network.live/phonebook-workspace.js?v=20261112-email-marketing2',
-        'client/public/email-marketing-workspace.css': 'https://7network.live/email-marketing-workspace.css?v=20261112-email-marketing2',
-        'client/public/email-marketing-workspace.js': 'https://7network.live/email-marketing-workspace.js?v=20261112-email-marketing2',
-        'client/public/admin-email-marketing-settings.js': 'https://7network.live/admin-email-marketing-settings.js?v=20261112-email-marketing2',
+        'client/public/index.html': 'https://7network.live/admin/login?asset-check=20261112-email-marketing4',
+        'client/public/workspace-api.js': 'https://7network.live/workspace-api.js?v=20261112-email-marketing3',
+        'client/public/phonebook-workspace.css': 'https://7network.live/phonebook-workspace.css?v=20261112-email-marketing3',
+        'client/public/phonebook-workspace.js': 'https://7network.live/phonebook-workspace.js?v=20261112-email-marketing3',
+        'client/public/email-marketing-workspace.css': 'https://7network.live/email-marketing-workspace.css?v=20261112-email-marketing3',
+        'client/public/email-marketing-workspace.js': 'https://7network.live/email-marketing-workspace.js?v=20261112-email-marketing3',
+        'client/public/admin-email-marketing-settings.js': 'https://7network.live/admin-email-marketing-settings.js?v=20261112-email-marketing3',
     }
     for name, url in requests.items():
         body = run('curl', '-fsS', '-H', 'Cache-Control: no-cache', url,
