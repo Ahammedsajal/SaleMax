@@ -613,20 +613,20 @@ def verify_runtime(contents, overlay, candidate_image, expected_migration, expec
                            f'workspace={workspace_status} admin={admin_status}')
     served = {}
     requests = {
-        'client/public/index.html': 'https://7network.live/',
-        'client/public/workspace-api.js': 'https://7network.live/workspace-api.js?v=20261112-email-marketing1',
-        'client/public/phonebook-workspace.css': 'https://7network.live/phonebook-workspace.css?v=20261112-email-marketing1',
-        'client/public/phonebook-workspace.js': 'https://7network.live/phonebook-workspace.js?v=20261112-email-marketing1',
-        'client/public/email-marketing-workspace.css': 'https://7network.live/email-marketing-workspace.css?v=20261112-email-marketing1',
-        'client/public/email-marketing-workspace.js': 'https://7network.live/email-marketing-workspace.js?v=20261112-email-marketing1',
-        'client/public/admin-email-marketing-settings.js': 'https://7network.live/admin-email-marketing-settings.js?v=20261112-email-marketing1',
+        'client/public/index.html': 'https://7network.live/user?page=campaign-dashboard&channel=email&asset-check=20261112-email-marketing2',
+        'client/public/workspace-api.js': 'https://7network.live/workspace-api.js?v=20261112-email-marketing2',
+        'client/public/phonebook-workspace.css': 'https://7network.live/phonebook-workspace.css?v=20261112-email-marketing2',
+        'client/public/phonebook-workspace.js': 'https://7network.live/phonebook-workspace.js?v=20261112-email-marketing2',
+        'client/public/email-marketing-workspace.css': 'https://7network.live/email-marketing-workspace.css?v=20261112-email-marketing2',
+        'client/public/email-marketing-workspace.js': 'https://7network.live/email-marketing-workspace.js?v=20261112-email-marketing2',
+        'client/public/admin-email-marketing-settings.js': 'https://7network.live/admin-email-marketing-settings.js?v=20261112-email-marketing2',
     }
     for name, url in requests.items():
         body = run('curl', '-fsS', '-H', 'Cache-Control: no-cache', url,
                    timeout=60).encode()
         served[name] = sha(body)
         if served[name] != sha(contents[name]):
-            raise RuntimeError('Public Email asset hash differs from the release')
+            raise RuntimeError(f'Public Email asset hash differs from the release: {name}')
     result = {
         'appHealth': current['State'].get('Health', {}).get('Status'),
         'appImage': current['Config']['Image'],
