@@ -4718,10 +4718,10 @@ a.footer-contact-item:hover .footer-contact-icon { transform: translateY(-2px); 
 }
 @media (max-width: 620px) {
   .hero {
-    /* Keep the complete mobile pitch and layered product artwork in a tighter
-       first-screen composition instead of stretching the hero to the viewport. */
-    min-height: clamp(680px, 88svh, 760px);
-    padding: calc(96px + env(safe-area-inset-top)) 6% 26px;
+    /* Keep the complete mobile pitch and product artwork together without
+       leaving a tall blank band between the CTA and capability strip. */
+    min-height: clamp(610px, 74svh, 680px);
+    padding: calc(88px + env(safe-area-inset-top)) 6% 16px;
   }
   .hero .eyebrow { margin-bottom: 15px; font-size: 9px; }
   .hero-headline { font-size: clamp(39px, 11.4vw, 52px); line-height: 1.04; }
