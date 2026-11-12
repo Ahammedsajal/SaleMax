@@ -24,7 +24,7 @@ const trainingCenter = Object.freeze({ key: 'training_center', version: 1, catal
 // customer during self-service onboarding. Training-center course catalogue and
 // finance capabilities remain excluded; deals and commissions have their own
 // contracts in this category.
-const sevenNetworkSales = Object.freeze({ key: '7network_sales', version: 1, catalogue:'products', chatbotLeadCapture:'none', title: Object.freeze({ en: '7Network Sales', ar: 'مبيعات 7Network' }), public: false, planable: true, seatRoles: Object.freeze(['owner', 'accountant', 'manager', 'team_leader', 'agent']), capabilities: Object.freeze([...sharedCapabilities, 'sales.deals', 'sales.commissions','sales.finance','sales.targets','sales.icp','products.catalog','hr.recruitment']), migration: '20261001_platform_identity.sql' });
+const sevenNetworkSales = Object.freeze({ key: '7network_sales', version: 1, catalogue:'products', chatbotLeadCapture:'none', title: Object.freeze({ en: '7Network Sales', ar: 'مبيعات 7Network' }), public: false, planable: true, seatRoles: Object.freeze(['owner', 'accountant', 'manager', 'team_leader', 'agent']), capabilities: Object.freeze([...sharedCapabilities, 'sales.deals', 'sales.commissions','sales.finance','sales.targets','sales.icp','email.marketing','products.catalog','hr.recruitment']), migration: '20261001_platform_identity.sql' });
 // Internal implementation contract until workflow acceptance is complete.
 // Available for reviewed internal provisioning through the existing platform
 // category/plan flow. It remains private and is never offered in public signup.
@@ -43,7 +43,7 @@ const retail = Object.freeze({
   public: false,
   planable: true,
   seatRoles: ['owner', 'accountant', 'manager', 'agent'],
-  capabilities: [...sharedCapabilities, 'products.catalog', 'retail.inventory'],
+  capabilities: [...sharedCapabilities, 'products.catalog', 'retail.inventory', 'retail.commerce', 'retail.finance'],
   migration: '20270125_private_business_inventory.sql'
 });
 const registry = require('./category-registry').createCategoryRegistry([trainingCenter, retail, sevenNetworkSales, realEstate, baseCrm, restaurantFixture], capabilities);

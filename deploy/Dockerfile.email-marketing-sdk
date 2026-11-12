@@ -1,0 +1,18 @@
+ARG BASE_IMAGE
+FROM $BASE_IMAGE
+
+USER root
+ENV NODE_PATH=/opt/7network-email-node-modules
+
+RUN npm install \
+    --prefix /opt/7network-email-node-modules \
+    --package-lock=false \
+    --no-save \
+    --omit=dev \
+    --ignore-scripts \
+    --no-audit \
+    --no-fund \
+    @aws-sdk/client-sesv2@3.1166.0 \
+ && node -e "require.resolve('@aws-sdk/client-sesv2')"
+
+USER node

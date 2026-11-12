@@ -1,7 +1,7 @@
 (() => {
   'use strict';
   if(window.SaleMaxWorkspace)return;
-  const paths={chatbots:'/api/workspace/chatbots',customization:'/api/workspace/customization',ai:'/api/workspace/ai',qr:'/api/workspace/channels/qr',flows:'/api/workspace/automation/flows',chatbot:'/api/workspace/automation/chatbot',templates:'/api/workspace/templates',campaigns:'/api/workspace/campaigns',inbox:'/api/workspace/inbox',inboxTranslation:'/api/workspace/inbox/translate',pipeline:'/api/workspace/pipeline',session:'/api/workspace/session',tasks:'/api/workspace/tasks',finance:'/api/workspace/finance',phonebook:'/api/workspace/phonebook',courseReplies:'/api/workspace/inbox/course-replies',inventory:'/api/workspace/business-inventory',products:'/api/workspace/products-services',properties:'/api/workspace/properties',team:'/api/workspace/team',courses:'/api/workspace/courses',students:'/api/workspace/students',profile:'/api/workspace/profile',forms:'/api/workspace/forms',icp:'/api/workspace/icp'};
+  const paths={chatbots:'/api/workspace/chatbots',customization:'/api/workspace/customization',ai:'/api/workspace/ai',qr:'/api/workspace/channels/qr',flows:'/api/workspace/automation/flows',chatbot:'/api/workspace/automation/chatbot',templates:'/api/workspace/templates',campaigns:'/api/workspace/campaigns',inbox:'/api/workspace/inbox',inboxTranslation:'/api/workspace/inbox/translate',pipeline:'/api/workspace/pipeline',session:'/api/workspace/session',tasks:'/api/workspace/tasks',finance:'/api/workspace/finance',phonebook:'/api/workspace/phonebook',courseReplies:'/api/workspace/inbox/course-replies',retail:'/api/workspace/retail',email:'/api/workspace/email-marketing',inventory:'/api/workspace/business-inventory',products:'/api/workspace/products-services',properties:'/api/workspace/properties',team:'/api/workspace/team',courses:'/api/workspace/courses',students:'/api/workspace/students',profile:'/api/workspace/profile',forms:'/api/workspace/forms',icp:'/api/workspace/icp'};
   const actor=()=>window.SaleMaxActor==='agent'||/^\/agent\/?$/.test(location.pathname)?'agent':'user';
   async function headers(json=true,csrf=true){
     const kind=actor(),token=localStorage.getItem(kind==='agent'?'wacrm_agent':'wacrm_user');
@@ -17,8 +17,10 @@
   const normalize=path=>path.replace(/^\/(accountant|canonical)(?=\/|\?|$)/,'');
   async function request(module,path='',{method='GET',body}={}){
     if(!paths[module])throw Error('UNKNOWN_WORKSPACE_MODULE');
-    const file=body instanceof FormData;
-    const response=await fetch(paths[module]+normalize(path),{method,credentials:'same-origin',cache:'no-store',headers:await headers(!file,!['GET','HEAD','OPTIONS'].includes(method.toUpperCase())),body:body===undefined?undefined:file?body:JSON.stringify(body)});
+    const file=typeof FormData!=='undefined'&&body instanceof FormData;
+    const binary=(typeof Blob!=='undefined'&&body instanceof Blob)||body instanceof ArrayBuffer||ArrayBuffer.isView(body);
+    const requestHeaders=await headers(!file&&!binary,!['GET','HEAD','OPTIONS'].includes(method.toUpperCase()));if(binary)requestHeaders['Content-Type']='application/octet-stream';
+    const response=await fetch(paths[module]+normalize(path),{method,credentials:'same-origin',cache:'no-store',headers:requestHeaders,body:body===undefined?undefined:file||binary?body:JSON.stringify(body)});
     let result;try{result=await response.json();}catch{throw Error('SERVER_ERROR');}
     if(!response.ok||result.success===false||result.success===0||result.logout){const error=Error(result.code||(result.logout?'AUTH_REQUIRED':'REQUEST_FAILED'));error.details=result.details;throw error;}
     return result;

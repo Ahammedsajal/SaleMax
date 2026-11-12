@@ -28,6 +28,7 @@
   "author": "",
   "license": "ISC",
   "dependencies": {
+    "@aws-sdk/client-sesv2": "^3.1166.0",
     "@elevenlabs/elevenlabs-js": "^2.32.0",
     "@google/generative-ai": "^0.24.1",
     "@modelcontextprotocol/sdk": "1.32.2",

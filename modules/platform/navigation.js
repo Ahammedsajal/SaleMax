@@ -10,6 +10,7 @@ const items = [
   ['templates', 'messaging.templates', 'templates.manage', 'Create Meta Template', 'إنشاء قالب ميتا', 'Marketing', 'التسويق'],
   ['campaigns', 'campaigns.send', 'campaigns.manage', 'Send Campaign', 'إرسال حملة', 'Marketing', 'التسويق'],
   ['campaign-dashboard', 'campaigns.dashboard', 'campaigns.manage', 'Campaign Dashboard', 'لوحة الحملات', 'Marketing', 'التسويق'],
+  ['email', 'email.marketing', 'email.marketing.manage', 'Email', 'البريد الإلكتروني', 'Marketing', 'التسويق'],
   ['leads', 'crm.leads', 'leads.read', 'Lead Pipeline', 'مسار العملاء المحتملين', 'Sales', 'المبيعات'],
   ['contacts', 'crm.contacts', 'contacts.read', 'Phonebook', 'دليل الهاتف', 'Sales', 'المبيعات'],
   ['agent-login', 'team.members', 'team.read', 'Agent Login', 'دخول الوكلاء', 'Sales', 'المبيعات'],
@@ -23,8 +24,12 @@ const items = [
   ['icp', 'sales.icp', 'icp.read', 'ICP', 'ملف العميل المثالي', 'Sales', 'المبيعات'],
   ['sales-organization', 'team.members', 'team.read', 'Organization', 'الهيكل التنظيمي', 'Sales', 'المبيعات'],
   ['commission-policy', 'sales.commissions', 'commission.policy.manage', 'Commission Policy', 'سياسة العمولات', 'Administration', 'الإدارة'],
+  ['retail-orders', 'retail.commerce', 'retail.orders', 'Retail orders', 'طلبات التجزئة', 'Business Operations', 'عمليات الأعمال'],
+  ['retail-connected-stores', 'retail.commerce', 'retail.connect', 'Connected Stores', 'المتاجر المتصلة', 'Business Operations', 'عمليات الأعمال'],
+  ['retail-deliveries', 'retail.commerce', 'retail.deliver', 'My deliveries', 'عمليات التوصيل الخاصة بي', 'Business Operations', 'عمليات الأعمال'],
   ['business-inventory', 'retail.inventory', 'inventory.read', 'Inventory', 'المخزون', 'Business Operations', 'عمليات الأعمال'],
   ['products-services', 'products.catalog', 'products.read', 'Products & services', 'المنتجات والخدمات', 'Sales', 'المبيعات'],
+  ['retail-finance', 'retail.finance', 'retail.finance', 'Retail cash reconciliation', 'تسوية النقد للتجزئة', 'Finance', 'المالية'],
   ['properties', 'realestate.listings', 'properties.read', 'Properties', 'العقارات', 'Real Estate', 'العقارات'],
   ['courses', 'training.courses', 'courses.read', 'Courses', 'الدورات', 'Training', 'التدريب'],
   ['batches', 'training.batches', 'courses.read', 'Batches', 'المجموعات', 'Training', 'التدريب'],
@@ -45,7 +50,7 @@ const items = [
   ['team', 'team.members', 'team.read', 'Team access', 'إدارة وصول الفريق', 'Administration', 'الإدارة'],
   ['settings', 'tenant.settings', 'tenant.manage', 'Business Settings', 'إعدادات الأعمال', 'Administration', 'الإدارة'],
   ['ai-integrations', 'tenant.settings', 'tenant.manage', 'AI Integrations', 'تكاملات الذكاء الاصطناعي', 'Automation', 'الأتمتة'],
-].map(([key, capability, permission, en, ar, groupEn, groupAr]) => Object.freeze({ key, capability, permission, path: '/user/' + key, label: { en, ar }, group: { en: groupEn, ar: groupAr },ownerOnly:['recruitment','training-profile','ai-integrations'].includes(key),sidebar:!['batches','enrollments','installments','payments','receipts','credits','scheduled-reports'].includes(key) }));
+].map(([key, capability, permission, en, ar, groupEn, groupAr]) => Object.freeze({ key, capability, permission, path: '/user/' + key, label: { en, ar }, group: { en: groupEn, ar: groupAr },ownerOnly:['recruitment','training-profile','ai-integrations','retail-connected-stores'].includes(key),sidebar:!['batches','enrollments','installments','payments','receipts','credits','scheduled-reports'].includes(key) }));
 function navigationFor(context) {
   if (context?.audience !== 'tenant' || context.tenant?.status !== 'active' || context.membership?.status !== 'active' || context.membership?.tenantId !== context.tenant?.id) return [];
   // Internal Sales accountants work from finance and payout workspaces only.
@@ -77,6 +82,7 @@ async function sidebarForMembership(pool,context,rows){
 // receipts in one workspace. A screen assignment admits those views; the
 // member's action permissions still decide which operations are available.
 function keysForCapability(capability){
+  if(capability==='email.marketing')return ['email'];
   if(['finance.invoices','finance.installments','finance.payments','finance.receipts'].includes(capability))return ['invoices','installments','payments','receipts'];
   return items.filter(item=>item.capability===capability).map(item=>item.key);
 }
