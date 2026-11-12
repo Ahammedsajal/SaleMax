@@ -507,6 +507,20 @@ router.post("/leads", async (req, res) => {
   } catch (error) { fail(res, error); }
 });
 
+router.post("/leads/bulk-delete", async (req, res) => {
+  if (req.pipelineActor.role !== "owner") {
+    return res.status(403).json({ success: false, code: "PERMISSION_DENIED" });
+  }
+  try {
+    const data = await pipeline.deleteLeads({
+      uid: req.pipelineActor.uid,
+      ids: req.body?.ids,
+      pool: require("../database/config.js").promise(),
+    });
+    res.json({ success: true, data });
+  } catch (error) { fail(res, error); }
+});
+
 // Internal 7Network Sales lead imports are intentionally restricted to the
 // business owner. Validate the complete batch before writing, then create all
 // rows in one transaction so a bad row cannot leave a partial import behind.
