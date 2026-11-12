@@ -77,6 +77,16 @@ CONTACT_EMAIL_COLUMNS = (
 MANUAL_VARS = ROOT / 'shared/rollback-private-inventory-84644fdfebee/compose-manual-vars.json'
 SDK_VERSION = '3.1166.0'
 MINIMUM_FREE_BYTES = 1024 * 1024 * 1024
+FAILED_EMAIL_COMMIT = '804a292172c6cc99cc94099349b0d3b2782f73c3'
+FAILED_EMAIL_CHECKSUM = '6e2f6bce4f87fbd3fe0b74ad1bcf00ee1f8b1b3515ac34d404d95dff025e6106'
+FAILED_EMAIL_MIGRATION = 'database/migrations/20270106_email_marketing.sql'
+FAILED_EMAIL_BACKUP = ROOT / 'shared/rollback-email-marketing-804a292172c6-20261112'
+FAILED_EMAIL_PARTIAL_TABLE = 'sx_platform_email_provider_settings'
+FAILED_EMAIL_PARTIAL_COLUMNS = (
+    'provider_key', 'region', 'access_key_ciphertext', 'access_key_iv',
+    'access_key_tag', 'secret_key_ciphertext', 'secret_key_iv', 'secret_key_tag',
+    'revision', 'updated_by_identity_id', 'created_at', 'updated_at',
+)
 
 
 def run(*args, env=None, input_text=None, timeout=None, log_path=None):
@@ -256,6 +266,9 @@ const contactColumns=%s;
 
 
 def apply_migration(sql, filename):
+    filename = Path(filename).name
+    if not re.fullmatch(r'\d{8}_[a-z0-9_]+\.sql', filename):
+        raise RuntimeError('Invalid migration filename')
     script = r"""
 let body='';
 process.stdin.setEncoding('utf8');
@@ -300,6 +313,134 @@ process.stdin.on('end',async()=>{
     if execution.returncode:
         raise RuntimeError('MIGRATION_FAILED')
     raise RuntimeError('Migration runner returned no result')
+
+
+def recover_failed_email_migration(backup):
+    require_lock()
+    backup = Path(backup).resolve()
+    if backup != FAILED_EMAIL_BACKUP.resolve():
+        raise RuntimeError('Unexpected failed Email rollback directory')
+    release_info = json.loads((backup / 'release.json').read_text())
+    before_schema = json.loads((backup / 'schema-before.json').read_text())
+    if (release_info.get('sourceCommit') != FAILED_EMAIL_COMMIT
+            or release_info.get('migration') != FAILED_EMAIL_MIGRATION
+            or release_info.get('migrationChecksum') != FAILED_EMAIL_CHECKSUM
+            or before_schema.get('historyIncomplete') != 0
+            or before_schema.get('emailTables')
+            or before_schema.get('contactColumns')):
+        raise RuntimeError('Failed Email attempt does not match the reviewed recovery')
+
+    app = inspect(APP)
+    db = inspect(DB)
+    meta = service_compose(app, 'app')
+    if (app['Config']['Image'] != EXPECTED_IMAGE or app['Image'] != EXPECTED_IMAGE_ID
+            or app['State'].get('Health', {}).get('Status') != 'healthy'
+            or db['State'].get('Health', {}).get('Status') != 'healthy'
+            or meta['files'][-1] != EXPECTED_HEAD):
+        raise RuntimeError('Active production release differs from the reviewed baseline')
+    support = json.loads((backup / 'support-services.json').read_text())
+    if support_ids() != support:
+        raise RuntimeError('A support service changed after the failed Email attempt')
+    input_hashes = json.loads((backup / 'compose-input-hashes.json').read_text())
+    if any(sha(Path(name).read_bytes()) != digest for name, digest in input_hashes.items()):
+        raise RuntimeError('Production Compose inputs changed after the failed Email attempt')
+    for name, expected in PREIMAGES.items():
+        if container_hash(name) != expected:
+            raise RuntimeError('Active application files differ from the reviewed baseline')
+
+    script = r"""
+let body='';process.stdin.setEncoding('utf8');process.stdin.on('data',p=>body+=p);
+process.stdin.on('end',async()=>{
+ let c,lockName;
+ try{
+  const input=JSON.parse(body),mysql=require('mysql2/promise'),crypto=require('node:crypto');
+  const expectedName='database/migrations/20270106_email_marketing.sql';
+  const expectedChecksum='6e2f6bce4f87fbd3fe0b74ad1bcf00ee1f8b1b3515ac34d404d95dff025e6106';
+  const partialTable=%s;
+  const expectedColumns=%s,allEmailTables=%s;
+  c=await mysql.createConnection({host:process.env.DBHOST,port:Number(process.env.DBPORT||3306),user:process.env.DBUSER,password:process.env.DBPASS,database:process.env.DBNAME,charset:'utf8mb4',multipleStatements:false});
+  const [[db]]=await c.query('SELECT DATABASE() AS db');
+  lockName='salemax:migrate:'+crypto.createHash('sha256').update(db.db).digest('hex').slice(0,40);
+  const [[lock]]=await c.query('SELECT GET_LOCK(?,0) AS acquired',[lockName]);
+  if(Number(lock.acquired)!==1)throw Object.assign(Error(),{code:'MIGRATION_LOCKED'});
+  const [ledgerRows]=await c.query('SELECT migration_name,checksum,status,statement_count,statements_completed,error_code,started_at,completed_at FROM salemax_schema_migrations WHERE migration_name=?',[expectedName]);
+  if(ledgerRows.length>1)throw Object.assign(Error(),{code:'RECOVERY_SCOPE_MISMATCH'});
+  const [tableRows]=await c.query('SELECT TABLE_NAME,ENGINE,ROW_FORMAT FROM information_schema.tables WHERE table_schema=DATABASE() AND TABLE_NAME IN (?)',[allEmailTables]);
+  const present=tableRows.map(x=>x.TABLE_NAME).sort();
+  const [contactRows]=await c.query("SELECT COLUMN_NAME FROM information_schema.columns WHERE table_schema=DATABASE() AND table_name='contact' AND column_name IN ('email','email_marketing_consent','email_marketing_consent_at','email_marketing_consent_source','email_unsubscribed_at')");
+  const hasPartial=present.includes(partialTable);
+  let partial=null;
+  if(hasPartial){
+   const [[count]]=await c.query('SELECT COUNT(*) AS n FROM '+partialTable);
+   const [columns]=await c.query('SELECT COLUMN_NAME FROM information_schema.columns WHERE table_schema=DATABASE() AND table_name=? ORDER BY ORDINAL_POSITION',[partialTable]);
+   const [indexes]=await c.query('SELECT DISTINCT INDEX_NAME FROM information_schema.statistics WHERE table_schema=DATABASE() AND table_name=? ORDER BY INDEX_NAME',[partialTable]);
+   const [ddl]=await c.query('SHOW CREATE TABLE '+partialTable);
+   const tableMeta=tableRows.find(x=>x.TABLE_NAME===partialTable);
+   partial={rowCount:Number(count.n),engine:tableMeta.ENGINE,rowFormat:tableMeta.ROW_FORMAT,
+    columns:columns.map(x=>x.COLUMN_NAME),indexes:indexes.map(x=>x.INDEX_NAME),createSql:ddl[0]['Create Table']};
+   const expectedIndexes=['fk_sx_platform_email_provider_updater','PRIMARY'];
+   if(partial.rowCount!==0||partial.engine!=='InnoDB'||partial.rowFormat!=='Dynamic'
+      ||JSON.stringify(partial.columns)!==JSON.stringify(expectedColumns)
+      ||partial.indexes.length!==expectedIndexes.length||expectedIndexes.some(name=>!partial.indexes.includes(name)))
+    throw Object.assign(Error(),{code:'PARTIAL_TABLE_NOT_EMPTY_OR_CHANGED'});
+  }
+  if(present.some(name=>name!==partialTable)||contactRows.length)
+   throw Object.assign(Error(),{code:'RECOVERY_SCOPE_MISMATCH'});
+  const row=ledgerRows[0]||null;
+  if(row&& (row.checksum!==expectedChecksum||row.status!=='failed'||Number(row.statement_count)!==14
+      ||Number(row.statements_completed)!==1||row.error_code!=='ER_TOO_LONG_KEY'))
+   throw Object.assign(Error(),{code:'FAILED_MIGRATION_ROW_CHANGED'});
+  if(input.action==='inspect'){
+   if(!row&&!hasPartial){console.log(JSON.stringify({state:'already_recovered'}));return;}
+   if(!row)throw Object.assign(Error(),{code:'RECOVERY_LEDGER_MISSING'});
+   console.log(JSON.stringify({state:hasPartial?'ready':'row_only',migration:row,partialTable:partial,emailTables:present,contactColumns:contactRows.map(x=>x.COLUMN_NAME)}));
+  }else if(input.action==='recover'){
+   if(!row&&!hasPartial){console.log(JSON.stringify({state:'already_recovered'}));return;}
+   if(!row)throw Object.assign(Error(),{code:'RECOVERY_LEDGER_MISSING'});
+   if(hasPartial)await c.query('DROP TABLE '+partialTable);
+   const [deleted]=await c.query('DELETE FROM salemax_schema_migrations WHERE migration_name=? AND checksum=? AND status=? AND statement_count=? AND statements_completed=? AND error_code=?',[expectedName,expectedChecksum,'failed',14,1,'ER_TOO_LONG_KEY']);
+   if(Number(deleted.affectedRows)!==1)throw Object.assign(Error(),{code:'RECOVERY_LEDGER_CHANGED'});
+   const [remaining]=await c.query('SELECT COUNT(*) AS n FROM salemax_schema_migrations WHERE migration_name=?',[expectedName]);
+   const [remainingTables]=await c.query('SELECT COUNT(*) AS n FROM information_schema.tables WHERE table_schema=DATABASE() AND table_name=?',[partialTable]);
+   if(Number(remaining[0].n)!==0||Number(remainingTables[0].n)!==0)throw Object.assign(Error(),{code:'RECOVERY_VERIFY_FAILED'});
+   console.log(JSON.stringify({state:'recovered',removedRows:Number(deleted.affectedRows),removedEmptyTable:hasPartial}));
+  }else throw Object.assign(Error(),{code:'INVALID_RECOVERY_ACTION'});
+ }catch(e){console.log(JSON.stringify({recoveryError:e.code||e.name||'RECOVERY_FAILED'}));process.exitCode=1}
+ finally{try{if(c&&lockName)await c.query('SELECT RELEASE_LOCK(?)',[lockName]);await c?.end()}catch{}}
+});
+""" % (json.dumps(FAILED_EMAIL_PARTIAL_TABLE), json.dumps(list(FAILED_EMAIL_PARTIAL_COLUMNS)),
+       json.dumps(list(EMAIL_TABLES)))
+    def run_recovery(action):
+        execution = subprocess.run(['docker', 'exec', '-i', APP, 'node', '-e', script],
+                                   input=json.dumps({'action': action}), capture_output=True,
+                                   text=True, timeout=120)
+        result = None
+        for line in reversed(execution.stdout.splitlines()):
+            try:
+                result = json.loads(line)
+                break
+            except json.JSONDecodeError:
+                continue
+        if execution.returncode or result is None:
+            code = result.get('recoveryError') if isinstance(result, dict) else None
+            raise RuntimeError(code if isinstance(code, str) and re.fullmatch(r'[A-Z0-9_]{1,80}', code)
+                               else 'EMAIL_MIGRATION_RECOVERY_FAILED')
+        if result.get('recoveryError'):
+            raise RuntimeError(result['recoveryError'])
+        return result
+
+    snapshot = run_recovery('inspect')
+    if snapshot.get('state') == 'already_recovered':
+        print(json.dumps(snapshot))
+        return
+    snapshot.update({'sourceCommit': FAILED_EMAIL_COMMIT,
+                     'recordedAtUtc': time.strftime('%Y-%m-%dT%H:%M:%SZ', time.gmtime())})
+    recovery_record = backup / 'partial-migration-before-recovery.json'
+    if not recovery_record.exists():
+        write_private(recovery_record, snapshot)
+    result = run_recovery('recover')
+    write_private(backup / 'partial-migration-recovery-result.json', result)
+    print(json.dumps(result))
 
 
 def verify_overlay(meta, env, overlay, mounts, app_config):
@@ -674,10 +815,12 @@ if __name__ == '__main__':
     try:
         if len(sys.argv) == 4 and sys.argv[1] == 'deploy':
             deploy(Path(sys.argv[2]), sys.argv[3])
+        elif len(sys.argv) == 3 and sys.argv[1] == 'recover-failed-email-migration':
+            recover_failed_email_migration(Path(sys.argv[2]))
         elif len(sys.argv) == 3 and sys.argv[1] == 'restore':
             restore(Path(sys.argv[2]))
         else:
-            raise RuntimeError('Usage: deploy <stage> <commit> | restore <rollback-directory>')
+            raise RuntimeError('Usage: deploy <stage> <commit> | recover-failed-email-migration <rollback-directory> | restore <rollback-directory>')
     except Exception as error:
         message = str(error)
         frame = error.__traceback__

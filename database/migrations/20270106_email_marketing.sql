@@ -21,7 +21,7 @@ ALTER TABLE contact
   ADD COLUMN email_marketing_consent_at DATETIME(3) NULL AFTER email_marketing_consent,
   ADD COLUMN email_marketing_consent_source VARCHAR(64) NULL AFTER email_marketing_consent_at,
   ADD COLUMN email_unsubscribed_at DATETIME(3) NULL AFTER email_marketing_consent_source,
-  ADD KEY idx_contact_email_owner (uid,email);
+  ADD KEY idx_contact_email_owner (uid(191),email(191));
 
 CREATE TABLE sx_email_sender_domains (
   id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
