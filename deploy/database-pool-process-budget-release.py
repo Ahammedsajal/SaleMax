@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Keep one warm idle DB connection per 7Network client pool."""
+"""Budget every 7Network DB pool process and release idle bursts."""
 import hashlib
 import json
 import os
@@ -16,21 +16,26 @@ EXPECTED_APP_IMAGE = 'salemax-app:email-marketing-21a07cc41fa9-20261112'
 APP = 'salemax-app-1'
 DB = 'salemax-db-1'
 SERVICES = {
-    'app': {'container': APP, 'limit': '100', 'previousMaxIdle': '30'},
+    'app': {'container': APP, 'limit': '50', 'previousLimit': '100', 'previousMaxIdle': '1'},
     'report-worker': {
-        'container': 'salemax-report-worker-1', 'limit': '15', 'previousMaxIdle': '5',
+        'container': 'salemax-report-worker-1', 'limit': '15',
+        'previousLimit': '15', 'previousMaxIdle': '1',
     },
     'recruitment-founder-notification-worker': {
         'container': 'salemax-recruitment-founder-notification-worker-1',
-        'limit': '5', 'previousMaxIdle': '2',
+        'limit': '5', 'previousLimit': '5', 'previousMaxIdle': '1',
     },
 }
 SUPPORT = ('salemax-db-1', 'salemax-libretranslate-1', 'salemax-bot-lead-test-db')
 SERVICE_NAMES = tuple(SERVICES)
 MAX_IDLE = '1'
 IDLE_TIMEOUT_MS = '60000'
+MAX_POOL_BUDGET = 120
+EXPECTED_PROCESS_COUNTS = {'app': 2, 'report-worker': 1,
+                           'recruitment-founder-notification-worker': 1}
 EXPECTED_POOL_OVERLAY = '/opt/salemax/releases/database-pool-budget-6b9af8a42ec9-20261112/compose.database-pool-recovery.json'
 EXPECTED_EMAIL_OVERLAY = '/opt/salemax/releases/email-marketing-21a07cc41fa9-20261112/compose.email-marketing.json'
+EXPECTED_IDLE_OVERLAY = '/opt/salemax/releases/database-pool-idle-one-3be629a537ef-20261112/compose.database-pool-idle-reserve.json'
 MANUAL_VARS = ROOT / 'shared/rollback-private-inventory-84644fdfebee/compose-manual-vars.json'
 
 
@@ -77,6 +82,11 @@ def support_ids():
     return {name: inspect(name)['Id'] for name in SUPPORT}
 
 
+def node_process_count(container):
+    rows = run('docker', 'top', container, '-eo', 'comm').splitlines()[1:]
+    return sum(row.strip() == 'node' for row in rows)
+
+
 def compose_meta(info, service, allow_idle_overlay=None):
     labels = info.get('Config', {}).get('Labels') or {}
     if (labels.get('com.docker.compose.project') != 'salemax'
@@ -88,8 +98,8 @@ def compose_meta(info, service, allow_idle_overlay=None):
     if (not workdir or not files or not env_files
             or not all(Path(path).is_file() for path in files + env_files)):
         raise RuntimeError('Active Compose inputs are incomplete')
-    if (EXPECTED_POOL_OVERLAY not in files
-            or (files[-1] != EXPECTED_EMAIL_OVERLAY and files[-1] != allow_idle_overlay)):
+    if (EXPECTED_POOL_OVERLAY not in files or EXPECTED_EMAIL_OVERLAY not in files
+            or (files[-1] != EXPECTED_IDLE_OVERLAY and files[-1] != allow_idle_overlay)):
         raise RuntimeError('A different app release or pool overlay is active')
     return {'files': files, 'env_files': env_files, 'workdir': workdir}
 
@@ -139,7 +149,7 @@ def verify_overlay(meta, env, overlay):
     before = config(meta, env)
     after = config(meta, env, overlay)
     if set(before['services']) != set(after['services']):
-        raise RuntimeError('Idle overlay changes the service set')
+        raise RuntimeError('Pool overlay changes the service set')
     for service in before['services']:
         old = dict(before['services'][service])
         new = dict(after['services'][service])
@@ -147,13 +157,14 @@ def verify_overlay(meta, env, overlay):
         new_env = dict(new.pop('environment', {}) or {})
         if service in SERVICES:
             expected = dict(old_env)
+            expected['DB_POOL_LIMIT'] = SERVICES[service]['limit']
             expected['DB_POOL_MAX_IDLE'] = MAX_IDLE
             if new_env != expected:
-                raise RuntimeError('Idle overlay changes unreviewed environment values')
+                raise RuntimeError('Pool overlay changes unreviewed environment values')
             if old != new:
-                raise RuntimeError('Idle overlay changes other service configuration')
+                raise RuntimeError('Pool overlay changes other service configuration')
         elif old_env != new_env or old != new:
-            raise RuntimeError('Idle overlay changes an unrelated service')
+            raise RuntimeError('Pool overlay changes an unrelated service')
 
 
 def wait_app(timeout_seconds=180):
@@ -235,6 +246,14 @@ def deploy(stage, commit):
         raise RuntimeError('MariaDB is not healthy')
 
     active = {name: inspect(settings['container']) for name, settings in SERVICES.items()}
+    process_counts = {name: node_process_count(settings['container'])
+                      for name, settings in SERVICES.items()}
+    if process_counts != EXPECTED_PROCESS_COUNTS:
+        raise RuntimeError('Database client process count differs from the reviewed pool budget')
+    pool_budget = sum(int(SERVICES[name]['limit']) * process_counts[name]
+                      for name in SERVICES)
+    if pool_budget > MAX_POOL_BUDGET:
+        raise RuntimeError('Aggregate database pool budget exceeds 120 connections')
     for name, info in active.items():
         expected_service = name
         labels = info.get('Config', {}).get('Labels') or {}
@@ -243,7 +262,7 @@ def deploy(stage, commit):
             raise RuntimeError('A database client is not the expected running service')
         values = dict(item.split('=', 1) for item in info['Config'].get('Env', []) if '=' in item)
         settings = SERVICES[name]
-        if (values.get('DB_POOL_LIMIT') != settings['limit']
+        if (values.get('DB_POOL_LIMIT') != settings['previousLimit']
                 or values.get('DB_POOL_MAX_IDLE') != settings['previousMaxIdle']
                 or values.get('DB_POOL_IDLE_TIMEOUT_MS') != IDLE_TIMEOUT_MS):
             raise RuntimeError('Live database pool settings differ from the reviewed baseline')
@@ -255,8 +274,8 @@ def deploy(stage, commit):
     input_files = sorted(set(meta['files'] + meta['env_files']))
     input_hashes = {path: digest(Path(path).read_bytes()) for path in input_files}
     date = time.strftime('%Y%m%d', time.gmtime())
-    release = ROOT / 'releases' / f'database-pool-idle-one-{commit[:12]}-{date}'
-    backup = ROOT / 'shared' / f'rollback-database-pool-idle-one-{commit[:12]}-{date}'
+    release = ROOT / 'releases' / f'database-pool-process-budget-{commit[:12]}-{date}'
+    backup = ROOT / 'shared' / f'rollback-database-pool-process-budget-{commit[:12]}-{date}'
     if release.exists() or backup.exists():
         raise RuntimeError('Release or rollback path already exists')
 
@@ -264,9 +283,13 @@ def deploy(stage, commit):
     release.mkdir(mode=0o755)
     release.chmod(0o755)
     backup.mkdir(mode=0o700)
-    overlay = release / 'compose.database-pool-idle-reserve.json'
+    overlay = release / 'compose.database-pool-process-budget.json'
     overlay_data = {'services': {
-        name: {'environment': {'DB_POOL_MAX_IDLE': MAX_IDLE}} for name in SERVICE_NAMES
+        name: {'environment': {
+            'DB_POOL_LIMIT': settings['limit'],
+            'DB_POOL_MAX_IDLE': MAX_IDLE,
+            'DB_POOL_IDLE_TIMEOUT_MS': IDLE_TIMEOUT_MS,
+        }} for name, settings in SERVICES.items()
     }}
     overlay.write_text(json.dumps(overlay_data, indent=2) + '\n')
     overlay.chmod(0o644)
@@ -283,6 +306,7 @@ def deploy(stage, commit):
     write_private(backup / 'release.json', {
         'sourceCommit': commit, 'baseRelease': BASE, 'release': str(release),
         'overlay': str(overlay), 'rollback': str(backup), 'maxIdle': MAX_IDLE,
+        'processCounts': process_counts, 'maxPoolBudget': pool_budget,
         'idleTimeoutMs': IDLE_TIMEOUT_MS, 'poolLimits': {
             name: settings['limit'] for name, settings in SERVICES.items()},
         'composeInputHashes': input_hashes,
@@ -346,6 +370,7 @@ def deploy(stage, commit):
         'rollback': str(backup), 'appHealth': current_app['State'].get('Health', {}).get('Status'),
         'databaseHealth': inspect(DB)['State'].get('Health', {}).get('Status'),
         'servicesRecreated': {name: state(info) for name, info in current.items()},
+        'processCounts': process_counts, 'maxPoolBudget': pool_budget,
         'supportServicesUnchanged': True, 'routes': routes,
         'databaseMigrations': [],
     }
@@ -382,6 +407,8 @@ def restore(backup):
     if support_ids() != support:
         raise RuntimeError('Rollback changed an unrelated service')
     result = {
+        'restoredPoolLimits': {name: state(info)['pool']['DB_POOL_LIMIT']
+                               for name, info in restored.items()},
         'restoredMaxIdle': {name: state(info)['pool']['DB_POOL_MAX_IDLE']
                             for name, info in restored.items()},
         'appHealth': restored_app['State'].get('Health', {}).get('Status'),

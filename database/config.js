@@ -9,7 +9,7 @@ function poolOption(name, fallback, min, max) {
   return value;
 }
 
-const connectionLimit = poolOption("DB_POOL_LIMIT", 100, 1, 120);
+const connectionLimit = poolOption("DB_POOL_LIMIT", 50, 1, 120);
 const maxIdle = poolOption(
   "DB_POOL_MAX_IDLE",
   Math.min(1, connectionLimit - 1),
