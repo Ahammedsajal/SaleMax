@@ -42,7 +42,19 @@ def run(*args, env=None, input_text=None, timeout=None):
     result = subprocess.run(args, env=env, input=input_text, capture_output=True,
                             text=True, timeout=timeout)
     if result.returncode:
-        raise RuntimeError(f'{Path(args[0]).name} failed ({result.returncode})')
+        stderr = result.stderr.lower()
+        hints = (
+            ('pull access denied', 'PULL_ACCESS_DENIED'),
+            ('invalid mount config', 'INVALID_MOUNT_CONFIG'),
+            ('no such service', 'COMPOSE_SERVICE_NOT_FOUND'),
+            ('permission denied', 'PERMISSION_DENIED'),
+            ('failed to create', 'DOCKER_CREATE_FAILED'),
+        )
+        hint = next((label for phrase, label in hints if phrase in stderr), 'COMMAND_FAILED')
+        command = Path(args[0]).name
+        if len(args) > 1 and re.fullmatch(r'[A-Za-z0-9_.-]{1,40}', str(args[1])):
+            command += ' ' + str(args[1])
+        raise RuntimeError(f'{command} failed code {result.returncode} {hint}')
     return result.stdout
 
 
@@ -123,6 +135,35 @@ def compose_up(meta, env, overlay, services=SERVICE_NAMES):
         args += ['-f', str(overlay)]
     run(*(args + ['up', '-d', '--no-deps', '--no-build', '--force-recreate', *services]),
         env=env, timeout=300)
+
+
+def compose_dry_run(meta, env, overlay):
+    args = compose_args(meta) + ['-f', str(overlay), '--dry-run', 'up', '-d',
+                                 '--no-deps', '--no-build', '--force-recreate', *SERVICE_NAMES]
+    result = subprocess.run(args, env=env, capture_output=True, text=True, timeout=60)
+    if result.returncode:
+        error = result.stderr.lower()
+        hint = 'PULL_ACCESS_DENIED' if 'pull access denied' in error else 'COMPOSE_DRY_RUN_FAILED'
+        raise RuntimeError(f'Compose dry-run failed code {result.returncode} {hint}')
+    output = (result.stdout + result.stderr).lower()
+    if re.search(r'\bpull(?:ing)?\b', output):
+        raise RuntimeError('Compose dry-run would pull an unreviewed image')
+    return True
+
+
+def ensure_local_image_alias(image_id, image_ref):
+    existing = subprocess.run(['docker', 'image', 'inspect', image_ref],
+                              capture_output=True, text=True)
+    if existing.returncode == 0:
+        actual = json.loads(existing.stdout)[0]['Id']
+        if actual != image_id:
+            raise RuntimeError('Notification worker image alias points to a different image')
+        return False
+    run('docker', 'image', 'tag', image_id, image_ref)
+    tagged = json.loads(run('docker', 'image', 'inspect', image_ref))[0]['Id']
+    if tagged != image_id:
+        raise RuntimeError('Notification worker image alias did not match the active image')
+    return True
 
 
 def wait_app(timeout_seconds=180):
@@ -395,6 +436,20 @@ def deploy(stage, commit):
                         for name, settings in SERVICES.items()},
         'maxConnectionsBudget': 151,
     }
+    notification = worker_infos['recruitment-founder-notification-worker']
+    notification_image_ref = notification['Config']['Image']
+    notification_image_alias_created = ensure_local_image_alias(
+        notification['Image'], notification_image_ref)
+    write_private(backup / 'image-alias.json', {
+        'reference': notification_image_ref,
+        'imageId': notification['Image'],
+        'created': notification_image_alias_created,
+    })
+    release_info['notificationImageAlias'] = {
+        'reference': notification_image_ref,
+        'imageId': notification['Image'],
+        'createdForExistingImage': notification_image_alias_created,
+    }
     write_private(backup / 'release.json', release_info)
 
     for name in inputs:
@@ -406,6 +461,7 @@ def deploy(stage, commit):
         if inspect(container)['Id'] != before['Id']:
             raise RuntimeError('A database client changed before the pool restart')
 
+    compose_dry_run(meta, env, overlay)
     try:
         compose_up(meta, env, overlay)
         current = wait_app()
