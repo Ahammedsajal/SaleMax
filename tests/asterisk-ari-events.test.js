@@ -129,6 +129,8 @@ test('browser incoming SIP calls wait for an explicit accept or decline and can 
   assert.match(sip,/if \(!candidate\.isConnected\(\)\) await candidate\.connect\(\)/);
   assert.match(ui,/window\.SevenNetworkSip\.answerBrowserCall\(\)/);
   assert.match(ui,/window\.SevenNetworkSip\.declineBrowserCall\(\)/);
+  assert.match(ui,/Staff use the SIP app only; they do not need a 7Network CRM login/);
+  assert.match(ui,/Incoming calls while the phone is locked or the app is in the background depend on the chosen app’s push service/);
   assert.doesNotMatch(ui,/window\.SaleMaXSip/);
 });
 

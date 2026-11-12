@@ -22,7 +22,9 @@ test('existing Super Admin host setup preview covers loopback ARI, shared TLS, d
   assert.match(configs,/Stasis\(salemax-call-center,inbound-did,\$\{EXTEN\}\)/);
   assert.match(configs,/salemax-security\.log => notice,warning,error,security/);
   assert.match(configs,/\[salemax-asterisk\][\s\S]*filter = asterisk[\s\S]*port = 5061[\s\S]*protocol = tcp[\s\S]*logpath = \/var\/log\/asterisk\/salemax-security\.log[\s\S]*backend = polling[\s\S]*maxretry = 5[\s\S]*findtime = 10m[\s\S]*bantime = 1h/);
-  assert.match(configs,/password=REPLACE_WITH_THE_SAME_PASSWORD_SAVED_IN_SALEMAX/);
+  assert.match(configs,/\[REPLACE_WITH_7NETWORK_ARI_USERNAME\]/);
+  assert.match(configs,/password=REPLACE_WITH_THE_SAME_PASSWORD_SAVED_IN_7NETWORK_ADMIN/);
+  assert.doesNotMatch(configs,/REPLACE_WITH_SALEMAX|SAVED_IN_SALEMAX/);
   assert.doesNotMatch(configs,/password=asterisk/i);
   assert.ok(preview.warnings.some(message=>message.includes('fail2ban-client -t')));
   assert.throws(()=>asterisk.previewHostSetup({audience:'platform',identity:{id:'x'},membership:{role:'staff',status:'active',delegatedPermissions:[]},mfaVerified:true}),{code:'PERMISSION_DENIED'});

@@ -136,6 +136,42 @@ test('a Qatar local-number do-not-call lead blocks a direct E.164 mobile call',a
   }finally{gatewayPorts.eligible=oldEligible;}
 });
 
+test('Sales mobile app can direct-dial an unlinked number without CRM lead access',async()=>{
+  const oldEligible=gatewayPorts.eligible,gatewayId='44444444-4444-4444-8444-444444444444';
+  const statements=[];let callInsert=null,started=null;
+  gatewayPorts.eligible=async()=>true;
+  const db={async beginTransaction(){},async commit(){},async rollback(){},release(){},async query(sql,args=[]){
+    statements.push({sql,args});
+    if(sql.includes('FROM sx_platform_asterisk_config'))return [[{enabled:1}],[]];
+    if(sql.includes('FROM sx_platform_asterisk_runtime'))return [[{status:'connected',heartbeat_fresh:1}],[]];
+    if(sql.includes('SELECT x.tenant_id,x.membership_id'))return [[{tenant_id:tenantId,membership_id:'owner-membership',extension:'1201',role:'owner',
+      membership_status:'active',identity_status:'active',tenant_status:'active',category_key:'salemax_sales',category_version:1,country_code:'QA'}],[]];
+    if(sql.includes('SELECT u.uid,o.legacy_uid_hash'))return [[{uid:ownerUid,legacyUidHash:uidHash}],[]];
+    if(sql.includes('FROM pipeline_leads l')&&sql.includes('EXISTS(SELECT 1 FROM pipeline_activity'))return [[],[]];
+    if(sql.includes('FROM pipeline_leads l'))return [[],[]];
+    if(sql.includes('SELECT o.legacy_uid_hash AS uidHash'))return [[{uidHash}],[]];
+    if(sql.includes('SELECT COALESCE(SUM(status IN'))return [[{active_calls:0,recent_attempts:0}],[]];
+    if(sql.includes('FROM sx_telephony_gateway_channels'))return [[{channel_no:1}],[]];
+    if(sql.includes('FROM sx_telephony_gateways'))return [[{id:gatewayId}],[]];
+    if(sql.includes('INSERT INTO sx_telephony_calls')){callInsert=args;return[{affectedRows:1}];}
+    if(/^\s*SELECT\b/i.test(sql))throw new Error(`Unexpected Sales mobile dial query: ${sql}`);
+    return[{affectedRows:1}];
+  }};
+  const control=new AsteriskCallControl({pool:{async getConnection(){return db;}}});
+  control.startOutboundGateway=async(channelId,reservation,options)=>{started={channelId,reservation,options};return true;};
+  try{
+    assert.equal(await control.startMobileOutbound('mobile-channel-1',{
+      channelName:'PJSIP/salemax-1201-mobile-00000001',destination:'55550000'}),true);
+    assert.equal(callInsert[9],'+97455550000');
+    assert.equal(callInsert[7],null,'an unmatched direct number has no lead UID link');
+    assert.equal(callInsert[8],null,'an unmatched direct number has no lead ID link');
+    assert.ok(statements.some(row=>row.sql.includes('EXISTS(SELECT 1 FROM pipeline_activity')),
+      'do-not-call records are still checked for the dialed number');
+    assert.deepEqual(started,{channelId:'mobile-channel-1',reservation:{tenantId,callId:callInsert[1],membershipId:'owner-membership',
+      clientType:'mobile',destination:'+97455550000'},options:{deferAgentAnswer:true}});
+  }finally{gatewayPorts.eligible=oldEligible;}
+});
+
 test('inbound caller numbers remain unlinked when more than one Sales lead shares the number',async()=>{
   const db={async query(sql){
     if(sql.includes('SELECT u.uid,o.legacy_uid_hash'))return [[{uid:ownerUid,legacyUidHash:uidHash}],[]];

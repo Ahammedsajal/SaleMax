@@ -482,8 +482,8 @@ function previewHostSetup(context) {
       path: '/etc/asterisk/ari.conf',
       purpose: 'Asterisk control account; substitute the exact username and password entered in 7Network Admin.',
       content: [
-        '[general]', 'enabled=yes', 'pretty=no', '', '[REPLACE_WITH_SALEMAX_ARI_USERNAME]',
-        'type=user', 'read_only=no', 'password=REPLACE_WITH_THE_SAME_PASSWORD_SAVED_IN_SALEMAX',
+        '[general]', 'enabled=yes', 'pretty=no', '', '[REPLACE_WITH_7NETWORK_ARI_USERNAME]',
+        'type=user', 'read_only=no', 'password=REPLACE_WITH_THE_SAME_PASSWORD_SAVED_IN_7NETWORK_ADMIN',
       ].join('\n'),
     },
     {
