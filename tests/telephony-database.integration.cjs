@@ -90,6 +90,8 @@ async function main(){
     assert.match(preview.config,/Stasis\(salemax-call-center,inbound-did,\$\{EXTEN\}\)/);
     assert.deepEqual(preview.dinstarOutboundRoutes.map(route=>[route.channelNo,route.gatewayPort,route.routePrefix,route.digitsToDelete]),[[1,0,'9901',4]]);
     assert.match(preview.config,/Destination Prefix: 9901[\s\S]*Digits to be Deleted: 4/);
+    assert.match(preview.config,/exact model and firmware are unverified/);
+    assert.ok(preview.warnings.some(message=>message.includes('unverified assumptions')));
     const finalQueue=(await queues.list(db,tenantContext)).find(item=>item.id===createdQueue.id);
     await assert.rejects(queues.save(db,tenantContext,{...finalQueue,membershipIds:finalQueue.members.map(member=>member.membershipId),expectedRevision:finalQueue.revision,enabled:false}),{code:'TELEPHONY_QUEUE_INBOUND_CHANNELS_ACTIVE'});
     const tenantGatewayId=crypto.randomUUID();

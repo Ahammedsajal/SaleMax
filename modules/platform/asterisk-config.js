@@ -253,7 +253,8 @@ function gatewayPjsipPreview(row) {
     port,
     transport,
     config: [
-      '; 7Network starter peer for Dinstar UC2000-VE (four-channel model)',
+      '; 7Network starter peer for a Dinstar four-port LTE gateway; exact model unverified',
+      '; The supplier quote does not identify the model, regional SKU, LTE bands, firmware, or VoLTE/SIP security capabilities.',
       '; Review with the installed Asterisk version and existing PJSIP transports before applying.',
       '; The gateway address must be static/reserved. Restrict its source at the edge/SBC where possible; the shared TLS listener also serves mobile SIP clients.',
       '; Inbound calls land in an intentionally unrouted context until tenant DID/queue routing is configured.',
@@ -288,7 +289,7 @@ function gatewayPjsipPreview(row) {
       '',
     ].join('\n'),
     warnings: [
-      'This config requires TLS signaling and SDES-SRTP on the Dinstar peer. The datasheet lists both, but confirm the exact firmware and configure matching TLS/SRTP settings there.',
+      'The supplier quote confirms only a Dinstar four-port LTE gateway; it does not identify the exact model, regional SKU, LTE bands, firmware, or VoLTE/TLS/SDES-SRTP support. This preview assumes compatible TLS signaling and SDES-SRTP. Do not apply the starter peer until the delivered label/firmware and matching gateway security settings are verified.',
       'This config defines only the gateway PJSIP peer. Mobile softphones share the same TLS transport; do not create a second TLS listener on the same Asterisk IP family. It does not configure a dialplan, SIM ports, carrier routes, tenant extensions, queues, or call-control events.',
       'Create an explicit inbound route in context from-dinstar-unrouted before routing calls to any tenant.',
       `Ensure an Asterisk PJSIP ${transport.toUpperCase()} transport already exists. The shared TLS listener serves the gateway and mobile SIP apps, so a gateway-only host firewall allowlist would block remote agents; use a VPN/SBC for mobile SIP or apply strong authenticated SIP rate limits and intrusion blocking. Restrict the Dinstar source at the network/SBC layer where possible, scope RTP media exposure, and keep ARI/AMI private to 7Network server addresses.`,

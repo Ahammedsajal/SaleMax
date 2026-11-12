@@ -6,6 +6,7 @@ const crypto = require('node:crypto');
 const fs = require('node:fs');
 const path = require('node:path');
 const asterisk = require('../modules/platform/asterisk-config');
+const gatewayPorts = require('../modules/platform/asterisk-gateway-ports');
 const secrets = require('../modules/platform/asterisk-secrets');
 const staff = require('../modules/platform/staff-access');
 const policy = require('../modules/platform/policy');
@@ -28,6 +29,34 @@ test('existing Super Admin host setup preview covers loopback ARI, shared TLS, d
   assert.doesNotMatch(configs,/password=asterisk/i);
   assert.ok(preview.warnings.some(message=>message.includes('fail2ban-client -t')));
   assert.throws(()=>asterisk.previewHostSetup({audience:'platform',identity:{id:'x'},membership:{role:'staff',status:'active',delegatedPermissions:[]},mfaVerified:true}),{code:'PERMISSION_DENIED'});
+});
+
+test('gateway previews identify the Dinstar model and route assumptions as unverified', async () => {
+  const context={audience:'platform',identity:{id:'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'},membership:{role:'super_admin',status:'active'},mfaVerified:true};
+  const peer=asterisk.gatewayPjsipPreview({gateway_host:'198.51.100.20',gateway_sip_port:5061,gateway_sip_transport:'tls'});
+  assert.match(peer.config,/Dinstar four-port LTE gateway; exact model unverified/);
+  assert.ok(peer.warnings.some(message=>message.includes('supplier quote confirms only a Dinstar four-port LTE gateway')));
+  assert.ok(peer.warnings.some(message=>message.includes('Do not apply the starter peer')));
+  assert.doesNotMatch(peer.config,/UC2000-VE/);
+
+  const db={async query(){return [[1,2,3,4].map(channelNo=>({channel_no:channelNo,enabled:0,inbound_enabled:0,outbound_enabled:0,
+    tenant_id:null,inbound_did:null,inbound_queue_id:null,tenant_name:null,tenant_status:null,category_key:null,category_version:null,
+    inbound_queue_enabled:null,inbound_queue_name:null}))];}};
+  const routes=await gatewayPorts.previewRouting(db,context);
+  assert.match(routes.config,/exact model and firmware are unverified/);
+  assert.match(routes.config,/Verify actual source\/destination labels, physical port numbering, prefix matching, and selector stripping/);
+  assert.ok(routes.warnings.some(message=>message.includes('proposed 9901–9904 to gateway-port 0–3 mapping and four-digit stripping are unverified assumptions')));
+  assert.doesNotMatch(routes.config,/UC2000-VE/);
+
+  const ui=fs.readFileSync(path.join(__dirname,'../client/public/admin-asterisk.js'),'utf8');
+  assert.match(ui,/Dinstar four-port LTE gateway SIP peer \(exact model to verify\)/);
+  assert.match(ui,/Gateway static or VPN peer IP address/);
+  assert.match(ui,/لا يؤكد عرض السعر طراز البوابة/);
+  assert.match(ui,/For direct internet, enter the gateway’s fixed public source IP/);
+  assert.match(ui,/عند استخدام VPN\/SBC، أدخل عنوان النظير المتاح/);
+  assert.match(ui,/Confirm you checked the delivered model\/SKU\/firmware/);
+  assert.match(ui,/أكدت التحقق من الطراز\/النسخة الإقليمية\/البرنامج الثابت المستلم/);
+  assert.doesNotMatch(ui,/Dinstar UC2000-VE/);
 });
 
 test('Asterisk connection diagnostics distinguish running call, gateway and browser modules', async () => {
@@ -69,7 +98,7 @@ test('Super Admin Asterisk overview marks a connected worker stale when its hear
   const ui=fs.readFileSync(path.join(__dirname,'../client/public/admin-asterisk.js'),'utf8');
   const page=fs.readFileSync(path.join(__dirname,'../client/public/index.html'),'utf8');
   assert.match(ui,/eventState\.status==='connected'\?tr\('stale heartbeat','نبضة اتصال قديمة'\)/);
-  assert.match(page,/admin-asterisk\.js\?v=20261012-readonly-tls2/);
+  assert.match(page,/admin-asterisk\.js\?v=20261112-dinstar-model-caveat1/);
 });
 
 test('live PJSIP registration probe returns only requested bounded endpoint states', async () => {
@@ -165,7 +194,7 @@ test('existing Super Admin PBX setup applies the Dinstar peer only after a curre
   assert.match(router,/router\.post\('\/apply-gateway-peer'/);
   assert.match(router,/router\.get\('\/host-setup-preview'/);
   assert.match(ui,/host-setup-preview/);
-  assert.match(index,/admin-asterisk\.js\?v=20261012-readonly-tls2/);
+  assert.match(index,/admin-asterisk\.js\?v=20261112-dinstar-model-caveat1/);
   assert.match(mount,/app\.use\('\/api\/admin\/asterisk',legacyGuard,boundary\.guard,createAsteriskRouter/);
 });
 

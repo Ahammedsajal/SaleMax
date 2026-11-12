@@ -58,6 +58,8 @@ module.exports=async function telephonyIntegration(db,other,{tenantId,identityId
   assert.equal(preview.inboundRoutes[0].queueId,created.id);
   assert.deepEqual(preview.dinstarOutboundRoutes.map(route=>[route.channelNo,route.gatewayPort,route.routePrefix,route.digitsToDelete]),[[1,0,'9901',4]]);
   assert.match(preview.config,/Destination Prefix: 9901[\s\S]*Digits to be Deleted: 4/);
+  assert.match(preview.config,/exact model and firmware are unverified/);
+  assert.ok(preview.warnings.some(message=>message.includes('unverified assumptions')));
   const latestQueue=(await queueService.list(db,context)).find(item=>item.id===created.id);
   await assert.rejects(queueService.save(db,context,{...initial,id:created.id,expectedRevision:latestQueue.revision,enabled:false}),{code:'TELEPHONY_QUEUE_INBOUND_CHANNELS_ACTIVE'});
   channels=await gatewayService.list(db,root);

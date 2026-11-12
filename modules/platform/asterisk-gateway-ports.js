@@ -94,7 +94,8 @@ async function previewRouting(db, context) {
   const inbound = active.filter(row => row.inbound_enabled && row.inbound_queue_id && row.inbound_queue_enabled
     && /^\+[1-9][0-9]{7,14}$/.test(row.inbound_did || ''));
   const lines = [
-    '; 7Network generic UC2000-VE inbound route preview; apply once, then manage DID/queue mappings in 7Network.',
+    '; 7Network generic Dinstar four-port inbound route preview; exact model and firmware are unverified.',
+    '; Confirm the delivered gateway supports these DID formats and this SIP destination context before applying.',
     '; The ARI controller resolves each presented DID against current enabled 7Network channel policy.',
     '', '[from-dinstar-unrouted]',
     'exten => _+X.,1,NoOp(7Network inbound DID ${EXTEN})',
@@ -113,9 +114,11 @@ async function previewRouting(db, context) {
     channelNo: Number(row.channel_no), tenantId: row.tenant_id, tenantName: row.tenant_name,
     gatewayPort: Number(row.channel_no) - 1, routePrefix: dinstarRoutePrefix(Number(row.channel_no)), digitsToDelete: 4,
   }));
-  lines.push('', '; Dinstar UC2000-VE IP->Tel rules; configure manually in Call Configuration -> IP->Tel Routing.',
+  lines.push('', '; Proposed Dinstar IP->Tel route rows for a four-port LTE gateway; exact model and firmware are unverified.',
+    '; Do not apply these rows until the delivered gateway manual/UI confirms this menu and route syntax.',
+    '; Verify actual source/destination labels, physical port numbering, prefix matching, and selector stripping.',
     '; 7Network must prepend the per-channel route prefix only after tenant/channel authorization.',
-    '; Dinstar removes the selector before sending the unchanged destination number to the SIM.');
+    '; Each row assumes the configured gateway removes the selector and sends the unchanged destination number to the SIM.');
   for (const route of dinstarOutboundRoutes) {
     lines.push('', `; Tenant ${route.tenantId} channel ${route.channelNo} -> gateway Port-${route.gatewayPort}`,
       '; Source: SIP Server', `; Destination: Port-${route.gatewayPort}`, '; Call Restriction: Allow',
@@ -135,9 +138,9 @@ async function previewRouting(db, context) {
     warnings: [
       'Preview only. It does not write or reload Asterisk configuration.',
       'Generic _+X. and _X. patterns accept plus-prefixed or digits-only DIDs; 7Network normalizes then requires an exact enabled mapping.',
-      'The singleton ARI event worker and tenant-aware Stasis call controller are implemented locally; production use still requires deploying the matching source/migrations and operating the worker.',
-      'The Dinstar IP->Tel rules map 7Network route prefixes 9901–9904 to gateway ports 0–3 and strip four selector digits. Configure these rules manually and test the exact firmware behavior before enabling outbound calls.',
-      'Outbound ARI call control is implemented locally and selects only enabled tenant-assigned channels. It is not live until the source/migrations, endpoint profiles, Dinstar routes and worker are deployed and verified together.',
+      'The ARI event worker and tenant-aware Stasis call controller are deployed, but production Asterisk and the event worker remain disabled until the device/network setup is accepted.',
+      'The proposed 9901–9904 to gateway-port 0–3 mapping and four-digit stripping are unverified assumptions. Confirm the exact delivered model/firmware route syntax and channel mapping before applying or enabling outbound calls.',
+      'Outbound call control selects only enabled tenant-assigned channels. Production calling still requires verified endpoint profiles, gateway routes, Asterisk configuration and an operating event worker.',
       `${outboundTenants.length} eligible tenant(s) currently have outbound channel policy; this is policy state, not call readiness.`,
     ],
   };
