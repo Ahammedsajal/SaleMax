@@ -423,7 +423,7 @@ def restore(backup):
 def main(args):
     if len(args) == 4 and args[0] == 'stage':
         prepare_stage(args[1], args[2], args[3])
-    elif len(args) == 4 and args[0] == 'deploy':
+    elif len(args) == 3 and args[0] == 'deploy':
         deploy(args[1], args[2])
     elif len(args) == 2 and args[0] == 'restore':
         restore(args[1])
