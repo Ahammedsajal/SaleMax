@@ -479,7 +479,7 @@ def deploy(stage, commit):
     for name, expected in PREIMAGES.items():
         if container_hash(name) != expected:
             raise RuntimeError('Active application file differs from the reviewed preimage')
-    existing_mounts = {row['target'] for row in app.get('Mounts', [])}
+    existing_mounts = {row.get('Destination') for row in app.get('Mounts', [])}
     for name in NEW_FILES:
         if '/app/' + name in existing_mounts or container_has(name):
             raise RuntimeError('New Email runtime path already exists in production')
