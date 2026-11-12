@@ -1,6 +1,8 @@
 # 7Network Sales Email Marketing
 
-Status: **source implemented; production deployment authorized and in progress**. The first release adds the 7Network Sales email workspace, explicit Phonebook email consent, SES v2 identity setup, templates, a durable campaign queue, unsubscribe handling, an Inbox-style sent-message view, and a platform Super Admin AWS SES settings dialog. AWS access keys are AES-256-GCM encrypted in the platform settings table using the existing platform key; secret values are never returned to clients or audit logs. This rollout does not enter credentials, create sender identities, add DNS records, or queue a campaign; the owner can connect SES after deployment.
+Status: **source implemented and pushed to `main`; production deployment is blocked by MariaDB health**. The first release adds the 7Network Sales email workspace, explicit Phonebook email consent, SES v2 identity setup, templates, a durable campaign queue, unsubscribe handling, an Inbox-style sent-message view, and a platform Super Admin AWS SES settings dialog. AWS access keys are AES-256-GCM encrypted in the platform settings table using the existing platform key; secret values are never returned to clients or audit logs. This rollout does not enter credentials, create sender identities, add DNS records, or queue a campaign; the owner can connect SES after deployment.
+
+On 12 November 2026, the guarded production attempt stopped at preflight: the app was healthy, but MariaDB was `unhealthy` and its latest health checks reported `Too many connections`. No rollback directory, release image, schema migration, or application update was created. Resume the guarded deploy only after the database health check recovers. Do not increase connection limits or restart the database as part of this feature release.
 
 ## Outcome
 
