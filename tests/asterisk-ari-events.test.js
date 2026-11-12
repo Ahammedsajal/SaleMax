@@ -178,6 +178,10 @@ test('ARI call client restricts originated endpoints, app arguments, and transpo
     const gatewayChannelId = crypto.randomUUID();
     await client.originateGateway({ destination: '+97455550000', channelNo: 3, channelId: gatewayChannelId, appArgs: ['outbound-gateway', gatewayChannelId] });
     assert.equal(requests[1].url.searchParams.get('endpoint'), 'PJSIP/9903+97455550000@salemax_dinstar_uc2000ve');
+    await client.ring(callChannelId);
+    assert.equal(requests[2].url.pathname, `/ari/channels/${callChannelId}/ring`);
+    assert.equal(requests[2].options.method, 'POST');
+    await assert.rejects(client.ring('bad channel id'), { code: 'INVALID_ARI_CHANNEL_ID' });
     await assert.rejects(client.originateAgent({ extension: '1201@evil', clientType: 'mobile', channelId: crypto.randomUUID(), appArgs: [] }), { code: 'INVALID_ARI_ORIGINATE' });
     await assert.rejects(client.originateGateway({ destination: '+97455550000', channelNo: 5, channelId: crypto.randomUUID(), appArgs: [] }), { code: 'INVALID_ARI_ORIGINATE' });
     await assert.rejects(client.originateAgent({ extension: '1201', clientType: 'mobile', channelId: crypto.randomUUID(), appArgs: ['bad,arg'] }), { code: 'INVALID_ARI_APP_ARGS' });
@@ -189,6 +193,43 @@ test('ARI call client restricts originated endpoints, app arguments, and transpo
     if (oldKey === undefined) delete process.env.SALEMAX_PLATFORM_KEY_BASE64; else process.env.SALEMAX_PLATFORM_KEY_BASE64 = oldKey;
     if (oldHosts === undefined) delete process.env.SALEMAX_ASTERISK_ALLOWED_HOSTS; else process.env.SALEMAX_ASTERISK_ALLOWED_HOSTS = oldHosts;
   }
+});
+
+test('inbound callers receive a ringing indication before queue agents are originated', async () => {
+  const sequence = [];
+  const callerChannelId = 'PJSIP/gateway-00000001';
+  const reserved = { tenantId: 'tenant-id', callId: crypto.randomUUID(), bridgeId: crypto.randomUUID(),
+    channelId: callerChannelId, ringTimeoutSeconds: 20,
+    agentLegs: [{ extension: '1201', clientType: 'mobile', channelId: crypto.randomUUID(), membershipId: crypto.randomUUID() }] };
+  const control = new AsteriskCallControl({ pool: {} });
+  control.reserveInbound = async () => reserved;
+  control.client = async () => ({
+    async createMixingBridge(id) { assert.equal(id, reserved.bridgeId); sequence.push('bridge'); },
+    async ring(id) { assert.equal(id, callerChannelId); sequence.push('ring'); },
+    async originateAgent() { sequence.push('agent'); },
+  });
+  await control.startInbound(callerChannelId, {});
+  assert.deepEqual(sequence, ['bridge', 'ring', 'agent']);
+});
+
+test('inbound queue is not rung when the caller cannot be given a ringing indication', async () => {
+  const sequence = [];
+  const callerChannelId = 'PJSIP/gateway-00000002';
+  const reserved = { tenantId: 'tenant-id', callId: crypto.randomUUID(), bridgeId: crypto.randomUUID(),
+    channelId: callerChannelId, ringTimeoutSeconds: 20,
+    agentLegs: [{ extension: '1201', clientType: 'mobile', channelId: crypto.randomUUID(), membershipId: crypto.randomUUID() }] };
+  const control = new AsteriskCallControl({ pool: {} });
+  control.reserveInbound = async () => reserved;
+  control.finishCall = async (...args) => { sequence.push(['finish', ...args]); };
+  control.client = async () => ({
+    async createMixingBridge() { sequence.push('bridge'); },
+    async ring() { sequence.push('ring'); throw Object.assign(new Error('failed'), { code: 'ARI_UNAVAILABLE' }); },
+    async originateAgent() { sequence.push('agent'); },
+    async hangup(id) { assert.equal(id, callerChannelId); sequence.push('hangup'); },
+    async destroyBridge(id) { assert.equal(id, reserved.bridgeId); sequence.push('destroy'); },
+  });
+  await assert.rejects(control.startInbound(callerChannelId, {}), { code: 'ARI_UNAVAILABLE' });
+  assert.deepEqual(sequence, ['bridge', 'ring', ['finish', 'tenant-id', reserved.callId, 'failed', 'INBOUND_RINGBACK_FAILED'], 'hangup', 'destroy']);
 });
 
 test('ARI client applies only bounded dynamic PJSIP object types and accepts configuration tuple responses', async () => {

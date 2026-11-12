@@ -539,6 +539,16 @@ class AsteriskCallControl {
       try { await client.destroyBridge(reserved.bridgeId); } catch (_) {}
       throw error;
     }
+    try {
+      // Keep the caller unanswered while the queue rings, but explicitly signal
+      // ringing so the gateway can return ringback instead of dead air.
+      await client.ring(channelId);
+    } catch (error) {
+      await this.finishCall(reserved.tenantId, reserved.callId, 'failed', 'INBOUND_RINGBACK_FAILED');
+      try { await client.hangup(channelId); } catch (_) {}
+      try { await client.destroyBridge(reserved.bridgeId); } catch (_) {}
+      throw error;
+    }
     const results = await Promise.allSettled(reserved.agentLegs.map(async leg => {
       try {
         await client.originateAgent({ extension: leg.extension, clientType: leg.clientType, channelId: leg.channelId,

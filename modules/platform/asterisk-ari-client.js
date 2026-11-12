@@ -112,6 +112,10 @@ function createAriClient(row, { fetchImpl = globalThis.fetch, timeoutMs = 5000, 
       if (!RESOURCE_ID.test(channelId || '')) fail('INVALID_ARI_CHANNEL_ID');
       await request('POST', `channels/${encodeURIComponent(channelId)}/answer`);
     },
+    async ring(channelId) {
+      if (!RESOURCE_ID.test(channelId || '')) fail('INVALID_ARI_CHANNEL_ID');
+      await request('POST', `channels/${encodeURIComponent(channelId)}/ring`);
+    },
     async hangup(channelId) {
       if (!RESOURCE_ID.test(channelId || '')) fail('INVALID_ARI_CHANNEL_ID');
       await request('DELETE', `channels/${encodeURIComponent(channelId)}`);
