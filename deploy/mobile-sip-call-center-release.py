@@ -176,13 +176,21 @@ def app_compose_context(app):
 def compose_environment(app, files, env_files, backup):
     supplied = {key for name in env_files for key in re.findall(
         r'^\s*([A-Za-z_][A-Za-z0-9_]*)=', Path(name).read_text(), re.M)}
-    referenced = {key for name in files for key in re.findall(
-        r'\$\{([A-Za-z_][A-Za-z0-9_]*)', Path(name).read_text())}
-    live_env = dict(item.split('=', 1) for item in app['Config']['Env'] if '=' in item)
+    references = []
+    for name in files:
+        references.extend(re.findall(
+            r'(?<!\$)\$\{([A-Za-z_][A-Za-z0-9_]*)(?:(:?[-+?])[^}]*)?\}',
+            Path(name).read_text()))
+    live_env = dict(os.environ)
+    live_env.update(dict(item.split('=', 1) for item in app['Config']['Env'] if '=' in item))
     variables = {}
-    for key in referenced - supplied:
+    for key, operator in references:
+        if key in supplied:
+            continue
         if key not in live_env:
-            raise RuntimeError('Compose interpolation value is unavailable')
+            if operator in ('-', ':-', '+', ':+'):
+                continue
+            raise RuntimeError('Compose interpolation value is unavailable: ' + key)
         variables[key] = live_env[key]
     (backup / 'compose-vars.json').write_text(json.dumps(variables))
     (backup / 'compose-vars.json').chmod(0o600)
