@@ -2,12 +2,13 @@
 const test=require('node:test');
 const assert=require('node:assert/strict');
 const crypto=require('node:crypto');
-const {resolveLeadLink,resolveOutboundRecipient,findUniqueLeadLinkByNumber,resolveAccessibleLeadLinkByNumber,phoneDigitsForMatch}=require('../modules/platform/telephony-call-leads');
+const {resolveLeadLink,resolveOutboundRecipient,findUniqueLeadLinkByNumber,resolveAccessibleLeadLinkByNumber,accessibleLeadIds,phoneDigitsForMatch}=require('../modules/platform/telephony-call-leads');
 const {AsteriskCallControl}=require('../modules/platform/asterisk-call-control');
 const {salemaxSales}=require('../modules/platform/categories');
 
 const tenantId='11111111-1111-4111-8111-111111111111';
 const leadId='22222222-2222-4222-8222-222222222222';
+const secondLeadId='33333333-3333-4333-8333-333333333333';
 const ownerUid='owner-uid';
 const uidHash=crypto.createHash('sha256').update(ownerUid).digest('hex');
 function context(role='owner'){
@@ -118,6 +119,74 @@ test('inaccessible and malformed lead identifiers fail closed before call creati
   await assert.rejects(resolveLeadLink(db,{...context(),tenant:{id:tenantId,categoryKey:'training_center'}},leadId),{code:'CALL_LEAD_CATEGORY_UNAVAILABLE'});
 });
 
+test('call history returns only unique lead identifiers the owner can access',async()=>{
+  const calls=[];
+  const db={async query(sql,args=[]){
+    calls.push({sql,args});
+    if(sql.includes('SELECT u.uid,o.legacy_uid_hash'))return [[{uid:ownerUid,legacyUidHash:uidHash}],[]];
+    if(sql.includes('SELECT id,owner_agent_id AS ownerAgentId FROM pipeline_leads'))return [[
+      {id:leadId,ownerAgentId:null},{id:secondLeadId,ownerAgentId:41}],[]];
+    throw new Error(`Unexpected lead visibility query: ${sql}`);
+  }};
+  const visible=await accessibleLeadIds(db,context('owner'),[leadId,leadId,'bad-id',secondLeadId]);
+  assert.deepEqual([...visible].sort(),[leadId,secondLeadId].sort());
+  assert.deepEqual(calls[1].args,[uidHash,[leadId,secondLeadId]]);
+});
+
+test('call history hides leads outside an agent assignment and filters malformed IDs',async()=>{
+  const agentHash=crypto.createHash('sha256').update('agent-uid').digest('hex');
+  const calls=[];
+  const db={async query(sql,args=[]){
+    calls.push({sql,args});
+    if(sql.includes('SELECT u.uid,o.legacy_uid_hash'))return [[{uid:ownerUid,legacyUidHash:uidHash}],[]];
+    if(sql.includes('SELECT a.id,a.uid,o.legacy_uid_hash'))return [[{id:41,uid:'agent-uid',legacyUidHash:agentHash}],[]];
+    if(sql.includes('SELECT id,owner_agent_id AS ownerAgentId FROM pipeline_leads'))return [[
+      {id:leadId,ownerAgentId:41},{id:secondLeadId,ownerAgentId:99}],[]];
+    throw new Error(`Unexpected lead visibility query: ${sql}`);
+  }};
+  const visible=await accessibleLeadIds(db,context('agent'),[leadId,secondLeadId,'forged']);
+  assert.deepEqual([...visible],[leadId]);
+  assert.deepEqual(calls[2].args,[uidHash,[leadId,secondLeadId]]);
+});
+
+test('manager and team leader call history uses only currently mapped team agents',async()=>{
+  for(const [role,scopeColumn,scopedAgentId,otherAgentId] of [
+    ['manager','manager_membership_id',41,42],
+    ['team_leader','team_leader_membership_id',42,41],
+  ]){
+    const calls=[];
+    const agentRows=[41,42].map(id=>({id,uid:`agent-${id}`,
+      legacyUidHash:crypto.createHash('sha256').update(`agent-${id}`).digest('hex')}));
+    const db={async query(sql,args=[]){
+      calls.push({sql,args});
+      if(sql.includes('SELECT u.uid,o.legacy_uid_hash'))return [[{uid:ownerUid,legacyUidHash:uidHash}],[]];
+      if(sql.includes('SELECT DISTINCT a.id,a.uid,o.legacy_uid_hash'))return [[agentRows.find(row=>row.id===scopedAgentId)],[]];
+      if(sql.includes('SELECT id,owner_agent_id AS ownerAgentId FROM pipeline_leads'))return [[
+        {id:leadId,ownerAgentId:scopedAgentId},{id:secondLeadId,ownerAgentId:otherAgentId}],[]];
+      throw new Error(`Unexpected lead visibility query: ${sql}`);
+    }};
+    const visible=await accessibleLeadIds(db,context(role),[leadId,secondLeadId]);
+    assert.deepEqual([...visible],[leadId]);
+    assert.match(calls[1].sql,new RegExp(scopeColumn));
+  }
+});
+
+test('call history does not query lead IDs for other categories or invalid owner mappings',async()=>{
+  let queries=0;
+  const db={async query(sql){
+    queries++;
+    if(sql.includes('SELECT u.uid,o.legacy_uid_hash'))return [[{uid:ownerUid,legacyUidHash:'wrong-hash'}],[]];
+    throw new Error(`Unexpected query after an invalid owner mapping: ${sql}`);
+  }};
+  const otherCategory={...context('owner'),tenant:{id:tenantId,categoryKey:'training_center'}};
+  assert.equal((await accessibleLeadIds(db,otherCategory,[leadId])).size,0);
+  assert.equal(queries,0);
+  assert.equal((await accessibleLeadIds(db,context('owner'),['forged'])).size,0);
+  assert.equal(queries,0);
+  assert.equal((await accessibleLeadIds(db,context('owner'),[leadId])).size,0);
+  assert.equal(queries,1);
+});
+
 test('manager and team leader lead links are checked against current organization scope',async()=>{
   for(const role of ['manager','team_leader']){
     const statements=[];const db=dbFor(role);const original=db.query;
@@ -143,6 +212,10 @@ test('the existing Pipeline opens Call Center with a lead, verifies it, and subm
   assert.match(callControl,/callLeads\.resolveOutboundRecipient\(db,context,input\)/);
   assert.match(callControl,/destination: recipient\.destination/);
   assert.match(callControl,/started_by_membership_id,lead_uid_hash,lead_id,remote_number/);
+  const inboundLeadMatch=callControl.indexOf('callLeads.findUniqueLeadLinkByNumber');
+  const inboundCallInsert=callControl.indexOf('lead_uid_hash,lead_id,remote_number,inbound_queue_id,inbound_channel_id,bridge_id');
+  assert.ok(inboundLeadMatch>=0&&inboundLeadMatch<inboundCallInsert,'a unique caller-number match is stored before the inbound call is queued');
+  assert.match(callControl,/leadLink\?\.leadUidHash\|\|null,leadLink\?\.leadId\|\|null,callerAni/);
   assert.match(callControl,/resolveAccessibleLeadLinkByNumber\(db,[\s\S]*?membershipId:input\.membershipId,role:row\.membership_role,number:row\.remote_number/);
   assert.match(calls,/OUTBOUND_LEAD_REQUIRED:text\('Open an accessible lead/);
   assert.match(html,/id="leadCallContext"/);

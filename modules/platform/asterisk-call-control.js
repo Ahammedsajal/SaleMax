@@ -482,11 +482,19 @@ class AsteriskCallControl {
       [input.tenantId, input.queueId]);
       if (!members.length) fail('INBOUND_QUEUE_HAS_NO_ACTIVE_ENDPOINTS');
       const callerAni=callerNumber(input.callerNumber);
+      let leadLink=null;
+      if(callerAni&&categoryKeyMatches(mapping.category_key,'7network_sales')){
+        try{
+          leadLink=await callLeads.findUniqueLeadLinkByNumber(db,{tenantId:mapping.tenant_id,categoryKey:mapping.category_key,number:callerAni});
+        }catch(error){
+          this.log({ariCallControl:'inbound_lead_match_failed',code:/^[A-Z0-9_]{2,80}$/.test(error.code||'')?error.code:'INBOUND_LEAD_MATCH_FAILED'});
+        }
+      }
       await db.query(`INSERT INTO sx_telephony_calls(tenant_id,id,direction,status,gateway_id,gateway_lease_scope,gateway_channel_no,leased_channel_no,
           lead_uid_hash,lead_id,remote_number,inbound_queue_id,inbound_channel_id,bridge_id)
         VALUES(?,?,'inbound','ringing',?,?,?,?,?,?,?,?,?,?)`,
       [input.tenantId, callId, mapping.gateway_id, mapping.gateway_id, input.channelNo, input.channelNo,
-        null,null,callerAni,input.queueId,channelId,bridgeId]);
+        leadLink?.leadUidHash||null,leadLink?.leadId||null,callerAni,input.queueId,channelId,bridgeId]);
       await db.query(`INSERT INTO sx_telephony_call_legs(tenant_id,id,call_id,asterisk_channel_id,leg_role,device_kind,status)
         VALUES(?,?,?,?,'caller','gateway','ringing')`, [input.tenantId, crypto.randomUUID(), callId, channelId]);
       const agentLegs = [];
@@ -571,7 +579,8 @@ class AsteriskCallControl {
     let decision;
     try {
       await db.beginTransaction();
-      const [[row]] = await db.query(`SELECT c.tenant_id,c.id,c.status,c.bridge_id,c.inbound_channel_id,c.answered_by_membership_id,c.remote_number,
+      const [[row]] = await db.query(`SELECT c.tenant_id,c.id,c.status,c.bridge_id,c.inbound_channel_id,c.answered_by_membership_id,
+          c.remote_number,c.lead_uid_hash AS leadUidHash,c.lead_id AS leadId,
           t.category_key,m.role AS membership_role,m.status AS membership_status,i.status AS identity_status,t.status AS tenant_status,
           l.id AS leg_id,l.membership_id,l.device_kind,l.status AS leg_status
         FROM sx_telephony_calls c JOIN sx_telephony_call_legs l ON l.tenant_id=c.tenant_id AND l.call_id=c.id
@@ -586,7 +595,7 @@ class AsteriskCallControl {
         decision = { action: 'duplicate' };
       } else if (row.status === 'ringing' && !row.answered_by_membership_id) {
         let leadLink=null;
-        if(row.remote_number&&categoryKeyMatches(row.category_key,'7network_sales')){
+        if(!row.leadId&&row.remote_number&&categoryKeyMatches(row.category_key,'7network_sales')){
           try{
             leadLink=await callLeads.resolveAccessibleLeadLinkByNumber(db,{tenantId:row.tenant_id,categoryKey:row.category_key,
               membershipId:input.membershipId,role:row.membership_role,number:row.remote_number});

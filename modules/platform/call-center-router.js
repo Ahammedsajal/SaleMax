@@ -12,6 +12,7 @@ const asteriskSecrets=require('./asterisk-secrets');
 const gatewayPorts=require('./asterisk-gateway-ports');
 const callRecordings=require('./telephony-recordings');
 const callCoaching=require('./telephony-call-coaching');
+const callLeads=require('./telephony-call-leads');
 const {createTelephonyCallOutcomes}=require('./telephony-call-outcomes');
 const {Readable,Transform}=require('node:stream');
 const {pipeline}=require('node:stream/promises');
@@ -192,16 +193,19 @@ function createCallCenterRouter({pool,userGuard,canonicalGuard,origin,fetchImpl=
         ...(salesTeam&&teamMembershipIds.length?[teamMembershipIds,teamMembershipIds,teamMembershipIds]:[]),...agentFilterArgs]);
       const hasMore=items.length>100,page=items.slice(0,100),last=page[page.length-1];
       const nextCursor=hasMore&&last?Buffer.from(JSON.stringify({startedAt:last.cursorStartedAt,callId:last.id})).toString('base64url'):null;
-      return {hasMore,nextCursor,items:page.map(row=>({callId:row.id,direction:row.direction,status:row.status,leadId:row.leadId||null,remoteNumber:row.remoteNumber||null,gatewayChannelNo:Number(row.gatewayChannelNo),
+      const visibleLeadIds=isSalesCategory(context.tenant.categoryKey)
+        ?await callLeads.accessibleLeadIds(db,context,page.map(row=>row.leadId).filter(Boolean))
+        :new Set(page.map(row=>row.leadId).filter(Boolean).map(String));
+      return {hasMore,nextCursor,items:page.map(row=>{const leadId=row.leadId&&visibleLeadIds.has(String(row.leadId))?row.leadId:null;return {callId:row.id,direction:row.direction,status:row.status,leadId:leadId||null,remoteNumber:row.remoteNumber||null,gatewayChannelNo:Number(row.gatewayChannelNo),
         queueName:row.queueName||'',startedAt:row.startedAt,answeredAt:row.answeredAt,endedAt:row.endedAt,
         durationSeconds:row.durationSeconds===null?null:Number(row.durationSeconds),answeredByMembershipId:row.answeredByMembershipId||null,
         answeredByName:row.answeredByName||'',answeredByRole:row.answeredByRole||'',startedByName:row.startedByName||'',startedByRole:row.startedByRole||'',
-        outcome:shapeCallOutcome(row.callOutcomeDetails),
+        outcome:leadId?shapeCallOutcome(row.callOutcomeDetails):null,
         recordingState:row.recordingState||'not_recorded',canListenRecording:row.recordingState==='ready'&&new Date(row.recordingExpiresAt).getTime()>Date.now()&&decision(context,{capability:'telephony.call-center',permission:'calls.recording.listen'}).allowed,
         canCoach:isSalesCategory(context.tenant.categoryKey)&&decision(context,{capability:'telephony.call-center',permission:'calls.coaching.write'}).allowed,
         canViewCoaching:isSalesCategory(context.tenant.categoryKey)&&decision(context,{capability:'telephony.call-center',permission:'calls.coaching.read'}).allowed,
         canControl:context.membership.role==='owner'||context.membership.role==='manager'||salesTeam||row.startedByMembershipId===context.membership.id
-          ||row.answeredByMembershipId===context.membership.id||Number(row.hasAssignedActiveLeg)===1}))};
+          ||row.answeredByMembershipId===context.membership.id||Number(row.hasAssignedActiveLeg)===1};})};
     });
     res.json({success:true,data:rows});
   }));

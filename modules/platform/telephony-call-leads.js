@@ -95,5 +95,40 @@ async function resolveAccessibleLeadLinkByNumber(db,{tenantId,categoryKey,member
   }
 }
 
+async function accessibleLeadIds(db,context,leadIds=[]){
+  const requested=[...new Set((Array.isArray(leadIds)?leadIds:[]).filter(id=>UUID.test(String(id||''))).map(String))];
+  if(!requested.length||!categoryKeyMatches(context?.tenant?.categoryKey,'7network_sales'))return new Set();
+  const tenantId=context.tenant.id,role=context.membership.role;
+  const [owners]=await db.query(`SELECT u.uid,o.legacy_uid_hash AS legacyUidHash FROM sx_legacy_ownership o
+    JOIN user u ON u.id=CAST(o.source_id AS UNSIGNED)
+    JOIN sx_memberships m ON m.tenant_id=o.tenant_id AND m.id=o.membership_id AND m.role='owner' AND m.status='active'
+    WHERE o.tenant_id=? AND o.source_table='user' LIMIT 2`,[tenantId]);
+  if(owners.length!==1||!owners[0].uid
+    ||owners[0].legacyUidHash!==crypto.createHash('sha256').update(String(owners[0].uid),'utf8').digest('hex'))return new Set();
+  const uidHash=crypto.createHash('sha256').update(String(owners[0].uid),'utf8').digest('hex');
+  let allowedAgentIds=null;
+  if(role==='agent'){
+    const [agents]=await db.query(`SELECT a.id,a.uid,o.legacy_uid_hash AS legacyUidHash FROM agents a
+      JOIN sx_legacy_ownership o ON o.source_table='agents' AND o.source_id=CAST(a.id AS CHAR) AND o.tenant_id=?
+      JOIN sx_memberships m ON m.tenant_id=o.tenant_id AND m.id=o.membership_id AND m.role='agent' AND m.status='active'
+      WHERE a.owner_uid=? AND a.is_active=1 AND m.id=? LIMIT 2`,[tenantId,owners[0].uid,context.membership.id]);
+    if(agents.length!==1||agents[0].legacyUidHash!==crypto.createHash('sha256').update(String(agents[0].uid),'utf8').digest('hex'))return new Set();
+    allowedAgentIds=new Set([Number(agents[0].id)]);
+  }else if(role==='manager'||role==='team_leader'){
+    const scopeColumn=role==='manager'?'manager_membership_id':'team_leader_membership_id';
+    const [agents]=await db.query(`SELECT DISTINCT a.id,a.uid,o.legacy_uid_hash AS legacyUidHash FROM sx_sales_org_history h
+      JOIN sx_memberships m ON m.tenant_id=h.tenant_id AND m.id=h.membership_id AND m.role='agent' AND m.status='active'
+      JOIN sx_legacy_ownership o ON o.tenant_id=m.tenant_id AND o.membership_id=m.id AND o.source_table='agents'
+      JOIN agents a ON a.id=CAST(o.source_id AS UNSIGNED) AND a.owner_uid=? AND a.is_active=1
+      WHERE h.tenant_id=? AND h.ended_at IS NULL AND h.${scopeColumn}=?`,[owners[0].uid,tenantId,context.membership.id]);
+    allowedAgentIds=new Set(agents.filter(row=>row.legacyUidHash===crypto.createHash('sha256').update(String(row.uid),'utf8').digest('hex'))
+      .map(row=>Number(row.id)));
+  }else if(role!=='owner')return new Set();
+  if(allowedAgentIds!==null&&!allowedAgentIds.size)return new Set();
+  const [leads]=await db.query(`SELECT id,owner_agent_id AS ownerAgentId FROM pipeline_leads WHERE uid_hash=? AND id IN (?)`,[uidHash,requested]);
+  return new Set(leads.filter(lead=>allowedAgentIds===null||lead.ownerAgentId&&allowedAgentIds.has(Number(lead.ownerAgentId)))
+    .map(lead=>String(lead.id)));
+}
+
 module.exports={resolveLeadLink,resolveAccessibleLead,resolveOutboundRecipient,phoneDigitsForMatch,findUniqueLeadLinkByNumber,
-  resolveAccessibleLeadLinkByNumber};
+  resolveAccessibleLeadLinkByNumber,accessibleLeadIds};
