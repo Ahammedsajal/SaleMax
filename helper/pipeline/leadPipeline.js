@@ -1744,6 +1744,107 @@ async function updateLead({ uid, id, input, actorType, actorId, role, agentId, s
   },sourcePool);
 }
 
+
+async function deleteLeads({ uid, ids, pool: sourcePool }) {
+  const invalidRequest = () => Object.assign(new Error("Select between 1 and 1000 valid leads."), {
+    code: "INVALID_BULK_DELETE_REQUEST", status: 400,
+  });
+  if (!Array.isArray(ids) || ids.length < 1 || ids.length > 1000) throw invalidRequest();
+  const requestedIds = [...new Set(ids.map((id) => String(id || "").trim()))];
+  const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+  if (!requestedIds.length || requestedIds.some((id) => !uuidPattern.test(id))) throw invalidRequest();
+
+  const uidHash = sha(uid);
+  return inTransaction(async (connection) => {
+    const [leads] = await connection.query(
+      "SELECT id, contact_id FROM pipeline_leads WHERE uid_hash = ? AND uid = ? AND id IN (?) FOR UPDATE",
+      [uidHash, uid, requestedIds],
+    );
+    const foundIds = leads.map((lead) => String(lead.id));
+    if (!foundIds.length) {
+      return { deletedCount: 0, protectedCount: 0, missingCount: requestedIds.length };
+    }
+
+    // Preserve commercial snapshots and every issued enrollment/financial record.
+    const [enrollments] = await connection.query(
+      "SELECT DISTINCT lead_id AS id FROM sx_training_enrollments WHERE legacy_uid_hash = ? AND legacy_uid = ? AND lead_id IN (?)",
+      [uidHash, uid, foundIds],
+    );
+    const [saleReviews] = await connection.query(
+      "SELECT DISTINCT lead_id AS id FROM sx_training_sale_reviews WHERE legacy_uid_hash = ? AND legacy_uid = ? AND lead_id IN (?)",
+      [uidHash, uid, foundIds],
+    );
+    const protectedIds = new Set([
+      ...enrollments.map((row) => String(row.id)),
+      ...saleReviews.map((row) => String(row.id)),
+    ]);
+    const deleteIds = foundIds.filter((id) => !protectedIds.has(id));
+    if (!deleteIds.length) {
+      return {
+        deletedCount: 0,
+        protectedCount: protectedIds.size,
+        missingCount: requestedIds.length - foundIds.length,
+      };
+    }
+
+    // Clear only Pipeline-owned customer history. Inbox messages and financial records
+    // are separate records and are intentionally left alone by this endpoint.
+    await connection.query(
+      "DELETE FROM pipeline_attributions WHERE uid_hash = ? AND lead_id IN (?)",
+      [uidHash, deleteIds],
+    );
+    await connection.query(
+      `DELETE pe FROM pipeline_events pe
+       WHERE pe.uid_hash = ? AND (
+         pe.lead_id IN (?) OR EXISTS (
+           SELECT 1 FROM pipeline_conversations pc
+           WHERE pc.uid_hash = pe.uid_hash
+             AND pc.conversation_key = pe.conversation_key
+             AND pc.lead_id IN (?)
+         )
+       )`,
+      [uidHash, deleteIds, deleteIds],
+    );
+    await connection.query(
+      "DELETE FROM pipeline_conversations WHERE uid_hash = ? AND lead_id IN (?)",
+      [uidHash, deleteIds],
+    );
+    await connection.query(
+      "DELETE FROM pipeline_activity WHERE uid_hash = ? AND lead_id IN (?)",
+      [uidHash, deleteIds],
+    );
+    await connection.query(
+      "DELETE FROM pipeline_identity_locks WHERE uid_hash = ? AND current_lead_id IN (?)",
+      [uidHash, deleteIds],
+    );
+
+    const contactIds = [...new Set(
+      leads.filter((lead) => deleteIds.includes(String(lead.id)) && lead.contact_id).map((lead) => String(lead.contact_id)),
+    )];
+    await connection.query(
+      "DELETE FROM pipeline_leads WHERE uid_hash = ? AND id IN (?)",
+      [uidHash, deleteIds],
+    );
+    if (contactIds.length) {
+      await connection.query(
+        `DELETE c FROM pipeline_contacts c
+         WHERE c.uid_hash = ? AND c.id IN (?)
+           AND NOT EXISTS (
+             SELECT 1 FROM pipeline_leads l
+             WHERE l.uid_hash = c.uid_hash AND l.contact_id = c.id
+           )`,
+        [uidHash, contactIds],
+      );
+    }
+
+    return {
+      deletedCount: deleteIds.length,
+      protectedCount: protectedIds.size,
+      missingCount: requestedIds.length - foundIds.length,
+    };
+  }, sourcePool);
+}
+
 module.exports = {
   prepareWorkspace: ensureWorkspace,
   ensureTrainingPipeline,
@@ -1779,4 +1880,5 @@ module.exports = {
   resolveFollowUp,
   moveLead,
   updateLead,
+  deleteLeads,
 };

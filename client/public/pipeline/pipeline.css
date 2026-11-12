@@ -253,3 +253,22 @@
 @media(max-width:620px){.report-health-metrics{gap:8px}.report-health-card{padding:12px}.report-age-buckets{grid-template-columns:repeat(2,minmax(0,1fr));gap:7px}.followup-automation-selection{align-items:stretch;flex-direction:column}.followup-automation-selection button{width:100%}.followup-agent-dialog form{padding:15px}.followup-agent-dialog footer{flex-direction:column-reverse}.followup-agent-dialog footer button{width:100%}}
 
 .column .empty-more{border:1px dashed #b9c9d8;border-radius:9px;background:#f6f9fc;line-height:1.5;padding:24px 14px}
+
+.pipeline-bulk-actions{display:flex;align-items:center;gap:14px;flex-wrap:wrap;padding:11px 14px;border-bottom:1px solid #e7edf3;background:var(--surface,#fff);color:var(--text,#233247)}
+.pipeline-bulk-select-all{display:inline-flex;align-items:center;gap:8px;min-height:40px;color:inherit;font-size:13px;font-weight:650;cursor:pointer}
+.pipeline-bulk-actions input[type=checkbox],.pipeline-bulk-select-cell input{width:18px;height:18px;margin:0;accent-color:#1768d4;cursor:pointer}
+.pipeline-bulk-actions #bulkSelectionCount{color:#718198;font-size:12px}
+.pipeline-bulk-delete{min-height:40px;margin-inline-start:auto;padding:8px 13px;border:1px solid #e7aaa6;border-radius:8px;background:#fff8f7;color:#a42331;font:650 12px 'DM Sans',Arial,sans-serif;cursor:pointer}
+.pipeline-bulk-delete:hover:not(:disabled){background:#ffefed;border-color:#d7847e}
+.pipeline-bulk-delete:disabled{opacity:.48;cursor:not-allowed}
+.pipeline-bulk-select-cell{width:48px;text-align:center!important}
+.pipeline-bulk-select-cell input{vertical-align:middle}
+.pipeline-bulk-confirm>p{color:#64737b;font-size:13px;line-height:1.6}
+.pipeline-bulk-confirm-button{border:0;border-radius:8px;background:#bd303b;color:#fff;padding:10px 15px;font:650 13px 'DM Sans',Arial,sans-serif;cursor:pointer}
+.pipeline-bulk-confirm-button:hover{background:#a42331}
+html[data-sx-theme=dark] .pipeline-bulk-actions{border-color:#354252;background:#1a222d;color:#e7edf5}
+html[data-sx-theme=dark] .pipeline-bulk-actions #bulkSelectionCount{color:#aebaca}
+html[data-sx-theme=dark] .pipeline-bulk-delete{background:#382327;border-color:#75424a;color:#ffb2b9}
+html[data-sx-theme=dark] .pipeline-bulk-delete:hover:not(:disabled){background:#4b2b31}
+html[data-sx-theme=dark] .pipeline-bulk-confirm>p{color:#aebaca}
+@media(max-width:620px){.pipeline-bulk-actions{gap:9px;padding:10px}.pipeline-bulk-actions #bulkSelectionCount{flex:1;text-align:end}.pipeline-bulk-delete{width:100%;margin-inline-start:0}.pipeline-bulk-confirm .modal-foot{flex-direction:column-reverse}.pipeline-bulk-confirm .modal-foot button{min-height:44px;width:100%}}
