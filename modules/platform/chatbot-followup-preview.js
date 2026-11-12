@@ -5,6 +5,7 @@ const { getDomainPack } = require('./chatbot-domain-packs');
 const { languageFor, retrieveContext, normalized, courseFromVerifiedReferral } = require('./chatbot-business-context');
 const { startPreference } = require('./chatbot-admissions-intake');
 const { variants, render } = require('./chatbot-followup-library');
+const leadFilters = require('../../helper/pipeline/lead-filters');
 
 const DAY = 86400000;
 const QATAR_OFFSET = 3 * 3600000;
@@ -344,4 +345,88 @@ async function list(pool, tenant, before, source = '') {
   return { items, next: rows.length > 30 ? items.at(-1).id : null };
 }
 
-module.exports = { enabled, start, tick, seedPilot, list, classify, schedule, summary, validatedDraftPair, evaluateLead };
+function reportLeadScope({ role, agentId, scopeAgentIds }) {
+  if (role === 'agent') {
+    const id = Number(agentId);
+    if (!Number.isSafeInteger(id) || id < 1) throw Object.assign(Error('INVALID_REPORT_ACTOR'), { code: 'INVALID_REPORT_ACTOR', status: 403 });
+    return { sql: ' AND l.owner_agent_id=?', args: [id] };
+  }
+  if (['manager', 'team_leader'].includes(role) && Array.isArray(scopeAgentIds)) {
+    const ids = [...new Set(scopeAgentIds.map(Number).filter(id => Number.isSafeInteger(id) && id > 0))];
+    return ids.length ? { sql: ' AND l.owner_agent_id IN (?)', args: [ids] } : { sql: ' AND 1=0', args: [] };
+  }
+  if (role === 'owner' || ['manager', 'team_leader'].includes(role)) return { sql: '', args: [] };
+  throw Object.assign(Error('PERMISSION_DENIED'), { code: 'PERMISSION_DENIED', status: 403 });
+}
+
+async function listForPipeline(pool, tenant, before, actor, filters = {}) {
+  if (before !== null && (typeof before !== 'string' || !/^[1-9]\d{0,15}$/.test(before))) {
+    throw Object.assign(Error('INVALID_REPORT_CURSOR'), { code: 'INVALID_REPORT_CURSOR', status: 400 });
+  }
+  const uid = await owner(pool, tenant);
+  const hash = createHash('sha256').update(uid).digest('hex');
+  const scoped = reportLeadScope(actor);
+  const parsed = leadFilters.parseLeadFilters(filters);
+  const filtered = leadFilters.leadFilterSql({ ...parsed, alias: 'l' });
+  const where = `p.tenant_id=?${scoped.sql}${filtered.sql}`;
+  const args = [tenant, ...scoped.args, ...filtered.args];
+  const [rows] = await pool.query(`SELECT CAST(p.id AS CHAR) AS id,p.lead_id AS leadId,
+    COALESCE(NULLIF(l.learner_name,''),NULLIF(l.contact_name,''),NULLIF(l.title,''),'Unnamed lead') AS label,
+    l.title,l.owner_agent_id AS ownerAgentId,COALESCE(NULLIF(a.name,''),CASE WHEN l.owner_agent_id IS NULL THEN NULL ELSE CONCAT('Agent ',l.owner_agent_id) END) AS ownerName,
+    p.course_name AS course,p.status AS previewStatus,p.reason,p.source,
+    (SELECT c.chat_id FROM pipeline_conversations c
+      WHERE c.uid_hash=l.uid_hash AND c.lead_id=l.id AND c.origin IN ('qr','meta')
+        AND c.chat_id<>'' AND LEFT(c.chat_id,8)<>'qrgroup_'
+        AND EXISTS(SELECT 1 FROM beta_chats b WHERE b.uid=l.uid COLLATE utf8mb4_unicode_ci
+          AND b.chat_id=c.chat_id COLLATE utf8mb4_unicode_ci AND BINARY b.origin=BINARY c.origin)
+      ORDER BY c.last_inbound_at DESC,c.id DESC LIMIT 1) AS chatId,
+    (SELECT c.origin FROM pipeline_conversations c
+      WHERE c.uid_hash=l.uid_hash AND c.lead_id=l.id AND c.origin IN ('qr','meta')
+        AND c.chat_id<>'' AND LEFT(c.chat_id,8)<>'qrgroup_'
+        AND EXISTS(SELECT 1 FROM beta_chats b WHERE b.uid=l.uid COLLATE utf8mb4_unicode_ci
+          AND b.chat_id=c.chat_id COLLATE utf8mb4_unicode_ci AND BINARY b.origin=BINARY c.origin)
+      ORDER BY c.last_inbound_at DESC,c.id DESC LIMIT 1) AS chatOrigin,
+    CAST(p.last_customer_at AS CHAR) AS lastCustomerAt,
+    CAST(p.day_two_at AS CHAR) AS dayTwoAt,CAST(p.day_seven_at AS CHAR) AS daySevenAt,
+    d2.status AS dayTwoDeliveryStatus,CAST(d2.due_at AS CHAR) AS dayTwoDeliveryAt,
+    CAST(d2.sent_at AS CHAR) AS dayTwoSentAt,
+    d7.status AS daySevenDeliveryStatus,
+    CAST(COALESCE(d7.due_at,CASE WHEN d2.sent_at IS NOT NULL AND p.day_seven_at IS NOT NULL
+      THEN GREATEST(p.day_seven_at,DATE_ADD(d2.sent_at,INTERVAL 5 DAY)) ELSE p.day_seven_at END) AS CHAR) AS daySevenDeliveryAt,
+    CAST(d7.sent_at AS CHAR) AS daySevenSentAt
+    FROM sx_chatbot_followup_previews p
+    JOIN pipeline_leads l ON BINARY l.id=BINARY p.lead_id AND l.uid_hash=? AND l.uid=?
+    LEFT JOIN agents a ON a.id=l.owner_agent_id AND a.owner_uid COLLATE utf8mb4_general_ci=l.uid COLLATE utf8mb4_general_ci
+    LEFT JOIN sx_chatbot_followup_deliveries d2 ON d2.tenant_id=p.tenant_id AND d2.lead_id=p.lead_id AND d2.step='day2'
+    LEFT JOIN sx_chatbot_followup_deliveries d7 ON d7.tenant_id=p.tenant_id AND d7.lead_id=p.lead_id AND d7.step='day7'
+    WHERE l.uid_hash=? AND l.uid=? AND ${where} AND (? IS NULL OR p.id<?)
+    ORDER BY p.id DESC LIMIT 31`, [hash, uid, hash, uid, ...args, before, before]);
+  const items = rows.slice(0, 30).map(row => ({
+    ...row,
+    ownerAgentId: row.ownerAgentId == null ? null : Number(row.ownerAgentId),
+    dayTwoStatus: row.dayTwoDeliveryStatus || row.previewStatus || 'not_scheduled',
+    daySevenStatus: row.daySevenDeliveryStatus || (row.previewStatus === 'review' || row.previewStatus === 'skipped'
+      ? row.previewStatus : row.dayTwoDeliveryStatus === 'sent' ? 'scheduled'
+        : ['queued', 'sending'].includes(row.dayTwoDeliveryStatus) ? 'waiting_day2'
+          : ['skipped', 'uncertain'].includes(row.dayTwoDeliveryStatus) ? row.dayTwoDeliveryStatus
+          : row.previewStatus === 'ready' ? 'waiting' : row.previewStatus || 'not_scheduled'),
+  }));
+  const [[summary]] = await pool.query(`SELECT COUNT(*) AS total,
+      COALESCE(SUM(d2.status='queued'),0) AS dayTwoQueued,
+      COALESCE(SUM(d2.status='sending'),0) AS dayTwoSending,
+      COALESCE(SUM(d2.status='sent'),0) AS dayTwoSent,
+      COALESCE(SUM(d7.status='queued'),0) AS daySevenQueued,
+      COALESCE(SUM(d7.status='sending'),0) AS daySevenSending,
+      COALESCE(SUM(d7.status='sent'),0) AS daySevenSent,
+      COALESCE(SUM((d2.status='queued' AND d2.due_at<=UTC_TIMESTAMP(3)) OR (d7.status='queued' AND d7.due_at<=UTC_TIMESTAMP(3))),0) AS dueNow,
+      COALESCE(SUM(p.status='review'),0) AS needsReview
+    FROM sx_chatbot_followup_previews p
+    JOIN pipeline_leads l ON BINARY l.id=BINARY p.lead_id AND l.uid_hash=? AND l.uid=?
+    LEFT JOIN sx_chatbot_followup_deliveries d2 ON d2.tenant_id=p.tenant_id AND d2.lead_id=p.lead_id AND d2.step='day2'
+    LEFT JOIN sx_chatbot_followup_deliveries d7 ON d7.tenant_id=p.tenant_id AND d7.lead_id=p.lead_id AND d7.step='day7'
+    WHERE l.uid_hash=? AND l.uid=? AND ${where}`, [hash, uid, hash, uid, ...args]);
+  return { items, next: rows.length > 30 ? items.at(-1).id : null,
+    summary: Object.fromEntries(Object.entries(summary).map(([key, value]) => [key, Number(value || 0)])) };
+}
+
+module.exports = { enabled, start, tick, seedPilot, list, listForPipeline, classify, schedule, summary, validatedDraftPair, evaluateLead };

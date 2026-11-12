@@ -13,7 +13,13 @@ function validateConfig(input){
  if(!Array.isArray(input.labels)||input.labels.length!==5||input.labels.some(x=>typeof x!=='string'||!x.trim()||x.trim().length>60))fail('INVALID_LABELS');
  const labels=input.labels.map(x=>x.trim());if(new Set(labels.map(normalize)).size!==5)fail('DUPLICATE_LABELS');
  if(!Array.isArray(input.rules)||input.rules.length>30)fail('INVALID_RULES');
- const rules=input.rules.map(rule=>{if(!rule||typeof rule!=='object')fail('INVALID_RULE');const keyword=normalize(rule.keyword);if(!keyword||keyword.length>240||!Number.isSafeInteger(Number(rule.bookId))||Number(rule.bookId)<1)fail('INVALID_RULE');return {keyword,bookId:Number(rule.bookId)};});
+ const rules=[];
+ for(const rule of input.rules){
+  if(!rule||typeof rule!=='object'||Array.isArray(rule)||typeof rule.keyword!=='string'||rule.keyword.length>240||!Number.isSafeInteger(Number(rule.bookId))||Number(rule.bookId)<1)fail('INVALID_RULE');
+  const keywords=rule.keyword.split(/[,\u060c]/u).map(normalize).filter(Boolean);
+  if(!keywords.length||keywords.some(keyword=>keyword.length>240))fail('INVALID_RULE');
+  for(const keyword of keywords){rules.push({keyword,bookId:Number(rule.bookId)});if(rules.length>30)fail('INVALID_RULES');}
+ }
  if(new Set(rules.map(x=>x.keyword)).size!==rules.length)fail('DUPLICATE_KEYWORD');
  return {labels,rules};
 }

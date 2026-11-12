@@ -23,6 +23,9 @@ const {createRecruitmentRouter,createPublicRecruitmentRouter,createRecruitmentPa
 function mountExistingUpgrade(app,{pool,key,origin,insecureLoopback=false,legacyGuard,userGuard=require('../../middlewares/user')}){
   const tenantCrmDomains=require('./tenant-crm-domains');
   app.use(tenantCrmDomains.middleware(pool));
+  const retail = require('./retail-commerce-router');
+  app.use('/business/:storeSlug/shop',retail.publicRouter({pool,origin}));
+  app.use('/',retail.publicRouter({pool,origin}));
   app.use(require('./tenant-business-profile-shell').createTenantBusinessProfileShell({pool}));
   require('../web/public-website').mountPublicWebsite(app,{pool,key,origin});
   const boundary=createAuthRouter({pool,key,origin,insecureLoopback,allowedAudience:'platform'});
@@ -77,6 +80,10 @@ function mountExistingUpgrade(app,{pool,key,origin,insecureLoopback=false,legacy
   const workspaceTeam=createTeamInvitationRouters({pool,origin,userGuard,ownerGuard:workspaceTeamGuard,insecureLoopback});
   app.use('/api/workspace/team',workspaceTeam.owner);
   app.use('/api/agent/invitations',team.accept);
+  const retailConnectors=require('./retail-connected-stores-router');
+  app.use('/api/retail-connectors',retailConnectors.publicRouter({pool,authenticate:featureSession.guard,origin}));
+  app.use('/api/workspace/retail/connectors',retailConnectors.workspaceRouter({pool,authenticate:featureSession.guard,origin}));
+  app.use('/api/workspace/retail',retail.workspaceRouter({pool,authenticate:featureSession.guard}));
   app.use('/api/workspace/business-inventory',require('./business-inventory-router')({pool,authenticate:featureSession.guard}));
   app.use('/api/workspace/products-services',createTrainingCourseRouter({pool,origin,userGuard,canonicalGuard:businessBoundary.guard,sessionGuard:featureSession.guard,products:true}));
   app.use('/api/workspace/properties',require('./real-estate-properties-router').createRouter({pool,authenticate:featureSession.guard}));
@@ -105,7 +112,7 @@ function mountExistingUpgrade(app,{pool,key,origin,insecureLoopback=false,legacy
   return boundary;
 }
 function mountConfiguredUpgrade(app){
-  if(process.env.SALEMAX_PLATFORM_ENABLED!=='true'){app.use(['/api/workspace','/api/inbox/course-replies','/api/agent/course-replies','/api/phonebook/workspace','/api/agent/phonebook','/api/admin/platform-auth','/api/admin/plan-contracts','/api/admin/business-contracts','/api/admin/platform-access','/api/admin/email-marketing-settings','/api/admin/asterisk','/api/admin/staff-invitations','/api/user/business-auth','/api/crm','/api/user/sales-organization','/api/user/sales-commissions','/api/user/sales-finance','/api/user/sales-targets','/api/user/sales-audit','/api/user/team-invitations','/api/workspace/team','/api/user/training/courses','/api/user/training/tasks','/api/user/training/students','/api/user/training/profile','/api/user/training/finance-policies','/api/user/training/forms','/api/user/chatbots','/api/user/recruitment','/api/public/recruitment','/api/user/call-center','/api/public/training/forms','/api/public/training/documents','/api/public/training/reminder-preferences','/api/public/email','/api/agent/invitations'],(req,res)=>res.status(503).json({code:'PLATFORM_UPGRADE_NOT_ENABLED'}));return false;}
+  if(process.env.SALEMAX_PLATFORM_ENABLED!=='true'){app.use(['/api/workspace','/api/retail-connectors','/api/inbox/course-replies','/api/agent/course-replies','/api/phonebook/workspace','/api/agent/phonebook','/api/admin/platform-auth','/api/admin/plan-contracts','/api/admin/business-contracts','/api/admin/platform-access','/api/admin/email-marketing-settings','/api/admin/asterisk','/api/admin/staff-invitations','/api/user/business-auth','/api/crm','/api/user/sales-organization','/api/user/sales-commissions','/api/user/sales-finance','/api/user/sales-targets','/api/user/sales-audit','/api/user/team-invitations','/api/workspace/team','/api/user/training/courses','/api/user/training/tasks','/api/user/training/students','/api/user/training/profile','/api/user/training/finance-policies','/api/user/training/forms','/api/user/chatbots','/api/user/recruitment','/api/public/recruitment','/api/user/call-center','/api/public/training/forms','/api/public/training/documents','/api/public/training/reminder-preferences','/api/public/email','/api/agent/invitations'],(req,res)=>res.status(503).json({code:'PLATFORM_UPGRADE_NOT_ENABLED'}));return false;}
   const secret=process.env.SALEMAX_PLATFORM_KEY_BASE64;
   if(typeof secret!=='string'||!/^[A-Za-z0-9+/]{43}=$/.test(secret))throw new Error('PLATFORM_KEY_REQUIRED');
   const key=Buffer.from(secret,'base64');if(key.length!==32||key.toString('base64')!==secret)throw new Error('PLATFORM_KEY_INVALID');
