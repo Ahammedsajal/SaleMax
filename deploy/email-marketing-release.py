@@ -23,6 +23,7 @@ EXPECTED_IMAGE = 'salemax-app:openai-ads-lead-01fde9e1-20261103'
 EXPECTED_IMAGE_ID = 'sha256:c756899fdbf63edc71d45de0c71cffe1f063244d91378d90b15a2c98fc1d5135'
 EXPECTED_HEAD = '/opt/salemax/releases/database-pool-budget-6b9af8a42ec9-20261112/compose.database-pool-recovery.json'
 MIGRATION = 'database/migrations/20270106_email_marketing.sql'
+MIGRATION_NAME = Path(MIGRATION).name
 IMAGE_DOCKERFILE = 'deploy/Dockerfile.email-marketing-sdk'
 RUNTIME_FILES = (
     'client/public/index.html',
@@ -76,6 +77,8 @@ CONTACT_EMAIL_COLUMNS = (
 )
 MANUAL_VARS = ROOT / 'shared/rollback-private-inventory-84644fdfebee/compose-manual-vars.json'
 SDK_VERSION = '3.1166.0'
+SES_NODE_PATH = '/opt/7network-email-node-modules/node_modules'
+BASE_NODE_PATH = '/app/.mcp-node-modules/node_modules'
 MINIMUM_FREE_BYTES = 1024 * 1024 * 1024
 FAILED_EMAIL_COMMIT = '804a292172c6cc99cc94099349b0d3b2782f73c3'
 FAILED_EMAIL_CHECKSUM = '6e2f6bce4f87fbd3fe0b74ad1bcf00ee1f8b1b3515ac34d404d95dff025e6106'
@@ -160,6 +163,21 @@ def compose_environment(info, meta):
     return effective, variables
 
 
+def environment_map(service):
+    value = service.get('environment') or {}
+    if isinstance(value, dict):
+        return dict(value)
+    if isinstance(value, list):
+        result = {}
+        for item in value:
+            key, separator, content = item.partition('=')
+            if not separator:
+                raise RuntimeError('Compose environment entry is invalid')
+            result[key] = content
+        return result
+    raise RuntimeError('Compose environment format is unsupported')
+
+
 def support_ids():
     return {name: inspect(name)['Id'] for name in SUPPORT}
 
@@ -200,12 +218,14 @@ def container_has(path):
     return result.returncode == 0
 
 
-def database_state():
+def database_state(expected_email_checksum=None):
     script = r"""
 const runner=require('/app/database/migration-runner');
 const mysql=require('mysql2/promise');
 const emailTables=%s;
 const contactColumns=%s;
+const emailMigrationName=%s;
+const emailMigrationChecksum=%s;
 (async()=>{
  const connection=await mysql.createConnection({
   host:process.env.DBHOST,port:Number(process.env.DBPORT||3306),user:process.env.DBUSER,
@@ -217,6 +237,11 @@ const contactColumns=%s;
  const [tables]=await connection.query('SELECT TABLE_NAME AS name,TABLE_ROWS AS rowsCount,DATA_LENGTH AS dataBytes,INDEX_LENGTH AS indexBytes FROM information_schema.tables WHERE table_schema=DATABASE()');
  const [columns]=await connection.query("SELECT COLUMN_NAME AS name FROM information_schema.columns WHERE table_schema=DATABASE() AND table_name='contact'");
  const available=new Map(migrations.map(row=>[row.file,row]));
+ if(emailMigrationChecksum){
+  const found=available.get(emailMigrationName);
+  if(found&&found.checksum!==emailMigrationChecksum)throw Object.assign(Error(),{code:'EXPECTED_EMAIL_MIGRATION_CHECKSUM_MISMATCH'});
+  available.set(emailMigrationName,{file:emailMigrationName,checksum:emailMigrationChecksum});
+ }
  const known=ledger.filter(row=>available.has(row.migration_name));
  const tableNames=new Set(tables.map(row=>row.name));
  const currentEmailTables=[];
@@ -227,11 +252,11 @@ const contactColumns=%s;
   }
  }
  const result={
-  migrationFiles:migrations.length,ledgerRows:ledger.length,
+  migrationFiles:available.size,ledgerRows:ledger.length,
   historyMissing:ledger.filter(row=>!available.has(row.migration_name)).length,
   historyChecksumMismatch:known.filter(row=>available.get(row.migration_name).checksum!==row.checksum).length,
   historyIncomplete:ledger.filter(row=>row.status!=='applied').length,
-  migration:ledger.find(row=>row.migration_name==='20270106_email_marketing.sql')||null,
+  migration:ledger.find(row=>row.migration_name===emailMigrationName)||null,
   emailTables:currentEmailTables,
   providerSettingsRows:currentEmailTables.find(row=>row.name==='sx_platform_email_provider_settings')?.rows||0,
   contactColumns:columns.map(row=>row.name).filter(name=>contactColumns.includes(name)),
@@ -241,7 +266,8 @@ const contactColumns=%s;
  console.log(JSON.stringify(result));
  }finally{await connection.end();}
 })().catch(error=>{console.log(JSON.stringify({probeError:error.code||error.name||'DATABASE_PROBE_FAILED'}));process.exitCode=1});
-""" % (json.dumps(list(EMAIL_TABLES)), json.dumps(list(CONTACT_EMAIL_COLUMNS)))
+""" % (json.dumps(list(EMAIL_TABLES)), json.dumps(list(CONTACT_EMAIL_COLUMNS)),
+       json.dumps(MIGRATION_NAME), json.dumps(expected_email_checksum))
     for attempt in range(6):
         execution = subprocess.run(['docker', 'exec', APP, 'node', '-e', script],
                                    capture_output=True, text=True, timeout=60)
@@ -453,6 +479,15 @@ def verify_overlay(meta, env, overlay, mounts, app_config):
     new = copy.deepcopy(after['services']['app'])
     if before['services']['app'].get('image') != EXPECTED_IMAGE or new.get('image') != app_config['image']:
         raise RuntimeError('Candidate Compose image differs from the reviewed app')
+    old_environment = environment_map(old)
+    new_environment = environment_map(new)
+    if (old_environment.get('NODE_PATH', app_config['baseNodePath']) != app_config['baseNodePath']
+            or new_environment.get('NODE_PATH') != app_config['nodePath']):
+        raise RuntimeError('Candidate Compose has an unexpected Node module path')
+    old_environment.pop('NODE_PATH', None)
+    new_environment.pop('NODE_PATH', None)
+    old['environment'] = old_environment
+    new['environment'] = new_environment
     old_mounts = {row['target']: row for row in old.get('volumes', [])}
     expected = dict(old_mounts)
     for target, mount in mounts.items():
@@ -486,7 +521,7 @@ def verify_overlay(meta, env, overlay, mounts, app_config):
         raise RuntimeError('Candidate Compose changes app configuration beyond image and reviewed mounts')
 
 
-def validate_preflight(app, worker, db, meta, migration_state):
+def validate_preflight(app, worker, db, meta, migration_state, expected_email_checksum):
     if app['Config']['Image'] != EXPECTED_IMAGE or app['Image'] != EXPECTED_IMAGE_ID:
         raise RuntimeError('Active app image differs from the reviewed baseline')
     if app['State'].get('Status') != 'running' or app['State'].get('Health', {}).get('Status') != 'healthy':
@@ -499,19 +534,33 @@ def validate_preflight(app, worker, db, meta, migration_state):
         raise RuntimeError('A newer app overlay is active')
     if migration_state.get('historyMissing') or migration_state.get('historyChecksumMismatch') or migration_state.get('historyIncomplete'):
         raise RuntimeError('Existing database migration history needs reconciliation')
-    if migration_state.get('migration') is not None:
-        raise RuntimeError('Email migration already exists in the production ledger')
-    if migration_state.get('emailTables') or migration_state.get('contactColumns'):
-        raise RuntimeError('Email schema already exists in production')
     if int(migration_state.get('contactTableBytes') or 0) > 8 * 1024 * 1024 * 1024:
         raise RuntimeError('Contact table size requires a separately reviewed online migration')
+    migration = migration_state.get('migration')
+    if migration is None:
+        if migration_state.get('emailTables') or migration_state.get('contactColumns'):
+            raise RuntimeError('Email schema exists without its reviewed migration')
+        return 'clean'
+    expected_tables = set(EMAIL_TABLES)
+    actual_tables = {row['name'] for row in migration_state.get('emailTables', [])}
+    if (migration.get('status') == 'applied'
+            and migration.get('checksum') == expected_email_checksum
+            and int(migration.get('statement_count') or 0) == 14
+            and int(migration.get('statements_completed') or 0) == 14
+            and actual_tables == expected_tables
+            and set(migration_state.get('contactColumns', [])) == set(CONTACT_EMAIL_COLUMNS)
+            and all(int(row.get('rows') or 0) == 0 for row in migration_state.get('emailTables', []))
+            and int(migration_state.get('providerSettingsRows') or 0) == 0):
+        return 'already_applied'
+    raise RuntimeError('Email migration state differs from the reviewed additive schema')
 
 
-def verify_runtime(contents, overlay, candidate_image, expected_migration, before_schema, support):
+def verify_runtime(contents, overlay, candidate_image, expected_migration, expected_node_path,
+                   before_schema, support):
     current = wait_app()
     if current['Config']['Image'] != candidate_image:
         raise RuntimeError('Candidate app image is not active')
-    if current['Config'].get('Env', []).count('NODE_PATH=/opt/7network-email-node-modules/node_modules') != 1:
+    if current['Config'].get('Env', []).count('NODE_PATH=' + expected_node_path) != 1:
         raise RuntimeError('SES runtime dependency path is missing')
     for name, data in contents.items():
         if container_hash(name) != sha(data):
@@ -526,7 +575,7 @@ def verify_runtime(contents, overlay, candidate_image, expected_migration, befor
     if support_ids() != support:
         raise RuntimeError('A support service changed during release')
 
-    after_schema = database_state()
+    after_schema = database_state(expected_migration)
     expected_tables = set(EMAIL_TABLES)
     actual_tables = {row['name'] for row in after_schema.get('emailTables', [])}
     migration = after_schema.get('migration') or {}
@@ -614,7 +663,8 @@ def deploy(stage, commit):
 
     app, worker, db = inspect(APP), inspect(WORKER), inspect(DB)
     meta = service_compose(app, 'app')
-    validate_preflight(app, worker, db, meta, database_state())
+    initial_schema = database_state(migration_checksum)
+    validate_preflight(app, worker, db, meta, initial_schema, migration_checksum)
     if shutil.disk_usage(ROOT).free < MINIMUM_FREE_BYTES:
         raise RuntimeError('Insufficient production disk space')
     for name, expected in PREIMAGES.items():
@@ -626,6 +676,11 @@ def deploy(stage, commit):
             raise RuntimeError('New Email runtime path already exists in production')
     if container_has(MIGRATION):
         raise RuntimeError('Email migration file already exists in the active app')
+    previous_node_paths = [item.partition('=')[2] for item in app['Config'].get('Env', [])
+                           if item.startswith('NODE_PATH=')]
+    if previous_node_paths != [BASE_NODE_PATH]:
+        raise RuntimeError('Active application Node module path differs from the reviewed baseline')
+    candidate_node_path = SES_NODE_PATH + ':' + BASE_NODE_PATH
 
     date = time.strftime('%Y%m%d', time.gmtime())
     release = ROOT / 'releases' / f'email-marketing-{commit[:12]}-{date}'
@@ -655,7 +710,7 @@ def deploy(stage, commit):
     write_private(backup / 'compose-vars.json', variables)
     write_private(backup / 'support-services.json', support)
     write_private(backup / 'preimage-hashes.json', PREIMAGES)
-    write_private(backup / 'schema-before.json', database_state())
+    write_private(backup / 'schema-before.json', database_state(migration_checksum))
     write_private(backup / 'release-path.txt', str(release) + '\n')
     write_private(backup / 'base-release.txt', BASE + '\n')
     write_private(backup / 'source-commit.txt', commit + '\n')
@@ -679,7 +734,8 @@ def deploy(stage, commit):
     image_tag = f'salemax-app:email-marketing-{commit[:12]}-{date}'
     overlay = release / 'compose.email-marketing.json'
     overlay.write_text(json.dumps({'services': {'app': {
-        'image': image_tag, 'volumes': list(mounts.values()),
+        'image': image_tag, 'environment': {'NODE_PATH': candidate_node_path},
+        'volumes': list(mounts.values()),
     }}}))
     overlay.chmod(0o644)
     helper = release / 'deploy' / 'email-marketing-release.py'
@@ -693,7 +749,10 @@ def deploy(stage, commit):
         'migrationChecksum': migration_checksum, 'runtimeTargets': list(TARGETS),
         'imageDockerfile': IMAGE_DOCKERFILE,
     })
-    verify_overlay(meta, env, overlay, mounts, {'image': image_tag})
+    verify_overlay(meta, env, overlay, mounts, {
+        'image': image_tag, 'nodePath': candidate_node_path,
+        'baseNodePath': BASE_NODE_PATH,
+    })
 
     if any(sha(Path(name).read_bytes()) != digest for name, digest in input_hashes.items()):
         raise RuntimeError('Compose inputs changed during release preparation')
@@ -723,10 +782,17 @@ def deploy(stage, commit):
         raise RuntimeError('Compose inputs changed before the database migration')
     if inspect(APP)['Id'] != app['Id'] or support_ids() != support:
         raise RuntimeError('A service changed before the database migration')
-    before_schema = database_state()
-    validate_preflight(app, worker, db, meta, before_schema)
-    migration_result = apply_migration(migration_source, MIGRATION)
-    after_migration = database_state()
+    before_schema = database_state(migration_checksum)
+    migration_state = validate_preflight(app, worker, db, meta, before_schema, migration_checksum)
+    if migration_state == 'already_applied':
+        migration_result = {
+            'applied': {'applied': [], 'skipped': [MIGRATION_NAME]},
+            'migration': before_schema['migration'],
+        }
+        after_migration = before_schema
+    else:
+        migration_result = apply_migration(migration_source, MIGRATION)
+        after_migration = database_state(migration_checksum)
     applied = migration_result.get('migration') or {}
     if (applied.get('status') != 'applied' or applied.get('checksum') != migration_checksum
             or int(applied.get('statement_count') or 0) != int(applied.get('statements_completed') or -1)
@@ -736,7 +802,8 @@ def deploy(stage, commit):
 
     try:
         compose_up(meta, env, [overlay])
-        result = verify_runtime(contents, overlay, image_tag, migration_checksum, before_schema, support)
+        result = verify_runtime(contents, overlay, image_tag, migration_checksum,
+                                candidate_node_path, before_schema, support)
         result.update({
             'sourceCommit': commit, 'release': str(release), 'rollback': str(backup),
             'baseRelease': BASE, 'baseImage': EXPECTED_IMAGE,
