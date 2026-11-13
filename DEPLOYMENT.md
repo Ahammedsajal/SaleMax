@@ -1,3 +1,9 @@
+# 2026-11-13 — Roll back fixed workspace preferences after Inbox regression
+
+- Restored the prior live app Compose chain under the production lock using the rollback snapshot below. The fixed preferences overlay is no longer active. The base release pointer and app image are unchanged. The restore helper verified the previous shell and sidebar asset hashes, removal of the added theme asset, app health, and unchanged support service identities. No database migration or customer data change.
+- The overlay caused the signed-in Inbox to reserve expanded sidebar space while rendering the navigation at compact width. After rollback, a fresh Inbox load in Windows Edge used the prior shell and showed matching 72 px drawer and container widths, a loaded Inbox, and the original theme control. The original Windows expand issue remains open. Public health returned HTTP 200, and the app and database were healthy.
+- Reverted the source change in the same commit as this record to prevent accidental redeployment.
+
 # 2026-11-13 — Keep the workspace expanded and light
 
 - Source commit `7c7befd812dcf547c4990638bf79a6d308665b6d` is pushed to `Ahammedsajal/SaleMax` `main`. App-only overlay `/opt/salemax/releases/ui-fixed-preferences-7c7befd812dc-20261113` was added to the existing 242-input Compose chain. The app image remains `sha256:753d77d421b3160872df0812e7b38505a1db7104cdb9d6c8b17415b2420de667`; 241 mounts are present. `/opt/salemax/current` remains `/opt/salemax/releases/training-pipeline-correction-v3-9867ca72-20261104`.

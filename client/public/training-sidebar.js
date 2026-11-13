@@ -196,12 +196,6 @@
       .MuiDrawer-root.MuiDrawer-docked:has(>.MuiDrawer-paper[data-sx-sidebar-collapsed]){box-sizing:border-box!important;width:72px!important;min-width:72px!important;max-width:72px!important;flex:0 0 72px!important}
       .MuiDrawer-paper[data-sx-sidebar-collapsed]{box-sizing:border-box!important;width:72px!important;min-width:72px!important;max-width:72px!important;overflow-x:hidden!important}
     }
-    @media(min-width:900px){
-      .MuiDrawer-root.MuiDrawer-docked{box-sizing:border-box!important;width:260px!important;min-width:260px!important;max-width:260px!important;flex:0 0 260px!important}
-      .MuiDrawer-root.MuiDrawer-docked>.MuiDrawer-paper{box-sizing:border-box!important;width:260px!important;min-width:260px!important;max-width:260px!important;overflow-x:hidden!important}
-      .MuiDrawer-root.MuiDrawer-docked>.MuiDrawer-paper[data-sx-sidebar-collapsed]{width:260px!important;min-width:260px!important;max-width:260px!important}
-      .MuiDrawer-paper [data-sx-sidebar-collapse-control]{display:none!important}
-    }
   `;
   document.head.append(style);
   const observed = new WeakSet();
@@ -588,19 +582,17 @@
       // legacy Pipeline item. Recreate it after deduplication on every pass.
       ensureLeadReportsRow(list);
       list.dataset.sxSidebarList = '1';
+      const expanded = sidebarExpandedOverride.get(drawer);
       const measuredDrawerWidth = drawer.getBoundingClientRect().width;
-      // Desktop navigation stays expanded; temporary phone drawers retain their
-      // existing open/close behavior and never become a compact icon rail.
+      // Never reveal labels while the paper still occupies the compact rail.
+      // The shell can accept an expand click before React has widened the drawer.
+      // A temporary phone drawer closes; it never becomes a desktop icon rail.
       const mobileDrawer = window.innerWidth < 900;
       if (mobileDrawer) sidebarExpandedOverride.delete(drawer);
-      const dockedRoot = drawer.closest('.MuiDrawer-root.MuiDrawer-docked');
-      const collapsed = !mobileDrawer && !dockedRoot && sidebarExpandedOverride.get(drawer) === false;
+      const collapsed = !mobileDrawer && (expanded === false || measuredDrawerWidth < 110);
       drawer.toggleAttribute('data-sx-sidebar-collapsed', collapsed);
-      if (!mobileDrawer && dockedRoot) {
-        sidebarExpandedOverride.set(drawer, true);
-        drawer.removeAttribute('data-sx-sidebar-collapsed');
-      }
-      const drawerWidth = !mobileDrawer && dockedRoot ? 260 : Math.round(measuredDrawerWidth);
+      const dockedRoot = drawer.closest('.MuiDrawer-root.MuiDrawer-docked');
+      const drawerWidth = Math.round(measuredDrawerWidth);
       if (dockedRoot && drawerWidth > 0) {
         dockedRoot.style.setProperty('--sx-sidebar-docked-width', `${drawerWidth}px`);
         document.documentElement.style.setProperty('--sx-sidebar-inline-offset', `${drawerWidth}px`);
@@ -608,15 +600,6 @@
       const brandText = [...drawer.querySelectorAll('p')].find(p => p.textContent.trim() === '7Network' && !p.closest('ul'));
       brandText?.setAttribute('data-sx-sidebar-brand-text','1');
       const brand = drawer.querySelector('[data-sx-sidebar-brand]') || brandText?.parentElement?.parentElement;
-      if (!mobileDrawer && dockedRoot) {
-        for (const control of drawer.querySelectorAll('button,[role="button"]')) {
-          const rect = control.getBoundingClientRect();
-          const drawerRect = drawer.getBoundingClientRect();
-          if (rect.height && rect.top < drawerRect.top + 64 && rect.right > drawerRect.right - 60) {
-            control.setAttribute('data-sx-sidebar-collapse-control', '');
-          }
-        }
-      }
       const logoCandidates = [...(drawer.firstElementChild?.querySelectorAll('img[data-sx-sidebar-logo],img[data-seven-network-brand],img[alt="7Network"]') || [])];
       let logo = brand?.querySelector('[data-sx-sidebar-logo]') || logoCandidates.find(image => image.hasAttribute('data-sx-sidebar-logo')) || logoCandidates[0];
       if (!logo && brand) { logo = document.createElement('img'); logo.alt = '7Network'; brand.append(logo); }
@@ -781,9 +764,6 @@
   document.addEventListener('click', event => {
     const button = event.target.closest('.MuiDrawer-paper button, .MuiDrawer-paper [role="button"]');
     if (!button) return;
-    if (button.hasAttribute('data-sx-sidebar-collapse-control') && window.innerWidth >= 900) {
-      event.preventDefault(); event.stopImmediatePropagation(); return;
-    }
     const action = [button.getAttribute('aria-label'), button.getAttribute('title'), button.textContent]
       .filter(Boolean).join(' ').trim();
     const drawer = button.closest('.MuiDrawer-paper');
