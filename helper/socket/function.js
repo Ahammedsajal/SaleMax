@@ -227,8 +227,6 @@ function returnMsgObjAfterAddingKey(overrides = {}) {
 
 //     if (data?.messages[0]?.id) {
 //       const metaMsgId = data?.messages[0]?.id;
-      if (chatInfo?.chat_id) await require('../../modules/platform/chatbot-conversation-control')
-        .pauseForStaffReply(uid, chatInfo.chat_id, 'whatsapp_meta', waNumId).catch(error => console.warn('STAFF_REPLY_PAUSE_FAILED', error.code));
 //       return { success: true, id: metaMsgId };
 //     } else {
 //       return { success: false, msg: JSON.stringify(data) };
@@ -376,6 +374,8 @@ async function sendMetaMsg({ uid, to, msgObj, chatInfo }) {
 
     if (data?.messages[0]?.id) {
       const metaMsgId = data?.messages[0]?.id;
+      if (chatInfo?.chat_id) await require('../../modules/platform/chatbot-conversation-control')
+        .pauseForStaffReply(uid, chatInfo.chat_id, 'whatsapp_meta', waNumId).catch(error => console.warn('STAFF_REPLY_PAUSE_FAILED', error.code));
       return { success: true, id: metaMsgId };
     } else {
       return { success: false, msg: JSON.stringify(data) };
