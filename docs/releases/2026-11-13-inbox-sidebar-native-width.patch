@@ -1,0 +1,122 @@
+--- a/training-sidebar.js
++++ b/training-sidebar.js
+@@ -169,8 +169,11 @@
+     [data-sx-sidebar-list]>p:not([data-sx-nav-section]){display:none!important}
+     [data-sx-nav-section]{margin:20px 24px 6px;color:#6b7280;font:600 12px/1.6 Roboto,Arial,sans-serif;letter-spacing:.04em}
+     [data-sx-sidebar-list]>li .MuiListItemButton-root{min-height:44px}
++    .MuiDrawer-modal .MuiDrawer-paper:has([data-sx-sidebar-list]){max-width:100vw}
++    .MuiDrawer-modal .MuiDrawer-paper:has([data-sx-sidebar-list])>.MuiBox-root,
++    .MuiDrawer-modal .MuiDrawer-paper [data-sx-sidebar-list]{box-sizing:border-box!important;width:100%!important;min-width:0!important;max-width:100%!important}
+     [data-sx-sidebar-list] .MuiListItemIcon-root{box-sizing:border-box!important;display:inline-flex!important;flex:0 0 34px!important;align-items:center!important;justify-content:center!important;width:34px!important;min-width:34px!important;margin:0!important}
+-    [data-sx-sidebar-collapsed] [data-sx-sidebar-list]{box-sizing:border-box!important;width:64px!important;min-width:64px!important;max-width:none!important;margin-inline:0!important;padding-inline:0!important}
++    [data-sx-sidebar-collapsed] [data-sx-sidebar-list]{box-sizing:border-box!important;width:100%!important;min-width:0!important;margin-inline:0!important;padding-inline:0!important}
+     [data-sx-sidebar-collapsed] [data-sx-sidebar-list]>li{box-sizing:border-box!important;width:100%!important}
+     [data-sx-sidebar-collapsed] [data-sx-sidebar-list] .MuiListItemButton-root{box-sizing:border-box!important;justify-content:center!important;padding-inline:0!important}
+     [data-sx-sidebar-collapsed] [data-sx-sidebar-list] .MuiListItemIcon-root{flex:1 1 100%!important;width:100%!important;min-width:100%!important}
+@@ -196,14 +199,11 @@
+     [data-sx-sidebar-collapsed] [data-sx-sidebar-list] .MuiListItemText-root,
+     [data-sx-sidebar-collapsed] [data-sx-sidebar-list] .MuiTypography-root{display:none!important}
+     .MuiDrawer-root.MuiDrawer-docked{box-sizing:border-box!important;width:var(--sx-sidebar-docked-width,auto)!important;min-width:var(--sx-sidebar-docked-width,auto)!important;max-width:var(--sx-sidebar-docked-width,none)!important;flex:0 0 var(--sx-sidebar-docked-width,auto)!important}
+-    @media(min-width:701px){
+-      .MuiDrawer-root.MuiDrawer-docked:has(>.MuiDrawer-paper[data-sx-sidebar-collapsed]){box-sizing:border-box!important;width:72px!important;min-width:72px!important;max-width:72px!important;flex:0 0 72px!important}
+-      .MuiDrawer-paper[data-sx-sidebar-collapsed]{box-sizing:border-box!important;width:72px!important;min-width:72px!important;max-width:72px!important;overflow-x:hidden!important}
+-    }
++    .MuiDrawer-docked [data-sx-desktop-sidebar-toggle]{display:none!important}
+   `;
+   document.head.append(style);
+   const observed = new WeakSet();
+-  const sidebarExpandedOverride = new WeakMap();
++  const requestedDesktopExpansion = new WeakSet();
+   const resizeObserver = new ResizeObserver(schedule);
+   function label(row) {
+     const accessible = row.getAttribute('aria-label') || row.querySelector('.MuiListItemButton-root')?.getAttribute('aria-label');
+@@ -612,6 +612,7 @@
+   function update() {
+     if (location.pathname.replace(/\/$/, '') !== '/user') return;
+     resetAgentLoginSearch();
++    let sidebarOffset = 0;
+     document.querySelectorAll('.MuiDrawer-paper').forEach(drawer => {
+       if (!observed.has(drawer)) { observed.add(drawer); resizeObserver.observe(drawer); }
+       const list = drawer.querySelector('ul');
+@@ -633,20 +634,33 @@
+       // legacy Pipeline item. Recreate it after deduplication on every pass.
+       ensureLeadReportsRow(list);
+       list.dataset.sxSidebarList = '1';
+-      const expanded = sidebarExpandedOverride.get(drawer);
+-      const measuredDrawerWidth = drawer.getBoundingClientRect().width;
+-      // Never reveal labels while the paper still occupies the compact rail.
+-      // The shell can accept an expand click before React has widened the drawer.
+-      // A temporary phone drawer closes; it never becomes a desktop icon rail.
+-      const mobileDrawer = window.innerWidth < 900;
+-      if (mobileDrawer) sidebarExpandedOverride.delete(drawer);
+-      const collapsed = !mobileDrawer && (expanded === false || measuredDrawerWidth < 110);
+-      drawer.toggleAttribute('data-sx-sidebar-collapsed', collapsed);
+       const dockedRoot = drawer.closest('.MuiDrawer-root.MuiDrawer-docked');
+-      const drawerWidth = Math.round(measuredDrawerWidth);
+-      if (dockedRoot && drawerWidth > 0) {
+-        dockedRoot.style.setProperty('--sx-sidebar-docked-width', `${drawerWidth}px`);
+-        document.documentElement.style.setProperty('--sx-sidebar-inline-offset', `${drawerWidth}px`);
++      const drawerWidth = Math.round(drawer.getBoundingClientRect().width);
++      if (dockedRoot && drawerWidth > 0 && dockedRoot.closest('nav')) {
++        const [header, ...sections] = drawer.firstElementChild?.children || [];
++        const collapse = header?.querySelector(':scope > button.MuiIconButton-root');
++        if (collapse) collapse.setAttribute('data-sx-desktop-sidebar-toggle', '');
++        // The legacy shell puts Expand in its own section when it collapses
++        // on navigation. Use its native action so React also restores the
++        // search, row labels, and internal layout.
++        const expand = sections.map(section => section.querySelector(':scope > button.MuiIconButton-root')).find(Boolean);
++        if (!collapse && expand && !requestedDesktopExpansion.has(expand)) {
++          requestedDesktopExpansion.add(expand);
++          expand.setAttribute('data-sx-desktop-sidebar-toggle', '');
++          expand.click();
++        }
++      }
++      // The native drawer controls its width. Mirror it in the layout and
++      // keep labels hidden until the opening drawer has room to show them.
++      const collapsed = Boolean(dockedRoot && drawerWidth > 0 && drawerWidth < 200);
++      drawer.toggleAttribute('data-sx-sidebar-collapsed', collapsed);
++      if (dockedRoot) {
++        if (drawerWidth > 0) {
++          dockedRoot.style.setProperty('--sx-sidebar-docked-width', `${drawerWidth}px`);
++          sidebarOffset = drawerWidth;
++        } else {
++          dockedRoot.style.removeProperty('--sx-sidebar-docked-width');
++        }
+       }
+       const brandText = [...drawer.querySelectorAll('p')].find(p => p.textContent.trim() === '7Network' && !p.closest('ul'));
+       brandText?.setAttribute('data-sx-sidebar-brand-text','1');
+@@ -763,6 +777,7 @@
+       const ordered = [...rows].sort((a, b) => Number(a.style.order) - Number(b.style.order));
+       if (rows.some((row, index) => row !== ordered[index])) ordered.forEach(row => list.append(row));
+     });
++    document.documentElement.style.setProperty('--sx-sidebar-inline-offset', `${sidebarOffset}px`);
+     const page=new URLSearchParams(location.search).get('page');
+     const salesSection=new URLSearchParams(location.search).get('section')||'overview';const salesRouteKey=({overview:'sales-targets',targets:'sales-targets',reports:'sales-targets',deals:'sales-deals',commissions:'sales-commissions'})[salesSection]||'sales-targets';
+     const routeKeys={'ai-integrations':'ai-integrations',properties:'properties',students:'students','training-profile':'training-profile','crm-appearance':'settings','products-services':'products-services',courses:'courses',forms:'forms',recruitment:'recruitment','lead-pipeline':'leads','lead-reports':'reports',tasks:'tasks','call-center':'call-center','finance-settings':new URLSearchParams(location.search).get('section')==='reports'?'finance-reports':'invoices','team-invitations':'team','wa-chatbot':'chatbot',faqs:'faqs','commission-policy':'commission-policy','sales-workspace':salesRouteKey,'sales-finance':'sales-finance','sales-organization':'sales-organization',icp:'icp'};
+@@ -818,26 +833,9 @@
+     const action = [button.getAttribute('aria-label'), button.getAttribute('title'), button.textContent]
+       .filter(Boolean).join(' ').trim();
+     const drawer = button.closest('.MuiDrawer-paper');
+-    if (window.innerWidth < 900) {
+-      if (drawer) sidebarExpandedOverride.delete(drawer);
+-      drawer?.removeAttribute('data-sx-sidebar-collapsed');
+-      schedule();
+-      return;
+-    }
+     if (/\bexpand\b/i.test(action)) {
+-      // The collapsed CSS pins the paper to 72px; keep explicit state so the
+-      // resize observer cannot infer the old width and collapse it again.
+-      if (drawer) sidebarExpandedOverride.set(drawer, true);
+-      drawer?.removeAttribute('data-sx-sidebar-collapsed');
+       clearSidebarSearch(drawer);
+       clearLateSidebarEmail(drawer);
+-      return;
+-    }
+-    const buttonRect = button.getBoundingClientRect();
+-    const drawerRect = drawer?.getBoundingClientRect();
+-    if (drawerRect && buttonRect.top < drawerRect.top + 64 && buttonRect.right > drawerRect.right - 60) {
+-      sidebarExpandedOverride.set(drawer, false);
+-      drawer.setAttribute('data-sx-sidebar-collapsed', '');
+     }
+   }, true);
+   function clearLateSidebarEmail(drawer, attempt = 0) {
