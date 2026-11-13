@@ -371,7 +371,7 @@ router.get('/reports/automated-follow-ups',async(req,res)=>{
     if(ctx.category?.key!=='training_center'||!chatbotFollowupPreview.enabled(ctx.tenant.id))return res.json({success:true,data:{enabled:false,items:[],next:null,summary:{}}});
     const before=req.query.before??null;
     const data=await chatbotFollowupPreview.listForPipeline(require('../database/config.js').promise(),ctx.tenant.id,before,actor,{
-      assignment:req.query.assignment,qrInstanceId:req.query.qrInstanceId,
+      assignment:req.query.assignment,qrInstanceId:req.query.qrInstanceId,kind:req.query.kind,
     });
     res.json({success:true,data:{enabled:true,...data}});
   }catch(error){

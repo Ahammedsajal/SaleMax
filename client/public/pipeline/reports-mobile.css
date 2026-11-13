@@ -59,3 +59,13 @@
  #reports .report-lead-dialog{width:calc(100vw - 16px);max-height:90dvh;border-radius:10px}
  #reports .report-lead-dialog header{padding:12px}
 }
+
+#reports .report-activity-kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,170px),1fr));gap:12px;margin-block:12px 20px}
+#reports .report-activity-kpis button,#reports .automated-followup-kpi{cursor:pointer;text-align:start}
+#reports .report-activity-kpis button:focus-visible,#reports .automated-followup-kpi:focus-visible{outline:2px solid #1768d4;outline-offset:2px}
+#reports .report-record-dialog{max-height:min(84dvh,800px);overflow:auto}
+#reports .report-record-dialog .report-drilldown-head{position:sticky;top:0;z-index:1;background:#fff;margin:0;padding:12px;gap:10px}
+#reports .report-record-dialog .report-record-scroll{padding:0 12px 12px}
+#reports .report-record-dialog .automated-followup-list,#reports .report-record-dialog .followup-brief-list{grid-template-columns:minmax(0,1fr)}
+#reports .report-record-actions{display:flex;gap:8px;flex-wrap:wrap}
+#reports .report-record-actions button{border:1px solid #cbdcf1;border-radius:8px;background:#f3f8ff;color:#145ebc;padding:7px 10px;font:inherit;cursor:pointer}

@@ -38,7 +38,7 @@ async function sendCourseMedia({ pool, ctx, profile, uid, chatId, sessionId, mes
       const { getSession, formatPhone } = require('../../helper/addon/qr');
       const session = getSession(sessionId);
       if (!session) throw Object.assign(new Error('COURSE_MEDIA_CHANNEL_UNAVAILABLE'), { code: 'COURSE_MEDIA_CHANNEL_UNAVAILABLE' });
-      const response = await session.sendMessage(formatPhone(message.senderMobile), content);
+      const response = await require("./chatbot-conversation-control").sendAutomatedQr(session, formatPhone(message.senderMobile), content);
       id = response?.key?.id;
     }
     if (!id) throw Object.assign(new Error('COURSE_MEDIA_SEND_FAILED'), { code: 'COURSE_MEDIA_SEND_FAILED' });

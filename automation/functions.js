@@ -660,9 +660,13 @@ async function sendWaMessage({
   variablesObj,
   content = null,
   bypassBotPause = false,
+  senderKind = "bot",
 }) {
   try {
-    if (chatId && !bypassBotPause && await shouldPause(uid, chatId, channelFor(origin), sessionId)) return null;
+    if (chatId) {
+      const pause = await require('../modules/platform/chatbot-conversation-control').readPause(uid, chatId, channelFor(origin), sessionId);
+      if (pause && (!bypassBotPause || pause.reason === 'staff-replied' || pause.failClosed || pause.ambiguous)) return null;
+    }
     let sendMsgId = null;
     const messageContent = content || node?.data?.content;
     const messageType = messageContent?.type;
@@ -716,7 +720,7 @@ async function sendWaMessage({
           : formatPhone(message.senderMobile);
 
         const send = await timeoutPromise(
-          session?.sendMessage(jid, convertMsgToQR),
+          require("../modules/platform/chatbot-conversation-control").sendAutomatedQr(session, jid, convertMsgToQR, senderKind),
           60000,
         );
 
@@ -747,7 +751,7 @@ async function sendWaMessage({
           : formatPhone(message.senderMobile);
 
         const send = await timeoutPromise(
-          session?.sendMessage(jid, convertMsgToQR),
+          require("../modules/platform/chatbot-conversation-control").sendAutomatedQr(session, jid, convertMsgToQR, senderKind),
           60000,
         );
 

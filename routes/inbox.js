@@ -185,6 +185,10 @@ router.post("/embed/webhook/:uid", async (req, res) => {
     }
 
     switch (change.field) {
+      case "smb_message_echoes":
+      case "message_echoes":
+        await recordMetaStaffEchoes(req, userUID, change.value);
+        break;
       case "messages":
         // save message
         await processMessage({
@@ -340,6 +344,10 @@ router.post("/webhook/:uid", async (req, res) => {
     }
 
     switch (change.field) {
+      case "smb_message_echoes":
+      case "message_echoes":
+        await recordMetaStaffEchoes(req, userUID, change.value);
+        break;
       case "messages":
         await handleMessages(change, userUID, body);
 
@@ -535,6 +543,31 @@ async function updateBroadcastContactPermission(mobile, status, reply) {
     }
   } catch (err) {
     console.error("❌ Error updating broadcast contact permission:", err);
+  }
+}
+
+async function recordMetaStaffEchoes(req, uid, value) {
+  const { verifySignature } = require('../modules/platform/meta-webhook-signature');
+  const signed = verifySignature(req.rawBody, req.headers['x-hub-signature-256'], process.env.META_APP_SECRET);
+  if (!signed) return;
+  const channelRef = value?.metadata?.phone_number_id;
+  if (typeof channelRef !== 'string' || !/^\d{5,30}$/.test(channelRef)) return;
+  const [account] = await query('SELECT 1 AS found FROM meta_api WHERE uid=? AND business_phone_number_id=? LIMIT 1', [uid, channelRef]);
+  if (!account) return;
+  const echoes = value.message_echoes || value.messages;
+  if (!Array.isArray(echoes)) return;
+  for (const echo of echoes.slice(0, 100)) {
+    const to = String(echo?.to || '');
+    if (!/^\d{6,20}$/.test(to) || typeof echo.id !== 'string' || !echo.id || echo.id.length > 255) continue;
+    const chatId = 'meta_' + to;
+    const type = String(echo.type || '').slice(0, 32);
+    if (!['text','image','video','audio','document','sticker','location','contacts','interactive','template'].includes(type)) continue;
+    const data = { type, metaChatId: echo.id, msgContext: JSON.stringify({ type, [type]: echo[type] || {} }),
+      timestamp: Number(echo.timestamp) || Math.floor(Date.now() / 1000), senderMobile: to, senderName: '',
+      route: 'OUTGOING', origin: 'meta', sentBy: 'human', status: 'sent' };
+    await require('../modules/platform/chatbot-conversation-store').persistConversationMessage({
+      uid, chatId, data, staffReply: { channelKind: 'whatsapp_meta', channelRef },
+    });
   }
 }
 

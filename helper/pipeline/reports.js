@@ -168,6 +168,23 @@ function selectedReportWindow({from,to,...options}) {
   const {days,timezone} = reportRange({from,to,timezone:options.timezone});
   return {start:days[0].start,end:days.at(-1).end,timezone,period:'range'};
 }
+const conversationKinds = ['incoming_chats','bot_replies','staff_replies','staff_attended'];
+function conversationActivity(scope) {
+  return `SELECT bc.chat_id AS chatId,bc.origin,bc.route,
+    CASE WHEN MAX(bc.sentBy='automation') THEN 'automation' WHEN MAX(bc.sentBy='bot') THEN 'bot' ELSE 'human' END AS senderKind,
+    MAX(l.id) AS leadId,MAX(${conversationMessageAt}) AS lastAt
+    FROM pipeline_leads l JOIN pipeline_conversations pc ON pc.uid_hash=l.uid_hash AND pc.lead_id=l.id
+    JOIN beta_conversation bc ON bc.uid=l.uid COLLATE utf8mb4_unicode_ci AND bc.chat_id=pc.chat_id COLLATE utf8mb4_unicode_ci
+      AND bc.origin=pc.origin COLLATE utf8mb4_unicode_ci
+    WHERE l.uid_hash=? AND l.uid=? AND bc.origin IN ('qr','meta') AND LEFT(pc.chat_id,8)<>'qrgroup_'
+      AND ${conversationMessageAt}>=? AND ${conversationMessageAt}<?${scope.sql}
+      AND bc.route IN ('INCOMING','OUTGOING')
+    GROUP BY bc.chat_id,bc.origin,bc.metaChatId,bc.route,
+      CASE WHEN COALESCE(bc.metaChatId,'')='' THEN bc.id ELSE NULL END`;
+}
+const staffActivity = "route='OUTGOING' AND senderKind='human'";
+const botActivity = "route='OUTGOING' AND senderKind='bot'";
+
 async function getLeadReportSummary({pool,uid,role='owner',agentId,scopeAgentIds,categoryKey,from,to,timezone='Asia/Qatar',assignment,qrInstanceId}){
   if(!pool||typeof uid!=='string'||!uid)fail('A business workspace is required.',400);
   if(!['owner','manager','team_leader','agent'].includes(role))fail('This role cannot view lead reports.',403);
@@ -176,6 +193,12 @@ async function getLeadReportSummary({pool,uid,role='owner',agentId,scopeAgentIds
   const range=reportRange({from,to,timezone}),selected=leadFilters.parseLeadFilters({assignment,qrInstanceId}),uidHash=hash(uid),db=typeof pool.promise==='function'?pool.promise():pool,connection=await db.getConnection();
   try{
     const start=range.days[0].start,end=range.days[range.days.length-1].end,agentLeadScope=teamAgentScope(role,agentId,scopeAgentIds),selectedLeadScope=leadFilters.leadFilterSql({...selected,alias:'l'}),leadScope={sql:agentLeadScope.sql+selectedLeadScope.sql,args:[...agentLeadScope.args,...selectedLeadScope.args]};
+    const [[conversationCounts]]=await connection.query(`SELECT
+      COUNT(DISTINCT CASE WHEN route='INCOMING' THEN chatId END) AS incoming_chats,
+      SUM(${botActivity}) AS bot_replies,SUM(${staffActivity}) AS staff_replies,
+      COUNT(DISTINCT CASE WHEN ${staffActivity} THEN leadId END) AS staff_attended
+      FROM (${conversationActivity(leadScope)}) activity`,[uidHash,uid,start,end,...leadScope.args]);
+    const conversations=Object.fromEntries(conversationKinds.map(key=>[key,Number(conversationCounts[key]||0)]));
     const [dailyRows]=await connection.query(`SELECT ${range.days.map((_,i)=>`SUM(l.created_at>=? AND l.created_at<?) AS d${i}`).join(',')} FROM pipeline_leads l WHERE l.uid_hash=? AND l.created_at>=? AND l.created_at<?${leadScope.sql}`,[...range.days.flatMap(day=>[day.start,day.end]),uidHash,start,end,...leadScope.args]);
     const agentScope=teamAgentScope(role,agentId,scopeAgentIds,{alias:'a',column:'id'}),attendanceAgentScope=teamAgentScope(role,agentId,scopeAgentIds,{alias:'pl',column:'owner_agent_id'}),attendanceFilter=leadFilters.leadFilterSql({...selected,alias:'pl'}),attendanceScope={sql:attendanceAgentScope.sql+attendanceFilter.sql,args:[...attendanceAgentScope.args,...attendanceFilter.args]},assignedFilter=leadFilters.leadFilterSql({...selected,alias:'l'});
     const [agentRows]=await connection.query(`SELECT a.id AS agentId,a.name AS agentName,a.is_active AS active,COUNT(DISTINCT l.id) AS assignedLeads,COALESCE(MAX(att.attended),0) AS attendedLeads
@@ -283,17 +306,17 @@ async function getLeadReportSummary({pool,uid,role='owner',agentId,scopeAgentIds
       if(Number(unattributed.messages_sent||0)>0)businessUsers.push({userId:'unattributed',userName:'Manager',attendedLeads:Number(unattributed.attended_leads||0),messagesSent:Number(unattributed.messages_sent||0),salesClosed:0,attribution:'account_role'});
     }
     const daily=range.days.map((day,i)=>({date:day.date,total:Number(dailyRows[0]?.[`d${i}`]||0)}));
-    return {from,to,timezone,asOf:new Date().toISOString(),daily,totalLeads:daily.reduce((total,day)=>total+day.total,0),agents:agentRows.map(row=>({agentId:Number(row.agentId),agentName:row.agentName||'Agent',active:Number(row.active)===1,assignedLeads:Number(row.assignedLeads),attendedLeads:Number(row.attendedLeads||0),unattendedLeads:unattendedByAgent.get(Number(row.agentId))||0,hotLeadsNoFollowUp:hotByAgent.get(Number(row.agentId))||0})),businessUsers,current:{today:Number(current.leads_today||0),month:Number(current.leads_month||0),salesConvertedMonth:Number(current.sales_converted_month||0),live:Number(current.live_leads||0),unattended:Number(current.unattended_leads||0),hotLeadsNoFollowUp:Number(hot.n||0),unassigned:role==='owner'?Number(current.unassigned_leads||0):null,firstContact:{count:Number(firstContact.contacted||0),averageMinutes:firstContact.average_minutes==null?null:Number(firstContact.average_minutes)},leadAge:{underOneDay:Number(age.under_one_day||0),oneToThreeDays:Number(age.one_to_three_days||0),fourToSevenDays:Number(age.four_to_seven_days||0),overSevenDays:Number(age.over_seven_days||0)}}};
+    return {from,to,timezone,asOf:new Date().toISOString(),conversations,daily,totalLeads:daily.reduce((total,day)=>total+day.total,0),agents:agentRows.map(row=>({agentId:Number(row.agentId),agentName:row.agentName||'Agent',active:Number(row.active)===1,assignedLeads:Number(row.assignedLeads),attendedLeads:Number(row.attendedLeads||0),unattendedLeads:unattendedByAgent.get(Number(row.agentId))||0,hotLeadsNoFollowUp:hotByAgent.get(Number(row.agentId))||0})),businessUsers,current:{today:Number(current.leads_today||0),month:Number(current.leads_month||0),salesConvertedMonth:Number(current.sales_converted_month||0),live:Number(current.live_leads||0),unattended:Number(current.unattended_leads||0),hotLeadsNoFollowUp:Number(hot.n||0),unassigned:role==='owner'?Number(current.unassigned_leads||0):null,firstContact:{count:Number(firstContact.contacted||0),averageMinutes:firstContact.average_minutes==null?null:Number(firstContact.average_minutes)},leadAge:{underOneDay:Number(age.under_one_day||0),oneToThreeDays:Number(age.one_to_three_days||0),fourToSevenDays:Number(age.four_to_seven_days||0),overSevenDays:Number(age.over_seven_days||0)}}};
   }finally{connection.release();}
 }
 async function getReportLeads({pool,uid,role='owner',agentId,scopeAgentIds,kind,date,selectedAgentId,from,to,timezone='Asia/Qatar',page=1,limit=50,assignment,qrInstanceId}){
   if(!pool||typeof uid!=='string'||!uid)fail('A business workspace is required.',400);
   if(!['owner','manager','team_leader','agent'].includes(role))fail('This role cannot view lead reports.',403);
   if(['manager','team_leader'].includes(role)&&!Array.isArray(scopeAgentIds))fail('Team scope is unavailable for this report.',403);
-  if(!['created','attended','messaged','not_messaged','month_created','month_converted','live','unassigned'].includes(kind))fail('Choose a supported lead list.');
+  if(!['created','attended','messaged','not_messaged','month_created','month_converted','live','unassigned',...conversationKinds].includes(kind))fail('Choose a supported lead list.');
   if(kind==='unassigned'&&role!=='owner')fail('Unassigned leads are outside your access scope.',403);
-  const range=['attended','messaged','not_messaged'].includes(kind)&&from&&to?reportRange({from,to,timezone}):null;
-  if(['attended','messaged','not_messaged'].includes(kind)&&!range)fail('Choose a report date range for this lead list.');
+  const range=['attended','messaged','not_messaged',...conversationKinds].includes(kind)&&from&&to?reportRange({from,to,timezone}):null;
+  if(['attended','messaged','not_messaged',...conversationKinds].includes(kind)&&!range)fail('Choose a report date range for this lead list.');
   const window=range?{start:range.days[0].start,end:range.days[range.days.length-1].end,timezone}:['month_created','month_converted'].includes(kind)?periodWindow({period:'monthly',at:date,timezone}):periodWindow({period:'daily',at:date,timezone}),currentPage=Number(page),pageSize=Number(limit);
   if(!Number.isSafeInteger(currentPage)||currentPage<1||currentPage>10000||!Number.isSafeInteger(pageSize)||pageSize<1||pageSize>100)fail('Report page or page size is invalid.');
   let actor=selectedAgentId;
@@ -309,6 +332,20 @@ async function getReportLeads({pool,uid,role='owner',agentId,scopeAgentIds,kind,
       if(!allowedAgent)fail('This agent is outside your workspace.',403);
     }
     const assignedScope=teamAgentScope(role,agentId,scopeAgentIds),selectedScope=leadFilters.leadFilterSql({...selected,alias:'l'}),leadScope={sql:assignedScope.sql+selectedScope.sql,args:[...assignedScope.args,...selectedScope.args]},offset=(currentPage-1)*pageSize;
+    if(conversationKinds.includes(kind)){
+      const staff=kind==='staff_replies'||kind==='staff_attended';
+      const where=staff?staffActivity:kind==='bot_replies'?botActivity:"route='INCOMING'";
+      const byLead=kind==='staff_attended';
+      const grouped=`SELECT MAX(leadId) AS leadId,MAX(chatId) AS chatId,MAX(lastAt) AS lastAt,COUNT(*) AS messages
+        FROM (${conversationActivity(leadScope)}) activity WHERE ${where} GROUP BY ${byLead?'leadId':'chatId'}`;
+      const args=[uidHash,uid,window.start,window.end,...leadScope.args];
+      const [[count]]=await connection.query(`SELECT COUNT(*) AS total FROM (${grouped}) matched`,args);
+      const [items]=await connection.query(`SELECT matched.*,l.title,l.contact_name AS contactName,l.stage_key AS stageKey
+        FROM (${grouped}) matched JOIN pipeline_leads l ON l.uid_hash=? AND l.id=matched.leadId
+        ORDER BY matched.lastAt DESC,matched.chatId,matched.leadId LIMIT ? OFFSET ?`,[...args,uidHash,pageSize,offset]);
+      const total=Number(count.total||0);
+      return {kind,date,from,to,page:currentPage,limit:pageSize,total,hasMore:offset+items.length<total,items};
+    }
     let source,params;
     if(kind==='created'||kind==='month_created'){
       source=`SELECT l.id FROM pipeline_leads l WHERE l.uid_hash=? AND l.uid=? AND l.created_at>=? AND l.created_at<?${leadScope.sql}`;params=[uidHash,uid,window.start,window.end,...leadScope.args];
@@ -325,11 +362,11 @@ async function getReportLeads({pool,uid,role='owner',agentId,scopeAgentIds,kind,
       source=`SELECT DISTINCT pa.lead_id AS id FROM pipeline_activity pa JOIN pipeline_leads l ON l.uid_hash=pa.uid_hash AND l.id=pa.lead_id WHERE pa.uid_hash=? AND l.uid=? AND pa.actor_type='agent' AND pa.actor_id=? AND pa.created_at>=? AND pa.created_at<? AND pa.activity_type='agent_message_sent'${leadScope.sql}`;params=[uidHash,uid,String(actor),window.start,window.end,...leadScope.args];
     }
     const [[count]]=await connection.query(`SELECT COUNT(*) AS total FROM (${source}) report_leads`,params);
-    const [rows]=await connection.query(`SELECT l.id AS leadId,l.title,COALESCE(c.display_name,l.contact_name) AS contactName,l.mobile,l.stage_key AS stageKey,l.owner_agent_id AS agentId,COALESCE(a.name,'—') AS agentName,l.created_at AS createdAt
+    const [rows]=await connection.query(`SELECT l.id AS leadId,l.title,COALESCE(c.display_name,l.contact_name) AS contactName,l.mobile,l.stage_key AS stageKey,l.owner_agent_id AS agentId,l.chat_id AS chatId,COALESCE(a.name,'—') AS agentName,l.created_at AS createdAt
       FROM (${source}) report_leads JOIN pipeline_leads l ON l.uid_hash=? AND l.id=report_leads.id LEFT JOIN pipeline_contacts c ON c.uid_hash=l.uid_hash AND c.id=l.contact_id
       LEFT JOIN agents a ON a.id=l.owner_agent_id AND a.owner_uid COLLATE utf8mb4_general_ci=l.uid COLLATE utf8mb4_general_ci
       ORDER BY l.created_at DESC,l.id DESC LIMIT ? OFFSET ?`,[...params,uidHash,pageSize,offset]);
-    const isRangeKind=['attended','messaged','not_messaged'].includes(kind);
+    const isRangeKind=['attended','messaged','not_messaged',...conversationKinds].includes(kind);
     const total=Number(count.total||0);return {kind,date,from:isRangeKind?from||date:['month_created','month_converted'].includes(kind)?window.start:null,to:isRangeKind?to||date:['month_created','month_converted'].includes(kind)?window.end:null,selectedAgentId:kind==='attended'?actor:null,page:currentPage,limit:pageSize,total,hasMore:offset+rows.length<total,items:rows};
   }finally{connection.release();}
 }

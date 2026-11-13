@@ -370,6 +370,16 @@ async function listForPipeline(pool, tenant, before, actor, filters = {}) {
   const filtered = leadFilters.leadFilterSql({ ...parsed, alias: 'l' });
   const where = `p.tenant_id=?${scoped.sql}${filtered.sql}`;
   const args = [tenant, ...scoped.args, ...filtered.args];
+  const match = {
+    all: '1=1',
+    due: "((d2.status='queued' AND d2.due_at<=UTC_TIMESTAMP(3)) OR (d7.status='queued' AND d7.due_at<=UTC_TIMESTAMP(3)))",
+    day2: "d2.status IN ('queued','sending')",
+    day7: "d7.status IN ('queued','sending')",
+    sent: "(d2.status='sent' OR d7.status='sent')",
+    review: "p.status='review'",
+  };
+  const kind = filters.kind || 'all';
+  if (!Object.hasOwn(match, kind)) throw Object.assign(Error('INVALID_REPORT_FILTER'), { code: 'INVALID_REPORT_FILTER', status: 400 });
   const [rows] = await pool.query(`SELECT CAST(p.id AS CHAR) AS id,p.lead_id AS leadId,
     COALESCE(NULLIF(l.learner_name,''),NULLIF(l.contact_name,''),NULLIF(l.title,''),'Unnamed lead') AS label,
     l.title,l.owner_agent_id AS ownerAgentId,COALESCE(NULLIF(a.name,''),CASE WHEN l.owner_agent_id IS NULL THEN NULL ELSE CONCAT('Agent ',l.owner_agent_id) END) AS ownerName,
@@ -399,7 +409,7 @@ async function listForPipeline(pool, tenant, before, actor, filters = {}) {
     LEFT JOIN agents a ON a.id=l.owner_agent_id AND a.owner_uid COLLATE utf8mb4_general_ci=l.uid COLLATE utf8mb4_general_ci
     LEFT JOIN sx_chatbot_followup_deliveries d2 ON d2.tenant_id=p.tenant_id AND d2.lead_id=p.lead_id AND d2.step='day2'
     LEFT JOIN sx_chatbot_followup_deliveries d7 ON d7.tenant_id=p.tenant_id AND d7.lead_id=p.lead_id AND d7.step='day7'
-    WHERE l.uid_hash=? AND l.uid=? AND ${where} AND (? IS NULL OR p.id<?)
+    WHERE l.uid_hash=? AND l.uid=? AND ${where} AND ${match[kind]} AND (? IS NULL OR p.id<?)
     ORDER BY p.id DESC LIMIT 31`, [hash, uid, hash, uid, ...args, before, before]);
   const items = rows.slice(0, 30).map(row => ({
     ...row,

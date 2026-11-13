@@ -227,6 +227,8 @@ function returnMsgObjAfterAddingKey(overrides = {}) {
 
 //     if (data?.messages[0]?.id) {
 //       const metaMsgId = data?.messages[0]?.id;
+      if (chatInfo?.chat_id) await require('../../modules/platform/chatbot-conversation-control')
+        .pauseForStaffReply(uid, chatInfo.chat_id, 'whatsapp_meta', waNumId).catch(error => console.warn('STAFF_REPLY_PAUSE_FAILED', error.code));
 //       return { success: true, id: metaMsgId };
 //     } else {
 //       return { success: false, msg: JSON.stringify(data) };
@@ -236,7 +238,7 @@ function returnMsgObjAfterAddingKey(overrides = {}) {
 //   }
 // }
 
-async function sendMetaMsg({ uid, to, msgObj }) {
+async function sendMetaMsg({ uid, to, msgObj, chatInfo }) {
   try {
     const [api] = await query(`SELECT * FROM meta_api WHERE uid = ?`, [uid]);
     if (!api || !api?.access_token || !api?.business_phone_number_id) {
@@ -505,6 +507,8 @@ async function sendQrMsg({ uid, to, msgObj, chatInfo }) {
         msg: `Could not send message: ${send?.toString()}`,
       };
     } else {
+      await require('../../modules/platform/chatbot-conversation-control')
+        .pauseForStaffReply(uid, chatInfo.chat_id, 'whatsapp_qr', sessionId).catch(error => console.warn('STAFF_REPLY_PAUSE_FAILED', error.code));
       return { success: true, id: msgId };
     }
   } catch (err) {

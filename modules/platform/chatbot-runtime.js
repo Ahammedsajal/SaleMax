@@ -253,6 +253,7 @@ async function processHandoffPriorityForProfile({ ctx, profile, uid, message, us
 
   const pause = await require('./chatbot-conversation-control').readPause(uid, chatId, channelKind, sessionId);
   if (!pause) return { handled: false };
+  if (pause.reason === 'staff-replied') return { handled: true, paused: true };
   let pending = await claims.findOpen(dbPool, { tenantId: ctx.tenant.id, uid, channelKind, channelRef: sessionId, chatId });
   if (pause.updatedByKind === 'system' && pending && pause.reason === pending.reason) {
     await query(`UPDATE sx_chatbot_conversation_controls SET mode='inherit',pause_until=NULL,reason=NULL,
@@ -278,6 +279,8 @@ async function handleHandoffPriorityMessage({ uid, message, user, sessionId, ori
   const profile = await profileFor(ctx, uid, origin, sessionId);
   if (mockup.ownsInbox(uid, origin) && !mockup.liveRecipientAllowed(profile?.config, origin, message.senderMobile)) return { handled: true };
   if (!profile) return { handled: false };
+  const staffPause = await require('./chatbot-conversation-control').readPause(uid, chatId, channelFor(origin), sessionId);
+  if (staffPause?.reason === 'staff-replied') return { handled: true, paused: true };
   const claims = require('./chatbot-handoff-claims');
   await claims.expireDue(dbPool, { tenantId: ctx.tenant.id, channelKind: channelFor(origin), channelRef: sessionId, conversationId: chatId }).catch(error => {
     console.warn('[chatbot] handoff expiry sweep failed', error.code || 'HANDOFF_EXPIRY_FAILED');
@@ -1155,7 +1158,7 @@ async function aiTurn({ ctx, profile, uid, message, user, sessionId, origin, cha
   onStage?.('conversation-persist');
   const timestamp = Math.trunc(Date.now() / 1000);
   const messageData = { type: 'text', metaChatId: sentId, msgContext: { type: 'text', text: { preview_url: false, body: answer.reply } }, reaction: '', timestamp, senderName: message.senderName, senderMobile: message.senderMobile, star: 0, route: 'OUTGOING', context: null, origin, sentBy: 'bot' };
-  await query(`INSERT INTO beta_conversation SET ?`, { ...messageData, msgContext: JSON.stringify(messageData.msgContext), context: null, uid, chat_id: chatId });
+  await require('./chatbot-conversation-store').persistConversationMessage({ uid, chatId, data: { ...messageData, msgContext: JSON.stringify(messageData.msgContext), context: null } });
   await query(`UPDATE beta_chats SET last_message=? WHERE uid=? AND chat_id=?`, [JSON.stringify(messageData), uid, chatId]);
   if (answer.state) await saveConversationalState({ ctx, profile, chatId, channelKind: channelFor(origin), channelRef: sessionId, state: { ...answer.state, recentConversation: intakeAnswer ? answer.state.recentConversation || [] : [...(answer.state.recentConversation || []),
     { role: 'user', text: incomingText.slice(0, 400) },

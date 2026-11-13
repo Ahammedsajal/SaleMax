@@ -225,18 +225,30 @@
     const labels={scheduled:'automatedFollowupsScheduled',queued:'automatedFollowupsQueued',sending:'automatedFollowupsSending',sent:'automatedFollowupsSentStatus',skipped:'automatedFollowupsSkipped',uncertain:'automatedFollowupsUncertain',ready:'automatedFollowupsReady',review:'automatedFollowupsReviewStatus',waiting_day2:'automatedFollowupsAfterDay2',waiting:'automatedFollowupsWaiting',not_scheduled:'automatedFollowupsNotScheduled'};
     return t(labels[status]||'automatedFollowupsNotScheduled');
   }
+  const activityKinds=['incoming_chats','bot_replies','staff_replies','staff_attended'];
+  const activityLabels={
+    incoming_chats:['Incoming chats','المحادثات الواردة'],bot_replies:['Bot replies','ردود البوت'],
+    staff_replies:['Staff replies','ردود الفريق'],staff_attended:['Leads attended by staff','العملاء الذين رد عليهم الفريق']
+  };
+  const activityLabel=key=>activityLabels[key]?.[arabic()?1:0];
+  function activityCards(values){
+    return '<div class="report-kpis report-activity-kpis">'+activityKinds.map(key=>summaryMetric(activityLabel(key),values?.[key],key)).join('')+'</div>';
+  }
   function renderAutomatedFollowups(){
     if(state.automatedFollowupsError)return `<section class="report-automated-followups" aria-labelledby="automatedFollowupsTitle"><div class="report-snapshot-heading"><div><h3 id="automatedFollowupsTitle">${escape(t('automatedFollowupsTitle'))}</h3><p>${escape(t('automatedFollowupsDescription'))}</p></div></div><p class="report-state" role="alert">${escape(t('automatedFollowupsUnavailable'))} <button type="button" class="report-retry" id="automatedFollowupsRetry">${escape(t('automatedFollowupsRetry'))}</button></p></section>`;
     const data=state.automatedFollowups;
     if(!data?.enabled)return '';
-    const summary=data.summary||{},items=data.items||[],number=value=>Number(value||0).toLocaleString(arabic()?'ar-QA':'en-QA');
+    const summary=data.summary||{},items=state.automatedRecords?.items||[],number=value=>Number(value||0).toLocaleString(arabic()?'ar-QA':'en-QA');
     const cards=[['automatedFollowupsTotal',summary.total],['automatedFollowupsDueNow',summary.dueNow],['automatedFollowupsDay2Queued',Number(summary.dayTwoQueued||0)+Number(summary.dayTwoSending||0)],['automatedFollowupsDay7Queued',Number(summary.daySevenQueued||0)+Number(summary.daySevenSending||0)],['automatedFollowupsSent',Number(summary.dayTwoSent||0)+Number(summary.daySevenSent||0)],['automatedFollowupsReview',summary.needsReview]];
-    const metrics=`<div class="report-kpis automated-followup-kpis">${cards.map(([label,value],index)=>`<div class="report-kpi automated-followup-kpi automated-followup-kpi-${index+1}"><small>${escape(t(label))}</small><b>${escape(number(value))}</b></div>`).join('')}</div>`;
+    const metrics=`<div class="report-kpis automated-followup-kpis">${cards.map(([label,value],index)=>`<button type="button" class="report-kpi automated-followup-kpi automated-followup-kpi-${index+1}" data-auto-filter="${index}" aria-haspopup="dialog"><small>${escape(t(label))}</small><b>${escape(number(value))}</b></button>`).join('')}</div>`;
     const step=(label,status,at)=>`<div class="automated-followup-step"><span>${escape(t(label))}</span><strong class="automated-followup-status automated-followup-status-${escape(status||'not_scheduled')}">${escape(automatedFollowupStatus(status))}</strong><small>${escape(at?formatDate(at):'—')}</small></div>`;
     const list=items.length?`<div class="automated-followup-list">${items.map(item=>`<article class="automated-followup-item"><div class="automated-followup-person"><h4>${escape(item.label||item.title||t('automatedFollowupsLead'))}</h4><p>${escape(item.course||item.title||'—')} · ${escape(t('automatedFollowupsOwner'))}: ${escape(item.ownerName||(arabic()?'غير مسند':'Unassigned'))}</p><small>${escape(t('automatedFollowupsLastCustomer'))}: ${escape(formatDate(item.lastCustomerAt))}</small></div><div class="automated-followup-steps">${step('automatedFollowupsDay2',item.dayTwoStatus,item.dayTwoSentAt||item.dayTwoDeliveryAt||item.dayTwoAt)}${step('automatedFollowupsDay7',item.daySevenStatus,item.daySevenSentAt||item.daySevenDeliveryAt||item.daySevenAt)}</div><div class="automated-followup-actions"><button type="button" class="report-open-chat" data-brief-chat="${escape(item.chatId||'')}" data-brief-origin="${escape(item.chatOrigin||'qr')}" data-brief-name="${escape(item.label||item.title||'')}" ${item.chatId?'':'disabled'}>${escape(t('followUpBriefOpen'))}</button></div></article>`).join('')}</div>`:`<div class="report-state">${escape(t('automatedFollowupsNoItems'))}</div>`;
-    const moreError=state.automatedFollowupsMoreError?`<p class="report-state" role="alert">${escape(t('automatedFollowupsMoreFailed'))}</p>`:'';
-    const more=data.next?`<div class="automated-followup-more">${moreError}<button type="button" class="report-retry" id="automatedFollowupsMore">${escape(t('automatedFollowupsMore'))}</button></div>`:'';
-    return `<section class="report-automated-followups" aria-labelledby="automatedFollowupsTitle"><div class="report-snapshot-heading"><div><h3 id="automatedFollowupsTitle">${escape(t('automatedFollowupsTitle'))}</h3><p>${escape(t('automatedFollowupsDescription'))}</p></div></div>${metrics}${list}${more}</section>`;
+    const moreError=state.automatedRecordsError?`<p class="report-state" role="alert">${escape(t('automatedFollowupsMoreFailed'))}</p>`:'';
+    const more=state.automatedRecords?.next?`<div class="automated-followup-more">${moreError}<button type="button" class="report-retry" id="automatedFollowupsMore">${escape(t('automatedFollowupsMore'))}</button></div>`:'';
+    return `<section class="report-automated-followups" aria-labelledby="automatedFollowupsTitle"><div class="report-snapshot-heading"><div><h3 id="automatedFollowupsTitle">${escape(t('automatedFollowupsTitle'))}</h3><p>${escape(t('automatedFollowupsDescription'))}</p></div></div>${metrics}${state.automatedFilter==null?'':listDialog(t(cards[state.automatedFilter][0]),state.automatedRecordsLoading?`<p class="report-state">${t('drilldownLoading')}</p>`:state.automatedRecordsError?`<p class="report-state">${t('drilldownFailed')}</p>`:list+more,'automatedRecords')}</section>`;
+  }
+  function listDialog(title,content,id){
+    return `<dialog class="report-lead-dialog report-record-dialog" id="${id}" aria-label="${escape(title)}"><section class="report-drilldown"><header class="report-drilldown-head"><h3>${escape(title)}</h3><button type="button" data-close-records class="report-retry">${arabic()?'إغلاق':'Close'}</button></header><div class="report-record-scroll">${content}</div></section></dialog>`;
   }
   function render(report) {
     state.report=report;
@@ -282,7 +294,7 @@
     const briefPagination=briefItems.length>briefPageSize?'<nav class="followup-brief-pagination" aria-label="'+escape(t('followUpBriefTitle'))+'"><button type="button" class="report-retry" id="followUpBriefPrev" '+(briefPage<=1?'disabled':'')+'>'+escape(t('followUpBriefPrevious'))+'</button><span>'+escape(briefRangeText)+'</span><button type="button" class="report-retry" id="followUpBriefNext" '+(briefPage>=briefPageCount?'disabled':'')+'>'+escape(t('followUpBriefNextPage'))+'</button></nav>':'<p class="followup-brief-range" aria-live="polite">'+escape(briefRangeText)+'</p>';
     const briefLimited=briefItems.length<briefFilterCount?'<p class="report-state followup-brief-limited">'+escape(t('followUpBriefLimited'))+'</p>':'';
     const briefItemsHtml=briefItems.length?'<div class="followup-brief-list" id="followUpBriefResults">'+visibleBriefItems.map(renderBriefItem).join('')+'</div>'+briefPagination+briefLimited:briefFilterCount>0?'<div class="report-state followup-brief-limited" id="followUpBriefResults">'+escape(t('followUpBriefLimited'))+'</div>':'<div class="report-state" id="followUpBriefResults">'+escape(t('followUpBriefNoMatches'))+'</div>';
-    const followUpBriefHtml=brief?`<section class="report-followup-brief" aria-labelledby="followUpBriefHeading"><div class="report-snapshot-heading"><div><h3 id="followUpBriefHeading">${escape(t('followUpBriefTitle'))}</h3><p>${escape(t('followUpBriefSubtitle'))}</p></div>${briefSuggestedChip}</div>${briefCards}${briefFilterSummary}<p class="report-chart-note">${escape(t('followUpBriefRule'))}</p>${briefItemsHtml}</section>`:`<section class="report-followup-brief" role="status"><h3>${escape(t('followUpBriefTitle'))}</h3><p class="report-state">${escape(t('followUpBriefUnavailable'))}</p></section>`;
+    const followUpBriefHtml=brief?`<section class="report-followup-brief" aria-labelledby="followUpBriefHeading"><div class="report-snapshot-heading"><div><h3 id="followUpBriefHeading">${escape(t('followUpBriefTitle'))}</h3><p>${escape(t('followUpBriefSubtitle'))}</p></div>${briefSuggestedChip}</div>${briefCards}${state.briefPopup?listDialog(briefFilterLabel,briefFilterSummary+briefItemsHtml,'briefRecords'):''}</section>`:`<section class="report-followup-brief" role="status"><h3>${escape(t('followUpBriefTitle'))}</h3><p class="report-state">${escape(t('followUpBriefUnavailable'))}</p></section>`;
     const automatedFollowupsHtml=renderAutomatedFollowups();
     const followUpAssignmentSection=followUpAssignmentHtml();
     const drilldownHtml=state.drilldown?renderDrilldown(state.drilldown):'';
@@ -292,8 +304,16 @@
     const reportActions=ownerSession()?`<div class="report-download-actions"><button type="button" class="report-download" id="downloadVisualReport">${t('downloadReport')}</button><button type="button" class="report-download report-download-secondary" id="saveVisualReportPdf">${t('saveReportPdf')}</button><button type="button" class="report-download report-download-secondary" id="downloadDailyReport">${t('downloadDailyReport')}</button></div>`:'';
     const detailsHtml=`<details class="report-more"><summary>${t('moreDetails')}</summary>${ownerSession()?scheduleSection():''}${journeyHtml}${cohortHtml}${journeyActivityHtml}<div class="report-kpis">${metrics.map(([key,value])=>metric(t(key),Number(value||0).toLocaleString(arabic()?'ar-QA':'en-QA'))).join('')}</div>${outcomeHtml}${financeHtml}<h3>${escape(t('title'))} · ${escape(periodText)}</h3>${state.report?.items?.length?`<button class="report-export" type="button" id="reportExport">${t('exportPage')}</button>`:''}${listHtml}</details>`;
     const issueBanner=state.issues.length?`<div class="report-partial-alert" role="status"><span aria-hidden="true">i</span><div><strong>${t('partialLoad')}</strong><small>${state.issues.map(key=>t(key)).map(escape).join(' · ')}</small></div></div>`:'';
-    host.innerHTML=shell(`${issueBanner}<div class="report-period-bar"><p class="report-period">${escape(fmtDay(state.from))} – ${escape(fmtDay(state.to))}</p>${reportActions}</div>${automatedFollowupsHtml}${insightsHtml}${followUpAssignmentSection}${followUpBriefHtml}${summaryCards}<section class="report-primary-section"><h3>${t('dailyLeads')}</h3>${dailyTable}</section><section class="report-primary-section"><h3>${t('agentAttendance')}</h3>${agentTable}</section>${businessUserHtml}${drilldownHtml}${detailsHtml}`);
-    const dialog=$('.report-lead-dialog',host);if(dialog&&!dialog.open)try{dialog.showModal();}catch(_){}
+    host.innerHTML=shell(`${issueBanner}<div class="report-period-bar"><p class="report-period">${escape(fmtDay(state.from))} – ${escape(fmtDay(state.to))}</p>${reportActions}</div>${activityCards(range?.conversations)}${automatedFollowupsHtml}${followUpBriefHtml}<details class="report-more"><summary>${arabic()?'تفاصيل الأداء والإعدادات':'Performance details and settings'}</summary>${summaryCards}${insightsHtml}${followUpAssignmentSection}<section class="report-primary-section"><h3>${t('dailyLeads')}</h3>${dailyTable}</section><section class="report-primary-section"><h3>${t('agentAttendance')}</h3>${agentTable}</section>${businessUserHtml}${detailsHtml}</details>${drilldownHtml}`);
+    const records=$('.report-record-dialog',host);
+    const closeRecords=()=>{state.automatedFilter=null;state.automatedRecords=null;state.briefPopup=false;render(report);};
+    if(records){
+      records.showModal();
+      records.querySelector('[data-close-records]').onclick=closeRecords;
+      records.addEventListener('cancel',event=>{event.preventDefault();closeRecords();});
+    }
+    $('[data-auto-filter]',host).forEach(button=>button.onclick=()=>openAutomatedRecords(Number(button.dataset.autoFilter)));
+    const dialog=$('.report-lead-dialog:not(.report-record-dialog)',host);if(dialog&&!dialog.open)try{dialog.showModal();}catch(_){}
     bindFilters();
     bindScheduleForms();
     bindFollowUpAssignment();
@@ -308,14 +328,14 @@
     $$('.report-drill-button',host).forEach(button=>button.addEventListener('click',()=>loadDrilldown(button.dataset.drillKind,button.dataset.drillDate,button.dataset.drillAgent)));
     $$('.report-summary-card',host).forEach(button=>button.addEventListener('click',()=>loadSummaryDrilldown(button.dataset.summaryKind,button.dataset.summaryValue==='null')));
     $$('.report-message-drill',host).forEach(button=>button.addEventListener('click',()=>loadSummaryDrilldown(button.dataset.messageDrill,false)));
-    $('#drilldownClose')?.addEventListener('click',()=>{state.drilldown=null;render(report);});
-    dialog?.addEventListener('cancel',event=>{event.preventDefault();state.drilldown=null;render(report);});
-    dialog?.addEventListener('click',event=>{if(event.target===dialog){state.drilldown=null;render(report);}});
+    $('#drilldownClose')?.addEventListener('click',()=>{state.drilldownSequence++;state.drilldown=null;render(report);});
+    dialog?.addEventListener('cancel',event=>{event.preventDefault();state.drilldownSequence++;state.drilldown=null;render(report);});
+    dialog?.addEventListener('click',event=>{if(event.target===dialog){state.drilldownSequence++;state.drilldown=null;render(report);}});
     $('#drilldownPrevious')?.addEventListener('click',()=>{state.drilldownPage=Math.max(1,state.drilldownPage-1);loadDrilldown(state.drilldown.kind,state.drilldown.date,state.drilldown.selectedAgentId);});
     $('#drilldownNext')?.addEventListener('click',()=>{state.drilldownPage+=1;loadDrilldown(state.drilldown.kind,state.drilldown.date,state.drilldown.selectedAgentId);});
     $$('.report-open-chat:not([data-brief-chat])',host).forEach(button=>button.addEventListener('click',()=>{const id=button.dataset.lead;setView('board');window.salemaxPipelineOpenLead?.(id);}));
     $$('[data-brief-chat]',host).forEach(button=>button.addEventListener('click',()=>openBriefChat(button)));
-    $$('[data-brief-filter]',host).forEach(button=>button.addEventListener('click',()=>{state.followUpBriefFilter=button.dataset.briefFilter||'suggested';state.followUpBriefPage=1;render(report);}));
+    $$('[data-brief-filter]',host).forEach(button=>button.addEventListener('click',()=>{state.briefPopup=true;state.followUpBriefFilter=button.dataset.briefFilter||'suggested';state.followUpBriefPage=1;render(report);}));
     $$('[data-clear-brief-filter]',host).forEach(button=>button.addEventListener('click',()=>{state.followUpBriefFilter='suggested';state.followUpBriefPage=1;render(report);}));
     $('#followUpBriefPrev')?.addEventListener('click',()=>{state.followUpBriefPage=Math.max(1,state.followUpBriefPage-1);render(report);});
     $('#followUpBriefNext')?.addEventListener('click',()=>{state.followUpBriefPage+=1;render(report);});
@@ -395,12 +415,12 @@
   }
   function summaryMetric(label,value,kind){return `<button type="button" class="report-kpi report-summary-card" data-summary-kind="${escape(kind)}" data-summary-value="${value===null||value===undefined?'null':escape(value)}" aria-label="${escape(`${label}: ${value===null||value===undefined?'—':Number(value||0).toLocaleString(arabic()?'ar-QA':'en-QA')}. ${t('summaryClickHint')}`)}"><small>${escape(label)}</small><b>${value===null||value===undefined?'—':Number(value||0).toLocaleString(arabic()?'ar-QA':'en-QA')}</b></button>`;}
   function renderDrilldown(data){
-    const items=data.items||[],rows=items.map(item=>`<tr><td>${escape(item.contactName||item.title||t('leadName'))}<small>${escape(item.mobile||'')}</small></td><td>${escape(item.agentName||'—')}</td><td>${escape(item.stageKey||'—')}</td><td><button class="report-open-chat" type="button" data-lead="${escape(item.leadId)}">${t('openLeadChat')}</button></td></tr>`).join('');
-    const body=data.loading?`<div class="report-state" role="status">${t('drilldownLoading')}</div>`:data.denied?`<div class="report-state" role="status">${t('scopeUnavailableDetail')}</div>`:data.error?`<div class="report-state" role="alert">${t('drilldownFailed')}</div>`:items.length?`<div class="report-table-wrap"><table class="report-table report-simple-table"><thead><tr><th>${t('leadName')}</th><th>${t('assignedAgent')}</th><th>${t('leadStage')}</th><th></th></tr></thead><tbody>${rows}</tbody></table></div><nav class="report-pagination"><button type="button" id="drilldownPrevious" ${data.page<=1?'disabled':''}>${t('previous')}</button><span>${t('page')} ${data.page} · ${data.total}</span><button type="button" id="drilldownNext" ${data.hasMore?'':'disabled'}>${t('next')}</button></nav>`:`<div class="report-state">${t('drilldownEmpty')}</div>`;
-    return `<dialog class="report-lead-dialog" aria-labelledby="drilldownTitle"><section class="report-drilldown"><div class="report-drilldown-head"><div><span class="report-dialog-eyebrow">${t('title')}</span><h3 id="drilldownTitle">${escape(t(`drilldown_${data.kind}`)||t('drilldownTitle'))}</h3><p class="report-dialog-count">${data.loading||data.denied||data.error?'':`${Number(data.total||0).toLocaleString(arabic()?'ar-QA':'en-QA')} ${t('leadCount')}`}</p></div><button type="button" class="report-retry" id="drilldownClose">${t('backToReport')}</button></div>${body}</section></dialog>`;
+    const items=data.items||[],rows=items.map(item=>`<tr><td>${escape(item.contactName||item.title||t('leadName'))}<small>${escape(item.mobile||'')}</small></td><td>${item.messages==null?escape(item.agentName||'—'):escape(chartCount(item.messages))}</td><td>${escape(item.stageKey||'—')}</td><td><div class="report-record-actions"><button class="report-open-chat" type="button" data-lead="${escape(item.leadId)}">${arabic()?'فتح العميل':'Open lead'}</button>${item.chatId?`<button class="report-open-chat" type="button" data-brief-chat="${escape(item.chatId)}" data-brief-origin="${escape(item.origin||(item.chatId.startsWith('meta_')?'meta':'qr'))}" data-brief-name="${escape(item.contactName||item.title||'')}">${arabic()?'فتح المحادثة':'Open chat'}</button>`:''}</div></td></tr>`).join('');
+    const body=data.loading?`<div class="report-state" role="status">${t('drilldownLoading')}</div>`:data.denied?`<div class="report-state" role="status">${t('scopeUnavailableDetail')}</div>`:data.error?`<div class="report-state" role="alert">${t('drilldownFailed')}</div>`:items.length?`<div class="report-table-wrap"><table class="report-table report-simple-table"><thead><tr><th>${t('leadName')}</th><th>${activityKinds.includes(data.kind)?(arabic()?'الرسائل':'Messages'):t('assignedAgent')}</th><th>${t('leadStage')}</th><th></th></tr></thead><tbody>${rows}</tbody></table></div><nav class="report-pagination"><button type="button" id="drilldownPrevious" ${data.page<=1?'disabled':''}>${t('previous')}</button><span>${t('page')} ${data.page} · ${data.total}</span><button type="button" id="drilldownNext" ${data.hasMore?'':'disabled'}>${t('next')}</button></nav>`:`<div class="report-state">${t('drilldownEmpty')}</div>`;
+    return `<dialog class="report-lead-dialog" aria-labelledby="drilldownTitle"><section class="report-drilldown"><div class="report-drilldown-head"><div><span class="report-dialog-eyebrow">${t('title')}</span><h3 id="drilldownTitle">${escape(activityLabel(data.kind)||t(`drilldown_${data.kind}`)||t('drilldownTitle'))}</h3><p class="report-dialog-count">${data.loading||data.denied||data.error?'':`${Number(data.total||0).toLocaleString(arabic()?'ar-QA':'en-QA')} ${t('leadCount')}`}</p></div><button type="button" class="report-retry" id="drilldownClose">${t('backToReport')}</button></div>${body}</section></dialog>`;
   }
   function loadSummaryDrilldown(kind,denied){
-    if(['messaged','not_messaged'].includes(kind)){
+    if(['messaged','not_messaged',...activityKinds].includes(kind)){
       if(denied){state.drilldownPage=1;state.drilldown={kind,date:null,denied:true};render(state.report);return;}
       loadDrilldown(kind,null,null);return;
     }
@@ -409,7 +429,7 @@
     loadDrilldown(kind,date,null);
   }
   async function loadDrilldown(kind,date,selectedAgentId){
-    const ranged=['attended','messaged','not_messaged'].includes(kind),same=state.drilldown?.kind===kind&&state.drilldown.date===date&&String(state.drilldown.selectedAgentId||'')===String(selectedAgentId||'')&&(!ranged||(state.drilldown.from===state.from&&state.drilldown.to===state.to));
+    const ranged=['attended','messaged','not_messaged',...activityKinds].includes(kind),same=state.drilldown?.kind===kind&&state.drilldown.date===date&&String(state.drilldown.selectedAgentId||'')===String(selectedAgentId||'')&&(!ranged||(state.drilldown.from===state.from&&state.drilldown.to===state.to));
     if(!same)state.drilldownPage=1;
     state.drilldown={kind,date,selectedAgentId,...(ranged?{from:state.from,to:state.to}:{}),loading:true};
     render(state.report);const request=++state.drilldownSequence;
@@ -435,21 +455,35 @@
     document.body.appendChild(link);link.click();link.remove();setTimeout(()=>URL.revokeObjectURL(url),1000);
     const toast=$('#toast');if(toast){toast.textContent=t('exportReady');toast.classList.add('show');setTimeout(()=>toast.classList.remove('show'),2500);}
   }
-  async function requestAutomatedFollowups(before=null){
+  async function requestAutomatedFollowups(before=null,kind=null){
     const params=new URLSearchParams({assignment:state.assignment,qrInstanceId:state.qrInstanceId});
     if(before)params.set('before',String(before));
+    if(kind)params.set('kind',kind);
     const result=await window.SaleMaxWorkspace.request('pipeline','/reports/automated-follow-ups?'+params);
     return result.data;
   }
-  async function loadMoreAutomatedFollowups(){
-    const button=$('#automatedFollowupsMore'),cursor=state.automatedFollowups?.next;
-    if(!button||!cursor)return;
-    button.disabled=true;state.automatedFollowupsMoreError=false;
-    try{
-      const data=await requestAutomatedFollowups(cursor);
-      if(state.automatedFollowups&&data?.enabled){state.automatedFollowups.items=[...(state.automatedFollowups.items||[]),...(data.items||[])];state.automatedFollowups.next=data.next;state.automatedFollowups.summary=data.summary||state.automatedFollowups.summary;}
-    }catch(_){state.automatedFollowupsMoreError=true;}
-    if(state.report)render(state.report);
+  const automatedKinds=['all','due','day2','day7','sent','review'];
+  let automatedRequest=0;
+  async function openAutomatedRecords(index,before=null){
+    const request=++automatedRequest;
+    state.automatedFilter=index;
+    state.automatedRecordsLoading=true;
+    state.automatedRecordsError=false;
+    render(state.report);
+    try {
+      const data=await requestAutomatedFollowups(before,automatedKinds[index]);
+      if(request!==automatedRequest||state.automatedFilter!==index)return;
+      const previous=before?state.automatedRecords?.items||[]:[];
+      state.automatedRecords={...data,items:[...previous,...data.items]};
+    }catch(_){
+      if(request!==automatedRequest||state.automatedFilter!==index)return;
+      state.automatedRecordsError=true;
+    }
+    state.automatedRecordsLoading=false;
+    render(state.report);
+  }
+  function loadMoreAutomatedFollowups(){
+    if(state.automatedRecords?.next)openAutomatedRecords(state.automatedFilter,state.automatedRecords.next);
   }
   async function load() {
     const request=++state.sequence;

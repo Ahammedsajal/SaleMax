@@ -632,7 +632,7 @@ const createSession = async (
             origin: "qr",
             getSession,
             sessionId,
-            qrType: "upsert",
+            qrType: m.type,
           });
         }
       }

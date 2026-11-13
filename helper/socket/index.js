@@ -808,6 +808,7 @@ function processSocketEvent({
             });
           } else if (chatInfo?.origin === "meta") {
             sendMsg = await sendMetaMsg({
+              chatInfo,
               msgObj: msgCon,
               to: senderMobile,
               uid: isAgent ? socket?.userData?.owner_uid : uid,

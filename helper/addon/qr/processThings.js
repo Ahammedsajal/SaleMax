@@ -229,9 +229,9 @@ function getChatId({ instanceNumber, senderMobile, uid }) {
   }
 }
 
-async function saveMessageToConversation({ uid, chatId, messageData }) {
+async function saveMessageToConversation({ uid, chatId, messageData, staffReply }) {
   try {
-    const result = await require('../../../modules/platform/chatbot-conversation-store').persistConversationMessage({ uid, chatId, data: {
+    const result = await require('../../../modules/platform/chatbot-conversation-store').persistConversationMessage({ uid, chatId, staffReply, data: {
       type: messageData.type,
       metaChatId: messageData.metaChatId,
       msgContext: JSON.stringify(messageData.msgContext),
@@ -243,6 +243,7 @@ async function saveMessageToConversation({ uid, chatId, messageData }) {
       route: messageData.route,
       context: messageData.context ? JSON.stringify(messageData.context) : null,
       origin: messageData.origin,
+      ...(messageData.sentBy ? { sentBy: messageData.sentBy } : {}),
       uid,
       chat_id: chatId,
     } });
@@ -253,7 +254,7 @@ async function saveMessageToConversation({ uid, chatId, messageData }) {
   }
 }
 
-async function processBaileysMsg({ body, uid, userFromMysql, chatId }) {
+async function processBaileysMsg({ sessionId, live, body, uid, userFromMysql, chatId }) {
   try {
     if (!body) return null;
     const groupMessage = groups.isGroupJid(body.key?.remoteJid);
@@ -498,11 +499,16 @@ async function processBaileysMsg({ body, uid, userFromMysql, chatId }) {
       origin: "qr",
     };
 
-    // Save message to MySQL
+    const automated = body.key.fromMe && require('../../../modules/platform/chatbot-conversation-control').automatedQrSender(body.key.id);
+    if (body.key.fromMe) newMessage.sentBy = automated || 'human';
+    const staffReply = live && body.key.fromMe && !automated && !groupMessage
+      ? { channelKind: 'whatsapp_qr', channelRef: sessionId } : null;
+
     const inserted = await saveMessageToConversation({
       uid,
       chatId,
       messageData: newMessage,
+      staffReply,
     });
 
     return { newMessage: inserted ? newMessage : null, chatId };
@@ -585,6 +591,8 @@ async function processMessageQr({
 
     const data = await processBaileysMsg({
       body: message,
+      sessionId,
+      live: type === "notify",
       uid: uid,
       userFromMysql: userData,
       chatId,

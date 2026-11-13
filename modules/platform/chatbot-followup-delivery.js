@@ -312,7 +312,7 @@ async function processOne(pool, db, tenantId) {
   let messageId = null;
   try {
     messageId = await require('../../automation/functions').sendWaMessage({
-      origin: 'qr', sessionId: target.instanceId, uid, chatId: target.chatId,
+      origin: 'qr', sessionId: target.instanceId, uid, chatId: target.chatId, senderKind: 'automation',
       message: { senderMobile: target.senderMobile, senderName: target.senderName || 'Customer' },
       content: { type: 'text', text: { preview_url: false, body: text } },
     });
