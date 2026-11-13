@@ -117,7 +117,7 @@ async function dispatch(db,item,{pool,send=qr.send,authorize=allowed,summarizeHa
  const text=item.kind==='daily_summary'?(meta.reportText||reports.text(snapshot)):item.kind==='ai_usage_monthly'
   ? `7Network AI usage reminder for ${snapshot.month}: estimated spend is $${Number(snapshot.estimatedUsd).toFixed(2)} against the $${Number(snapshot.thresholdUsd).toFixed(2)} monthly reminder threshold. This is a reminder only; AI replies continue without a spending cap.\n\nتذكير باستخدام الذكاء الاصطناعي لشهر ${snapshot.month}: الإنفاق التقديري هو ${Number(snapshot.estimatedUsd).toFixed(2)} دولار من حد التذكير الشهري البالغ ${Number(snapshot.thresholdUsd).toFixed(2)} دولار. هذا تذكير فقط، وتستمر الردود دون حد لإيقافها.`
   : item.kind==='chatbot_handoff'
-   ? `New 7Network customer handoff · ${snapshot.claimCode}\nCustomer: ${snapshot.customerName || 'Name not available'}${snapshot.customerPhone ? ` · ${snapshot.customerPhone}` : ''}\nCourse: ${(snapshot.courseDetails||[]).map(course=>course.nameEn||course.nameAr||course.code).filter(Boolean).join(', ') || 'Not identified'}\nLatest enquiry: ${snapshot.latestEnquiry || 'Please review the chat'}\n${snapshot.ai?'AI summary':'Conversation context'}: ${snapshot.text || 'Please review the recent conversation.'}\n\nReply YES ${snapshot.claimCode} to claim this chat. The first eligible staff reply is assigned the chat.`
+   ? englishHandoffText(snapshot)
    : finance.message(item.kind,snapshot,{business:meta.business});
  let receivableActions=[];if(item.kind==='daily_summary'&&item.part==='pdf'&&pool){try{receivableActions=await require('./training-report-delivery-worker').loadReceivableActions(pool,db,item.tenant_id);}catch{}}
  const pdf=item.part==='pdf'?await require('./business-report-pdf').render(snapshot,{receivableActions}):null;
@@ -129,6 +129,13 @@ async function finish(db,item,result){
  const [updated]=await db.query(`UPDATE sx_business_notification_deliveries SET status=?,error_code=?,provider_message_id=?,accepted_at=IF(?='accepted',UTC_TIMESTAMP(3),NULL),available_at=DATE_ADD(UTC_TIMESTAMP(3),INTERVAL ? SECOND),lease_token=NULL,lease_expires_at=NULL WHERE id=? AND tenant_id=? AND status='sending' AND lease_token=?`,[status,result.errorCode||null,result.providerMessageId||null,status,Math.min(3600,30*2**Math.min(item.attempts,7)),item.id,item.tenant_id,item.token]);
  if(updated.affectedRows!==1)throw Object.assign(Error('BUSINESS_NOTIFICATION_LEASE_LOST'),{code:'BUSINESS_NOTIFICATION_LEASE_LOST'});
  return status;
+}
+function englishHandoffText(snapshot){
+ const clean=value=>String(value||'').replace(/[\u0600-\u06FF\u0750-\u077F\u08A0-\u08FF\uFB50-\uFDFF\uFE70-\uFEFF\u061C\u200E\u200F]/gu,'').replace(/\s+/g,' ').trim();
+ const course=(snapshot.courseDetails||[]).map(item=>clean(item.nameEn||item.code)).filter(Boolean).join(', ')||'Not identified';
+ const enquiry=clean(snapshot.latestEnquiry)||'Please review the chat';
+ const summary=clean(snapshot.text)||'Please review the recent conversation.';
+ return `New 7Network customer handoff · ${clean(snapshot.claimCode)}\nCustomer: ${clean(snapshot.customerName)||'Name not available'}${clean(snapshot.customerPhone)?` · ${clean(snapshot.customerPhone)}`:''}\nCourse: ${course}\nLatest enquiry: ${enquiry}\n${snapshot.ai?'AI summary':'Conversation context'}: ${summary}\n\nReply YES ${clean(snapshot.claimCode)} to claim this chat. The first eligible staff reply is assigned the chat.`;
 }
 async function scheduledReport(db,{pool,tenantId,to,snapshot,text}){
  const owners=await qr.staff(db,tenantId,{ownerOnly:true}),owner=owners.find(r=>r.phone&&qr.hash(r.phone)===qr.hash(qr.phone(to)||''));
@@ -169,4 +176,4 @@ function start({env=process.env,pool}={}){
  const loop=async()=>{if(stopped||busy)return;busy=true;try{const scan=Date.now()-scanAt>60000;const result=await tick(pool,{scan});if(scan)scanAt=Date.now();if(result.prepared||result.accepted||result.unknown||result.expired)console.log(JSON.stringify({businessNotifications:result}));}catch(e){console.error(JSON.stringify({event:'business_notifications_failed',code:e.code||'WORKER_FAILED'}));}finally{busy=false;if(!stopped)timer=setTimeout(loop,15000);}};
  timer=setTimeout(loop,20000);return {stop(){stopped=true;clearTimeout(timer);}};
 }
-module.exports={enqueue,due,scanTenant,prepare,claim,dispatch,finish,scheduledReport,tick,start};
+module.exports={enqueue,due,scanTenant,prepare,claim,dispatch,finish,englishHandoffText,scheduledReport,tick,start};
