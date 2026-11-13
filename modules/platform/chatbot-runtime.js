@@ -144,7 +144,10 @@ async function sendCustomerHandoffNotice({ ctx, profile, uid, message, origin, s
   const pending = await claims.findOpen(dbPool, { tenantId: ctx.tenant.id, uid, channelKind, channelRef: sessionId, chatId });
   if (!pending) return false;
   if (!await claims.reserveCustomerAcknowledgement(dbPool, { tenantId: ctx.tenant.id, claimId: pending.id, inboundId })) return false;
-  const sent = await sendBotText({ origin, sessionId, message, uid, chatId, body: handoffText(message, null, accepted) }).catch(() => false);
+  const body = !accepted && ctx.category.key === 'training_center' && origin === 'qr' && mockup.ownsInbox(uid, origin)
+    ? coordinatorReply({ language: businessContext.languageFor(textOf(message)), followUp: Boolean(pending.lastCustomerAckAt) })
+    : handoffText(message, null, accepted);
+  const sent = await sendBotText({ origin, sessionId, message, uid, chatId, body }).catch(() => false);
   if (!sent) await claims.releaseCustomerAcknowledgement(dbPool, { tenantId: ctx.tenant.id, claimId: pending.id, inboundId }).catch(() => {});
   return sent;
 }
@@ -625,6 +628,30 @@ function safeConversationalReply({ language, context, message, state = {}, staff
   return 'I don’t have that detail confirmed yet. Which part would you like me to check? I can also share the information we do have.';
 }
 
+function coordinatorReply({ language, followUp = false }) {
+  if (language === 'ar') return followUp
+    ? 'استفسارك قيد المتابعة مع منسق الدورة، وسيتواصل معك لمساعدتك في الخطوة التالية.'
+    : 'أحلت استفسارك إلى منسق الدورة ليتواصل معك قريبًا ويساعدك في التفاصيل.';
+  return followUp
+    ? 'Your enquiry is with the course coordinator. They’ll get in touch to go over the details with you.'
+    : 'I’ve passed your enquiry to the course coordinator so they can contact you soon and help you further.';
+}
+
+function coordinatorCourseFacts(context, message) {
+  const courses = context.evidence.filter(item => item.kind === 'course');
+  if (courses.length !== 1) return '';
+  const text = businessContext.normalized(message);
+  const all = /^(?:everything|all details|all the details|كل التفاصيل|جميع التفاصيل)$/u.test(text) ||
+    businessContext.isCourseOverviewRequest(message, context);
+  const { name, duration, offer } = courses[0];
+  const parts = [];
+  if (duration && (all || /duration|how long|مدة/u.test(text))) parts.push(context.language === 'ar' ? `مدة الدورة ${duration}.` : `The ${name} course lasts ${duration}.`);
+  if ((all || /\b(?:fees?|price|cost|how much)\b|رسوم|سعر|تكلفة/u.test(text)) && offer?.priceAmount != null && offer.currency) parts.push(context.language === 'ar'
+    ? `رسوم الدورة ${offer.priceAmount} ${offer.currency}.`
+    : `The course fee is ${offer.currency} ${offer.priceAmount}.`);
+  return parts.join(' ');
+}
+
 function personalUpdateReply(message, context) {
   const raw = String(message || '').normalize('NFKC').trim();
   if (!raw || /[?؟]/u.test(raw)
@@ -772,6 +799,21 @@ async function generateAiAnswer({ ctx, profile, uid, customerMessage, chatId = n
     // they never create a handoff, pause a chat, or send a WhatsApp message.
     staffNotificationQueued = true;
   }
+  const coordinatorPolicy = courseCertificates && continuity;
+  const coordinatorAnswer = () => {
+    const variants = [false, true].map(followUp => coordinatorReply({ language: context.language, followUp }));
+    const previous = (session.recentConversation || []).filter(turn => turn.role === 'assistant').at(-1)?.text || '';
+    const followUp = previous.includes(variants[0]) || (!previous.includes(variants[1]) && session.coordinatorFollowUp === true);
+    const reply = staffNotificationQueued ? variants[Number(followUp)] : (context.language === 'ar'
+      ? 'يمكن لمنسق الدورة مساعدتك في التحقق من هذه التفاصيل.'
+      : 'Our course coordinator can help you check those details.');
+    return { canAnswer: true, confidence: 1,
+      reply: [coordinatorCourseFacts(context, customerMessage), reply].filter(Boolean).join(' '),
+      state: { ...nextState, coordinatorFollowUp: !followUp }, route: 'coordinator',
+      staffRequested, staffNotificationQueued, suppressIntakeQuestion: true,
+      metrics: { inputTokens: 0, outputTokens: 0, cacheHit: false, sources: context.sources } };
+  };
+  if (coordinatorPolicy && staffReason) return coordinatorAnswer();
   const repeatedFact = businessContext.repeatedCourseFact(repeat, context);
   if (repeatedFact && !staffReason) return { canAnswer: true, confidence: 1, reply: repeatedFact.reply, state: nextState, route: 'facts', repeat: true,
     metrics: { inputTokens: 0, outputTokens: 0, cacheHit: false, sources: context.sources.filter(source => repeatedFact.sourceIds.includes(source.id)) } };
@@ -870,8 +912,16 @@ async function generateAiAnswer({ ctx, profile, uid, customerMessage, chatId = n
   onStage?.('answer-validation');
   const validation = businessContext.validateAnswer(response, context, { staffNotificationQueued });
   const threshold = Number(profile.config?.confidenceThreshold ?? 0.72);
-  if (!validation.valid || response.confidence < threshold) {
-    if (courseOverview && !staffRequested && !staffNotificationQueued && factualOverviewFallback(context)) return factualOverviewFallback(context);
+  const unconfirmed = coordinatorPolicy && /\b(?:i (?:don['’]t|do not) have|i (?:can['’]t|cannot) confirm|(?:is|are) not confirmed|not (?:currently )?published)\b|لا أملك|غير مؤكد|لم يتم تأكيد/iu.test(response.reply || '');
+  if (!validation.valid || response.confidence < threshold || unconfirmed) {
+    if (!coordinatorPolicy && courseOverview && !staffRequested && !staffNotificationQueued && factualOverviewFallback(context)) return factualOverviewFallback(context);
+    if (coordinatorPolicy) {
+      if (uid && chatId && channelKind && channelRef && !staffNotificationQueued) {
+        const claim = await handoffConversation(ctx, chatId, channelKind, channelRef, validation.code || 'LOW_CONFIDENCE', profile, uid, null, { pause: false }).catch(() => null);
+        staffNotificationQueued = Boolean(claim?.id);
+      } else if (simulateStaffNotificationQueued) staffNotificationQueued = true;
+      return { ...coordinatorAnswer(), metrics };
+    }
     return { canAnswer: true, confidence: 0, reply: safeConversationalReply({ language: context.language, context, message: customerMessage, state: session, staffRequested, staffNotificationQueued }),
       state: nextState, route: 'safe_fallback', reason: validation.code || 'LOW_CONFIDENCE', staffRequested, staffNotificationQueued, metrics };
   }

@@ -114,6 +114,14 @@ function courseDetailNeedsCoordinator(message, facts, selectedCourseCode = null)
 }
 
 function trainingCenterCoordinatorReason(message, facts, selectedCourseCode = null) {
+  const text = normalized(message);
+  const course = selectedCourseCode && (facts || []).find(item => item.code === selectedCourseCode && !item.kind);
+  if (course && /\b(?:not flexible|can only start|must start|need a fixed date)\b|لست مرنا|موعد محدد/u.test(text)
+    && !hasPublishedSchedule(facts, selectedCourseCode)) return 'SCHEDULE_REQUIRES_COORDINATOR';
+  if (course && /^(?:everything|all details|all the details|كل التفاصيل|جميع التفاصيل)$/u.test(text)
+    && !hasPublishedSchedule(facts, selectedCourseCode)) return 'SCHEDULE_REQUIRES_COORDINATOR';
+  if (course && /\b(?:fees?|price|cost|how much)\b|رسوم|سعر|تكلفة/u.test(text)
+    && course.offer?.priceAmount == null) return 'COURSE_DETAIL_REQUIRES_COORDINATOR';
   if (isScheduleQuestion(message) && !hasPublishedSchedule(facts, selectedCourseCode)) return 'SCHEDULE_REQUIRES_COORDINATOR';
   if (/\b(?:i need|i want|i'd like|i would like|hope) to start (?:immediately|right away|asap)|\b(?:immediately|right away|asap)\b|أريد أن أبدأ فوراً|أريد أن أبدأ فورًا|أبغى أبدأ فوراً|اريد ان ابدا فوراً/u.test(normalized(message))
     && !hasPublishedSchedule(facts, selectedCourseCode)) return 'SCHEDULE_REQUIRES_COORDINATOR';
