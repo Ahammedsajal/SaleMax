@@ -84,3 +84,14 @@ test('mockup live replies require the exact recipient on both saved lists and th
  assert.equal(testRecipientAllowed(config, 'meta', tester), false);
  assert.equal(testRecipientAllowed({ testRecipientPhones: [tester] }, 'qr', tester), false);
 });
+
+test('customer replies require an explicit full QR rollout or the existing test allowlist', () => {
+ const { liveRecipientAllowed } = require('../modules/platform/chatbot-mockup');
+ const customer = '97455550004';
+ assert.equal(liveRecipientAllowed({}, 'qr', customer), false);
+ assert.equal(liveRecipientAllowed({ rolloutPercent: 99 }, 'qr', customer), false);
+ assert.equal(liveRecipientAllowed({ rolloutPercent: 100 }, 'qr', customer), true);
+ assert.equal(liveRecipientAllowed({ rolloutPercent: 100 }, 'meta', customer), false);
+ assert.equal(liveRecipientAllowed({ rolloutPercent: 100 }, 'qr', customer + '@lid'), false);
+ assert.equal(liveRecipientAllowed({ rolloutPercent: 100 }, 'qr', customer + '@g.us'), false);
+});

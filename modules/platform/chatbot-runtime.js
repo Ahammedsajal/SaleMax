@@ -273,7 +273,7 @@ async function handleHandoffPriorityMessage({ uid, message, user, sessionId, ori
   const ctx = access.context;
   if (!ctx) return { handled: false };
   const profile = await profileFor(ctx, uid, origin, sessionId);
-  if (mockup.ownsInbox(uid, origin) && !mockup.testRecipientAllowed(profile?.config, origin, message.senderMobile)) return { handled: true };
+  if (mockup.ownsInbox(uid, origin) && !mockup.liveRecipientAllowed(profile?.config, origin, message.senderMobile)) return { handled: true };
   if (!profile) return { handled: false };
   const claims = require('./chatbot-handoff-claims');
   await claims.expireDue(dbPool, { tenantId: ctx.tenant.id, channelKind: channelFor(origin), channelRef: sessionId, conversationId: chatId }).catch(error => {
@@ -660,13 +660,13 @@ async function saveConversationalState({ ctx, profile, chatId, channelKind, chan
 
 async function canSendNow({ ctx, profile, uid, origin, sessionId, chatId, message, checkPause=true }) {
   const pilot = mockup.ownsInbox(uid, origin);
-  if (pilot && !mockup.testRecipientAllowed(profile?.config, origin, message?.senderMobile)) return false;
+  if (pilot && !mockup.liveRecipientAllowed(profile?.config, origin, message?.senderMobile)) return false;
   const access=await currentOwnerAccess(uid);
   if(!require('./chatbot-runtime-access').sameBoundary(ctx,access.context))return false;
   const current = await profileFor(access.context, uid, origin, sessionId);
   return current?.id === profile.id && Number(current.revision) === Number(profile.revision)
     && recipientAllowed(current.config, message?.senderMobile, current.id)
-    && (!pilot || mockup.testRecipientAllowed(current.config, origin, message?.senderMobile))
+    && (!pilot || mockup.liveRecipientAllowed(current.config, origin, message?.senderMobile))
     && (!checkPause||!await shouldPause(uid, chatId, channelFor(origin), sessionId));
 }
 
@@ -1282,7 +1282,7 @@ async function runConfiguredBot({ uid, message, user, sessionId, origin, chatId 
     return blocked?{handled:true,paused:true,code:access.code||'BUSINESS_ACCESS_INACTIVE'}:{handled:false};
   }
   const profile = await profileFor(ctx, uid, origin, sessionId);
-  if (pilot && !mockup.testRecipientAllowed(profile?.config, origin, message.senderMobile)) return { handled: true, paused: true, code: 'RECIPIENT_NOT_ENABLED' };
+  if (pilot && !mockup.liveRecipientAllowed(profile?.config, origin, message.senderMobile)) return { handled: true, paused: true, code: 'RECIPIENT_NOT_ENABLED' };
   if (!profile) return { handled: false };
   const priority = await handleHandoffPriorityMessage({ uid, message, user, sessionId, origin, chatId });
   if (priority.handled) return priority;

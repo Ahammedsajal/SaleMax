@@ -16,6 +16,12 @@ function testRecipientAllowed(config, origin, recipient) {
   return Boolean(phone && Array.isArray(config?.testRecipientPhones) && config.testRecipientPhones.includes(phone)
     && Array.isArray(config?.allowedRecipientPhones) && config.allowedRecipientPhones.includes(phone));
 }
+function liveRecipientAllowed(config, origin, recipient) {
+  // Keep the pilot restricted to verified QR recipients. A full rollout must
+  // be explicitly enabled on the assigned profile.
+  return testRecipientAllowed(config, origin, recipient) ||
+    Boolean(origin === 'qr' && config?.rolloutPercent === 100 && recipientPhone(recipient));
+}
 const safeCode = value => String(value || '').match(/^[a-zA-Z0-9_-]{1,100}$/)?.[0] || null;
 
 async function enqueue(pool, { uid, message, origin, sessionId, chatId }) {
@@ -207,4 +213,4 @@ function createRouter({ pool, authenticate }) {
   return router;
 }
 
-module.exports = { enabled, ownsInbox, testRecipientAllowed, enqueue, start, tick, list, thread, createRouter };
+module.exports = { enabled, ownsInbox, testRecipientAllowed, liveRecipientAllowed, enqueue, start, tick, list, thread, createRouter };
