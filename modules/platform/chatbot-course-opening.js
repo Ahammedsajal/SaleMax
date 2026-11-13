@@ -37,10 +37,10 @@ function chunks(text) {
   return parts;
 }
 
-function planOpening({ facts, message, context, state = {}, config = {} }) {
+function planOpening({ facts, message, context, state = {}, config = {}, firstMatch = false }) {
   const code = context.selectedCourseCode;
   const course = facts.find(item => !item.kind && item.code === code);
-  if (!isOpeningRequest(message, context, course) || state.courseOpeningCodes?.includes(code)) return null;
+  if (!course || state.courseOpeningCodes?.includes(code) || (!firstMatch && !isOpeningRequest(message, context, course))) return null;
   const evidence = context.evidence.find(item => item.kind === 'course' && item.code === code);
   if (!evidence) return null;
   const ar = context.language === 'ar';
@@ -92,7 +92,7 @@ function planOpening({ facts, message, context, state = {}, config = {} }) {
     reply: texts[0], openingTexts: texts.slice(1),
     media: attachment ? [{ ...attachment, courseId: course.courseId }] : [],
     route: 'course-opening',
-    state: { ...state, greeted: true, language: context.language, selectedCourseCode: code, step: 'course_detail',
+    state: { ...state, greeted: true, language: context.language, selectedCourseCode: code, waitingForCourse: false, step: 'course_detail',
       courseOpeningCodes: [...(state.courseOpeningCodes || []), code].slice(-20) },
   };
 }
