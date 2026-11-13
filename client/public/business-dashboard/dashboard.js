@@ -11,10 +11,133 @@ const period=()=>{const f=new Intl.DateTimeFormat('en-CA',{timeZone:state.access
 const labelFor=key=>({training_center:['Training center overview','نظرة عامة على مركز التدريب'],'7network_sales':['7Network sales overview','نظرة عامة على مبيعات 7Network']})[key]||['Business overview','نظرة عامة على الأعمال'];
 function setupLanguage(){document.documentElement.lang=ar()?'ar':'en';document.documentElement.dir=ar()?'rtl':'ltr';$('#dashboard').classList.toggle('rtl',ar());$('#refresh').setAttribute('aria-label',tr('Refresh dashboard','تحديث لوحة المعلومات'));}
 function createMenu(){const nav=navigation(),items=[];const add=(key,label,path)=>{if(nav.has(key))items.push({label,path});};add('leads','Add lead','/user?page=lead-pipeline');add('courses','Create course','/user?page=courses');add('invoices','Create invoice','/user?page=finance-settings');add('tasks','Create task','/user?page=tasks');add('campaigns','Create campaign','/user?page=send-campaign');if(nav.has('sales-finance')&&state.access?.permissions?.['sales.receipt.record'])items.push({label:'Record payment',path:'/user?page=sales-finance&view=reconciliation'});const menu=$('#create-menu');menu.innerHTML=items.map((x,i)=>`<button type="button" data-index="${i}">${esc(tr(x.label,({'Add lead':'إضافة عميل محتمل','Create course':'إنشاء دورة','Create invoice':'إنشاء فاتورة','Create task':'إنشاء مهمة','Create campaign':'إنشاء حملة','Record payment':'تسجيل دفعة'})[x.label]||x.label))}</button>`).join('')||`<div class="empty" style="min-height:60px">${tr('No create actions assigned','لا توجد إجراءات إنشاء مخصصة')}</div>`;menu.querySelectorAll('button').forEach(b=>b.onclick=()=>location.assign(items[Number(b.dataset.index)].path));$('#create').onclick=()=>menu.hidden=!menu.hidden;if(!createCloseBound){document.addEventListener('click',e=>{if(!e.target.closest('.create-wrap'))$('#create-menu').hidden=true;});createCloseBound=true;}}
-function metric(label,value,note,color){return `<article class="metric" style="--accent:${color}"><span class="metric-label">${esc(label)}</span><strong class="metric-value">${esc(value)}</strong><span class="metric-note">${esc(note||'')}</span></article>`;}
-function drawBars(rows,{value,key}={}){const vals=rows.map(r=>Number(value(r)||0)),max=Math.max(...vals,1);return `<div class="bars">${rows.map((r,i)=>`<div class="bar-group" title="${esc(key(r))}: ${count(vals[i])}"><span class="bar-value">${esc(count(vals[i]))}</span><div class="bar" style="height:${Math.max(3,Math.round(vals[i]/max*142))}px"></div><span class="bar-label">${esc(key(r))}</span></div>`).join('')}</div>`;}
+function workspaceHref(page, params = {}) {
+  return '/user?' + new URLSearchParams({ page, ...(actor() === 'agent' ? { actor: 'agent' } : {}), ...params });
+}
+function financeHref(nav, receipts) {
+  if (nav.has('invoices')) return workspaceHref('finance-settings', receipts ? {view:'receipts'} : {});
+  if (nav.has('finance-reports') || nav.has('reports')) return workspaceHref('finance-settings', {section:'reports'});
+  return null;
+}
+function dashboardAction(content, className, action, label, style = '') {
+  const attrs = `class="${className}"${style ? ` style="${style}"` : ''}`;
+  if (typeof action === 'string') return `<a ${attrs} href="${esc(action)}" target="_top">${content}</a>`;
+  if (action) return `<button type="button" ${attrs} data-lead-list="${esc(JSON.stringify(action))}" data-list-title="${esc(label)}">${content}</button>`;
+  return `<div ${attrs}>${content}</div>`;
+}
+function metric(label,value,note,color,action){
+  return dashboardAction(`<span class="metric-label">${esc(label)}</span><strong class="metric-value">${esc(value)}</strong><span class="metric-note">${esc(note||'')}</span>`, 'metric', action, label, `--accent:${color}`);
+}
+function leadActions(row) {
+  const id = row.lead_id || row.leadId || row.id;
+  const chatId = row.latest_chat_id || row.chat_id;
+  const nav = navigation();
+  return [
+    id && nav.has('leads') && [workspaceHref('lead-pipeline', {lead: id, view: 'detail'}), tr('Open lead','فتح العميل')],
+    chatId && nav.has('inbox') && [workspaceHref('inbox', {chatId}), tr('Open chat','فتح المحادثة')],
+  ].filter(Boolean).map(([href, label]) => `<a href="${esc(href)}" target="_top">${esc(label)}</a>`).join('');
+}
+function financeAction(view, extra = {}) {
+  const to = period();
+  const start = new Date(to.slice(0,7) + '-01T00:00:00Z');
+  start.setUTCMonth(start.getUTCMonth()-11);
+  return { finance: view, from: start.toISOString().slice(0,10), to, ...extra };
+}
+function financeRow(row, view) {
+  const link = (label, params) => dashboardAction(esc(label), 'dashboard-record-link',
+    workspaceHref('finance-settings', {section:'reports', ...params}), label);
+  const actions = [link(tr('Open invoice','فتح الفاتورة'), {invoice:row.id, kind:row.kind || 'posted'})];
+  if (row.receipt_id) actions.push(link(tr('Open receipt','فتح الإيصال'), {receipt:row.receipt_id}));
+  if (row.lead_id && navigation().has('leads')) actions.push(leadActions({lead_id:row.lead_id}));
+  const value = view === 'receipts' ? row.amount_minor : view === 'receivable' ? row.outstanding_minor : view === 'overdue' ? row.overdue_minor : row.total_minor;
+  return `<article class="dashboard-lead-row"><div><strong>${esc(row.receipt_number || row.invoice_number)}</strong><small>${esc(row.learner_name || row.payer_name || '')} · ${esc(money(value,state.access,row.currency))}</small></div><div class="dashboard-lead-actions">${actions.join('')}</div></article>`;
+}
+function openLeadList(trigger) {
+  const filter = JSON.parse(trigger.dataset.leadList);
+  let dialog = $('#dashboard-lead-list');
+  if (!dialog) {
+    dialog = document.createElement('dialog');
+    dialog.id = 'dashboard-lead-list';
+    dialog.setAttribute('aria-labelledby','dashboard-lead-list-title');
+    document.body.append(dialog);
+  }
+  dialog.innerHTML = `<header><h2 id="dashboard-lead-list-title">${esc(trigger.dataset.listTitle)}</h2><form method="dialog"><button autofocus>${tr('Close','إغلاق')}</button></form></header>
+    <div class="dashboard-list-results" aria-live="polite"></div>
+    <footer><button type="button" data-prev>${tr('Previous','السابق')}</button><span data-page></span><button type="button" data-next>${tr('Next','التالي')}</button></footer>`;
+  dialog.showModal();
+  const results = dialog.querySelector('.dashboard-list-results');
+  const previous = dialog.querySelector('[data-prev]');
+  const next = dialog.querySelector('[data-next]');
+  const pageLabel = dialog.querySelector('[data-page]');
+  let request = 0;
+  async function loadPage(page) {
+    const generation = ++request;
+    previous.disabled = next.disabled = true;
+    results.textContent = tr('Loading records…','جارٍ تحميل السجلات…');
+    pageLabel.textContent = '';
+    const { finance, records, ...query } = filter;
+    const params = new URLSearchParams({ ...query, page, limit: 20 });
+    const endpoint = finance ? '/api/workspace/finance/reports/dashboard' :
+      records === 'courses' ? '/api/workspace/courses' :
+      records === 'enrollments' ? '/api/workspace/courses/enrollments' :
+      records === 'tasks' ? '/api/user/training/tasks' :
+      '/api/pipeline/' + (filter.period ? 'follow-ups' : 'board');
+    if (finance) params.set('view', finance);
+    try {
+      const data = await api(endpoint + '?' + params);
+      if (generation !== request || !dialog.open) return;
+      const rows = finance || records || filter.period ? data.items : data.leads;
+      const visible = rows || [];
+      results.innerHTML = visible.map(row => finance ? financeRow(row, finance) : records ? recordRow(row, records) :
+        `<article class="dashboard-lead-row"><div><strong>${esc(row.relationship_name || row.contact_name || row.learner_name || row.title || tr('Lead','عميل محتمل'))}</strong><small>${esc(row.stage_title || stageName(row.stage_key, data.stages?.find(s => s.stage_key === row.stage_key)?.title) || '')}</small></div><div class="dashboard-lead-actions">${leadActions(row)}</div></article>`).join('') ||
+        `<p>${tr('No matching records on this page.','لا توجد سجلات مطابقة في هذه الصفحة.')}</p>`;
+      previous.disabled = page <= 1;
+      next.disabled = !(data.hasMore ?? (page < (data.pages ?? Math.ceil(Number(data.total || 0)/20))));
+      pageLabel.textContent = tr(`Page ${count(page)}`,`الصفحة ${count(page)}`);
+      previous.onclick = () => loadPage(page - 1);
+      next.onclick = () => loadPage(page + 1);
+    } catch {
+      if (generation !== request || !dialog.open) return;
+      results.innerHTML = `<p>${tr('The records could not be loaded.','تعذر تحميل السجلات.')}</p><button type="button">${tr('Try again','حاول مرة أخرى')}</button>`;
+      results.querySelector('button').onclick = () => loadPage(page);
+    }
+  }
+  loadPage(1);
+}
+function recordRow(row, type) {
+  const target = type === 'tasks' ? workspaceHref('tasks',{task:row.id}) :
+    type === 'courses' ? workspaceHref('courses',{course:row.id}) :
+    workspaceHref('courses',{view:'enrollments',enrollment:row.id});
+  const label = type === 'tasks' ? tr('Open task','فتح المهمة') : type === 'courses'
+    ? tr('Open course','فتح الدورة') : tr('Open enrollment','فتح التسجيل');
+  const name = type === 'courses' ? tr(row.nameEn,row.nameAr || row.nameEn) : row.learnerName || row.title;
+  return `<article class="dashboard-lead-row"><div><strong>${esc(name)}</strong><small>${esc(row.invoiceNumber || row.code || row.status || '')}</small></div><div class="dashboard-lead-actions">${dashboardAction(esc(label),'dashboard-record-link',target,label)}${type === 'enrollments' && row.invoiceId && financeHref(navigation(),false) ? dashboardAction(tr('Open invoice','فتح الفاتورة'),'dashboard-record-link',workspaceHref('finance-settings',{section:'reports',invoice:row.invoiceId}),'') : ''}</div></article>`;
+}
+function trainingInsights(data) {
+  const stages = (data.board?.stages || []).filter(stage => Number(stage.total) > 0).map(stage => ({
+    label: stageName(stage.stageKey, stage.title), value: Number(stage.total), action: {stage:stage.stageKey},
+  }));
+  const follow = data.followups?.summary;
+  const queues = follow ? [
+    {label:tr('Overdue','متأخرة'),value:follow.overdue,action:{period:'overdue'}},
+    {label:tr('Upcoming','قادمة'),value:follow.upcoming,action:{period:'upcoming'}},
+  ] : [];
+  for (const [id, title, rows, render] of [
+    ['lead-stage-insight',tr('Leads by stage','العملاء حسب المرحلة'),stages,drawDonut],
+    ['followup-insight',tr('Follow-up workload','المتابعات المطلوبة'),queues,items=>drawBars(items,{value:x=>x.value,key:x=>x.label})],
+  ]) {
+    $('#' + id)?.remove();
+    if (rows.length) $('.main-grid').insertAdjacentHTML('beforeend',`<section class="panel" id="${id}"><h2>${esc(title)}</h2>${render(rows)}</section>`);
+  }
+}
+function drawBars(rows,{value,key,action}={}){
+  const vals=rows.map(r=>Number(value(r)||0)),max=Math.max(...vals,1);
+  return `<div class="bars">${rows.map((row,i)=>dashboardAction(
+    `<span class="bar-value">${esc(count(vals[i]))}</span><span class="bar" style="height:${Math.max(3,Math.round(vals[i]/max*142))}px"></span><span class="bar-label">${esc(key(row))}</span>`,
+    'bar-group', row.action || action, key(row))).join('')}</div>`;
+}
 function stageName(key,title){const names={new:['New','جديد'],contacted:['Contacted','تم التواصل'],qualified:['Qualified','مؤهل'],proposal:['Proposal','عرض'],won:['Won','تم الفوز'],lost:['Lost','مفقود'],training_invoice_issued:['Invoice issued','تم إصدار الفاتورة'],training_payment_received:['Payment received','تم استلام الدفعة'],training_course_started:['Course started','بدأت الدورة'],training_fully_paid:['Paid in full','مدفوع بالكامل'],training_course_completed:['Course completed','اكتملت الدورة'],training_certificate_issued:['Certificate issued','تم إصدار الشهادة']};return names[key]?tr(...names[key]):(title||key);}
-function drawDonut(rows){const colors=['#1768d4','#d94378','#efa8c0','#f5d7e2','#8b9aaf','#c4cbd5'];const total=rows.reduce((n,r)=>n+Number(r.value||0),0);if(!total)return `<div class="chart-empty"><strong>${tr('No activity yet','لا يوجد نشاط بعد')}</strong>${tr('Your chart will fill as records are added.','سيظهر الرسم عند إضافة السجلات.')}</div>`;let offset=0,stops=[];rows.forEach((r,i)=>{const end=offset+Number(r.value||0)/total*100;stops.push(`${colors[i%colors.length]} ${offset}% ${end}%`);offset=end;});return `<div class="donut-layout"><div class="donut" style="background:conic-gradient(${stops.join(',')})"><div class="donut-total"><strong>${esc(count(total))}</strong>${tr('records','سجل')}</div></div><div class="legend">${rows.map((r,i)=>`<div class="legend-row"><i class="swatch" style="--swatch:${colors[i%colors.length]}"></i><span>${esc(r.label)}</span><strong>${esc(count(r.value))}</strong></div>`).join('')}</div></div>`;}
+function drawDonut(rows){const colors=['#1768d4','#d94378','#efa8c0','#f5d7e2','#8b9aaf','#c4cbd5'];const total=rows.reduce((n,r)=>n+Number(r.value||0),0);if(!total)return `<div class="chart-empty"><strong>${tr('No activity yet','لا يوجد نشاط بعد')}</strong>${tr('Your chart will fill as records are added.','سيظهر الرسم عند إضافة السجلات.')}</div>`;let offset=0,stops=[];rows.forEach((r,i)=>{const end=offset+Number(r.value||0)/total*100;stops.push(`${colors[i%colors.length]} ${offset}% ${end}%`);offset=end;});return `<div class="donut-layout"><div class="donut" style="background:conic-gradient(${stops.join(',')})"><div class="donut-total"><strong>${esc(count(total))}</strong>${tr('records','سجل')}</div></div><div class="legend">${rows.map((r,i)=>dashboardAction(`<i class="swatch" style="--swatch:${colors[i%colors.length]}"></i><span>${esc(r.label)}</span><strong>${esc(count(r.value))}</strong>`, 'legend-row', r.action, r.label)).join('')}</div></div>`;}
 function priorities(){
   const host=$('#priorities'),items=[],finance=state.data.salesFinance;
   if(finance){
@@ -25,10 +148,10 @@ function priorities(){
     if(unmatched)items.push({title:tr('Unmatched receipts','إيصالات غير مطابقة'),meta:tr(`${count(unmatched)} need allocation`,`تحتاج ${count(unmatched)} إلى تخصيص`),state:tr('Reconcile','مطابقة'),href:'/user?page=sales-finance&view=reconciliation'});
   }
   const f=state.data.followups;
-  if(f?.items?.length)f.items.slice(0,5-items.length).forEach(x=>items.push({title:x.contact_name||x.learner_name||x.title||tr('Lead follow-up','متابعة عميل محتمل'),meta:x.next_follow_up_at||x.stage_title||tr('Follow-up due','موعد المتابعة'),state:Number(x.overdue)>0?tr('Overdue','متأخرة'):tr('Upcoming','قادمة'),href:`/user?page=lead-pipeline&lead=${encodeURIComponent(x.lead_id||x.leadId||'')}`}));
+  if(f?.items?.length)f.items.slice(0,5-items.length).forEach(x=>items.push({title:x.contact_name||x.learner_name||x.title||tr('Lead follow-up','متابعة عميل محتمل'),lead:x,meta:x.next_follow_up_at||x.stage_title||tr('Follow-up due','موعد المتابعة'),state:Number(x.overdue)>0?tr('Overdue','متأخرة'):tr('Upcoming','قادمة'),href:`/user?page=lead-pipeline&lead=${encodeURIComponent(x.lead_id||x.leadId||'')}`}));
   const tasks=state.data.tasks?.items||[];
   tasks.filter(x=>!['completed','canceled'].includes(x.status)).slice(0,5-items.length).forEach(x=>items.push({title:x.title,meta:x.due_at||x.status,state:x.priority==='urgent'?tr('Urgent','عاجل'):tr('Open','مفتوحة'),href:`/user?page=tasks&task=${encodeURIComponent(x.id)}`}));
-  host.innerHTML=items.length?items.slice(0,6).map(x=>`<a class="priority-row" href="${esc(x.href)}"><span class="priority-main"><strong>${esc(x.title)}</strong><small>${esc(x.meta||'')}</small></span><span class="badge">${esc(x.state)}</span></a>`).join(''):`<div class="empty">${tr('You are all caught up','لا توجد مهام معلقة')}<small>${tr('No overdue items were found in your current access scope.','لم يتم العثور على عناصر متأخرة ضمن نطاق صلاحياتك.')}</small></div>`;
+  host.innerHTML=items.length?items.slice(0,6).map(x=>x.lead?`<div class="priority-row"><span class="priority-main"><strong>${esc(x.title)}</strong><small>${esc(x.meta)}</small></span><span class="badge">${esc(x.state)}</span><div class="dashboard-lead-actions">${leadActions(x.lead)}</div></div>`:`<a target="_top" class="priority-row" href="${esc(x.href)}"><span class="priority-main"><strong>${esc(x.title)}</strong><small>${esc(x.meta||'')}</small></span><span class="badge">${esc(x.state)}</span><div class="dashboard-lead-actions"></div></div>`).join(''):`<div class="empty">${tr('You are all caught up','لا توجد مهام معلقة')}<small>${tr('No overdue items were found in your current access scope.','لم يتم العثور على عناصر متأخرة ضمن نطاق صلاحياتك.')}</small></div>`;
 }
 function paintSalesDashboard(access){
   const d=state.data,nav=navigation();$('#dashboard').classList.add('sales-category');
@@ -36,7 +159,7 @@ function paintSalesDashboard(access){
   $('#eyebrow').textContent=tr('SALEM​​AX · SALES OPERATIONS','ساليماكس · عمليات المبيعات');$('#title').textContent=title;
   $('#subtitle').textContent=tr(`A current view of calls, campaigns, leads and finance · ${access.role||'team'}`,`نظرة حالية على المكالمات والحملات والعملاء والمالية · ${access.role||'الفريق'}`);
   $('#period').textContent=tr('Current overview','نظرة عامة حالية');createMenu();
-  const stages=(d.board?.stages||[]).map(s=>({label:stageName(s.stageKey||s.stage_key||s.key,s.title||s.stageTitle),value:Number(s.total||s.count||s.lead_count||0)})).filter(x=>x.value>0);
+  const stages=(d.board?.stages||[]).map(s=>({label:stageName(s.stageKey||s.stage_key||s.key,s.title||s.stageTitle),value:Number(s.total||s.count||s.lead_count||0),action:{stage:s.stageKey||s.stage_key||s.key}})).filter(x=>x.value>0);
   const totalLeads=Number(d.board?.total??stages.reduce((n,x)=>n+x.value,0));
   const members=d.targets?.members||[],answered=members.reduce((n,m)=>n+Number(m.actual?.connectedCalls||0),0);
   const campaigns=d.campaigns||{},message=campaigns.messageStats||{},recentCampaigns=campaigns.recentCampaigns||[];
@@ -46,11 +169,11 @@ function paintSalesDashboard(access){
   const billed=invoiceRows.map(x=>money(x.billedMinor,access,x.currency)).join(' · ')||'—';
   const received=receiptRows.map(x=>money(x.receivedMinor,access,x.currency)).join(' · ')||'—';
   const cards=[
-    nav.has('leads')?metric(tr('Leads in pipeline','العملاء في المسار'),count(totalLeads),tr('Current pipeline scope','ضمن مسار المبيعات الحالي'),'#1768d4'):null,
-    nav.has('sales-targets')?metric(tr('Connected calls','المكالمات المتصلة'),count(answered),tr('This month · team scope','هذا الشهر · نطاق الفريق'),'#3979e6'):null,
-    nav.has('campaigns')?metric(tr('Campaign delivery','تسليم الحملات'),campaigns.messageStats?campaignRate:'—',tr(`${count(activeCampaigns)} active · ${count(campaigns.totalCampaigns)} total`,`نشطة ${count(activeCampaigns)} · الإجمالي ${count(campaigns.totalCampaigns)}`),'#0a9b66'):null,
-    nav.has('sales-finance')?metric(tr('Invoices issued','الفواتير الصادرة'),count(invoiceCount),billed,'#ef8a24'):null,
-    nav.has('sales-finance')&&['owner','accountant'].includes(access.role)&&finance.invoicesByCurrency?metric(tr('Payments received','الدفعات المستلمة'),received,tr('Recorded receipts · all time','الإيصالات المسجلة · الإجمالي'),'#8158c8'):null
+    nav.has('leads')?metric(tr('Leads in pipeline','العملاء في المسار'),count(totalLeads),tr('Current pipeline scope','ضمن مسار المبيعات الحالي'),'#1768d4',{}):null,
+    nav.has('sales-targets')?metric(tr('Connected calls','المكالمات المتصلة'),count(answered),tr('This month · team scope','هذا الشهر · نطاق الفريق'),'#3979e6',workspaceHref('sales-workspace',{section:'targets'})):null,
+    nav.has('campaigns')?metric(tr('Campaign delivery','تسليم الحملات'),campaigns.messageStats?campaignRate:'—',tr(`${count(activeCampaigns)} active · ${count(campaigns.totalCampaigns)} total`,`نشطة ${count(activeCampaigns)} · الإجمالي ${count(campaigns.totalCampaigns)}`) ,'#0a9b66',workspaceHref('campaign-dashboard')):null,
+    nav.has('sales-finance')?metric(tr('Invoices issued','الفواتير الصادرة'),count(invoiceCount),billed,'#ef8a24',workspaceHref('sales-finance',{view:'invoices'})):null,
+    nav.has('sales-finance')&&['owner','accountant'].includes(access.role)&&finance.invoicesByCurrency?metric(tr('Payments received','الدفعات المستلمة'),received,tr('Recorded receipts · all time','الإيصالات المسجلة · الإجمالي'),'#8158c8',workspaceHref('sales-finance',{view:'reconciliation'})):null
   ].filter(Boolean);
   $('#metrics').innerHTML=cards.join('');
   const donut=stages.length?drawDonut(stages):`<div class="chart-empty"><strong>${tr('No leads yet','لا يوجد عملاء محتملون')}</strong>${tr('Lead stages appear here as your pipeline fills.','ستظهر مراحل العملاء عند إضافة السجلات.')}</div>`;
@@ -66,7 +189,7 @@ function paintSalesDashboard(access){
   const recentInvoices=invoiceItems.map(i=>`<tr><td>${esc(i.invoiceNumber||'—')}</td><td>${esc(i.customerName||tr('Customer','عميل'))}</td><td>${esc(money(i.totalMinor,access,i.currency))}</td><td><span class="sales-status ${i.collectionStatus==='paid'?'good':''}">${esc(tr(({paid:'Paid',partially_paid:'Partial',outstanding:'Outstanding',overdue:'Overdue',void:'Void'})[i.collectionStatus]||i.status,({paid:'مدفوعة',partially_paid:'جزئية',outstanding:'مستحقة',overdue:'متأخرة',void:'ملغاة'})[i.collectionStatus]||i.status))}</span></td></tr>`).join('');
   const receipts=(d.receipts?.items||[]).slice(0,5).map(r=>`<tr><td>${esc(r.externalReference||String(r.id||'').slice(0,8)||'—')}</td><td>${esc(r.payerName||tr('Customer','عميل'))}</td><td>${esc(money(r.amountMinor,access,r.currency))}</td><td><span class="sales-status ${r.reconciliationStatus==='matched'?'good':''}">${esc(tr(({matched:'Matched',partially_matched:'Partial',unmatched:'Unmatched',void:'Void'})[r.reconciliationStatus]||'Recorded',({matched:'مطابق',partially_matched:'جزئي',unmatched:'غير مطابق',void:'ملغي'})[r.reconciliationStatus]||'مسجل'))}</span></td></tr>`).join('');
   const followups=d.followups?.items||[];
-  const priorityItems=followups.slice(0,4).map(x=>`<a class="sales-action-row" href="/user?page=lead-pipeline&lead=${encodeURIComponent(x.lead_id||x.leadId||'')}"><strong>${esc(x.contact_name||x.learner_name||x.title||tr('Lead follow-up','متابعة عميل'))}</strong><span>${esc(x.next_follow_up_at||x.stage_title||tr('Due','مستحق'))}</span></a>`).join('');
+  const priorityItems=followups.slice(0,4).map(x=>`<div class="sales-action-row"><strong>${esc(x.contact_name||x.learner_name||x.title||tr('Lead follow-up','متابعة عميل'))}</strong><span>${esc(x.next_follow_up_at||x.stage_title||tr('Due','مستحق'))}</span><div class="dashboard-lead-actions"></div></div>`).join('');
   const leadPanel=nav.has('leads')?`<section class="panel"><div class="section-title"><div><h2>${tr('Lead pipeline','مسار العملاء')}</h2><p>${tr('Current leads by stage','العملاء الحاليون حسب المرحلة')}</p></div><a class="text-link" href="/user?page=lead-pipeline">${tr('Open pipeline →','فتح المسار ←')}</a></div><div class="sales-donut">${donut}</div></section>`:'';
   const callsPanel=nav.has('call-center')?`<section class="panel"><div class="section-title"><div><h2>${tr('Connected calls by team','المكالمات المتصلة حسب الفريق')}</h2><p>${tr('Answered calls this month','المكالمات المجابة هذا الشهر')}</p></div><a class="text-link" href="/user?page=call-center">${tr('Call center →','مركز الاتصال ←')}</a></div>${nav.has('sales-targets')?`<div class="sales-call-chart">${callChart}</div>`:`<div class="empty sales-empty">${tr('Call performance is not assigned to your role','أداء المكالمات غير متاح لدورك')}</div>`}<div class="sales-call-list">${callItems.length?callItems.map(x=>`<div><span><strong>${esc(x.answeredByName||x.startedByName||tr('Team member','عضو الفريق'))}</strong><small>${esc(x.direction||'')} · ${esc(callTime(x))} · ${esc(x.leadId||tr('No linked lead','لا يوجد عميل مرتبط'))}</small></span><b>${esc(callStatus(x))}</b></div>`).join(''):`<p>${tr('No recent calls in your permitted scope.','لا توجد مكالمات حديثة ضمن صلاحياتك.')}</p>`}</div></section>`:'';
   $('.main-grid').innerHTML=leadPanel+callsPanel;
@@ -75,27 +198,31 @@ function paintSalesDashboard(access){
 }
 function paint(){const access=state.access||{},category=access.categoryKey||'',nav=navigation(),[title,arTitle]=labelFor(category);$('#eyebrow').textContent=tr(category==='training_center'?'TRAINING CENTER · OVERVIEW':category==='7network_sales'?'7Network · SALES OPERATIONS':'7Network · BUSINESS OVERVIEW',category==='training_center'?'مركز التدريب · نظرة عامة':'7Network · نظرة عامة على الأعمال');$('#title').textContent=tr(title,arTitle);$('#subtitle').textContent=tr(`${access.role||'Team'} workspace · Metrics follow your account access.`,`مساحة عمل ${access.role||'الفريق'} · المؤشرات حسب صلاحيات حسابك.`);$('#period').textContent=tr(`Today · ${period()}`,`اليوم · ${period()}`);createMenu();const d=state.data,cards=[];
 if(category==='7network_sales')return paintSalesDashboard(access);else $('#dashboard').classList.remove('sales-category');
-if(nav.has('leads'))cards.push(metric(tr('Open leads','العملاء المحتملون'),d.board?count(d.board.total):'—',tr('In your current scope','ضمن نطاقك الحالي'),'#aa003d'));
-if(nav.has('leads'))cards.push(metric(tr('Overdue follow-ups','متابعات متأخرة'),d.followups?count(d.followups.summary?.overdue):'—',d.followups?tr(`${count(d.followups.summary?.upcoming)} upcoming`,`قادمة ${count(d.followups.summary?.upcoming)}`):tr('Unavailable','غير متاح'),'#ef8a24'));
-if(category==='training_center'&&d.finance){const s=d.finance.summary||{};cards.push(metric(tr('Collected · past 12 months','المحصّل · آخر 12 شهرًا'),money(s.received_minor,access),'Posted receipts · QAR','#0a9b66'));cards.push(metric(tr('Outstanding receivables','مستحقات غير محصلة'),money(s.receivable_minor,access),tr('Invoices issued in the past 12 months','فواتير صادرة خلال آخر 12 شهرًا'),'#3979e6'));}
-else if(category==='training_center'&&nav.has('invoices')){cards.push(metric(tr('Finance overview','نظرة عامة على المالية'),'—',tr('Finance data unavailable','بيانات المالية غير متاحة'),'#0a9b66'));}
-if(category==='training_center'&&d.enrollments)cards.push(metric(tr('Active enrollments','التسجيلات النشطة'),count(['reserved','requested','confirmed','started'].reduce((n,k)=>n+Number(d.enrollments.statusCounts?.[k]||0),0)),tr('Reserved, confirmed or in progress','محجوزة أو مؤكدة أو قيد التنفيذ'),'#3979e6'));
-if(category==='training_center'&&d.courses)cards.push(metric(tr('Published courses','الدورات المنشورة'),count(d.courses.total),tr('Available in your catalogue','متاحة في الكتالوج'),'#8158c8'));
-if(d.tasks)cards.push(metric(tr('Open tasks','المهام المفتوحة'),`${count(d.tasks.items?.length)}${d.tasks.hasMore?'+':''}`,tr('Shown within your assigned scope','ضمن نطاق إسنادك'),'#7856c8'));
+if(nav.has('leads'))cards.push(metric(tr('Open leads','العملاء المحتملون'),d.board?count(d.board.openTotal??d.board.total):'—',tr('In your current scope','ضمن نطاقك الحالي'),'#aa003d',{status:'open'}));
+if(nav.has('leads'))cards.push(metric(tr('Overdue follow-ups','متابعات متأخرة'),d.followups?count(d.followups.summary?.overdue):'—',d.followups?tr(`${count(d.followups.summary?.upcoming)} upcoming`,`قادمة ${count(d.followups.summary?.upcoming)}`):tr('Unavailable','غير متاح'),'#ef8a24',{period:'overdue'}));
+if(category==='training_center'&&d.finance){const s=d.finance.summary||{};cards.push(metric(tr('Collected · past 12 months','المحصّل · آخر 12 شهرًا'),money(s.received_minor,access),tr('Posted receipts · QAR','إيصالات مسجلة · ر.ق'),'#0a9b66',financeAction('receipts')));cards.push(metric(tr('Outstanding receivables','مستحقات غير محصلة'),money(s.receivable_minor,access),tr('Invoices issued in the past 12 months','فواتير صادرة خلال آخر 12 شهرًا'),'#3979e6',financeAction('receivable')));}
+else if(category==='training_center'&&nav.has('invoices')){cards.push(metric(tr('Finance overview','نظرة عامة على المالية'),'—',tr('Finance data unavailable','بيانات المالية غير متاحة'),'#0a9b66',financeAction('receivable')));}
+if(category==='training_center'&&d.enrollments)cards.push(metric(tr('Active enrollments','التسجيلات النشطة'),count(['reserved','requested','confirmed','started'].reduce((n,k)=>n+Number(d.enrollments.statusCounts?.[k]||0),0)),tr('Reserved, confirmed or in progress','محجوزة أو مؤكدة أو قيد التنفيذ'),'#3979e6',{records:'enrollments',status:'active'}));
+if(category==='training_center'&&d.courses)cards.push(metric(tr('Published courses','الدورات المنشورة'),count(d.courses.total),tr('Available in your catalogue','متاحة في الكتالوج'),'#8158c8',{records:'courses',status:'active'}));
+if(d.tasks)cards.push(metric(tr('Open tasks','المهام المفتوحة'),`${count(d.tasks.items?.length)}${d.tasks.hasMore?'+':''}`,tr('Shown within your assigned scope','ضمن نطاق إسنادك'),'#7856c8',{records:'tasks',status:'active',scope:['owner','manager','team_leader'].includes(access.role)?'team':'mine'}));
 if(category==='7network_sales'&&d.targets){const members=d.targets.members||[];const calls=members.reduce((n,m)=>n+Number(m.actual?.connectedCalls||0),0);cards.push(metric(tr('Connected calls','مكالمات متصلة'),count(calls),tr('Current reporting period','فترة التقارير الحالية'),'#0a9b66'));const pending=d.deals?.items?.length;if(pending!==undefined)cards.push(metric(tr('Sales awaiting review','مبيعات بانتظار المراجعة'),count(pending),tr('In your permitted scope','ضمن نطاقك المسموح'),'#ef8a24'));}
 if(category==='7network_sales'&&d.salesFinance){const invoices=d.salesFinance.invoicesByCurrency||d.salesFinance.billedByCurrency||[],receipts=d.salesFinance.receiptsByCurrency||[];const totalInvoices=invoices.reduce((n,x)=>n+Number(x.invoiceCount||0),0);const currencyTotals=(rows,key)=>rows.map(x=>money(x[key],access,x.currency)).join(' · ')||'—';cards.push(metric(tr('Issued invoices','الفواتير الصادرة'),count(totalInvoices),tr('Across permitted finance records','ضمن سجلات المالية المسموحة'),'#3979e6'));cards.push(metric(tr('Billed','إجمالي الفواتير'),currencyTotals(invoices,'billedMinor'),tr('By currency','حسب العملة'),'#1768d4'));if(d.salesFinance.invoicesByCurrency){cards.push(metric(tr('Collections received','التحصيلات المستلمة'),currencyTotals(receipts,'receivedMinor'),tr('Posted receipts','الإيصالات المسجلة'),'#0a9b66'));cards.push(metric(tr('Outstanding','المبالغ المستحقة'),currencyTotals(invoices,'outstandingMinor'),tr('Issued invoices','الفواتير الصادرة'),'#ef8a24'));}}
 if(!cards.length)cards.push(metric(tr('Welcome to 7Network','مرحبًا بك في 7Network'),tr('Ready','جاهز'),tr('Your dashboard will show assigned work here.','ستظهر أعمالك المسندة هنا.'),'#1768d4'));
 $('#metrics').innerHTML=cards.join('');
-let stages=[];if(d.board?.stages)stages=d.board.stages.map(s=>({label:stageName(s.stageKey||s.stage_key||s.key,s.title||s.stageTitle),value:Number(s.total||s.count||s.lead_count||0)})).filter(x=>x.value>0);
-if(category==='training_center'&&d.enrollments?.statusCounts){const enrollmentLabels={reserved:['Reserved','محجوز'],requested:['Requested','مطلوب'],confirmed:['Confirmed','مؤكد'],started:['In progress','قيد التنفيذ'],cancelled:['Cancelled','ملغي'],completed:['Completed','مكتمل']};stages=Object.entries(d.enrollments.statusCounts).filter(([,value])=>Number(value)>0).map(([key,value])=>({label:tr(...(enrollmentLabels[key]||[key,key])),value}));}
+let stages=[];if(d.board?.stages)stages=d.board.stages.map(s=>({label:stageName(s.stageKey||s.stage_key||s.key,s.title||s.stageTitle),value:Number(s.total||s.count||s.lead_count||0),action:{stage:s.stageKey||s.stage_key||s.key}})).filter(x=>x.value>0);
+if(category==='training_center'&&d.enrollments?.statusCounts){const enrollmentLabels={reserved:['Reserved','محجوز'],requested:['Requested','مطلوب'],confirmed:['Confirmed','مؤكد'],started:['In progress','قيد التنفيذ'],cancelled:['Cancelled','ملغي'],completed:['Completed','مكتمل']};stages=Object.entries(d.enrollments.statusCounts).filter(([,value])=>Number(value)>0).map(([key,value])=>({label:tr(...(enrollmentLabels[key]||[key,key])),value,action:{records:'enrollments',status:key}}));}
 if(category==='7network_sales'&&!d.board&&d.salesFinance){const financeRows=d.salesFinance.invoicesByCurrency||d.salesFinance.billedByCurrency||[];stages=financeRows.map(x=>({label:x.currency||'QAR',value:Number(x.invoiceCount||0)})).filter(x=>x.value>0);}
-$('#chart-title').textContent=tr(category==='training_center'?'Collections trend':category==='7network_sales'&&d.salesFinance&&!d.targets?'Invoice volume by currency':category==='7network_sales'?'Sales & lead pipeline':'Lead pipeline',category==='training_center'?'اتجاه التحصيلات':category==='7network_sales'&&d.salesFinance&&!d.targets?'عدد الفواتير حسب العملة':category==='7network_sales'?'المبيعات ومسار العملاء':'مسار العملاء');$('#chart-subtitle').textContent=tr(category==='training_center'?'Monthly invoices and receipts, kept separate':'Current records in your permitted scope','السجلات الحالية ضمن نطاقك المسموح');$('#chart-link').href=category==='training_center'?'/user?page=finance-settings&section=reports':category==='7network_sales'&&d.salesFinance&&!d.targets?'/user?page=sales-finance&view=overview':'/user?page=lead-pipeline';
-if(category==='training_center'&&d.finance?.trend?.length){const rows=d.finance.trend.slice(-8).map(x=>({label:x.month,value:Number(x.received_minor||0)}));$('#chart').innerHTML=drawBars(rows,{value:x=>x.value,key:x=>x.label});}else if(category==='7network_sales'&&d.targets?.members?.length){const rows=d.targets.members.slice(0,8).map(x=>({label:x.displayName||x.role,value:Number(x.actual?.connectedCalls||0)}));$('#chart').innerHTML=drawBars(rows,{value:x=>x.value,key:x=>x.label});}else if(category==='7network_sales'&&d.salesFinance){const rows=(d.salesFinance.invoicesByCurrency||d.salesFinance.billedByCurrency||[]).map(x=>({label:x.currency||'QAR',value:Number(x.invoiceCount||0)}));$('#chart').innerHTML=rows.length?drawBars(rows,{value:x=>x.value,key:x=>x.label}):`<div class="chart-empty"><strong>${tr('No invoices yet','لا توجد فواتير بعد')}</strong>${tr('Finance insights will appear when invoices are issued.','ستظهر المؤشرات المالية عند إصدار الفواتير.')}</div>`;}else if(stages.length){$('#chart').innerHTML=drawBars(stages,{value:x=>x.value,key:x=>x.label});}else $('#chart').innerHTML=`<div class="chart-empty"><strong>${tr('No activity yet','لا يوجد نشاط بعد')}</strong>${tr('Your chart will appear when this workspace has records.','سيظهر الرسم عند توفر سجلات في مساحة العمل.')}</div>`;
+$('#chart-title').textContent=tr(category==='training_center'?'Collections trend':category==='7network_sales'&&d.salesFinance&&!d.targets?'Invoice volume by currency':category==='7network_sales'?'Sales & lead pipeline':'Lead pipeline',category==='training_center'?'اتجاه التحصيلات':category==='7network_sales'&&d.salesFinance&&!d.targets?'عدد الفواتير حسب العملة':category==='7network_sales'?'المبيعات ومسار العملاء':'مسار العملاء');$('#chart-subtitle').textContent=tr(category==='training_center'?'Monthly posted receipts':'Current records in your permitted scope','السجلات الحالية ضمن نطاقك المسموح');$('#chart-link').href=category==='training_center'?'/user?page=finance-settings&section=reports':category==='7network_sales'&&d.salesFinance&&!d.targets?'/user?page=sales-finance&view=overview':'/user?page=lead-pipeline';
+if(category==='training_center'&&d.finance?.trend?.length){const rows=d.finance.trend.slice(-8).map(x=>({label:x.month,value:Number(x.received_minor||0)/100,action:financeAction('receipts',{from:x.month+'-01',to:new Date(Date.UTC(Number(x.month.slice(0,4)),Number(x.month.slice(5)),0)).toISOString().slice(0,10)})}));$('#chart').innerHTML=drawBars(rows,{value:x=>x.value,key:x=>x.label,action:financeHref(nav,true)});}else if(category==='7network_sales'&&d.targets?.members?.length){const rows=d.targets.members.slice(0,8).map(x=>({label:x.displayName||x.role,value:Number(x.actual?.connectedCalls||0)}));$('#chart').innerHTML=drawBars(rows,{value:x=>x.value,key:x=>x.label,action:financeHref(nav,true)});}else if(category==='7network_sales'&&d.salesFinance){const rows=(d.salesFinance.invoicesByCurrency||d.salesFinance.billedByCurrency||[]).map(x=>({label:x.currency||'QAR',value:Number(x.invoiceCount||0)}));$('#chart').innerHTML=rows.length?drawBars(rows,{value:x=>x.value,key:x=>x.label}):`<div class="chart-empty"><strong>${tr('No invoices yet','لا توجد فواتير بعد')}</strong>${tr('Finance insights will appear when invoices are issued.','ستظهر المؤشرات المالية عند إصدار الفواتير.')}</div>`;}else if(stages.length){$('#chart').innerHTML=drawBars(stages,{value:x=>x.value,key:x=>x.label});}else $('#chart').innerHTML=`<div class="chart-empty"><strong>${tr('No activity yet','لا يوجد نشاط بعد')}</strong>${tr('Your chart will appear when this workspace has records.','سيظهر الرسم عند توفر سجلات في مساحة العمل.')}</div>`;
 $('#mix-title').textContent=tr(category==='training_center'?(d.enrollments?'Enrollment status':'Lead pipeline'):category==='7network_sales'&&d.salesFinance&&!d.board?'Invoice mix by currency':category==='7network_sales'?'Lead source mix':'Lead stages',category==='training_center'?(d.enrollments?'حالة التسجيل':'مسار العملاء'):category==='7network_sales'&&d.salesFinance&&!d.board?'الفواتير حسب العملة':category==='7network_sales'?'مصادر العملاء':'مراحل العملاء');$('#mix-subtitle').textContent=tr('Distribution in your current access scope','التوزيع ضمن نطاق صلاحياتك الحالي');$('#mix').innerHTML=drawDonut(stages);
 $('#priority-title').textContent=tr(category==='training_center'?'Today’s priorities':category==='7network_sales'&&d.salesFinance&&!d.board?'Finance priorities':'Needs attention',category==='training_center'?'أولويات اليوم':category==='7network_sales'&&d.salesFinance&&!d.board?'أولويات المالية':'يحتاج إلى اهتمام');$('#priority-link').href=nav.has('tasks')?'/user?page=tasks':category==='7network_sales'&&d.salesFinance&&!d.board?'/user?page=sales-finance&view=reconciliation':'/user?page=lead-pipeline&view=followups';priorities();
-const insights=[];if(category==='7network_sales'&&d.salesFinance){const invoices=d.salesFinance.invoicesByCurrency||d.salesFinance.billedByCurrency||[],receipts=d.salesFinance.receiptsByCurrency||[];const overdue=invoices.reduce((n,x)=>n+Number(x.overdueInvoiceCount||0),0),unmatched=receipts.reduce((n,x)=>n+Number(x.unmatchedCount||0),0);if(d.salesFinance.invoicesByCurrency)insights.push([tr('Overdue invoices','الفواتير المتأخرة'),count(overdue)]);if(d.salesFinance.receiptsByCurrency)insights.push([tr('Unmatched receipts','الإيصالات غير المطابقة'),count(unmatched)]);}if(d.courses)insights.push([tr('Active courses','الدورات النشطة'),count(d.courses.total)]);if(d.finance)insights.push([tr('Issued invoices','الفواتير الصادرة'),count(d.finance.summary?.invoice_count)]);if(d.finance)insights.push([tr('Overdue amount','المبلغ المتأخر'),money(d.finance.summary?.overdue_minor,access)]);if(d.board)insights.push([tr('Pipeline stages','مراحل المسار'),count(d.board.stages?.length||0)]);if(d.targets)insights.push([tr('Team members in report','أعضاء الفريق في التقرير'),count(d.targets.members?.length)]);if(!insights.length)insights.push([tr('Use your shortcuts','استخدم الاختصارات'),tr('Choose Create to open an assigned workflow.','اختر إنشاء لفتح سير عمل مسند.')]);$('#insights').innerHTML=insights.slice(0,5).map(([k,v])=>`<div class="insight"><span>${esc(k)}</span><strong>${esc(v)}</strong></div>`).join('');$('#updated').textContent=tr(`Updated ${new Date().toLocaleTimeString()}`,`تم التحديث ${new Date().toLocaleTimeString()}`);}
+const insights=[];if(category==='7network_sales'&&d.salesFinance){const invoices=d.salesFinance.invoicesByCurrency||d.salesFinance.billedByCurrency||[],receipts=d.salesFinance.receiptsByCurrency||[];const overdue=invoices.reduce((n,x)=>n+Number(x.overdueInvoiceCount||0),0),unmatched=receipts.reduce((n,x)=>n+Number(x.unmatchedCount||0),0);if(d.salesFinance.invoicesByCurrency)insights.push([tr('Overdue invoices','الفواتير المتأخرة'),count(overdue)]);if(d.salesFinance.receiptsByCurrency)insights.push([tr('Unmatched receipts','الإيصالات غير المطابقة'),count(unmatched)]);}if(d.courses)insights.push([tr('Active courses','الدورات النشطة'),count(d.courses.total),{records:'courses',status:'active'}]);if(d.finance)insights.push([tr('Issued invoices','الفواتير الصادرة'),count(d.finance.summary?.invoice_count),financeAction('invoices')]);if(d.finance)insights.push([tr('Overdue amount','المبلغ المتأخر'),money(d.finance.summary?.overdue_minor,access),financeAction('overdue')]);if(d.board)insights.push([tr('Pipeline stages','مراحل المسار'),count(d.board.stages?.length||0),{}]);if(d.targets)insights.push([tr('Team members in report','أعضاء الفريق في التقرير'),count(d.targets.members?.length)]);if(!insights.length)insights.push([tr('Use your shortcuts','استخدم الاختصارات'),tr('Choose Create to open an assigned workflow.','اختر إنشاء لفتح سير عمل مسند.')]);$('#insights').innerHTML=insights.slice(0,5).map(([k,v])=>`<div class="insight"><span>${esc(k)}</span><strong>${esc(v)}</strong></div>`).join('');if(category==='training_center')trainingInsights(d);$('#updated').textContent=tr(`Updated ${new Date().toLocaleTimeString()}`,`تم التحديث ${new Date().toLocaleTimeString()}`);}
 function money(minor,access,currency){const code=currency||access?.tenantCurrency||access?.currency||'QAR';try{return new Intl.NumberFormat(ar()?'ar-QA':'en-QA',{style:'currency',currency:code,maximumFractionDigits:2}).format(Number(minor||0)/100);}catch{return `${code} ${(Number(minor||0)/100).toFixed(2)}`;}}
 async function load(){setupLanguage();$('#metrics').innerHTML=`<div class="loading">${tr('Loading your dashboard…','جارٍ تحميل لوحة المعلومات…')}</div>`;state.errors.clear();try{state.access=await api('/api/workspace/session');}catch(e){$('#metrics').innerHTML=`<div class="empty">${tr('Your account session could not be verified. Sign in again to load your dashboard.','تعذر التحقق من جلسة الحساب. سجّل الدخول مرة أخرى لتحميل لوحة المعلومات.')}</div>`;return;}const a=state.access,nav=navigation(),req={};if(nav.has('leads')){req.board=api('/api/pipeline/stage-summary');req.followups=api('/api/pipeline/follow-ups?period=all&page=1&limit=6');}if(nav.has('tasks'))req.tasks=api(`/api/user/training/tasks?status=active&scope=${['owner','manager','team_leader'].includes(a.role)?'team':'mine'}&page=1&limit=6`);if(a.categoryKey==='training_center'&&a.modules?.finance&&(nav.has('invoices')||nav.has('reports'))){const today=period(),from=new Date(today.slice(0,7)+'-01T00:00:00Z');from.setUTCMonth(from.getUTCMonth()-11);req.finance=api(`/api/workspace/finance/reports/dashboard?from=${from.toISOString().slice(0,10)}&to=${today}`);}if(a.categoryKey==='training_center'&&a.modules?.courses&&nav.has('courses')){req.courses=api('/api/workspace/courses?status=active&page=1&limit=100');if(a.permissions?.['courses.manage'])req.enrollments=api('/api/workspace/courses/enrollments?page=1&limit=1');}if(a.categoryKey==='7network_sales'&&nav.has('sales-targets')){const month=period().slice(0,7);req.targets=api(`/api/user/sales-targets?period=${month}`);if(nav.has('sales-deals'))req.deals=api('/api/user/sales-commissions/deals?status=pending_approval&limit=100');}if(a.categoryKey==='7network_sales'){if(nav.has('campaigns'))req.campaigns=api('/api/broadcast/dashboard');if(nav.has('call-center'))req.calls=api('/api/user/call-center/calls');if(nav.has('sales-finance')){req.salesFinance=api('/api/user/sales-finance/overview');if(['owner','accountant'].includes(a.role)){req.invoices=api('/api/user/sales-finance/invoices?limit=5');req.receipts=api('/api/user/sales-finance/receipts?limit=5');}}}
 const entries=Object.entries(req),results=await Promise.allSettled(entries.map(([,p])=>p));state.data={};for(let i=0;i<entries.length;i++)if(results[i].status==='fulfilled')state.data[entries[i][0]]=results[i].value;else state.errors.add(entries[i][0]);paint();if(state.errors.size){const labels=[...state.errors].map(k=>({finance:'finance overview',board:'lead overview',followups:'follow-ups',tasks:'tasks',courses:'courses',enrollments:'enrollments',targets:'sales performance',deals:'sales reviews',salesFinance:'Sales Finance',campaigns:'campaign performance',calls:'call center activity',invoices:'invoice list',receipts:'recent receipts'}[k]||k));$('#notice').hidden=false;$('#notice').textContent=tr(`Some sections could not load: ${labels.join(', ')}. Other dashboard data is shown.`,`تعذر تحميل بعض الأقسام: ${labels.join('، ')}. تظهر بقية بيانات لوحة المعلومات.`);}else $('#notice').hidden=true;}
+document.addEventListener('click', event => {
+  const trigger = event.target.closest('button[data-lead-list]');
+  if (trigger) openLeadList(trigger);
+});
 $('#refresh').onclick=load;window.addEventListener('storage',e=>{if(e.key==='language')load();});load();
 })();

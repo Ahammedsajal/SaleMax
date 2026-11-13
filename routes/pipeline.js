@@ -209,11 +209,12 @@ router.get('/stage-summary',async(req,res)=>{
       if(actor.scopeAgentIds.length){conditions.push('l.owner_agent_id IN (?)');args.push(actor.scopeAgentIds);}
       else conditions.push('1=0');
     }
-    const [rows]=await pool.query(`SELECT s.stage_key AS stageKey,s.title,s.position,COUNT(l.id) AS total
+    const [rows]=await pool.query(`SELECT s.stage_key AS stageKey,s.title,s.position,COUNT(l.id) AS total,
+      COALESCE(SUM(l.status='open'),0) AS openTotal
       FROM pipeline_stages s LEFT JOIN pipeline_leads l ON l.uid_hash=s.uid_hash AND l.stage_key=s.stage_key AND ${conditions.join(' AND ')}
       WHERE s.uid_hash=? GROUP BY s.stage_key,s.title,s.position ORDER BY s.position,s.stage_key`,[...args,uidHash]);
     const stages=rows.map(row=>({...row,total:Number(row.total||0)}));
-    const data={stages,total:stages.reduce((sum,row)=>sum+row.total,0),timezone:actor.timezone,role:actor.role,categoryKey:actor.categoryKey||null};
+    const data={stages,total:stages.reduce((sum,row)=>sum+row.total,0),openTotal:stages.reduce((sum,row)=>sum+Number(row.openTotal||0),0),timezone:actor.timezone,role:actor.role,categoryKey:actor.categoryKey||null};
     res.setHeader('Cache-Control','no-store');res.json({success:true,data});
   }catch(error){fail(res,error);}
 });
@@ -232,6 +233,7 @@ router.get("/board", async (req, res) => {
       filters: {
         search: req.query.search,
         stage: req.query.stage,
+        status: req.query.status,
         origin: req.query.origin,
         sourceType: req.query.sourceType,
         assignment: req.query.assignment,

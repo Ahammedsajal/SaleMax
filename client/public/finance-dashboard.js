@@ -96,5 +96,15 @@
       }catch(error){daily.insertAdjacentHTML('beforeend',`<p class="muted">${tr('Schedule settings are unavailable for this account.','إعدادات الجدولة غير متاحة لهذا الحساب.')} (${esc(error.message)})</p>`);}
     }
     await Promise.all([render(),loadDaily(),recipients()]);
+    const selected = new URLSearchParams(location.search);
+    const invoice = selected.get('invoice'), receipt = selected.get('receipt');
+    const uuid = /^[0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12}$/i;
+    if (uuid.test(receipt || '')) {
+      const section = node.querySelector('#sx-receipt-detail');
+      await loadReceipt(section,mode,csrf,receipt);
+      section.scrollIntoView({block:'start'});
+    } else if (uuid.test(invoice || '')) {
+      await openInvoice({id:invoice,kind:selected.get('kind')});
+    }
   };
 })();

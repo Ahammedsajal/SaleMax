@@ -967,6 +967,7 @@ async function getBoard({ uid, role, agentId, scopeAgentIds, categoryKey, timezo
     const assignmentFilter = leadFilters.leadFilterSql({ ...selectedFilters, alias: 'l' });
     if (assignmentFilter.sql) { conditions.push(assignmentFilter.sql.replace(/^ AND /, '')); values.push(...assignmentFilter.args); }
     if (filters.stage) { conditions.push("l.stage_key = ?"); values.push(text(filters.stage, 64)); }
+    if (filters.status === "open") conditions.push("l.status = 'open'");
     if (filters.origin && ["qr", "meta", "manual"].includes(filters.origin)) { conditions.push("l.primary_origin = ?"); values.push(filters.origin); }
     const requestedSource = text(filters.sourceType, 64);
     if (requestedSource === "assigned") {
@@ -1494,7 +1495,7 @@ async function getFollowUps({ uid, role, agentId, scopeAgentIds, period = "all",
      FROM pipeline_leads l WHERE ${summaryConditions.join(' AND ')}`, summaryValues,
   );
   const [items] = await pool.query(
-    `SELECT l.id AS lead_id, l.title, l.contact_name, c.display_name AS relationship_name, l.learner_name, l.mobile,
+    `SELECT l.id AS lead_id, l.title, l.contact_name, c.display_name AS relationship_name, l.learner_name, l.mobile, l.chat_id,
        l.stage_key, l.next_follow_up_at,
        DATE_FORMAT(l.next_follow_up_at, '%Y-%m-%d %H:%i:%s.%f') AS due_revision,
        l.owner_agent_id, a.name AS owner_name,
