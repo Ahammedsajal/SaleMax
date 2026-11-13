@@ -312,7 +312,7 @@
       records.querySelector('[data-close-records]').onclick=closeRecords;
       records.addEventListener('cancel',event=>{event.preventDefault();closeRecords();});
     }
-    $('[data-auto-filter]',host).forEach(button=>button.onclick=()=>openAutomatedRecords(Number(button.dataset.autoFilter)));
+    $$('[data-auto-filter]',host).forEach(button=>button.onclick=()=>openAutomatedRecords(Number(button.dataset.autoFilter)));
     const dialog=$('.report-lead-dialog:not(.report-record-dialog)',host);if(dialog&&!dialog.open)try{dialog.showModal();}catch(_){}
     bindFilters();
     bindScheduleForms();
