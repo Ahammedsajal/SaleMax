@@ -253,3 +253,53 @@
 @media(max-width:620px){.report-health-metrics{gap:8px}.report-health-card{padding:12px}.report-age-buckets{grid-template-columns:repeat(2,minmax(0,1fr));gap:7px}.followup-automation-selection{align-items:stretch;flex-direction:column}.followup-automation-selection button{width:100%}.followup-agent-dialog form{padding:15px}.followup-agent-dialog footer{flex-direction:column-reverse}.followup-agent-dialog footer button{width:100%}}
 
 .column .empty-more{border:1px dashed #b9c9d8;border-radius:9px;background:#f6f9fc;line-height:1.5;padding:24px 14px}
+
+/* Breakpoints here use the Pipeline frame width, after the app sidebar. */
+.hero {
+  flex-wrap: wrap;
+  gap: 12px 20px;
+}
+.hero > *, .hero-actions > * {
+  min-inline-size: 0;
+  max-inline-size: 100%;
+  overflow-wrap: anywhere;
+}
+.toolbar {
+  flex-wrap: wrap;
+}
+.toolbar > :is(input, select, button) {
+  min-inline-size: 0;
+  max-inline-size: 100%;
+}
+.toolbar > input { flex: 2 1 16rem; }
+.toolbar > select { flex: 1 1 11rem; }
+.toolbar > #refresh { flex: 0 0 auto; }
+
+.toolbar .viewtabs, main .toolbar.report-mode .viewtabs {
+  display: grid !important;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  flex: 0 0 auto;
+  inline-size: max-content;
+  min-inline-size: 0;
+  max-inline-size: 100%;
+  margin: 0;
+  margin-inline-start: auto;
+  overflow: visible;
+}
+.toolbar .viewtabs > button, main .toolbar.report-mode .viewtabs > button {
+  min-inline-size: 0;
+  min-block-size: 44px;
+  padding-inline: clamp(6px, 1vw, 15px);
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+@media (max-width: 700px) {
+  .toolbar > input { flex-basis: 100%; }
+  .toolbar > select { flex-basis: 9rem; }
+  .toolbar .viewtabs, main .toolbar.report-mode .viewtabs { inline-size: 100%; }
+}
+@media (max-width: 380px) {
+  .toolbar .viewtabs, main .toolbar.report-mode .viewtabs {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
