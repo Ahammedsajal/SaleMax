@@ -266,14 +266,14 @@ async function findOpen(db, { tenantId, uid, channelKind, channelRef, chatId }) 
   return row || null;
 }
 
-async function reserveCustomerAcknowledgement(pool, { tenantId, claimId, inboundId, cooldownSeconds = 120 }) {
+async function reserveCustomerAcknowledgement(pool, { tenantId, claimId, inboundId, cooldownSeconds = 120, once = false }) {
   const db = await pool.getConnection();
   try {
     const [result] = await db.query(`UPDATE sx_chatbot_handoff_claims SET last_customer_ack_at=UTC_TIMESTAMP(3),last_customer_ack_inbound_id=?
       WHERE tenant_id=? AND id=? AND status='open' AND COALESCE(expires_at,DATE_ADD(created_at,INTERVAL 24 HOUR))>UTC_TIMESTAMP(3)
         AND (last_customer_ack_inbound_id IS NULL OR last_customer_ack_inbound_id<>?)
-        AND (last_customer_ack_at IS NULL OR last_customer_ack_at<=DATE_SUB(UTC_TIMESTAMP(3),INTERVAL ? SECOND))`,
-    [inboundId, tenantId, claimId, inboundId, cooldownSeconds]);
+        AND (last_customer_ack_at IS NULL OR (?=0 AND last_customer_ack_at<=DATE_SUB(UTC_TIMESTAMP(3),INTERVAL ? SECOND)))`,
+    [inboundId, tenantId, claimId, inboundId, once ? 1 : 0, cooldownSeconds]);
     return result.affectedRows === 1;
   } finally { db.release(); }
 }

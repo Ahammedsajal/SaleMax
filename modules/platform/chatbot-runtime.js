@@ -136,6 +136,12 @@ function handoffText(message, language = null, accepted = false) {
   return 'Thanks for explaining. I’ve asked admissions to check this, and I can keep helping with the course details we have here.';
 }
 
+const coordinatorHandoffReasons = new Set(['course-unmatched-after-clarification','student-class-support','course-details-need-coordinator']);
+function needsClassSupport(message) {
+  const text = businessContext.normalized(message);
+  return /\b(?:miss(?:ed|ing)?|absent|could not attend|couldn t attend|unable to attend|make up|makeup)\b.*\b(?:class(?:es)?|sessions?|lessons?)\b|\b(?:my|our) (?:class|session|lesson)\b.*\b(?:miss(?:ed)?|reschedule|catch up)\b|(?:فاتتني|غيبت|غبت|لم احضر|تعويض).*(?:حص|درس|محاضر|جلس)/u.test(text);
+}
+
 async function sendCustomerHandoffNotice({ ctx, profile, uid, message, origin, sessionId, chatId, accepted = false }) {
   if (!await canSendNow({ ctx, profile, uid, origin, sessionId, chatId, message, checkPause: false })) return false;
   const channelKind = channelFor(origin);
@@ -143,8 +149,13 @@ async function sendCustomerHandoffNotice({ ctx, profile, uid, message, origin, s
   const claims = require('./chatbot-handoff-claims');
   const pending = await claims.findOpen(dbPool, { tenantId: ctx.tenant.id, uid, channelKind, channelRef: sessionId, chatId });
   if (!pending) return false;
-  if (!await claims.reserveCustomerAcknowledgement(dbPool, { tenantId: ctx.tenant.id, claimId: pending.id, inboundId })) return false;
-  const body = !accepted && ctx.category.key === 'training_center' && origin === 'qr' && mockup.ownsInbox(uid, origin)
+  const once = coordinatorHandoffReasons.has(pending.reason);
+  if (!await claims.reserveCustomerAcknowledgement(dbPool, { tenantId: ctx.tenant.id, claimId: pending.id, inboundId, once })) return false;
+  const language = businessContext.languageFor(textOf(message));
+  const body = pending.reason === 'student-class-support'
+    ? (language === 'ar' ? 'أبلغت فريق التدريب بشأن الحصص التي فاتتك، وسيتواصل معك لمساعدتك.' : 'I’ve let our training team know about the classes you missed. They’ll contact you to help with the next steps.')
+    : once ? coordinatorReply({ language })
+    : !accepted && ctx.category.key === 'training_center' && origin === 'qr' && mockup.ownsInbox(uid, origin)
     ? coordinatorReply({ language: businessContext.languageFor(textOf(message)), followUp: Boolean(pending.lastCustomerAckAt) })
     : handoffText(message, null, accepted);
   const sent = await sendBotText({ origin, sessionId, message, uid, chatId, body }).catch(() => false);
@@ -280,7 +291,7 @@ async function handleHandoffPriorityMessage({ uid, message, user, sessionId, ori
   if (mockup.ownsInbox(uid, origin) && !mockup.liveRecipientAllowed(profile?.config, origin, message.senderMobile)) return { handled: true };
   if (!profile) return { handled: false };
   const staffPause = await require('./chatbot-conversation-control').readPause(uid, chatId, channelFor(origin), sessionId);
-  if (staffPause?.reason === 'staff-replied') return { handled: true, paused: true };
+  if (staffPause?.reason === 'staff-replied' || coordinatorHandoffReasons.has(staffPause?.reason)) return { handled: true, paused: true };
   const claims = require('./chatbot-handoff-claims');
   await claims.expireDue(dbPool, { tenantId: ctx.tenant.id, channelKind: channelFor(origin), channelRef: sessionId, conversationId: chatId }).catch(error => {
     console.warn('[chatbot] handoff expiry sweep failed', error.code || 'HANDOFF_EXPIRY_FAILED');
@@ -484,7 +495,7 @@ async function trainingCenterGuidedTurn({ ctx, profile, uid, message, sessionId,
       const route = ctx.category.key === 'training_center' && !intent
         ? businessContext.controlRoute(textOf(message), profile.config, priorState || {}, facts, { courseCertificates: true }) : null;
       const certificate = route && certificateTurn(textOf(message), referralContext, priorState || {}, route);
-      const opening = (courseSelection?.context || (!courseSelection && profile.engine !== 'hybrid' && !certificate && route === 'answer')) && mockup.ownsInbox(uid, origin) && !leadInfo?.nameOnly
+      const opening = (courseSelection?.context || (!courseSelection && profile.engine !== 'hybrid' && !certificate && route === 'answer')) && mockup.ownsInbox(uid, origin) && (!leadInfo?.nameOnly || courseSelection?.context)
         ? courseOpening.planOpening({ facts, message: textOf(message), context: referralContext, state: priorState || {}, config: profile.config, firstMatch: Boolean(courseSelection?.context) }) : null;
       const referralCourse = referralContext.courseContextSource === 'meta_referral'
         ? facts.find(item => item.code === referralContext.selectedCourseCode) : null;
@@ -503,7 +514,7 @@ async function trainingCenterGuidedTurn({ ctx, profile, uid, message, sessionId,
     }
     // A lead-capture name prompt must never erase a substantive safety route
     // (for example, a certificate question that needs staff confirmation).
-    if (leadInfo?.nameOnly && !openingGreeting && !reply?.handoff) reply = { reply: profile.config?.guidedContent?.messages?.nameCollectedMessage?.[leadInfo.language] || pack.guidedContentDefaults.messages.nameCollectedMessage[leadInfo.language], state: priorState || {} };
+    if (leadInfo?.nameOnly && !courseSelection && !openingGreeting && !reply?.handoff) reply = { reply: profile.config?.guidedContent?.messages?.nameCollectedMessage?.[leadInfo.language] || pack.guidedContentDefaults.messages.nameCollectedMessage[leadInfo.language], state: priorState || {} };
     if (!reply || typeof reply.reply !== 'string' || !reply.reply.trim()) {
       await db.rollback();
       onStage?.('training-guide-empty-reply');
@@ -795,6 +806,9 @@ async function generateAiAnswer({ ctx, profile, uid, customerMessage, chatId = n
     const handoffReason = businessContext.trainingCenterCoordinatorReason(customerMessage, facts, context.selectedCourseCode || session.selectedCourseCode);
     if (handoffReason) staffReason ||= handoffReason;
   }
+  if (courseCertificates && continuity && staffReason && !staffRequested && uid && chatId && channelKind && channelRef) {
+    return { handedOff: true, code: 'course-details-need-coordinator' };
+  }
   if (staffReason && uid && chatId && channelKind && channelRef) {
     const claim = await handoffConversation(ctx, chatId, channelKind, channelRef, staffReason, profile, uid, null, { pause: false }).catch(() => null);
     staffNotificationQueued = Boolean(claim?.id);
@@ -920,6 +934,7 @@ async function generateAiAnswer({ ctx, profile, uid, customerMessage, chatId = n
   if (!validation.valid || response.confidence < threshold || unconfirmed) {
     if (!coordinatorPolicy && courseOverview && !staffRequested && !staffNotificationQueued && factualOverviewFallback(context)) return factualOverviewFallback(context);
     if (coordinatorPolicy) {
+      if (!staffRequested && uid && chatId && channelKind && channelRef) return { handedOff: true, code: 'course-details-need-coordinator', metrics };
       if (uid && chatId && channelKind && channelRef && !staffNotificationQueued) {
         const claim = await handoffConversation(ctx, chatId, channelKind, channelRef, validation.code || 'LOW_CONFIDENCE', profile, uid, null, { pause: false }).catch(() => null);
         staffNotificationQueued = Boolean(claim?.id);
@@ -1045,6 +1060,7 @@ async function aiTurn({ ctx, profile, uid, message, user, sessionId, origin, cha
   const incomingText = textOf(message);
   const continuity = mockup.ownsInbox(uid, origin);
   const aiAvailableForTurn = aiAvailableForProfile(profile);
+  if (continuity && ctx.category.key === 'training_center' && needsClassSupport(incomingText)) return { handedOff: true, code: 'student-class-support' };
   if (ctx.category.key === 'training_center' && continuity && !profile.config?.flowId && !profile.config?.introFlowId
     && businessContext.isTrainingGreeting(incomingText)) {
     const dispatched = await trainingCenterGuidedTurn({ ctx, profile, uid, message, sessionId, origin, chatId, leadInfo, onStage });
@@ -1091,7 +1107,7 @@ async function aiTurn({ ctx, profile, uid, message, user, sessionId, origin, cha
     let bareCourseSelection = false;
     let fullCourseOpening = false;
     let courseSelection = null;
-    if ((route === 'answer' || continuity) && !leadInfo?.nameOnly && ctx.category.key === 'training_center') {
+    if ((route === 'answer' || continuity) && (!leadInfo?.nameOnly || session?.waitingForCourse) && ctx.category.key === 'training_center') {
       const pack = getDomainPack(ctx.category.key, ctx.category.version);
       let selectionFacts = leadInfo?.facts;
       if (!selectionFacts && pack.requiresDatabase) {
@@ -1106,6 +1122,7 @@ async function aiTurn({ ctx, profile, uid, message, user, sessionId, origin, cha
         fullCourseOpening = courseOpening.isOpeningRequest(incoming, selectionContext, selectionFacts?.find(item => item.code === selectionContext.selectedCourseCode));
       }
     }
+    if (courseSelection?.clarify && session?.waitingForCourse) return { handedOff: true, code: 'course-unmatched-after-clarification' };
     const applicationAccepted = acceptsRegistrationForm(session, incoming);
     const routeUsesAi = aiHandlesStaffRoute(profile, route);
     if (courseSelection || (!intakeAnswer && ((route !== 'answer' && !routeUsesAi) || leadInfo?.nameOnly || applicationAccepted || bareCourseSelection || fullCourseOpening || (profile.engine === 'hybrid' && profile.config.aiFallback === false)))) {
@@ -1293,8 +1310,12 @@ async function previewMockupTurn({ uid, tenantId, chatId, channelKind, channelRe
   const intake = admissions.advance({ prior: previousIntake, text: message, name, nameOnly, savedName: storedName,
     savedStart: admissions.savedStartLabel(qualification, language), language, recognizeImmediate: true });
   const route = businessContext.controlRoute(message, profile.config, prior, facts, { courseCertificates: true });
-  const courseSelection = !nameOnly && !acknowledgement && profile.engine === 'hybrid'
+  if (needsClassSupport(message)) return handoff('student-class-support', prior, language === 'ar'
+    ? 'أبلغت فريق التدريب بشأن الحصص التي فاتتك، وسيتواصل معك لمساعدتك.'
+    : 'I’ve let our training team know about the classes you missed. They’ll contact you to help with the next steps.');
+  const courseSelection = (!nameOnly || prior.waitingForCourse) && !acknowledgement && profile.engine === 'hybrid'
     ? await identifyCourse({ ctx: { tenant: { id: tenantId } }, profile, facts, message, state: prior, referral, route }) : null;
+  if (courseSelection?.clarify && prior.waitingForCourse) return handoff('course-unmatched-after-clarification', prior, coordinatorReply({ language }));
   if (courseSelection?.clarify) return { revision, ...courseClarification(prior, message) };
   if (courseSelection?.context) courseInterest = courseSelection.context.evidence.find(item => item.kind === 'course')?.name || courseInterest;
   const certificate = !courseSelection && certificateTurn(message, context, prior, route);
