@@ -1,3 +1,9 @@
+# 2026-11-13 — Training Center dashboard and Pro Catalyst course identification
+
+- Training Center dashboard source 67204df8fe4ca8fad243fdf7ca0ca64480c5e51a is deployed at /opt/salemax/releases/training-dashboard-records-67204df8fe4c-20261113. The live retail dashboard was preserved in the overlay. The runtime hash checks, production health and public dashboard asset version passed. The three dashboard fixture tests passed. Authenticated Edge verification was blocked by the Work browser setting.
+- Pro Catalyst course identification source 368f3b64e00e526951a740513f0df09845834a01 is deployed at /opt/salemax/releases/pro-catalyst-course-match-368f3b64e00e-20261113. Private production previews matched both the MS Office title and an Excel formulas and pivot tables enquiry to PCAT-MS-OFFICE, returned four reply parts, and asked for the course on an unspecified enquiry. No WhatsApp messages were sent.
+- Both releases use the existing app image and require no migrations. Rollback snapshots are under /opt/salemax/shared/rollback-training-dashboard-records-67204df8fe4c-20261113 and /opt/salemax/shared/rollback-pro-catalyst-course-match-368f3b64e00e-20261113. Use the corresponding release's deploy helper and the production lock. Restore in reverse deployment order if both releases must be reverted.
+
 # 2026-11-13 — Pro Catalyst Hybrid QR replies and coordinator handoff
 
 - Full QR audience support deployed from f6f0d7a00a234b8c91845a4219d9fc039a11ee4b at /opt/salemax/releases/pro-catalyst-hybrid-live-f6f0d7a00a23-20261113. The single assigned Hybrid profile advanced from revision 15 to 16 with rolloutPercent=100 in an audited transaction. The signed-in owner view showed Hybrid AI · Active. To return to test-only, remove rolloutPercent from that profile under a revision check and increment its revision. The saved test lists remain present.
