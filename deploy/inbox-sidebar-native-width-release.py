@@ -157,8 +157,13 @@ def deploy(stage, commit):
     before = json.loads(run(*common, 'config', '--format', 'json', env=env))
     after = json.loads(run(*candidate, 'config', '--format', 'json', env=env))
     expected_volumes = {v['target']: v for v in before['services']['app']['volumes']}
-    expected_volumes.update({v['target']: v for v in mounts})
     actual_volumes = {v['target']: v for v in after['services']['app']['volumes']}
+    for mount in mounts:
+        target = mount['target']
+        actual = actual_volumes.pop(target, {})
+        expected_volumes.pop(target, None)
+        if any(actual.get(key) != mount[key] for key in ('type', 'source', 'read_only')):
+            raise RuntimeError('Candidate is missing the reviewed read-only bind: ' + target)
     if actual_volumes != expected_volumes:
         raise RuntimeError('Candidate changes unexpected app mounts')
     before_app, after_app = copy.deepcopy(before['services']['app']), copy.deepcopy(after['services']['app'])
