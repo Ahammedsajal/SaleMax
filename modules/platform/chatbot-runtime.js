@@ -136,10 +136,26 @@ function handoffText(message, language = null, accepted = false) {
   return 'Thanks for explaining. I’ve asked admissions to check this, and I can keep helping with the course details we have here.';
 }
 
-const coordinatorHandoffReasons = new Set(['course-unmatched-after-clarification','student-class-support','course-details-need-coordinator']);
+const coordinatorHandoffReasons = new Set(['course-unmatched-after-clarification','student-class-support','existing-student-support','course-details-need-coordinator']);
 function needsClassSupport(message) {
   const text = businessContext.normalized(message);
   return /\b(?:miss(?:ed|ing)?|absent|could not attend|couldn t attend|unable to attend|make up|makeup)\b.*\b(?:class(?:es)?|sessions?|lessons?)\b|\b(?:my|our) (?:class|session|lesson)\b.*\b(?:miss(?:ed)?|reschedule|catch up)\b|(?:فاتتني|غيبت|غبت|لم احضر|تعويض).*(?:حص|درس|محاضر|جلس)/u.test(text);
+}
+
+function studentSupportReason(message) {
+  if (needsClassSupport(message)) return 'student-class-support';
+  const text = businessContext.normalized(message);
+  const enrolled = /\b(?:i am|i m|im|am|i am already|i m already) (?:an? )?(?:current |existing |enrolled )?student\b|\b(?:i am|i m|im|am) (?:currently |already )?(?:studying|attending|enrolled in|taking)\b|\bi (?:have )?already (?:enrolled|registered)\b|(?:انا طالب|انا طالبه|انا ادرس|انا مسجل|انا مسجله|انا ملتحق)/u.test(text);
+  return enrolled ? 'existing-student-support' : null;
+}
+
+function studentSupportReply(reason, language) {
+  if (reason === 'student-class-support') return language === 'ar'
+    ? 'أبلغت فريق التدريب بشأن الحصص التي فاتتك، وسيتواصل معك لمساعدتك.'
+    : 'I’ve let our training team know about the classes you missed. They’ll contact you to help with the next steps.';
+  return language === 'ar'
+    ? 'شكراً لتوضيح أنك تدرس معنا. أحلت رسالتك إلى فريق التدريب وسيتواصل معك لمساعدتك في أسئلتك.'
+    : 'Thanks for letting me know you’re already studying with us. I’ve passed your message to our training team, and they’ll follow up to help with your questions.';
 }
 
 async function sendCustomerHandoffNotice({ ctx, profile, uid, message, origin, sessionId, chatId, accepted = false }) {
@@ -152,8 +168,8 @@ async function sendCustomerHandoffNotice({ ctx, profile, uid, message, origin, s
   const once = coordinatorHandoffReasons.has(pending.reason);
   if (!await claims.reserveCustomerAcknowledgement(dbPool, { tenantId: ctx.tenant.id, claimId: pending.id, inboundId, once })) return false;
   const language = businessContext.languageFor(textOf(message));
-  const body = pending.reason === 'student-class-support'
-    ? (language === 'ar' ? 'أبلغت فريق التدريب بشأن الحصص التي فاتتك، وسيتواصل معك لمساعدتك.' : 'I’ve let our training team know about the classes you missed. They’ll contact you to help with the next steps.')
+  const body = ['student-class-support','existing-student-support'].includes(pending.reason)
+    ? studentSupportReply(pending.reason, language)
     : once ? coordinatorReply({ language })
     : !accepted && ctx.category.key === 'training_center' && origin === 'qr' && mockup.ownsInbox(uid, origin)
     ? coordinatorReply({ language: businessContext.languageFor(textOf(message)), followUp: Boolean(pending.lastCustomerAckAt) })
@@ -1060,7 +1076,8 @@ async function aiTurn({ ctx, profile, uid, message, user, sessionId, origin, cha
   const incomingText = textOf(message);
   const continuity = mockup.ownsInbox(uid, origin);
   const aiAvailableForTurn = aiAvailableForProfile(profile);
-  if (continuity && ctx.category.key === 'training_center' && needsClassSupport(incomingText)) return { handedOff: true, code: 'student-class-support' };
+  const supportReason = continuity && ctx.category.key === 'training_center' && studentSupportReason(incomingText);
+  if (supportReason) return { handedOff: true, code: supportReason };
   if (ctx.category.key === 'training_center' && continuity && !profile.config?.flowId && !profile.config?.introFlowId
     && businessContext.isTrainingGreeting(incomingText)) {
     const dispatched = await trainingCenterGuidedTurn({ ctx, profile, uid, message, sessionId, origin, chatId, leadInfo, onStage });
@@ -1310,9 +1327,8 @@ async function previewMockupTurn({ uid, tenantId, chatId, channelKind, channelRe
   const intake = admissions.advance({ prior: previousIntake, text: message, name, nameOnly, savedName: storedName,
     savedStart: admissions.savedStartLabel(qualification, language), language, recognizeImmediate: true });
   const route = businessContext.controlRoute(message, profile.config, prior, facts, { courseCertificates: true });
-  if (needsClassSupport(message)) return handoff('student-class-support', prior, language === 'ar'
-    ? 'أبلغت فريق التدريب بشأن الحصص التي فاتتك، وسيتواصل معك لمساعدتك.'
-    : 'I’ve let our training team know about the classes you missed. They’ll contact you to help with the next steps.');
+  const supportReason = studentSupportReason(message);
+  if (supportReason) return handoff(supportReason, prior, studentSupportReply(supportReason, language));
   const courseSelection = (!nameOnly || prior.waitingForCourse) && !acknowledgement && profile.engine === 'hybrid'
     ? await identifyCourse({ ctx: { tenant: { id: tenantId } }, profile, facts, message, state: prior, referral, route }) : null;
   if (courseSelection?.clarify && prior.waitingForCourse) return handoff('course-unmatched-after-clarification', prior, coordinatorReply({ language }));
