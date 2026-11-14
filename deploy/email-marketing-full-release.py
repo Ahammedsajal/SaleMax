@@ -132,7 +132,8 @@ const mysql=require('mysql2/promise');
  const [provider]=await c.query('SHOW CREATE TABLE sx_platform_email_provider_settings');
  const [recipients]=await c.query('SHOW CREATE TABLE sx_email_campaign_recipients');
  const [tables]=await c.query("SELECT TABLE_NAME FROM information_schema.tables WHERE table_schema=DATABASE() AND TABLE_NAME='sx_email_provider_events'");
- console.log(JSON.stringify({ledger,opt:opt[0]['Create Table'],provider:provider[0]['Create Table'],recipients:recipients[0]['Create Table'],eventsTable:tables.length===1}));
+ const [eventIndex]=await c.query("SHOW INDEX FROM sx_email_campaign_recipients WHERE Key_name='uq_sx_email_recipient_id'");
+ console.log(JSON.stringify({ledger,opt:opt[0]['Create Table'],provider:provider[0]['Create Table'],recipients:recipients[0]['Create Table'],eventsTable:tables.length===1,eventRecipientIndex:eventIndex.length===1}));
 }finally{await c.end()}})().catch(e=>{console.log(JSON.stringify({probeError:e.code||e.name||'DATABASE_PROBE_FAILED'}));process.exitCode=1});
 """
     result = json.loads(run('docker', 'exec', APP, 'node', '-e', script, timeout=60).splitlines()[-1])
@@ -142,26 +143,30 @@ const mysql=require('mysql2/promise');
     base = rows.get('20270106_email_marketing.sql')
     if not base or base['status'] != 'applied' or int(base['statements_completed']) != int(base['statement_count']):
         raise RuntimeError('Email foundation migration is not fully applied')
-    for name in MIGRATIONS:
-        if name in rows and rows[name]['status'] == 'applied':
-            raise RuntimeError('Email completion migration already exists; reconcile it before deploy')
-        if name in rows:
-            raise RuntimeError('Incomplete Email migration requires recovery')
+    event = rows.get(MIGRATIONS[0])
+    if event:
+        if (event['status'] != 'applied' or event['checksum'] != '0478e7235040117ce9823ce74fc33835363ddeaf09f5ed1f5075d84bb7b59882'
+                or int(event['statement_count']) != 2 or int(event['statements_completed']) != 2
+                or not result['eventsTable'] or not result['eventRecipientIndex']):
+            raise RuntimeError('Email event migration has unexpected state; reconcile it before deploy')
+    elif result['eventsTable'] or result['eventRecipientIndex'] or 'uq_sx_email_recipient_id' in result['recipients']:
+        raise RuntimeError('Unledgered Email event schema requires recovery')
+    analytics = rows.get(MIGRATIONS[1])
+    if analytics:
+        raise RuntimeError('Email analytics migration already exists; reconcile it before deploy')
     if ('email_marketing' in result['opt'] or 'configuration_set_name' in result['provider']
-            or 'sns_topic_arn' in result['provider'] or result['eventsTable']
-            or 'uq_sx_email_recipient_id' in result['recipients']):
-        raise RuntimeError('Email completion schema is partially present; reconcile before deploy')
+            or 'sns_topic_arn' in result['provider']):
+        raise RuntimeError('Email admin schema is partially present; reconcile before deploy')
     return result
 
 
-def apply_migration(filename, sql):
+def apply_migration(filename, sql, staged_migrations):
     script = r"""
 let body='';process.stdin.setEncoding('utf8');process.stdin.on('data',x=>body+=x);process.stdin.on('end',async()=>{let c;try{
  const input=JSON.parse(body),runner=require('/app/database/migration-runner'),crypto=require('node:crypto'),mysql=require('mysql2/promise');
- const checksum=crypto.createHash('sha256').update(input.sql,'utf8').digest('hex');
- const migrations=runner.discover('/app/database/migrations'),found=migrations.find(m=>m.file===input.filename);
- if(found&&found.checksum!==checksum)throw Object.assign(Error(),{code:'MIGRATION_CHECKSUM_CHANGED'});
- if(!found)migrations.push({file:input.filename,checksum,statements:runner.splitSql(input.sql)});
+ const migrations=runner.discover('/app/database/migrations');
+ for(const [filename,sql] of Object.entries(input.migrations)){const checksum=crypto.createHash('sha256').update(sql,'utf8').digest('hex'),found=migrations.find(m=>m.file===filename);if(found&&found.checksum!==checksum)throw Object.assign(Error(),{code:'MIGRATION_CHECKSUM_CHANGED'});if(!found)migrations.push({file:filename,checksum,statements:runner.splitSql(sql)});}
+ if(!input.migrations[input.filename])throw Object.assign(Error(),{code:'MIGRATION_NOT_FOUND'});
  migrations.sort((a,b)=>a.file.localeCompare(b.file));
  c=await mysql.createConnection({host:process.env.DBHOST,port:Number(process.env.DBPORT||3306),user:process.env.DBUSER,password:process.env.DBPASS,database:process.env.DBNAME,multipleStatements:false});
  const applied=await runner.applyMigrations(c,migrations,{only:input.filename});
@@ -170,7 +175,7 @@ let body='';process.stdin.setEncoding('utf8');process.stdin.on('data',x=>body+=x
 }catch(e){console.log(JSON.stringify({migrationError:e.code||e.name||'MIGRATION_FAILED'}));process.exitCode=1}finally{try{await c?.end()}catch{}}});
 """
     result = run('docker', 'exec', '-i', APP, 'node', '-e', script,
-                 input_text=json.dumps({'filename': filename, 'sql': sql}), timeout=900)
+                 input_text=json.dumps({'filename': filename, 'migrations': staged_migrations}), timeout=900)
     parsed = json.loads(result.splitlines()[-1])
     if parsed.get('migrationError'):
         raise RuntimeError(str(parsed['migrationError']))
@@ -194,6 +199,11 @@ def deploy(stage, commit):
     if shutil_disk_free() < 4 * 1024**3:
         raise RuntimeError('Insufficient free space for guarded release')
     schema_before = database_probe()
+    staged_migrations = {name: (stage / 'database' / 'migrations' / name).read_text(encoding='utf-8')
+                         for name in MIGRATIONS}
+    expected_event_checksum = sha(staged_migrations[MIGRATIONS[0]].encode('utf-8'))
+    if expected_event_checksum != '0478e7235040117ce9823ce74fc33835363ddeaf09f5ed1f5075d84bb7b59882':
+        raise RuntimeError('Reviewed event migration checksum changed')
     meta = compose_meta(app)
     env, variables = compose_environment(app, meta)
     release = ROOT / 'releases' / f'email-marketing-completion-{commit[:12]}-20261114'
@@ -295,7 +305,7 @@ def deploy(stage, commit):
             path = stage / 'database' / 'migrations' / name
             if not path.is_file() or path.is_symlink():
                 raise RuntimeError('Missing migration source: ' + name)
-            migration_results.append(apply_migration(name, path.read_text(encoding='utf-8')))
+            migration_results.append(apply_migration(name, staged_migrations[name], staged_migrations))
         if any(sha(Path(path).read_bytes()) != digest for path, digest in input_hashes.items()) or inspect(APP)['Id'] != app['Id']:
             raise RuntimeError('Running app or Compose inputs changed during migration')
         run(*(candidate + ['up', '-d', '--no-deps', '--no-build', '--force-recreate', 'app']), env=env, timeout=600)
@@ -317,6 +327,13 @@ def deploy(stage, commit):
         if 'modules-loaded' not in runtime:
             raise RuntimeError('Runtime module load check failed')
         database_after = database_probe()
+        after_rows = {row['migration_name']: row for row in database_after['ledger']}
+        for name, sql in staged_migrations.items():
+            row = after_rows.get(name)
+            if not row or row['status'] != 'applied' or int(row['statement_count']) != int(row['statements_completed']):
+                raise RuntimeError('Email migration did not finish completely: ' + name)
+            if row['checksum'] != sha(sql.encode('utf-8')):
+                raise RuntimeError('Email migration checksum mismatch: ' + name)
         result = {'sourceCommit': commit, 'release': str(release), 'rollback': str(backup),
                   'image': current['Image'], 'composeInputs': len(meta['files']) + 1,
                   'mounts': len(current['Mounts']), 'migrationResults': migration_results,
