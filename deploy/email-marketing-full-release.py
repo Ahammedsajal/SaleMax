@@ -139,25 +139,36 @@ const mysql=require('mysql2/promise');
     result = json.loads(run('docker', 'exec', APP, 'node', '-e', script, timeout=60).splitlines()[-1])
     if result.get('probeError'):
         raise RuntimeError(str(result['probeError']))
+    return result
+
+
+def validate_schema(result, staged_migrations, complete):
     rows = {row['migration_name']: row for row in result['ledger']}
     base = rows.get('20270106_email_marketing.sql')
     if not base or base['status'] != 'applied' or int(base['statements_completed']) != int(base['statement_count']):
         raise RuntimeError('Email foundation migration is not fully applied')
-    event = rows.get(MIGRATIONS[0])
-    if event:
-        if (event['status'] != 'applied' or event['checksum'] != '0478e7235040117ce9823ce74fc33835363ddeaf09f5ed1f5075d84bb7b59882'
-                or int(event['statement_count']) != 2 or int(event['statements_completed']) != 2
-                or not result['eventsTable'] or not result['eventRecipientIndex']):
-            raise RuntimeError('Email event migration has unexpected state; reconcile it before deploy')
-    elif result['eventsTable'] or result['eventRecipientIndex'] or 'uq_sx_email_recipient_id' in result['recipients']:
-        raise RuntimeError('Unledgered Email event schema requires recovery')
-    analytics = rows.get(MIGRATIONS[1])
-    if analytics:
-        raise RuntimeError('Email analytics migration already exists; reconcile it before deploy')
-    if ('email_marketing' in result['opt'] or 'configuration_set_name' in result['provider']
-            or 'sns_topic_arn' in result['provider']):
-        raise RuntimeError('Email admin schema is partially present; reconcile before deploy')
-    return result
+    applied = {}
+    for name, sql in staged_migrations.items():
+        row = rows.get(name)
+        if row:
+            if (row['status'] != 'applied' or row['checksum'] != sha(sql.encode('utf-8'))
+                    or int(row['statement_count']) != len(sql.split(';')) - 1
+                    or int(row['statements_completed']) != int(row['statement_count'])):
+                raise RuntimeError('Email migration has unexpected state; reconcile it before deploy: ' + name)
+        elif complete:
+            raise RuntimeError('Email migration is not fully applied: ' + name)
+        applied[name] = row is not None
+    if applied[MIGRATIONS[1]] and not applied[MIGRATIONS[0]]:
+        raise RuntimeError('Email analytics migration exists without its event migration')
+    event = applied[MIGRATIONS[0]]
+    analytics = applied[MIGRATIONS[1]]
+    if (result['eventsTable'] != event or result['eventRecipientIndex'] != event
+            or ('uq_sx_email_recipient_id' in result['recipients']) != event):
+        raise RuntimeError('Email event schema does not match its migration ledger')
+    if (('email_marketing' in result['opt']) != analytics
+            or ('configuration_set_name' in result['provider']) != analytics
+            or ('sns_topic_arn' in result['provider']) != analytics):
+        raise RuntimeError('Email admin schema does not match its migration ledger')
 
 
 def apply_migration(filename, sql, staged_migrations):
@@ -201,9 +212,7 @@ def deploy(stage, commit):
     schema_before = database_probe()
     staged_migrations = {name: (stage / 'database' / 'migrations' / name).read_text(encoding='utf-8')
                          for name in MIGRATIONS}
-    expected_event_checksum = sha(staged_migrations[MIGRATIONS[0]].encode('utf-8'))
-    if expected_event_checksum != '0478e7235040117ce9823ce74fc33835363ddeaf09f5ed1f5075d84bb7b59882':
-        raise RuntimeError('Reviewed event migration checksum changed')
+    validate_schema(schema_before, staged_migrations, complete=False)
     meta = compose_meta(app)
     env, variables = compose_environment(app, meta)
     release = ROOT / 'releases' / f'email-marketing-completion-{commit[:12]}-20261114'
@@ -327,13 +336,7 @@ def deploy(stage, commit):
         if 'modules-loaded' not in runtime:
             raise RuntimeError('Runtime module load check failed')
         database_after = database_probe()
-        after_rows = {row['migration_name']: row for row in database_after['ledger']}
-        for name, sql in staged_migrations.items():
-            row = after_rows.get(name)
-            if not row or row['status'] != 'applied' or int(row['statement_count']) != int(row['statements_completed']):
-                raise RuntimeError('Email migration did not finish completely: ' + name)
-            if row['checksum'] != sha(sql.encode('utf-8')):
-                raise RuntimeError('Email migration checksum mismatch: ' + name)
+        validate_schema(database_after, staged_migrations, complete=True)
         result = {'sourceCommit': commit, 'release': str(release), 'rollback': str(backup),
                   'image': current['Image'], 'composeInputs': len(meta['files']) + 1,
                   'mounts': len(current['Mounts']), 'migrationResults': migration_results,
