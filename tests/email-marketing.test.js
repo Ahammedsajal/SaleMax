@@ -20,6 +20,7 @@ test('email normalization and domain inputs are bounded',()=>{
   assert.throws(()=>email.cleanDomain('https://example.com'),{code:'INVALID_EMAIL_DOMAIN'});
   assert.equal(email.cleanRegion('me-south-1'),'me-south-1');
   assert.equal(email.cleanRegion('eu-central-1'),'eu-central-1');
+  assert.equal(email.cleanRegion('eu-north-1'),'eu-north-1');
   assert.throws(()=>email.cleanRegion('unknown-1'),{code:'INVALID_SES_REGION'});
 });
 

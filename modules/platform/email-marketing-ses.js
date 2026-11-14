@@ -2,6 +2,7 @@
 
 const regions=Object.freeze({
   'me-south-1':'Middle East (Bahrain)',
+  'eu-north-1':'Europe (Stockholm)',
   'us-east-1':'US East (N. Virginia)',
   'eu-west-1':'Europe (Ireland)',
   'eu-central-1':'Europe (Frankfurt)',
