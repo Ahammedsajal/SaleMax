@@ -41,7 +41,7 @@ ASSETS = {
     'database/migrations/20270108_email_marketing_admin_and_analytics.sql': 'database/migrations/20270108_email_marketing_admin_and_analytics.sql',
 }
 CACHE_REFS = {
-    '/admin-email-marketing-settings.js?v=20261114-email-setup2': '/admin-email-marketing-settings.js?v=20261115-email-stockholm1',
+    '/admin-email-marketing-settings.js?v=20261115-email-stockholm1': '/admin-email-marketing-settings.js?v=20261115-email-csrf1',
 }
 
 
