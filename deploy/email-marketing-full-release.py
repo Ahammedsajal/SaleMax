@@ -217,15 +217,27 @@ def deploy(stage, commit):
     runtime = release / 'runtime'
     runtime.mkdir(mode=0o755)
     changed = {}
+    preimage_hashes = {}
     for target, source in ASSETS.items():
         live = '/app/' + target
         saved = preimages / target
         saved.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
-        run('docker', 'cp', APP + ':' + live, str(saved))
-        original = saved.read_bytes()
-        if sha(original) != run('docker', 'exec', APP, 'sha256sum', live).split()[0]:
-            raise RuntimeError('Live preimage changed: ' + target)
+        exists = subprocess.run(['docker', 'exec', APP, 'test', '-f', live],
+                                capture_output=True, text=True)
+        if exists.returncode == 0:
+            run('docker', 'cp', APP + ':' + live, str(saved))
+            original = saved.read_bytes()
+            if sha(original) != run('docker', 'exec', APP, 'sha256sum', live).split()[0]:
+                raise RuntimeError('Live preimage changed: ' + target)
+            preimage_hashes[target] = sha(original)
+        elif exists.returncode == 1:
+            original = None
+            preimage_hashes[target] = None
+        else:
+            raise RuntimeError('Cannot inspect live preimage: ' + target)
         if source is None:
+            if original is None:
+                raise RuntimeError('Production shell is missing: ' + target)
             output = original.decode('utf-8')
             for old, new in CACHE_REFS.items():
                 if output.count(old) != 1:
@@ -242,7 +254,7 @@ def deploy(stage, commit):
         dest.write_bytes(data)
         dest.chmod(0o644)
         changed[target] = data
-    (backup / 'preimage-hashes.json').write_text(json.dumps({name: sha((preimages / name).read_bytes()) for name in ASSETS}, indent=2) + '\n')
+    (backup / 'preimage-hashes.json').write_text(json.dumps(preimage_hashes, indent=2) + '\n')
     support = {name: inspect(name)['Id'] for name in SUPPORT}
     (backup / 'support-services.json').write_text(json.dumps(support, indent=2) + '\n')
     (backup / 'release-path.txt').write_text(str(release) + '\n')
@@ -351,6 +363,12 @@ def restore(backup):
         raise RuntimeError('Rollback image mismatch')
     expected = json.loads((backup / 'preimage-hashes.json').read_text())
     for target in ASSETS:
+        if expected[target] is None:
+            absent = subprocess.run(['docker', 'exec', APP, 'test', '!', '-e', '/app/' + target],
+                                    capture_output=True, text=True)
+            if absent.returncode != 0:
+                raise RuntimeError('Rollback did not restore file absence: ' + target)
+            continue
         observed = run('docker', 'exec', APP, 'sha256sum', '/app/' + target).split()[0]
         if observed != expected[target]:
             raise RuntimeError('Rollback file hash mismatch: ' + target)
