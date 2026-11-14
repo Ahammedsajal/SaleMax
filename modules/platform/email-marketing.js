@@ -38,7 +38,7 @@ function decodeToken(key,token){
   return {tenantId:String(data[0]),campaignId:String(data[1]),recipientId:String(data[2])};
 }
 function emailMarketingAccess(context){
-  if(context?.audience!=='tenant'||context.category?.key!=='7network_sales'||Number(context.tenant?.categoryVersion)!==Number(context.category?.version))fail('CATEGORY_UNAVAILABLE',403);
+  if(context?.audience!=='tenant'||Number(context.tenant?.categoryVersion)!==Number(context.category?.version))fail('CATEGORY_UNAVAILABLE',403);
   const {decision}=require('./policy'),result=decision(context,{capability:'email.marketing',permission:'email.marketing.manage'});
   if(!result.allowed)fail(result.code,403);
   return result;
@@ -61,9 +61,11 @@ function decodeSender(row){return {id:row.id,domainId:row.domain_id,email:row.em
 
 async function providerStatus(db,ctx,key){
   const settings=await providerSettings.read(db,key);
-  if(!settings.configured)return {configured:false,credentialSource:'super_admin',region:settings.region,code:'AWS_CREDENTIALS_REQUIRED',account:null};
-  try{return {configured:true,credentialSource:'super_admin',region:settings.region,account:await ses.getAccount(settings.region,settings.credentials)};}
-  catch(error){return {configured:false,credentialSource:'super_admin',region:settings.region,code:safeSesError(error),account:null};}
+  let eventTrackingConfigured=false;
+  if(!settings.configured)return {configured:false,credentialSource:'super_admin',region:settings.region,eventTrackingConfigured,code:'AWS_CREDENTIALS_REQUIRED',account:null};
+  try{eventTrackingConfigured=await ses.eventDestinationConfigured(settings.region,settings.configurationSetName,settings.snsTopicArn,settings.credentials);}catch{}
+  try{return {configured:true,credentialSource:'super_admin',region:settings.region,eventTrackingConfigured,account:await ses.getAccount(settings.region,settings.credentials)};}
+  catch(error){return {configured:false,credentialSource:'super_admin',region:settings.region,eventTrackingConfigured,code:safeSesError(error),account:null};}
 }
 async function setup(db,ctx,key){
   emailMarketingAccess(ctx.context);
@@ -296,6 +298,37 @@ async function campaignDetail(db,ctx,id){
   return {...campaign,recipients};
 }
 
+async function analytics(db,ctx,requestedDays=30){
+  emailMarketingAccess(ctx.context);
+  const days=[7,30,90].includes(Number(requestedDays))?Number(requestedDays):30;
+  const [campaignRows]=await db.query(`SELECT COUNT(*) AS campaigns,COALESCE(SUM(recipient_count),0) AS recipients,
+      COALESCE(SUM(accepted_count),0) AS accepted,COALESCE(SUM(failed_count),0) AS failed,COALESCE(SUM(suppressed_count),0) AS suppressed
+    FROM sx_email_campaigns WHERE tenant_id=? AND created_at>=DATE_SUB(UTC_TIMESTAMP(3),INTERVAL ? DAY)`,[ctx.tenantId,days]);
+  const [recipientRows]=await db.query(`SELECT COUNT(DISTINCT IF(status='accepted',id,NULL)) AS accepted,
+      COUNT(DISTINCT IF(status='failed',id,NULL)) AS failed,COUNT(DISTINCT IF(status='suppressed',id,NULL)) AS suppressed,
+      COUNT(DISTINCT IF(status='unknown',id,NULL)) AS unknownCount
+    FROM sx_email_campaign_recipients WHERE tenant_id=? AND created_at>=DATE_SUB(UTC_TIMESTAMP(3),INTERVAL ? DAY)`,[ctx.tenantId,days]);
+  const [eventRows]=await db.query(`SELECT COUNT(DISTINCT IF(event_type='Delivery',recipient_id,NULL)) AS delivered,
+      COUNT(DISTINCT IF(event_type='Bounce',recipient_id,NULL)) AS bounced,
+      COUNT(DISTINCT IF(event_type='Complaint',recipient_id,NULL)) AS complained,
+      COUNT(DISTINCT IF(event_type='Open',recipient_id,NULL)) AS opened,
+      COUNT(DISTINCT IF(event_type='Click',recipient_id,NULL)) AS clicked,
+      COUNT(DISTINCT IF(event_type='Reject',recipient_id,NULL)) AS rejected,
+      COUNT(DISTINCT IF(event_type='DeliveryDelay',recipient_id,NULL)) AS delayed
+    FROM sx_email_provider_events WHERE tenant_id=? AND created_at>=DATE_SUB(UTC_TIMESTAMP(3),INTERVAL ? DAY)`,[ctx.tenantId,days]);
+  const [campaigns]=await db.query(`SELECT c.id,c.name,c.subject,c.status,c.recipient_count AS recipients,c.accepted_count AS accepted,
+      c.failed_count AS failed,c.suppressed_count AS suppressed,c.created_at AS createdAt,
+      COUNT(DISTINCT IF(e.event_type='Delivery',e.recipient_id,NULL)) AS delivered,
+      COUNT(DISTINCT IF(e.event_type='Open',e.recipient_id,NULL)) AS opened,
+      COUNT(DISTINCT IF(e.event_type='Click',e.recipient_id,NULL)) AS clicked,
+      COUNT(DISTINCT IF(e.event_type='Bounce',e.recipient_id,NULL)) AS bounced,
+      COUNT(DISTINCT IF(e.event_type='Complaint',e.recipient_id,NULL)) AS complained
+    FROM sx_email_campaigns c LEFT JOIN sx_email_provider_events e ON e.tenant_id=c.tenant_id AND e.campaign_id=c.id
+    WHERE c.tenant_id=? AND c.created_at>=DATE_SUB(UTC_TIMESTAMP(3),INTERVAL ? DAY)
+    GROUP BY c.id ORDER BY c.created_at DESC,c.id DESC LIMIT 100`,[ctx.tenantId,days]);
+  return {days,totals:{...(campaignRows[0]||{}),...(recipientRows[0]||{}),...(eventRows[0]||{})},campaigns};
+}
+
 async function inbox(db,ctx){
   emailMarketingAccess(ctx.context);
   const [rows]=await db.query(`SELECT id,campaign_id AS campaignId,recipient_id AS recipientId,recipient_email AS email,recipient_name AS name,subject,last_message_at AS lastMessageAt,unread_count AS unreadCount
@@ -343,4 +376,4 @@ async function applyUnsubscribe(db,key,token){
   }catch(error){try{await db.rollback();}catch{}throw error;}
 }
 
-module.exports={MAX_RECIPIENTS,MAX_ATTACHMENT_BYTES,MAX_TOTAL_ATTACHMENT_BYTES,MAX_ATTACHMENTS,normalizeEmail,validEmail,cleanDomain,cleanRegion,cleanEmail,tokenFor,decodeToken,safeFilename,sniffAttachment,summarizeAudience,fingerprint,emailMarketingAccess,sessionContext,providerStatus,setup,addDomain,refreshDomain,addSender,refreshSender,audit,saveAttachment,loadAttachments,listTemplates,saveTemplate,previewAudience,createCampaign,listCampaigns,campaignDetail,inbox,threadMessages,testSend,applyUnsubscribe};
+module.exports={MAX_RECIPIENTS,MAX_ATTACHMENT_BYTES,MAX_TOTAL_ATTACHMENT_BYTES,MAX_ATTACHMENTS,normalizeEmail,validEmail,cleanDomain,cleanRegion,cleanEmail,tokenFor,decodeToken,safeFilename,sniffAttachment,summarizeAudience,fingerprint,emailMarketingAccess,sessionContext,providerStatus,setup,addDomain,refreshDomain,addSender,refreshSender,audit,saveAttachment,loadAttachments,listTemplates,saveTemplate,previewAudience,createCampaign,listCampaigns,campaignDetail,analytics,inbox,threadMessages,testSend,applyUnsubscribe};

@@ -142,6 +142,12 @@ test('malformed capability assignments and unknown roles fail closed',()=>{
   }
   for(const role of ['constructor','toString','super_admin','staff'])assert.equal(decision(context(role),request).allowed,false);
 });
+test('legacy SaleMaX Sales category aliases remain accepted after the production policy sync',()=>{
+  const {categoryKeyMatches}=require('../modules/platform/category-aliases');
+  assert.equal(categoryKeyMatches('7network_sales','salemax_sales'),true);
+  const contextFixture=context('owner');contextFixture.category=salemaxSales;contextFixture.tenant.categoryKey='salemax_sales';
+  assert.equal(decision(contextFixture,{capability:'email.marketing',permission:'email.marketing.manage'}).allowed,true);
+});
 test('platform access requires separate audience, MFA and explicit staff grants',()=>{
   const tenant=context(); tenant.membership.role='super_admin'; tenant.mfaVerified=true;
   assert.equal(platformDecision(tenant,'tenants.create'),false);

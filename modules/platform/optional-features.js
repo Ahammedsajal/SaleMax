@@ -2,7 +2,7 @@
 const crypto=require('node:crypto');
 const {platformDecision}=require('./policy');
 const portfolio=require('./user-portfolio');
-const keys=Object.freeze(['chat_widget','customer_api','webhooks','whatsapp_warmer']);
+const keys=Object.freeze(['chat_widget','customer_api','webhooks','whatsapp_warmer','email_marketing']);
 const defaults=()=>Object.fromEntries(keys.map(key=>[key,false]));
 const fail=code=>{throw Object.assign(new Error(code),{code});};
 function project(row){return {features:Object.fromEntries(keys.map(key=>[key,Number(row?.[key])===1])),revision:Number(row?.revision||0)};}
@@ -21,8 +21,8 @@ async function save(db,context,id,input){
     await portfolio.requireAccess(db,context,id);
     const [[user]]=await db.query('SELECT id FROM user WHERE id=? FOR UPDATE',[id]);if(!user)fail('USER_NOT_FOUND');
     const before=await read(db,id);if(before.revision!==input.revision)fail('STALE_FEATURE_SETTINGS');
-    await db.query(`INSERT INTO sx_user_optional_features(legacy_user_id,chat_widget,customer_api,webhooks,whatsapp_warmer,revision) VALUES (?,?,?,?,?,?)
-      ON DUPLICATE KEY UPDATE chat_widget=VALUES(chat_widget),customer_api=VALUES(customer_api),webhooks=VALUES(webhooks),whatsapp_warmer=VALUES(whatsapp_warmer),revision=VALUES(revision)`,[id,...keys.map(key=>Number(input.features[key])),before.revision+1]);
+    await db.query(`INSERT INTO sx_user_optional_features(legacy_user_id,chat_widget,customer_api,webhooks,whatsapp_warmer,email_marketing,revision) VALUES (?,?,?,?,?,?,?)
+      ON DUPLICATE KEY UPDATE chat_widget=VALUES(chat_widget),customer_api=VALUES(customer_api),webhooks=VALUES(webhooks),whatsapp_warmer=VALUES(whatsapp_warmer),email_marketing=VALUES(email_marketing),revision=VALUES(revision)`,[id,...keys.map(key=>Number(input.features[key])),before.revision+1]);
     await db.query(`INSERT INTO sx_audit_events(id,actor_identity_id,actor_kind,action,resource_type,resource_id,changes,correlation_id)
       VALUES (?,?,'identity','user.optional-features-updated','platform-user',?,?,?)`,[crypto.randomUUID(),context.identity.id,String(id),JSON.stringify({before:before.features,after:input.features}),crypto.randomUUID()]);
     await db.commit();return {userId:id,features:input.features,revision:before.revision+1};

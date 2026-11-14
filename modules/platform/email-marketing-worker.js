@@ -69,7 +69,7 @@ function unsubscribeUrl(origin,key,item){
   return `${base}/api/public/email/unsubscribe/${service.tokenFor(key,item.tenantId,item.campaignId,item.id)}`;
 }
 
-async function dispatch(pool,item,{key,origin,send=ses.sendSimple,providerCache=new Map(),credentials=null,providerErrorCode=null}={}){
+async function dispatch(pool,item,{key,origin,send=ses.sendSimple,providerCache=new Map(),credentials=null,providerErrorCode=null,configurationSetName=null}={}){
   if(item.senderStatus!=='verified'||item.domainStatus!=='verified'||item.dkimStatus!=='SUCCESS')return finish(pool,item,{status:'failed',errorCode:'EMAIL_SENDER_NOT_VERIFIED'});
   if(!credentials)return finish(pool,item,{status:'retry',errorCode:providerErrorCode||'AWS_CREDENTIALS_REQUIRED',delaySeconds:300});
   const db=await pool.getConnection();let current,attachments;try{current=await currentContact(db,item);if(current.blocked)return finish(pool,item,{status:'suppressed',errorCode:current.code});attachments=await campaignAttachments(db,item);}finally{db.release();}
@@ -85,7 +85,7 @@ async function dispatch(pool,item,{key,origin,send=ses.sendSimple,providerCache=
       Headers:[{Name:'List-Unsubscribe',Value:`<${url}>`},{Name:'List-Unsubscribe-Post',Value:'List-Unsubscribe=One-Click'}],
       ...(attachments.length?{Attachments:attachments.map(file=>({FileName:file.fileName,ContentType:file.contentType,ContentDisposition:'ATTACHMENT',ContentTransferEncoding:'BASE64',RawContent:file.content}))}:{})}},
     EmailTags:[{Name:'campaign_id',Value:item.campaignId},{Name:'recipient_id',Value:item.id}]};
-  const configSet=process.env.SALEMAX_EMAIL_SES_CONFIGURATION_SET;if(configSet)message.ConfigurationSetName=configSet;
+  const configSet=configurationSetName||process.env.SALEMAX_EMAIL_SES_CONFIGURATION_SET;if(configSet)message.ConfigurationSetName=configSet;
   try{const result=await send(item.region,message,credentials);account.localAccepted++;return finish(pool,item,{status:'accepted',providerMessageId:result.messageId||null,subject,text});}
   catch(error){
     const code=safeProviderCode(error),status=error?.$metadata?.httpStatusCode;
@@ -129,7 +129,7 @@ async function tick(pool,{key,origin,limit=8}={}){
   const items=await claim(pool,{limit}),providerCache=new Map();let providerConfig,providerErrorCode=null,sent=0,failed=0,suppressed=0,unknown=0,retried=0;
   try{const db=await pool.getConnection();try{providerConfig=await providerSettings.read(db,key);}finally{db.release();}if(!providerConfig.configured)providerErrorCode='AWS_CREDENTIALS_REQUIRED';}
   catch{providerConfig=null;providerErrorCode='AWS_CREDENTIALS_UNAVAILABLE';}
-  for(const item of items){try{const result=await dispatch(pool,item,{key,origin,providerCache,credentials:providerConfig?.credentials||null,providerErrorCode});if(result.status==='accepted')sent++;else if(result.status==='failed')failed++;else if(result.status==='suppressed')suppressed++;else if(result.status==='unknown')unknown++;else if(result.status==='retry')retried++;}catch{await finish(pool,item,{status:'unknown',errorCode:'DELIVERY_OUTCOME_UNKNOWN'}).catch(()=>{});unknown++;}}
+  for(const item of items){try{const result=await dispatch(pool,item,{key,origin,providerCache,credentials:providerConfig?.credentials||null,providerErrorCode,configurationSetName:providerConfig?.configurationSetName||null});if(result.status==='accepted')sent++;else if(result.status==='failed')failed++;else if(result.status==='suppressed')suppressed++;else if(result.status==='unknown')unknown++;else if(result.status==='retry')retried++;}catch{await finish(pool,item,{status:'unknown',errorCode:'DELIVERY_OUTCOME_UNKNOWN'}).catch(()=>{});unknown++;}}
   return {claimed:items.length,sent,failed,suppressed,unknown,retried};
 }
 function start(pool,{key,origin,logger=console,setIntervalImpl=setInterval,clearIntervalImpl=clearInterval}={}){

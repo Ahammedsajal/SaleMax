@@ -2,7 +2,7 @@
   'use strict';
   const labels=window.salemaxOptionalLabels||{};
   const pages={'chat-widget':'chat_widget','wa-qr-rest-api':'customer_api','conversational-api':'customer_api','template-api':'customer_api','api-dashboard':'customer_api','manage-webhook':'webhooks','webhook-automation':'webhooks','webhook-logs':'webhooks','wa-warmer':'whatsapp_warmer'};
-  const names={chat_widget:['Chat Widget','ودجت المحادثة'],customer_api:['Customer API access','وصول العملاء إلى API'],webhooks:['Webhooks','الويب هوك'],whatsapp_warmer:['WhatsApp Warmer','تهيئة واتساب']};
+  const names={chat_widget:['Chat Widget','ودجت المحادثة'],customer_api:['Customer API access','وصول العملاء إلى API'],webhooks:['Webhooks','الويب هوك'],whatsapp_warmer:['WhatsApp Warmer','تهيئة واتساب'],email_marketing:['Email Marketing','التسويق عبر البريد الإلكتروني']};
   const isAr=()=>window.SaleMaxLocale?.isArabic() ?? /^(ar(?:[-_]|$)|arabic)/i.test(localStorage.getItem('language') || document.documentElement.lang || 'en');
   const tr=(en,ar)=>isAr()?ar:en;
   let features={},userToken=null,loading=false,checked=false;
@@ -31,7 +31,7 @@
     const grid=document.querySelector('.MuiDataGrid-root');if(!grid)return;
     const host=document.createElement('section');host.dataset.sxOptionalPanel='1';host.className='sx-optional-panel';host.dir=isAr()?'rtl':'ltr';grid.parentElement.insertBefore(host,grid);
     const heading=document.createElement('h3');heading.textContent=tr('Optional user features','ميزات المستخدم الاختيارية');host.append(heading);
-    const note=document.createElement('p');note.textContent=tr('Disabled by default. Enable only the features this customer needs. Plan limits and provider availability still apply.','معطّلة افتراضيًا. فعّل فقط الميزات التي يحتاجها هذا العميل. تظل حدود الخطة وتوفر مزودي الخدمة سارية.');host.append(note);
+    const note=document.createElement('p');note.textContent=tr('Disabled by default. Enable only the features this customer needs. Plan limits and provider availability still apply. Email Marketing access does not grant consent to email contacts.','معطّلة افتراضيًا. فعّل فقط الميزات التي يحتاجها هذا العميل. تظل حدود الخطة وتوفر مزودي الخدمة سارية. لا يمنح الوصول إلى التسويق عبر البريد موافقة على مراسلة جهات الاتصال.');host.append(note);
     const message=document.createElement('p');message.setAttribute('role','status');host.append(message);
     const close=document.createElement('button');close.type='button';close.textContent=tr('Close','إغلاق');close.onclick=()=>host.remove();host.append(close);
     try{

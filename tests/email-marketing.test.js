@@ -8,6 +8,8 @@ const worker=require('../modules/platform/email-marketing-worker');
 const policy=require('../modules/platform/policy');
 const navigation=require('../modules/platform/navigation');
 const providerSettings=require('../modules/platform/email-marketing-provider-settings');
+const emailEvents=require('../modules/platform/email-marketing-events');
+const sns=require('../modules/platform/email-marketing-sns');
 
 test('email normalization and domain inputs are bounded',()=>{
   assert.equal(email.normalizeEmail(' Sales@Example.COM '),'sales@example.com');
@@ -66,6 +68,24 @@ test('SES quota and account pause failures are retryable provider states',()=>{
   assert.equal(ses.publicCode({name:'TooManyRequestsException'}),'SES_THROTTLED');
 });
 
+test('SES feedback handlers classify recipient events and restrict SNS URLs to the configured AWS region',()=>{
+  assert.equal(emailEvents.eventKind({eventType:'Complaint'}),'Complaint');
+  assert.equal(emailEvents.suppressionReason({complaint:{}},'Complaint'),'complaint');
+  assert.equal(emailEvents.suppressionReason({bounce:{bounceType:'Permanent'}},'Bounce'),'bounce');
+  assert.equal(emailEvents.suppressionReason({bounce:{bounceType:'Transient'}},'Bounce'),null);
+  assert.equal(sns.trustedSnsUrl('https://sns.eu-central-1.amazonaws.com/SimpleNotificationService-abcdefgh.pem','arn:aws:sns:eu-central-1:123456789012:events',{certificate:true}).hostname,'sns.eu-central-1.amazonaws.com');
+  assert.throws(()=>sns.trustedSnsUrl('https://169.254.169.254/latest/meta-data/','arn:aws:sns:eu-central-1:123456789012:events',{certificate:true}),{code:'SNS_URL_UNTRUSTED'});
+});
+
+test('email analytics scopes every aggregate and campaign join to the current tenant',async()=>{
+  const tenantId='aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
+  const context={audience:'tenant',tenant:{id:tenantId,status:'active',categoryKey:'7network_sales',categoryVersion:1},membership:{id:'member',tenantId,role:'owner',status:'active'},category:{key:'7network_sales',version:1,capabilities:['email.marketing']},subscription:{status:'active',capabilities:[]}};
+  const calls=[];const db={query:async(sql,args)=>{calls.push({sql,args});if(sql.includes('FROM sx_email_campaigns WHERE'))return [[{campaigns:1,recipients:3,accepted:3,failed:0,suppressed:0}]];if(sql.includes('FROM sx_email_campaign_recipients'))return [[{accepted:3,failed:0,suppressed:0,unknownCount:0}]];if(sql.includes('FROM sx_email_provider_events WHERE'))return [[{delivered:2,bounced:1,complained:0,opened:1,clicked:1,rejected:0,delayed:0}]];return [[{id:'campaign',name:'Synthetic',recipients:3,delivered:2,opened:1,clicked:1}]];}};
+  const result=await email.analytics(db,{context,tenantId},30);
+  assert.equal(result.days,30);assert.equal(result.totals.delivered,2);assert.equal(result.campaigns[0].name,'Synthetic');
+  assert.equal(calls.length,4);for(const call of calls){assert.equal(call.args[0],tenantId);assert.match(call.sql,/tenant_id/);}
+});
+
 test('platform SES credentials are encrypted, authenticated and never returned by status helpers',()=>{
   const key=Buffer.alloc(32,11),secret='EXAMPLE_SECRET_ACCESS_KEY_VALUE';
   const encrypted=providerSettings.encrypt(secret,key,'secret-access-key');
@@ -82,7 +102,7 @@ test('only an active MFA-authenticated platform super-admin can manage SES crede
   assert.throws(()=>providerSettings.superAdmin({...base,membership:{role:'platform_admin',status:'active'}}),{code:'PERMISSION_DENIED'});
 });
 
-test('email access is limited to active 7Network Sales owners and managers',()=>{
+test('email access is limited to active, entitled owners and managers; optional category access remains explicit',()=>{
   const tenantId='aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
   const context=role=>({audience:'tenant',tenant:{id:tenantId,status:'active',categoryKey:'7network_sales',categoryVersion:1},
     membership:{id:'membership',tenantId,role,status:'active'},category:{key:'7network_sales',version:1,capabilities:['email.marketing']},
@@ -101,4 +121,8 @@ test('email access is limited to active 7Network Sales owners and managers',()=>
   assert.equal(policy.decision(unassigned,{capability:'email.marketing',permission:'email.marketing.manage'}).allowed,false);
   const otherCategory=context('owner');otherCategory.tenant.categoryKey='training_center';otherCategory.category.key='training_center';
   assert.equal(policy.decision(otherCategory,{capability:'email.marketing',permission:'email.marketing.manage'}).allowed,false);
+  otherCategory.category.capabilities.push('email.marketing');otherCategory.subscription.capabilities.push('email.marketing');
+  assert.equal(policy.decision(otherCategory,{capability:'email.marketing',permission:'email.marketing.manage'}).allowed,true);
+  const disabled={...otherCategory,category:{...otherCategory.category,capabilities:['email.marketing']},subscription:{...otherCategory.subscription,capabilities:[]}};
+  assert.equal(policy.decision(disabled,{capability:'email.marketing',permission:'email.marketing.manage'}).allowed,false);
 });

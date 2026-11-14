@@ -37,6 +37,13 @@ async function resolve(pool,{context,actor,agent=false,owner=null,refreshContext
     const ownerLink=await require('./invoice-customers').owner(db,context.tenant.id);
     const [[businessOwner]]=await db.query('SELECT * FROM user WHERE uid=?',[ownerLink.uid]);
     if(!businessOwner)fail('BUSINESS_LINK_INVALID');
+    // Super Admin's per-account switch activates Email Marketing without
+    // changing a published plan or granting any capability to other tenants.
+    const [[emailFeature]]=await db.query('SELECT email_marketing FROM sx_user_optional_features WHERE legacy_user_id=?',[businessOwner.id]);
+    if(Number(emailFeature?.email_marketing)===1){
+      context={...context,category:{...context.category,capabilities:[...new Set([...(context.category.capabilities||[]),'email.marketing'])]},
+        subscription:context.subscription?{...context.subscription,capabilities:[...new Set([...(context.subscription.capabilities||[]),'email.marketing'])]}:context.subscription};
+    }
     if(!actor){
       const [links]=await db.query('SELECT source_table,source_id,legacy_uid_hash FROM sx_legacy_ownership WHERE tenant_id=? AND membership_id=? AND source_table IN (\'user\',\'agents\') LIMIT 2',[context.tenant.id,context.membership.id]);
       if(links.length>1)fail('BUSINESS_LINK_INVALID');

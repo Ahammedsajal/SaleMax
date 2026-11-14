@@ -25,15 +25,17 @@ async function main(){
     for(const sql of [
       "CREATE TABLE sx_identities(id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL PRIMARY KEY,status VARCHAR(16) NOT NULL DEFAULT 'active') ENGINE=InnoDB",
       "CREATE TABLE sx_tenants(id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL PRIMARY KEY) ENGINE=InnoDB",
+      'CREATE TABLE sx_user_optional_features(legacy_user_id INT NOT NULL PRIMARY KEY,chat_widget TINYINT(1) NOT NULL DEFAULT 0,customer_api TINYINT(1) NOT NULL DEFAULT 0,webhooks TINYINT(1) NOT NULL DEFAULT 0,whatsapp_warmer TINYINT(1) NOT NULL DEFAULT 0,revision INT UNSIGNED NOT NULL DEFAULT 1,updated_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3)) ENGINE=InnoDB',
       'CREATE TABLE contact(id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,uid VARCHAR(191) NOT NULL,phonebook_id BIGINT UNSIGNED NOT NULL,phonebook_name VARCHAR(255) NOT NULL,name VARCHAR(999),mobile VARCHAR(100),var1 VARCHAR(999),var2 VARCHAR(999),var3 VARCHAR(999),var4 VARCHAR(999),var5 VARCHAR(999),var6 VARCHAR(999),createdAt DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3)) ENGINE=InnoDB',
       'CREATE TABLE user(id INT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,uid VARCHAR(191) NOT NULL,plan LONGTEXT,plan_expire VARCHAR(100)) ENGINE=InnoDB',
       'CREATE TABLE phonebook(id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,uid VARCHAR(191) NOT NULL,name VARCHAR(255) NOT NULL) ENGINE=InnoDB',
       'CREATE TABLE sx_audit_events(id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL PRIMARY KEY,actor_identity_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,actor_kind VARCHAR(32) NOT NULL,action VARCHAR(128) NOT NULL,resource_type VARCHAR(64) NOT NULL,resource_id VARCHAR(128) NOT NULL,changes JSON NOT NULL,correlation_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL) ENGINE=InnoDB',
     ])await db.query(sql);
     const migrations=discover(path.join(__dirname,'../database/migrations'));
-    const migration=migrations.find(item=>item.file==='20270106_email_marketing.sql');
-    assert.ok(migration,'email migration must be discoverable');
-    for(const sql of migration.statements)await db.query(sql);
+    for(const name of ['20270106_email_marketing.sql','20270107_email_marketing_events.sql','20270108_email_marketing_admin_and_analytics.sql']){
+      const migration=migrations.find(item=>item.file===name);assert.ok(migration,`${name} must be discoverable`);
+      for(const sql of migration.statements)await db.query(sql);
+    }
 
     const identityId='11111111-1111-4111-8111-111111111111';
     const tenantId='22222222-2222-4222-8222-222222222222';
@@ -96,8 +98,10 @@ async function main(){
     assert.equal(Object.hasOwn(restricted.rows[0],'email'),false);
     await assert.rejects(phonebook.list(db,{...ctx,emailMarketing:false},{filters:[{field:'email',value:'sales@example.invalid'}]}),{code:'INVALID_FILTER'});
 
-    const rollback=splitSql(fs.readFileSync(path.join(__dirname,'../database/migrations/20270106_email_marketing_rollback.sql'),'utf8'));
-    for(const sql of rollback)await db.query(sql);
+    for(const name of ['20270108_email_marketing_admin_and_analytics_rollback.sql','20270107_email_marketing_events_rollback.sql','20270106_email_marketing_rollback.sql']){
+      const rollback=splitSql(fs.readFileSync(path.join(__dirname,'../database/migrations',name),'utf8'));
+      for(const sql of rollback)await db.query(sql);
+    }
     const [[table]]=await db.query("SELECT COUNT(*) AS count FROM information_schema.tables WHERE table_schema=? AND table_name='sx_platform_email_provider_settings'",[dbName]);
     assert.equal(Number(table.count),0);
     console.log(JSON.stringify({passed:true,checks:['forward migration','encrypted credential storage','super-admin provider status redaction','concurrent revision conflict','audit secret redaction','Phonebook email-only entry','consent opt-out/re-opt-in history','non-entitled email-field isolation','manual rollback'],syntheticOnly:true}));

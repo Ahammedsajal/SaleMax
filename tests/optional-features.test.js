@@ -2,7 +2,7 @@
 const test=require('node:test'),assert=require('node:assert/strict');
 const features=require('../modules/platform/optional-features');
 test('optional integrations default off and deny missing, ambiguous or unavailable account settings',async()=>{
-  assert.deepEqual(features.project(undefined),{features:{chat_widget:false,customer_api:false,webhooks:false,whatsapp_warmer:false},revision:0});
+  assert.deepEqual(features.project(undefined),{features:{chat_widget:false,customer_api:false,webhooks:false,whatsapp_warmer:false,email_marketing:false},revision:0});
   for(const rows of [[],[{enabled:0}],[{enabled:1},{enabled:1}]])assert.equal(await features.enabledForUid('owner','customer_api',async()=>rows),false);
   assert.equal(await features.enabledForUid('owner','webhooks',async()=>{throw Error('offline');}),false);
   assert.equal(await features.enabledForUid('owner','customer_api',async()=>[{enabled:1}]),true);

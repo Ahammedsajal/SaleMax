@@ -90,4 +90,23 @@ async function sendSimple(value,message,credentials=null){
   return {messageId:result.MessageId||null};
 }
 
-module.exports={regions,region,defaultRegion,publicCode,getAccount,getIdentity,createDomainIdentity,createSenderIdentity,sendSimple};
+async function configureEventDestination(value,configurationSetName,topicArn,credentials=null){
+  const {client,sdk}=createClient(value,credentials);
+  try{await client.send(new sdk.CreateConfigurationSetCommand({ConfigurationSetName:configurationSetName}));}
+  catch(error){if(error?.name!=='AlreadyExistsException'&&error?.$metadata?.httpStatusCode!==409)throw error;}
+  const destination={Enabled:true,MatchingEventTypes:['SEND','REJECT','BOUNCE','COMPLAINT','DELIVERY','DELIVERY_DELAY','SUBSCRIPTION','OPEN','CLICK'],SnsDestination:{TopicArn:topicArn}};
+  try{return await client.send(new sdk.CreateConfigurationSetEventDestinationCommand({ConfigurationSetName:configurationSetName,EventDestinationName:'7network-email-events',EventDestination:destination}));}
+  catch(error){if(error?.name!=='AlreadyExistsException'&&error?.$metadata?.httpStatusCode!==409)throw error;}
+  return client.send(new sdk.UpdateConfigurationSetEventDestinationCommand({ConfigurationSetName:configurationSetName,EventDestinationName:'7network-email-events',EventDestination:destination}));
+}
+
+async function eventDestinationConfigured(value,configurationSetName,topicArn,credentials=null){
+  if(!configurationSetName||!topicArn)return false;
+  const {client,sdk}=createClient(value,credentials);
+  try{
+    const result=await client.send(new sdk.GetConfigurationSetEventDestinationsCommand({ConfigurationSetName:configurationSetName}));
+    return (result.EventDestinations||[]).some(item=>item.EventDestinationName==='7network-email-events'&&item.Enabled===true&&item.SnsDestination?.TopicArn===topicArn);
+  }catch(error){if(error?.name==='NotFoundException'||error?.$metadata?.httpStatusCode===404)return false;throw error;}
+}
+
+module.exports={regions,region,defaultRegion,publicCode,getAccount,getIdentity,createDomainIdentity,createSenderIdentity,sendSimple,configureEventDestination,eventDestinationConfigured};

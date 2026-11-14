@@ -38,6 +38,7 @@ function createEmailMarketingRouter({pool:injectedPool,authenticate,origin,key}=
   router.put('/templates/:id',run(async(db,ctx,req)=>service.saveTemplate(db,ctx,req.body,req.params.id)));
   router.post('/audience/preview',run(async(db,ctx,req)=>service.previewAudience(db,ctx,req.body,key)));
   router.get('/campaigns',run(async(db,ctx)=>({items:await service.listCampaigns(db,ctx)})));
+  router.get('/analytics',run(async(db,ctx,req)=>service.analytics(db,ctx,req.query?.days)));
   router.post('/campaigns',run(async(db,ctx,req)=>service.createCampaign(db,ctx,req.body,key)));
   router.get('/campaigns/:id',run(async(db,ctx,req)=>service.campaignDetail(db,ctx,req.params.id)));
   router.get('/inbox',run(async(db,ctx)=>service.inbox(db,ctx)));
@@ -51,10 +52,24 @@ function createEmailMarketingRouter({pool:injectedPool,authenticate,origin,key}=
   return router;
 }
 
-function createPublicEmailRouter({pool:injectedPool,key}={}){
+function createPublicEmailRouter({pool:injectedPool,key,topicArn=process.env.SALEMAX_EMAIL_SES_SNS_TOPIC_ARN}={}){
   const express=require('express'),router=express.Router(),pool=injectedPool||require('../../database/config').promise();
   router.use(express.urlencoded({extended:false,limit:'8kb'}));
   const tokenOf=req=>String(req.params.token||'');
+  router.post('/ses/events',express.raw({type:'*/*',limit:require('./email-marketing-sns').MAX_SNS_BODY_BYTES}),async(req,res)=>{
+    res.set('Cache-Control','no-store');
+    try{
+      const sns=require('./email-marketing-sns'),events=require('./email-marketing-events');
+      const settings=require('./email-marketing-provider-settings');
+      const currentTopic=await settings.snsTopic(pool)||topicArn;
+      const parsed=await sns.parseAndVerify(req.body,currentTopic);
+      if(parsed.type==='Notification')return res.status(200).json(await events.persist(pool,parsed));
+      return res.status(200).json({accepted:true,confirmed:parsed.confirmation?.confirmed===true,ignored:parsed.ignored===true});
+    }catch(error){
+      const status=Number.isInteger(error?.status)?error.status:500;
+      return res.status(status).json({success:false,code:status>=500?'SES_EVENT_UNAVAILABLE':(error?.code||'SNS_MESSAGE_INVALID')});
+    }
+  });
   router.get('/unsubscribe/:token',(req,res)=>{
     res.set({'Cache-Control':'no-store, max-age=0','Referrer-Policy':'no-referrer','X-Content-Type-Options':'nosniff','Content-Security-Policy':"default-src 'none'; style-src 'unsafe-inline'; form-action 'self'; base-uri 'none'; frame-ancestors 'none'"});
     res.type('html').send(`<!doctype html><html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Email preferences</title><body style="font:16px system-ui;max-width:34rem;margin:12vh auto;padding:1.5rem;color:#172033"><h1>Unsubscribe from marketing email</h1><p>Confirm to stop marketing emails to this address.</p><form method="post"><button style="padding:.8rem 1.1rem;font:inherit">Unsubscribe</button></form></body></html>`);
