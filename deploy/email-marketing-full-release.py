@@ -42,6 +42,7 @@ ASSETS = {
 }
 CACHE_REFS = {
     '/admin-email-marketing-settings.js?v=20261115-email-stockholm1': '/admin-email-marketing-settings.js?v=20261115-email-csrf1',
+    '/email-marketing-workspace.js?v=20261114-analytics1': '/email-marketing-workspace.js?v=20261115-managed-region1',
 }
 
 
