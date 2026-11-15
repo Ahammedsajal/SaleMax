@@ -25,6 +25,7 @@ ASSETS = {
     'client/public/optional-features.js': 'client/public/optional-features.js',
     'client/public/admin-email-marketing-settings.js': 'client/public/admin-email-marketing-settings.js',
     'client/public/email-marketing-workspace.js': 'client/public/email-marketing-workspace.js',
+    'client/public/email-marketing-workspace.css': 'client/public/email-marketing-workspace.css',
     'modules/platform/category-aliases.js': 'modules/platform/category-aliases.js',
     'modules/platform/policy.js': 'modules/platform/policy.js',
     'modules/platform/business-feature-session.js': 'modules/platform/business-feature-session.js',
@@ -41,7 +42,8 @@ ASSETS = {
     'database/migrations/20270108_email_marketing_admin_and_analytics.sql': 'database/migrations/20270108_email_marketing_admin_and_analytics.sql',
 }
 CACHE_REFS = {
-    '/email-marketing-workspace.js?v=20261114-analytics1': '/email-marketing-workspace.js?v=20261115-managed-region1',
+    '/email-marketing-workspace.js?v=20261115-managed-region1': '/email-marketing-workspace.js?v=20261115-no-region-field1',
+    '/email-marketing-workspace.css?v=20261112-email-marketing1': '/email-marketing-workspace.css?v=20261115-no-region-field1',
 }
 
 
