@@ -19,6 +19,7 @@ function cleanDomain(value){
   if(!/^[a-z]{2,63}$/.test(labels.at(-1)))fail('INVALID_EMAIL_DOMAIN');
   return source;
 }
+function cleanRegion(value){try{return ses.region(value||ses.defaultRegion());}catch{fail('INVALID_SES_REGION');}}
 function cleanEmail(value,required=false){const email=normalizeEmail(value);if((required&&!email)||(email&&!validEmail(email)))fail('INVALID_EMAIL_ADDRESS');return email;}
 function cleanText(value,max,code,{required=false}={}){if(typeof value!=='string')fail(code);const text=value.trim();if(text.length>max||(required&&!text))fail(code);return text;}
 function base64url(value){return Buffer.from(value).toString('base64url');}
