@@ -2,6 +2,7 @@
 
 const crypto = require('node:crypto');
 const { decision } = require('./policy');
+const asteriskConfig = require('./asterisk-config');
 
 const fail = code => { throw Object.assign(new Error(code), { code }); };
 const uuid = value => typeof value === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value);
@@ -35,11 +36,12 @@ async function list(db, context) {
     assigned: !!row.extension }));
 }
 
-async function rotateEndpointCredential(db,context,input) {
+async function rotateEndpointCredential(db,context,input,clientFactory) {
   authorize(context);
   if(!input||typeof input!=='object'||!uuid(input.membershipId)||!['mobile','browser'].includes(input.clientType)
     ||!Number.isSafeInteger(input.expectedCredentialRevision)||input.expectedCredentialRevision<1)fail('INVALID_ENDPOINT_CREDENTIAL_ROTATION');
   const column=input.clientType==='mobile'?'mobile_credential_revision':'browser_credential_revision';
+  let nextRevision;
   await db.beginTransaction();
   try{
     const [[row]]=await db.query(`SELECT extension,${column} AS credential_revision FROM sx_telephony_extensions
@@ -47,14 +49,22 @@ async function rotateEndpointCredential(db,context,input) {
     if(!row||!row.extension)fail('SIP_ENDPOINT_NOT_PROVISIONED');
     const current=Number(row.credential_revision);
     if(current!==input.expectedCredentialRevision)fail('STALE_ENDPOINT_CREDENTIAL');
-    const next=current+1;
-    await db.query(`UPDATE sx_telephony_extensions SET ${column}=?,updated_at=UTC_TIMESTAMP(3) WHERE tenant_id=? AND membership_id=?`,[next,context.tenant.id,input.membershipId]);
+    nextRevision=current+1;
+    await db.query(`UPDATE sx_telephony_extensions SET ${column}=?,updated_at=UTC_TIMESTAMP(3) WHERE tenant_id=? AND membership_id=?`,[nextRevision,context.tenant.id,input.membershipId]);
     await db.query(`INSERT INTO sx_audit_events(id,tenant_id,actor_identity_id,actor_kind,action,resource_type,resource_id,changes,correlation_id)
       VALUES(?,?,?,'identity','telephony.endpoint-credential-rotated','telephony-endpoint',?,?,?)`,[
-      crypto.randomUUID(),context.tenant.id,context.identity.id,input.membershipId,JSON.stringify({clientType:input.clientType,revision:next}),crypto.randomUUID()]);
+      crypto.randomUUID(),context.tenant.id,context.identity.id,input.membershipId,JSON.stringify({clientType:input.clientType,revision:nextRevision}),crypto.randomUUID()]);
     await db.commit();
-    return {membershipId:input.membershipId,clientType:input.clientType,credentialRevision:next};
   }catch(error){try{await db.rollback();}catch(_){}throw error;}
+  let synchronization={synchronized:false,code:'ASTERISK_CONTROL_NOT_READY'};
+  try {
+    synchronization=await asteriskConfig.synchronizeMemberEndpointCredential(db,context,input.membershipId,input.clientType,
+      clientFactory,{revokeActiveCalls:true});
+  } catch(error) {
+    synchronization={synchronized:false,code:/^[A-Z0-9_]{2,80}$/.test(error.code||'')?error.code:'ASTERISK_SYNC_FAILED'};
+  }
+  return {membershipId:input.membershipId,clientType:input.clientType,credentialRevision:nextRevision,
+    synchronized:!!synchronization.synchronized,synchronizationCode:synchronization.code||null};
 }
 
 async function save(db, context, input) {

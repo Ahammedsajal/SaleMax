@@ -126,6 +126,8 @@ test('browser incoming SIP calls wait for an explicit accept or decline and can 
   assert.doesNotMatch(sip,/onCallReceived:[^\n]*(?:\.answer\(|\.decline\()/);
   assert.match(sip,/export async function answerBrowserCall\(\)/);
   assert.match(sip,/export async function declineBrowserCall\(\)/);
+  assert.match(sip,/if \(user && !user\.isConnected\(\)\)[\s\S]*?user = null;[\s\S]*?await stale\.disconnect\(\)/);
+  assert.match(sip,/onServerDisconnect:[\s\S]*?if \(user === candidate\) \{ user = null; userConfigKey = ''; \}/);
   assert.match(sip,/if \(!candidate\.isConnected\(\)\) await candidate\.connect\(\)/);
   assert.match(ui,/window\.SevenNetworkSip\.answerBrowserCall\(\)/);
   assert.match(ui,/window\.SevenNetworkSip\.declineBrowserCall\(\)/);
@@ -209,12 +211,14 @@ test('ARI call client restricts originated endpoints, app arguments, and transpo
   });
   try {
     const callChannelId = crypto.randomUUID();
-    const agent = await client.originateAgent({ extension: '1201', clientType: 'mobile', channelId: callChannelId, appArgs: ['outbound-agent', callChannelId] });
+    const agent = await client.originateAgent({ extension: '1201', clientType: 'mobile', channelId: callChannelId,
+      appArgs: ['outbound-agent', callChannelId], callerId: '+97455550001' });
     assert.equal(agent.id, callChannelId);
     const agentRequest = requests[0];
     assert.equal(agentRequest.url.pathname, '/ari/channels');
     assert.equal(agentRequest.url.searchParams.get('endpoint'), 'PJSIP/salemax-1201-mobile');
     assert.equal(agentRequest.url.searchParams.get('app'), APP_NAME);
+    assert.equal(agentRequest.url.searchParams.get('callerId'), '+97455550001','inbound agent legs receive the caller number');
     assert.equal(agentRequest.options.headers.Authorization, `Basic ${Buffer.from('salemax-events:test-password-that-is-long-enough').toString('base64')}`);
     assert.equal(agentRequest.options.redirect, 'error');
 
@@ -226,6 +230,7 @@ test('ARI call client restricts originated endpoints, app arguments, and transpo
     assert.equal(requests[2].options.method, 'POST');
     await assert.rejects(client.ring('bad channel id'), { code: 'INVALID_ARI_CHANNEL_ID' });
     await assert.rejects(client.originateAgent({ extension: '1201@evil', clientType: 'mobile', channelId: crypto.randomUUID(), appArgs: [] }), { code: 'INVALID_ARI_ORIGINATE' });
+    await assert.rejects(client.originateAgent({ extension: '1201', clientType: 'mobile', channelId: crypto.randomUUID(), appArgs: [], callerId: '+97455550000,evil' }), { code: 'INVALID_ARI_ORIGINATE' });
     await assert.rejects(client.originateGateway({ destination: '+97455550000', channelNo: 5, channelId: crypto.randomUUID(), appArgs: [] }), { code: 'INVALID_ARI_ORIGINATE' });
     await assert.rejects(client.originateAgent({ extension: '1201', clientType: 'mobile', channelId: crypto.randomUUID(), appArgs: ['bad,arg'] }), { code: 'INVALID_ARI_APP_ARGS' });
     currentRevision++;
@@ -246,13 +251,42 @@ test('inbound callers receive a ringing indication before queue agents are origi
     agentLegs: [{ extension: '1201', clientType: 'mobile', channelId: crypto.randomUUID(), membershipId: crypto.randomUUID() }] };
   const control = new AsteriskCallControl({ pool: {} });
   control.reserveInbound = async () => reserved;
+  control.endpointProvisioningCurrent = async () => true;
   control.client = async () => ({
     async createMixingBridge(id) { assert.equal(id, reserved.bridgeId); sequence.push('bridge'); },
     async ring(id) { assert.equal(id, callerChannelId); sequence.push('ring'); },
-    async originateAgent() { sequence.push('agent'); },
+    async originateAgent(input) { sequence.push(['agent',input.callerId]); },
+  });
+  reserved.remoteNumber = '+97455550001';
+  await control.startInbound(callerChannelId, {});
+  assert.deepEqual(sequence, ['bridge', 'ring', ['agent','+97455550001']]);
+});
+
+test('inbound calls skip an endpoint whose credential revision changed after queue reservation', async () => {
+  const callerChannelId = 'PJSIP/gateway-credential-revoked';
+  const leg = { extension: '1201', clientType: 'mobile', channelId: crypto.randomUUID(), membershipId: crypto.randomUUID() };
+  const reserved = { tenantId: 'tenant-id', callId: crypto.randomUUID(), bridgeId: crypto.randomUUID(),
+    channelId: callerChannelId, ringTimeoutSeconds: 20, agentLegs: [leg] };
+  const events = [];
+  const control = new AsteriskCallControl({ pool: {} });
+  control.reserveInbound = async () => reserved;
+  control.endpointProvisioningCurrent = async () => false;
+  control.markLegFailed = async (...args) => events.push(['leg-failed', ...args]);
+  control.finishCall = async (...args) => events.push(['call-finished', ...args]);
+  control.client = async () => ({
+    async createMixingBridge(id) { events.push(['bridge', id]); },
+    async ring(id) { events.push(['ring', id]); },
+    async originateAgent() { events.push(['originate']); },
+    async hangup(id) { events.push(['hangup', id]); },
+    async destroyBridge(id) { events.push(['destroy', id]); },
   });
   await control.startInbound(callerChannelId, {});
-  assert.deepEqual(sequence, ['bridge', 'ring', 'agent']);
+  assert.deepEqual(events, [
+    ['bridge', reserved.bridgeId], ['ring', callerChannelId],
+    ['leg-failed', reserved.tenantId, reserved.callId, leg.channelId, 'ENDPOINT_CREDENTIAL_REVOKED'],
+    ['call-finished', reserved.tenantId, reserved.callId, 'failed', 'NO_AGENT_ENDPOINT_AVAILABLE'],
+    ['hangup', callerChannelId], ['destroy', reserved.bridgeId],
+  ]);
 });
 
 test('inbound queue is not rung when the caller cannot be given a ringing indication', async () => {
@@ -284,7 +318,7 @@ test('Qatar inbound answer fallback passes tenant country code when linking a lo
     inbound_channel_id: 'PJSIP/gateway-00000003', answered_by_membership_id: null,
     remote_number: '+97455550000', leadUidHash: null, leadId: null, category_key: '7network_sales', country_code: 'QA',
     membership_role: 'agent', membership_status: 'active', identity_status: 'active', tenant_status: 'active',
-    leg_id: 'leg-id', membership_id: membershipId, device_kind: 'mobile', leg_status: 'originating' };
+    leg_id: 'leg-id', membership_id: membershipId, device_kind: 'mobile', leg_status: 'originating', endpoint_ready: 1 };
   const db = {
     async beginTransaction() {}, async commit() {}, async rollback() {}, release() {},
     async query(sql, args = []) {
@@ -327,6 +361,10 @@ test('ARI client applies only bounded dynamic PJSIP object types and accepts con
     assert.deepEqual(result,{attributes:1});assert.equal(captured.options.method,'PUT');
     assert.equal(captured.url.pathname,'/ari/asterisk/config/dynamic/res_pjsip/endpoint/salemax_dinstar_uc2000ve');
     assert.deepEqual(JSON.parse(captured.options.body),{fields:[{attribute:'allow',value:'alaw,ulaw'}]});
+    const current=await client.getPjsipObject('endpoint','salemax_dinstar_uc2000ve');
+    assert.deepEqual(current,[{attribute:'endpoint',value:'salemax_dinstar_uc2000ve'}]);
+    assert.equal(captured.options.method,'GET');
+    assert.equal(captured.url.pathname,'/ari/asterisk/config/dynamic/res_pjsip/endpoint/salemax_dinstar_uc2000ve');
     await assert.rejects(client.upsertPjsipObject('global','salemax_bad',[{attribute:'allow',value:'alaw'}]),{code:'INVALID_ARI_PJSIP_OBJECT'});
     await assert.rejects(client.upsertPjsipObject('endpoint','../../ari',[{attribute:'allow',value:'alaw'}]),{code:'INVALID_ARI_PJSIP_OBJECT'});
     await assert.rejects(client.upsertPjsipObject('endpoint','salemax_safe',[{attribute:'allow',value:'alaw\ncontext=public'}]),{code:'INVALID_ARI_PJSIP_OBJECT'});

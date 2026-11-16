@@ -190,9 +190,13 @@ class AsteriskCallControl {
       if (events?.status !== 'connected' || Number(events.heartbeat_fresh) !== 1) fail('ASTERISK_EVENTS_NOT_READY');
       const [[member]] = await db.query(`SELECT x.extension,m.status AS membership_status,i.status AS identity_status,t.status AS tenant_status,
           t.category_key,t.category_version FROM sx_telephony_extensions x
+        JOIN sx_telephony_endpoint_provisioning ep ON ep.tenant_id=x.tenant_id AND ep.membership_id=x.membership_id
+          AND ep.client_type=? AND ep.extension=x.extension AND ep.extension_revision=x.revision
+          AND ep.credential_revision=CASE ep.client_type WHEN 'mobile' THEN x.mobile_credential_revision ELSE x.browser_credential_revision END
+        JOIN sx_platform_asterisk_config ac ON ac.id=1 AND ac.enabled=1 AND ep.asterisk_config_revision=ac.revision
         JOIN sx_memberships m ON m.tenant_id=x.tenant_id AND m.id=x.membership_id
         JOIN sx_identities i ON i.id=m.identity_id JOIN sx_tenants t ON t.id=m.tenant_id
-        WHERE x.tenant_id=? AND x.membership_id=? FOR UPDATE`, [context.tenant.id, context.membership.id]);
+        WHERE x.tenant_id=? AND x.membership_id=? FOR UPDATE`, [input.clientType,context.tenant.id, context.membership.id]);
       if (!member || member.membership_status !== 'active' || member.identity_status !== 'active' || member.tenant_status !== 'active'
         || !/^[0-9]{3,8}$/.test(member.extension || '')) fail('OUTBOUND_EXTENSION_NOT_READY');
       if (!(await gatewayPorts.eligible(db, { id: context.tenant.id, status: member.tenant_status,
@@ -481,13 +485,22 @@ class AsteriskCallControl {
       input = { ...input, tenantId: mapping.tenant_id, channelNo: Number(mapping.channel_no), queueId: mapping.inbound_queue_id };
       if (!(await gatewayPorts.eligible(db, { id: mapping.tenant_id, status: mapping.tenant_status,
         category_key: mapping.category_key, category_version: mapping.category_version }))) fail('INBOUND_TENANT_NOT_ELIGIBLE');
-      const [members] = await db.query(`SELECT m.id AS membership_id,x.extension FROM sx_telephony_queue_members qm
+      const [members] = await db.query(`SELECT m.id AS membership_id,x.extension,
+          EXISTS(SELECT 1 FROM sx_telephony_endpoint_provisioning pm JOIN sx_platform_asterisk_config acm ON acm.id=1 AND acm.enabled=1
+            WHERE pm.tenant_id=x.tenant_id AND pm.membership_id=x.membership_id AND pm.client_type='mobile'
+              AND pm.extension=x.extension AND pm.extension_revision=x.revision AND pm.credential_revision=x.mobile_credential_revision
+              AND pm.asterisk_config_revision=acm.revision) AS mobile_ready,
+          EXISTS(SELECT 1 FROM sx_telephony_endpoint_provisioning pb JOIN sx_platform_asterisk_config acb ON acb.id=1 AND acb.enabled=1
+            WHERE pb.tenant_id=x.tenant_id AND pb.membership_id=x.membership_id AND pb.client_type='browser'
+              AND pb.extension=x.extension AND pb.extension_revision=x.revision AND pb.credential_revision=x.browser_credential_revision
+              AND pb.asterisk_config_revision=acb.revision) AS browser_ready
+        FROM sx_telephony_queue_members qm
         JOIN sx_memberships m ON m.tenant_id=qm.tenant_id AND m.id=qm.membership_id AND m.status='active'
         JOIN sx_identities i ON i.id=m.identity_id AND i.status='active'
         JOIN sx_telephony_extensions x ON x.tenant_id=m.tenant_id AND x.membership_id=m.id AND x.extension REGEXP '^[0-9]{3,8}$'
         WHERE qm.tenant_id=? AND qm.queue_id=? AND m.role IN ('owner','manager','team_leader','agent') ORDER BY qm.position FOR UPDATE`,
       [input.tenantId, input.queueId]);
-      if (!members.length) fail('INBOUND_QUEUE_HAS_NO_ACTIVE_ENDPOINTS');
+      if (!members.some(member => Number(member.mobile_ready) === 1 || Number(member.browser_ready) === 1)) fail('INBOUND_QUEUE_HAS_NO_ACTIVE_ENDPOINTS');
       const callerAni=callerNumber(input.callerNumber);
       let leadLink=null;
       if(callerAni&&categoryKeyMatches(mapping.category_key,'7network_sales')){
@@ -507,6 +520,7 @@ class AsteriskCallControl {
         VALUES(?,?,?,?,'caller','gateway','ringing')`, [input.tenantId, crypto.randomUUID(), callId, channelId]);
       const agentLegs = [];
       for (const member of members) for (const clientType of CLIENT_TYPES) {
+        if (Number(member[clientType === 'mobile' ? 'mobile_ready' : 'browser_ready']) !== 1) continue;
         const leg = { id: crypto.randomUUID(), channelId: crypto.randomUUID(), membershipId: member.membership_id,
           extension: member.extension, clientType };
         await db.query(`INSERT INTO sx_telephony_call_legs(tenant_id,id,call_id,asterisk_channel_id,leg_role,device_kind,membership_id,status)
@@ -515,6 +529,7 @@ class AsteriskCallControl {
       }
       await db.commit();
       return { tenantId: input.tenantId, callId, bridgeId, channelNo: input.channelNo, channelId,
+        remoteNumber: callerAni,
         ringTimeoutSeconds: Math.max(5, Math.min(120, Number(mapping.ring_timeout_seconds) || 20)), agentLegs };
     } catch (error) {
       try { await db.rollback(); } catch (_) {}
@@ -527,6 +542,18 @@ class AsteriskCallControl {
     } finally {
       db.release();
     }
+  }
+
+  async endpointProvisioningCurrent(tenantId, leg) {
+    const [[row]] = await this.pool.query(`SELECT 1 AS ready FROM sx_telephony_extensions x
+      JOIN sx_platform_asterisk_config ac ON ac.id=1 AND ac.enabled=1
+      JOIN sx_telephony_endpoint_provisioning p ON p.tenant_id=x.tenant_id AND p.membership_id=x.membership_id
+        AND p.client_type=? AND p.extension=x.extension AND p.extension_revision=x.revision
+        AND p.credential_revision=CASE p.client_type WHEN 'mobile' THEN x.mobile_credential_revision ELSE x.browser_credential_revision END
+        AND p.asterisk_config_revision=ac.revision
+      WHERE x.tenant_id=? AND x.membership_id=? AND x.extension=?`,
+    [leg.clientType,tenantId,leg.membershipId,leg.extension]);
+    return !!row;
   }
 
   async startInbound(channelId, input) {
@@ -565,16 +592,23 @@ class AsteriskCallControl {
       try { await client.destroyBridge(reserved.bridgeId); } catch (_) {}
       throw error;
     }
-    const results = await Promise.allSettled(reserved.agentLegs.map(async leg => {
+    let originatedLegs = 0;
+    await Promise.allSettled(reserved.agentLegs.map(async leg => {
+      if (!(await this.endpointProvisioningCurrent(reserved.tenantId, leg))) {
+        await this.markLegFailed(reserved.tenantId, reserved.callId, leg.channelId, 'ENDPOINT_CREDENTIAL_REVOKED');
+        return;
+      }
       try {
         await client.originateAgent({ extension: leg.extension, clientType: leg.clientType, channelId: leg.channelId,
-          appArgs: ['inbound-agent', reserved.callId, leg.membershipId, leg.clientType], timeout: reserved.ringTimeoutSeconds });
+          appArgs: ['inbound-agent', reserved.callId, leg.membershipId, leg.clientType], callerId: reserved.remoteNumber || undefined,
+          timeout: reserved.ringTimeoutSeconds });
+        originatedLegs++;
       } catch (error) {
         await this.markLegFailed(reserved.tenantId, reserved.callId, leg.channelId, error.code || 'AGENT_ORIGINATE_FAILED');
         throw error;
       }
     }));
-    if (results.every(result => result.status === 'rejected')) {
+    if (originatedLegs === 0) {
       await this.finishCall(reserved.tenantId, reserved.callId, 'failed', 'NO_AGENT_ENDPOINT_AVAILABLE');
       try { await client.hangup(channelId); } catch (_) {}
       try { await client.destroyBridge(reserved.bridgeId); } catch (_) {}
@@ -590,14 +624,21 @@ class AsteriskCallControl {
       const [[row]] = await db.query(`SELECT c.tenant_id,c.id,c.status,c.bridge_id,c.inbound_channel_id,c.answered_by_membership_id,
           c.remote_number,c.lead_uid_hash AS leadUidHash,c.lead_id AS leadId,
           t.category_key,t.country_code,m.role AS membership_role,m.status AS membership_status,i.status AS identity_status,t.status AS tenant_status,
-          l.id AS leg_id,l.membership_id,l.device_kind,l.status AS leg_status
+          l.id AS leg_id,l.membership_id,l.device_kind,l.status AS leg_status,
+          (ep.membership_id IS NOT NULL) AS endpoint_ready
         FROM sx_telephony_calls c JOIN sx_telephony_call_legs l ON l.tenant_id=c.tenant_id AND l.call_id=c.id
         JOIN sx_memberships m ON m.tenant_id=c.tenant_id AND m.id=l.membership_id
         JOIN sx_identities i ON i.id=m.identity_id JOIN sx_tenants t ON t.id=c.tenant_id
+        LEFT JOIN sx_telephony_extensions x ON x.tenant_id=m.tenant_id AND x.membership_id=m.id
+        LEFT JOIN sx_platform_asterisk_config ac ON ac.id=1 AND ac.enabled=1
+        LEFT JOIN sx_telephony_endpoint_provisioning ep ON ep.tenant_id=x.tenant_id AND ep.membership_id=x.membership_id
+          AND ep.client_type=l.device_kind AND ep.extension=x.extension AND ep.extension_revision=x.revision
+          AND ep.credential_revision=CASE ep.client_type WHEN 'mobile' THEN x.mobile_credential_revision ELSE x.browser_credential_revision END
+          AND ep.asterisk_config_revision=ac.revision
         WHERE c.id=? AND l.asterisk_channel_id=? FOR UPDATE`, [input.callId,channelId]);
       if (!row || row.membership_id !== input.membershipId || row.device_kind !== input.clientType
         || row.membership_status !== 'active' || row.identity_status !== 'active' || row.tenant_status !== 'active'
-        || !['originating','ringing','connected'].includes(row.leg_status)) {
+        || Number(row.endpoint_ready) !== 1 || !['originating','ringing','connected'].includes(row.leg_status)) {
         decision = { action: 'hangup' };
       } else if (row.status === 'connected' && row.answered_by_membership_id === input.membershipId && row.leg_status === 'connected') {
         decision = { action: 'duplicate' };

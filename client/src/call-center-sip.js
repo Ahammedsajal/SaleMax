@@ -12,8 +12,8 @@ function status(state, detail = '') {
 
 export async function connectBrowserSip(config, remoteAudio, onState = () => {}) {
   if (!config || typeof config.server !== 'string' || !config.server.startsWith('wss://')
-    || typeof config.uri !== 'string' || !/^sip:[0-9]{3,8}-browser@[^\s]+$/.test(config.uri)
-    || typeof config.authorizationUsername !== 'string' || !/^[0-9]{3,8}-browser$/.test(config.authorizationUsername)
+    || typeof config.uri !== 'string' || !/^sip:[0-9]{3,8}-browser-r[1-9][0-9]{0,15}@[!-~]+$/.test(config.uri)
+    || typeof config.authorizationUsername !== 'string' || !/^[0-9]{3,8}-browser-r[1-9][0-9]{0,15}$/.test(config.authorizationUsername)
     || typeof config.authorizationPassword !== 'string' || config.authorizationPassword.length < 40
     || !remoteAudio || typeof remoteAudio.play !== 'function') throw new Error('INVALID_BROWSER_SIP_CONFIG');
   stateListener = onState;
@@ -21,6 +21,13 @@ export async function connectBrowserSip(config, remoteAudio, onState = () => {})
   connectPromise = (async () => {
     const nextConfigKey = `${config.server}|${config.uri}|${config.authorizationUsername}|${config.authorizationPassword}`;
     if (user && userConfigKey !== nextConfigKey) await disconnectBrowserSip();
+    if (user && !user.isConnected()) {
+      const stale = user;
+      user = null;
+      userConfigKey = '';
+      registered = false;
+      try { await stale.disconnect(); } catch (_) {}
+    }
     let candidate = user;
     if (!candidate) {
       if (!navigator.mediaDevices?.getUserMedia) throw new Error('BROWSER_MICROPHONE_UNAVAILABLE');
@@ -31,7 +38,11 @@ export async function connectBrowserSip(config, remoteAudio, onState = () => {})
         aor: config.uri,
         delegate: {
           onServerConnect: () => status('connected'),
-          onServerDisconnect: () => { registered = false; status('disconnected'); },
+          onServerDisconnect: () => {
+            registered = false;
+            if (user === candidate) { user = null; userConfigKey = ''; }
+            status('disconnected');
+          },
           onRegistered: () => { registered = true; status('registered'); },
           onUnregistered: () => { registered = false; status('disconnected'); },
           onCallCreated: () => status('ringing'),
