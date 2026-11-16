@@ -527,8 +527,13 @@ async function trainingCenterGuidedTurn({ ctx, profile, uid, message, sessionId,
           ? `${textOf(message)} ${referralContext.language === 'ar' ? (referralCourse.nameAr || referralCourse.nameEn) : (referralCourse.nameEn || referralCourse.nameAr)}`
           : intent || textOf(message);
       onStage?.('training-guide-compose');
-      const clarification = courseSelection?.clarify ? courseClarification(priorState || {}, textOf(message), courseSelection) : null;
-      reply = opening || clarification || certificate || pack.guidedReply({ message: guideMessage, state: priorState, facts, config: { ...(profile.config?.guidedContent || {}), knowledgeEntries } });
+      const clarification = courseSelection?.clarify
+        ? courseClarification(priorState || {}, textOf(message), courseSelection, facts, profile.config?.guidedContent, pack.guidedContentDefaults)
+        : null;
+      const selectedState = courseSelection?.context?.selectedCourseCode
+        ? { ...(priorState || {}), selectedCourseCode: courseSelection.context.selectedCourseCode }
+        : priorState;
+      reply = opening || clarification || certificate || pack.guidedReply({ message: guideMessage, state: selectedState, facts, config: { ...(profile.config?.guidedContent || {}), knowledgeEntries } });
       if (certificate?.route === 'clarification') deferLeadQuestion = true;
       if (opening || clarification) deferLeadQuestion = true;
     }
@@ -1079,14 +1084,38 @@ function acceptsRegistrationForm(session, incoming) {
   return session?.step === 'course_detail' && /^(?:yes(?:[,.! ]+(?:please(?:\s+(?:send it|send me|share it))?|send it|send me|share it))?|sure|please do|send it|send me|share it|i'm interested|im interested|اي|نعم|نعم من فضلك|أرسلها|ارسلها|أرسل النموذج|ارسل النموذج)$/iu.test(incoming.trim());
 }
 
-function courseClarification(state, message, selection = null) {
+function courseClarification(state, message, selection = null, facts = [], guidedConfig = {}, defaults = {}) {
   const language = businessContext.languageFor(message, state);
   if (selection?.unlisted && selection.topic) {
     const topic = selection.topic;
-    return { reply: language === 'ar'
+    let reply = language === 'ar'
       ? `شكرًا لسؤالك عن دورة ${topic}. لا تتوفر لديّ تفاصيل مؤكدة عنها في قائمة الدورات المنشورة، لذلك لن أخمّن. يمكنني طلب تأكيد التفاصيل من منسقي الدورات.`
-      : `Thanks for asking about ${topic}. I don’t have verified details for it in our published course list, so I won’t guess. I can ask our course coordinators to confirm the details.`,
-    state: { ...state, greeted: true, language, waitingForCourse: false, unlistedCourseTopic: topic }, route: 'unlisted-course' };
+      : `Thanks for asking about ${topic}. I don’t have verified details for it in our published course list, so I won’t guess. I can ask our course coordinators to confirm the details.`;
+    let nextState = { ...state, greeted: true, language, waitingForCourse: false, unlistedCourseTopic: topic };
+    const normalizedMessage = businessContext.normalized(message);
+    const asksForOtherCourses = /\b(?:any|all|some|other|more|additional)\s+(?:other\s+)?courses?\b.{0,80}\b(?:have|offer|provide|teach|available|choose)\b/u.test(normalizedMessage)
+      || /\bwhat\s+other\s+courses?\b/u.test(normalizedMessage);
+    const courses = facts.filter(item => item && !item.kind && item.code);
+    if (asksForOtherCourses && courses.length) {
+      const configured = guidedConfig && typeof guidedConfig === 'object' ? guidedConfig : {};
+      const base = defaults && typeof defaults === 'object' ? defaults : {};
+      const settings = {
+        ...base,
+        ...configured,
+        messages: { ...(base.messages || {}), ...(configured.messages || {}) },
+        display: { ...(base.display || {}), ...(configured.display || {}) },
+      };
+      const rawLimit = Number(settings.display.maxCourses);
+      const limit = Number.isSafeInteger(rawLimit) ? Math.max(1, Math.min(10, rawLimit)) : 10;
+      const visible = courses.slice(0, limit);
+      const list = require('./chatbot-training-guide').formatCourseList(visible, settings, language);
+      const intro = language === 'ar'
+        ? `لا أجد تفاصيل منشورة ومؤكدة عن ${topic}، لذلك لن أخمّن. إليك الدورات المنشورة المتاحة حالياً:`
+        : `I can’t find verified published details for ${topic}, so I won’t guess. Here are the courses currently published:`;
+      reply = `${intro}\n\n${list}`;
+      nextState = { ...nextState, step: 'course_list', courseCodes: visible.map(item => item.code) };
+    }
+    return { reply, state: nextState, route: 'unlisted-course' };
   }
   return { reply: language === 'ar' ? 'ما اسم الدورة أو المهارة التي تود تعلمها؟ سأرسل لك التفاصيل المناسبة.' : 'Which course or skill are you interested in? I’ll share the relevant details.', state: { ...state, greeted: true, language, waitingForCourse: true }, route: 'clarification' };
 }
@@ -1100,7 +1129,9 @@ async function identifyCourse({ ctx, profile, facts, message, state, referral, r
     .filter(Boolean).map(businessContext.normalized).filter(name => name && phrase.includes(' ' + name + ' ')) }));
   const exact = titles.filter(item => item.names.some(name => !titles.some(other => other !== item
     && other.names.some(longer => longer !== name && (' ' + longer + ' ').includes(' ' + name + ' '))))).map(item => item.course);
-  const known = exact.length === 1 ? exact[0].code : context.courseContextSource === 'meta_referral' ? context.selectedCourseCode : null;
+  const known = exact.length === 1 ? exact[0].code
+    : exact.length === 0 && context.courseContextSource === 'message' && context.explicitCourses === 1 ? context.selectedCourseCode
+      : context.courseContextSource === 'meta_referral' ? context.selectedCourseCode : null;
   const select = code => {
     if (state.courseOpeningCodes?.includes(code)) return null;
     const selected = courses.find(course => course.code === code);
@@ -1449,7 +1480,7 @@ async function previewMockupTurn({ uid, tenantId, chatId, channelKind, channelRe
   const courseSelection = (!nameOnly || prior.waitingForCourse) && !acknowledgement && profile.engine === 'hybrid'
     ? await identifyCourse({ ctx: { tenant: { id: tenantId } }, profile, facts, message, state: prior, referral, route }) : null;
   if (courseSelection?.clarify && prior.waitingForCourse) return handoff('course-unmatched-after-clarification', prior, coordinatorReply({ language }));
-  if (courseSelection?.clarify) return { revision, ...courseClarification(prior, message, courseSelection) };
+  if (courseSelection?.clarify) return { revision, ...courseClarification(prior, message, courseSelection, facts, profile.config?.guidedContent, pack.guidedContentDefaults) };
   if (courseSelection?.context) courseInterest = courseSelection.context.evidence.find(item => item.kind === 'course')?.name || courseInterest;
   const certificate = !courseSelection && certificateTurn(message, context, prior, route);
   if (certificate) return { revision, reply: certificate.reply, route: certificate.route, reason: certificate.reason,

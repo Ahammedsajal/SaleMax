@@ -34,11 +34,15 @@ function courseInquiryTopic(message, state = null) {
     const sentenceLike = /^(?:i|i'm|im|my|can|could|would|what|how|when|where|do|does|is|are|please|tell|more|thanks|thank|not|نعم|هل|ماذا|كيف|متى|من فضلك)\b/iu.test(bare);
     const shortCourseAnswer = state?.waitingForCourse === true && bare.length <= 80
       && bare.split(/\s+/u).length <= 4 && !/[?؟]/u.test(bare) && !genericReply && !sentenceLike;
-    if (bare.length <= 80 && /\b(?:course|training|class|programme|program|workshop)\b|دورة|تدريب|ورشة/iu.test(bare)
+    const otherCoursesTail = /\s+(?:and\s+)?(?:any|all|some|other|more|additional)\s+(?:other\s+)?courses?\b.*$/iu;
+    const namedPart = bare.replace(otherCoursesTail, '').trim();
+    if (namedPart && namedPart !== bare && !/^(?:and|any|all|some|other|more|additional)$/iu.test(namedPart)) subject = namedPart;
+    else if (bare.length <= 80 && /\b(?:course|training|class|programme|program|workshop)\b|دورة|تدريب|ورشة/iu.test(bare)
       && !/^(?:course|training|class|programme|program|workshop|دورة|التدريب|تدريب|ورشة)$/iu.test(bare)) subject = bare;
     else if (shortCourseAnswer) subject = bare;
   }
   if (!subject) return null;
+  subject = subject.replace(/\s+(?:and\s+)?(?:any|all|some|other|more|additional)\s+(?:other\s+)?courses?\b.*$/iu, '').trim();
   subject = subject.replace(/^(?:the|a|an)\s+/iu, '').replace(/\s+course$/iu, '').replace(/[\u0000-\u001f<>`{}\[\]\\]/gu, ' ').replace(/\s+/g, ' ').trim();
   if (!subject || subject.length > 80 || !/[\p{L}\p{N}]/u.test(subject)) return null;
   const key = normalized(subject);
@@ -115,7 +119,7 @@ function controlRoute(message, config, state = {}, facts = [], { courseCertifica
     return context.selectedCourseCode && context.evidence.some(item => item.kind === 'course' && item.certificateDetails) ? 'answer' : 'handoff';
   }
   if (/^(hi|hello|hey|good morning|good evening|salam|مرحبا|اهلا|السلام عليكم|صباح الخير|مساء الخير|menu|back|القائمة|رجوع|0|english|en|arabic|ar|العربية|عربي)$/.test(text)) return 'guided';
-  const asksForCourseCatalogue = /^(?:what|which)\s+(?:(?:kinds?|types?|sorts?)\s+of\s+)?courses?\b.*\b(?:offer|available|provide|have|teach|choose)\b|^(?:please\s+)?(?:list|show|share)\b.*\bcourses?\b|^available\s+courses?$/u.test(text)
+  const asksForCourseCatalogue = /^(?:what|which|any|all|some)\s+(?:(?:(?:kinds?|types?|sorts?)\s+of\s+)?|(?:other|additional|more)\s+)?courses?\b.*\b(?:offer|available|provide|have|teach|choose)\b|^(?:please\s+)?(?:list|show|share)\b.*\bcourses?\b|^available\s+courses?$/u.test(text)
     || /^(?:ما|اي)\s+(?:هي\s+)?(?:(?:انواع|نوع)\s+)?(?:الدورات?|دورة)(?=\s|$).*(?:تقدم|توفر|لديكم|متاح|تختار)|^(?:اعرض|اذكر|شارك)(?=\s|$).*الدورات?|^الدورات?\s+المتاحة$/u.test(text);
   if (asksForCourseCatalogue || /^(courses|course list|show courses|available courses|what courses do you have|الدورات|دورات|عرض الدورات|قائمة الدورات|next|previous|التالي|السابق|form|enquiry form|registration form|نموذج|نموذج التسجيل)$/.test(text)) return 'guided';
   if (/^\d{1,2}$/.test(text) && state.step) return 'guided';

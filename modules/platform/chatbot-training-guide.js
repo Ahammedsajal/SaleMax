@@ -101,12 +101,12 @@ function localizedBatchDate(value, language) {
   } catch { return date; }
 }
 
-function formatCourseList(courses, settings = {}, language = 'en') {
+function formatCourseList(courses, settings = {}, language = 'en', { heading = null } = {}) {
   const visible = courses.slice(0, courseLimit(settings));
   if (!visible.length) {
     return language === 'ar' ? 'لا توجد دورات منشورة متاحة حالياً. ما الدورة أو المجال الذي تبحث عنه؟' : 'There are no published courses available right now. What course or subject are you looking for?';
   }
-  const lines = [`*${copy(settings, 'courseListHeading', language, language === 'ar' ? 'الدورات المتاحة' : 'Available courses')}*`];
+  const lines = [`*${heading || copy(settings, 'courseListHeading', language, language === 'ar' ? 'الدورات المتاحة' : 'Available courses')}*`];
   visible.forEach((course, index) => {
     const name = clean(language === 'ar' ? (course.nameAr || course.nameEn || course.code) : (course.nameEn || course.nameAr || course.code), 100);
     let line = `• ${name}`;
@@ -119,7 +119,7 @@ function formatCourseList(courses, settings = {}, language = 'en') {
   return lines.join('\n');
 }
 
-function formatCourseDetails(course, formUrl, settings = {}, language = 'en', applicationAvailable = false) {
+function formatCourseDetails(course, formUrl, settings = {}, language = 'en', applicationAvailable = false, includePrompt = true) {
   const name = clean(language === 'ar' ? (course.nameAr || course.nameEn || course.code) : (course.nameEn || course.nameAr || course.code), 120);
   const description = clean(language === 'ar' ? (course.descriptionAr || course.descriptionEn) : (course.descriptionEn || course.descriptionAr), 110).replace(/\s+/g, ' ');
   const lines = [`*${name}*`];
@@ -157,9 +157,9 @@ function formatCourseDetails(course, formUrl, settings = {}, language = 'en', ap
   const heading = lines.shift();
   const summary = description && settings.display?.showDescription !== false ? lines.shift() : null;
   const factsLine = lines.join(' · ');
-  const followUp = copy(settings, 'courseDetailsPrompt', language);
-  const applicationOffer = applicationAvailable ? copy(settings, 'applicationOfferMessage', language) : '';
-  const prompt = (batchLine ? batchLine + ' · ' : '') + [followUp, applicationOffer].filter(Boolean).join(' ');
+  const followUp = includePrompt ? copy(settings, 'courseDetailsPrompt', language) : '';
+  const applicationOffer = includePrompt && applicationAvailable ? copy(settings, 'applicationOfferMessage', language) : '';
+  const prompt = [batchLine, followUp, applicationOffer].filter(Boolean).join(' · ');
   return [heading, summary, factsLine, prompt].filter(Boolean).join('\n');
 }
 
@@ -175,6 +175,8 @@ function trainingCenterGuidedReplyTurn({ message, state, facts, config, defaults
   const formUrl = showForm && typeof form?.url === 'string' ? form.url : null;
   const step = state?.step;
   const nextState = (nextStep, extra = {}) => ({ ...extra, step: nextStep, language });
+  const asksForOtherCourses = /\b(?:any|all|some|other|more|additional)\s+(?:other\s+)?courses?\b.{0,80}\b(?:have|offer|provide|teach|available|choose)\b/iu.test(message)
+    || /\bwhat\s+other\s+courses?\b/iu.test(message);
 
   if (isOpeningGreeting(message)) {
     const greetingLanguage = languageFor(message, null, config);
@@ -208,6 +210,19 @@ function trainingCenterGuidedReplyTurn({ message, state, facts, config, defaults
     const normalized = clean(name, 100).toLowerCase();
     return normalized.length >= 3 && text.includes(normalized);
   }));
+  const selectedCourse = (state?.selectedCourseCode ? courses.find(course => course.code === state.selectedCourseCode) : null)
+    || (namedCourse && !/^\d+$/.test(text) ? namedCourse : null);
+  const selectedWithCatalogue = asksForOtherCourses && selectedCourse;
+  if (selectedWithCatalogue) {
+    const visibleOthers = courses.filter(course => course.code !== selectedCourse.code).slice(0, courseLimit(settings));
+    const details = formatCourseDetails(selectedCourse, formUrl, settings, language, false, false);
+    const otherCourses = visibleOthers.length
+      ? formatCourseList(visibleOthers, settings, language, { heading: language === 'ar' ? 'دورات أخرى متاحة' : 'Other available courses' })
+      : (language === 'ar' ? 'لا توجد دورات أخرى منشورة حالياً.' : 'There are no other published courses listed right now.');
+    return { reply: `${details}\n\n${otherCourses}`, state: nextState(visibleOthers.length ? 'course_list' : 'course_detail', {
+      ...(visibleOthers.length ? { courseCodes: visibleOthers.map(course => course.code) } : { selectedCourseCode: selectedCourse.code }),
+    }) };
+  }
   if (namedCourse && !/^\d+$/.test(text)) return { reply: formatCourseDetails(namedCourse, formUrl, settings, language, !!registrationFormUrl), state: nextState('course_detail', { courseCodes: courses.slice(0, courseLimit(settings)).map(course => course.code), selectedCourseCode: namedCourse.code }) };
   const keywords = text.split(/[\s?!،؟.,]+/u).filter(word => word.length >= 3 && !/^(?:what|which|how|much|the|for|about|tell|please|want|would|like|know|course|courses|training|fee|fees|price|cost|details|information|هل|اريد|أريد|دورة|الدورة|رسوم|تفاصيل|سعر|كم)$/iu.test(word));
   const matches = keywords.length && !/^\d+$/.test(text) ? courses.filter(course => {

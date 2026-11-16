@@ -23,11 +23,11 @@ ASSETS = {
     'modules/platform/chatbot-training-guide.js': 'modules/platform/chatbot-training-guide.js',
 }
 HASHES = {
-    'modules/platform/chatbot-business-context.js': ('49b0e5b802baf76f5406fe30602c175be21c6a29736479161610aacc11d744b0', 'f7f4bfbdef927c23df3e2879b707387b510e56a87d1385fbd7cccc8d5e5da78c'),
+    'modules/platform/chatbot-business-context.js': ('49b0e5b802baf76f5406fe30602c175be21c6a29736479161610aacc11d744b0', 'f0f472fa3830c7da9d6e7ca128b0e57cf3e14435abc420776e9bc24e04febd76'),
     'modules/platform/chatbot-domain-packs.js': ('46c88dd63701408dfff58d44fc7f82954cf7610bdadb680b192337602591d1c6', '18e5114966b3eec91001f1dd0ea6ad02747d8d71ab53a309c2a8141a2c2f868f'),
     'modules/platform/chatbot-lead-capture.js': ('1b1a5b8272d544e96f24357b59443830488ad3f476c073e144933a39c557b0f2', 'd108bb15190c43084e9ded0a13e359fb2e64f904219ab73dadc2b1cca1a846f1'),
-    'modules/platform/chatbot-runtime.js': ('1719f2ade49b388323a1ac9a0bc9160b95ceffdedf485b779742cbda02916356', 'a545105244a19b7d4352cf901dcc74b0d9c09116f7cfc66d3db2f6a6361b09d0'),
-    'modules/platform/chatbot-training-guide.js': ('e7f392a2ee798c78a0ef7f8f126c5d72c5ff0f1bc581f79d8a6df95034ae2a69', 'd75f9ad34330b23728a96b03c08407da9139e1e04c3632963a3996ee0d91c87b'),
+    'modules/platform/chatbot-runtime.js': ('1719f2ade49b388323a1ac9a0bc9160b95ceffdedf485b779742cbda02916356', 'c13ddb5cd53dd8756b568db5b8a8f0e062891336a3a41a5b8e98061da8510ed6'),
+    'modules/platform/chatbot-training-guide.js': ('e7f392a2ee798c78a0ef7f8f126c5d72c5ff0f1bc581f79d8a6df95034ae2a69', '177a127efc053705052f2ae97faf876fce7c920b445e946fd154a1baf17bf33a'),
 }
 PROFILE_PATH = '$.guidedContent.display.maxCourses'
 
