@@ -53,11 +53,31 @@ function normalizeWooUrl(value) {
   return url.origin + path;
 }
 function safeAmount(value) {
-  if (value === null || value === undefined || String(value).trim() === '') fail('INVALID_PROVIDER_AMOUNT', 422);
-  const n = Number(value);
-  if (!Number.isFinite(n) || Math.abs(n) > 1e14) fail('INVALID_PROVIDER_AMOUNT', 422);
-  return n.toFixed(6);
+  if (value === null || value === undefined) fail('INVALID_PROVIDER_AMOUNT', 422);
+  const match = String(value).trim().match(/^([+-]?)(\d+)(?:\.(\d+))?$/);
+  if (!match || match[2].length > 14 || (match[3] || '').length > 64) fail('INVALID_PROVIDER_AMOUNT', 422);
+  let scaled = BigInt(match[2]) * 1000000n + BigInt((match[3] || '').slice(0, 6).padEnd(6, '0') || '0');
+  if ((match[3] || '').charAt(6) >= '5') scaled++;
+  if (scaled > 99999999999999999999n) fail('INVALID_PROVIDER_AMOUNT', 422);
+  const negative = match[1] === '-' && scaled !== 0n;
+  return `${negative ? '-' : ''}${scaled / 1000000n}.${String(scaled % 1000000n).padStart(6, '0')}`;
 }
+function decimalAdd(values) {
+  const parts = Array.isArray(values) ? values : Array.from(arguments);
+  let scaled = 0n;
+  for (const value of parts) {
+    const amount = safeAmount(value);
+    const match = amount.match(/^(-?)(\d+)\.(\d{6})$/);
+    const magnitude = BigInt(match[2]) * 1000000n + BigInt(match[3]);
+    scaled += match[1] ? -magnitude : magnitude;
+  }
+  if (scaled > 99999999999999999999n || scaled < -99999999999999999999n) fail('INVALID_PROVIDER_AMOUNT', 422);
+  const negative = scaled < 0n, magnitude = negative ? -scaled : scaled;
+  return `${negative ? '-' : ''}${magnitude / 1000000n}.${String(magnitude % 1000000n).padStart(6, '0')}`;
+}
+function decimalAbs(value) { const amount = safeAmount(value); return amount.startsWith('-') ? amount.slice(1) : amount; }
+function decimalNegate(value) { const amount = safeAmount(value); return amount.startsWith('-') ? amount.slice(1) : `-${amount}`; }
+function safeQuantity(value) { const amount = safeAmount(value); if (amount.startsWith('-')) fail('INVALID_PROVIDER_QUANTITY', 422); return amount; }
 function currency(value) {
   const c = String(value || '').toUpperCase();
   if (!CURRENCY.test(c)) fail('INVALID_PROVIDER_CURRENCY', 422);
@@ -114,12 +134,16 @@ function normalizeTransactions(rows, orderCurrency) {
 }
 function normalizeLineItems(rows) {
   return rows.slice(0, 100).map(line => ({ id: line.id == null ? null : String(line.id).slice(0, 191),
-    productId: line.product_id == null ? null : String(line.product_id),
-    variantId: line.variant_id == null ? null : String(line.variant_id),
+    productId: line.product_id == null && line.productId == null ? null : String(line.product_id ?? line.productId),
+    variantId: line.variant_id == null && line.variation_id == null && line.variantId == null ? null : String(line.variant_id ?? line.variation_id ?? line.variantId),
     title: String(line.title || line.name || line.product_title || '').slice(0, 255),
     sku: String(line.sku || '').slice(0, 100) || null,
-    quantity: Math.max(0, Number(line.quantity) || 0),
-    unitPrice: line.originalUnitPriceSet?.shopMoney?.amount ?? line.price ?? line.subtotal ?? null,
+    quantity: safeQuantity(line.quantity ?? 0),
+    unitPrice: line.originalUnitPriceSet?.shopMoney?.amount ?? line.price ?? null,
+    subtotal: line.subtotal == null ? null : safeAmount(line.subtotal),
+    discount: line.total == null || line.subtotal == null ? null : decimalAdd([line.subtotal, decimalNegate(line.total)]),
+    total: line.total == null ? null : safeAmount(line.total),
+    tax: line.total_tax == null ? null : safeAmount(line.total_tax),
   }));
 }
 function normalizeCustomer(provider, row) {
@@ -128,14 +152,16 @@ function normalizeCustomer(provider, row) {
   if (!id || id.length > 191) fail('INVALID_PROVIDER_CUSTOMER', 422);
   // Customer API rows carry their ID at row.id; customerOf only reads nested
   // order/customer payloads so an order ID can never be mistaken for this ID.
-  return { ...customer, id, updatedAt: row.updated_at || row.updatedAt || null, source: provider };
+  return { ...customer, id, updatedAt: row.date_modified_gmt || row.date_modified || row.updated_at || row.updatedAt || null, source: provider };
 }
 function normalizeProduct(provider, row) {
   const id = row?.id == null ? '' : provider === 'shopify' ? canonicalShopifyId('Product', row.id) : String(row.id);
   if (!id || id.length > 191) fail('INVALID_PROVIDER_PRODUCT', 422);
-  const variants = nodes(row.variants);
+  const variants = nodes(row.variants).filter(variant => variant && typeof variant === 'object');
   const first = variants[0] || {};
-  const price = row.price ?? first.price ?? row.priceRangeV2?.minVariantPrice?.amount ?? row.priceRange?.minVariantPrice?.amount ?? '0';
+  const sourcePrice = [row.price, first.price, row.priceRangeV2?.minVariantPrice?.amount, row.priceRange?.minVariantPrice?.amount]
+    .find(value => value !== null && value !== undefined && String(value).trim() !== '');
+  const price = sourcePrice ?? '0';
   const cur = row.currency || first.currency || first.currencyCode || row.priceRangeV2?.minVariantPrice?.currencyCode || row.currencyCode || 'QAR';
   const sourceImage = provider === 'woocommerce' ? row.images?.[0]?.src : row.featuredImage?.url || row.image?.src;
   let imageUrl = null;
@@ -148,8 +174,28 @@ function normalizeProduct(provider, row) {
   } catch { /* Image previews are optional; malformed or private URLs are omitted. */ }
   return { id, title: String(row.name || row.title || row.handle || id).slice(0, 255), sku: String(row.sku || first.sku || '').slice(0, 100) || null,
     status: String(row.status || 'unknown').toLowerCase().slice(0, 32), currency: currency(cur), price: safeAmount(price),
-    imageUrl, variants, variantsTruncated: Boolean(row.variants?.pageInfo?.hasNextPage),
+    imageUrl, variants, variationCount: provider === 'woocommerce' && Array.isArray(row.variations) ? row.variations.length : variants.length,
+    priceUnavailable: provider === 'woocommerce' && sourcePrice == null && Array.isArray(row.variations) && row.variations.length > 0,
+    sourceStock: provider === 'woocommerce' ? { managed: Boolean(row.manage_stock), quantity: row.stock_quantity == null ? null : safeQuantity(row.stock_quantity),
+      status: String(row.stock_status || 'unknown').toLowerCase().slice(0,32) } : null,
+    variantsTruncated: Boolean(row.variants?.pageInfo?.hasNextPage || provider === 'woocommerce' && (row.variations || []).length > 0 && !variants.length),
     updatedAt: row.date_modified_gmt || row.updatedAt || row.updated_at || null, source: provider };
+}
+function normalizeProductVariation(provider, productId, row, defaultCurrency = 'QAR') {
+  if (provider !== 'woocommerce') fail('INVALID_PROVIDER_VARIATION', 422);
+  const id = row?.id == null ? '' : String(row.id);
+  const parentId = String(productId || '');
+  if (!/^\d{1,191}$/.test(id) || !/^\d{1,191}$/.test(parentId)) fail('INVALID_PROVIDER_VARIATION', 422);
+  const attributes = Array.isArray(row.attributes) ? row.attributes.slice(0, 20).map(attribute => ({
+    name: String(attribute?.name || '').slice(0, 80), option: String(attribute?.option || '').slice(0, 100),
+  })).filter(attribute => attribute.name || attribute.option) : [];
+  const title = String(row.name || attributes.map(attribute => `${attribute.name}: ${attribute.option}`).filter(Boolean).join(' / ') || 'Default').slice(0, 255);
+  return { id, productId: parentId, title, sku: String(row.sku || '').trim().slice(0, 100) || null,
+    status: String(row.status || 'unknown').toLowerCase().slice(0, 32), purchasable: row.purchasable == null ? null : Boolean(row.purchasable),
+    currency: currency(row.currency || defaultCurrency), price: safeAmount(String(row.price ?? '').trim() ? row.price : '0'), attributes,
+    sourceStock: { managed: Boolean(row.manage_stock), quantity: row.stock_quantity == null ? null : safeQuantity(row.stock_quantity),
+      status: String(row.stock_status || 'unknown').toLowerCase().slice(0,32) },
+    updatedAt: row.date_modified_gmt || row.date_modified || row.updatedAt || null, source: provider };
 }
 function normalizeOrder(provider, row) {
   const id = row?.id == null ? '' : provider === 'shopify' ? canonicalShopifyId('Order', row.id) : String(row.id);
@@ -183,15 +229,36 @@ function normalizeOrder(provider, row) {
   }
   const orderStatus = row.status || (row.cancelledAt || row.cancelled_at ? 'cancelled' :
     row.displayFulfillmentStatus || (row.closed ? 'closed' : 'open'));
+  const woo = provider === 'woocommerce';
+  const lineSubtotal = woo && Array.isArray(row.line_items) && row.line_items.every(line => line.subtotal != null) ?
+    decimalAdd(row.line_items.map(line => line.subtotal)) : null;
+  const subtotal = woo ? (row.subtotal == null ? lineSubtotal : safeAmount(row.subtotal)) :
+    row.subtotalPriceSet?.shopMoney?.amount == null ? null : safeAmount(row.subtotalPriceSet.shopMoney.amount);
+  const discount = woo ? (row.discount_total == null ? null : safeAmount(row.discount_total)) :
+    row.totalDiscountsSet?.shopMoney?.amount == null ? null : safeAmount(row.totalDiscountsSet.shopMoney.amount);
+  const shipping = woo ? (row.shipping_total == null ? null : safeAmount(row.shipping_total)) :
+    row.totalShippingPriceSet?.shopMoney?.amount == null ? null : safeAmount(row.totalShippingPriceSet.shopMoney.amount);
+  const tax = woo ? (row.total_tax == null ? null : safeAmount(row.total_tax)) :
+    row.totalTaxSet?.shopMoney?.amount == null ? null : safeAmount(row.totalTaxSet.shopMoney.amount);
+  const fees = woo && Array.isArray(row.fee_lines) ? decimalAdd(row.fee_lines.map(line => line.total ?? '0')) : null;
+  const refunds = woo && Array.isArray(row.refunds) ? decimalAdd(row.refunds.map(refund => decimalAbs(refund.total ?? '0'))) : null;
+  const moneyLines = (items, titleField) => (Array.isArray(items) ? items : []).slice(0, 50).map(item => ({
+    title: String(item?.[titleField] || item?.name || '').slice(0, 160),
+    code: String(item?.method_id || item?.code || '').slice(0, 80) || null,
+    total: item?.total == null ? null : safeAmount(item.total),
+    tax: item?.total_tax == null ? null : safeAmount(item.total_tax),
+  }));
   return { id, number: String(row.name || row.number || row.order_number || id).slice(0, 80),
     status: String(orderStatus || 'unknown').toLowerCase().slice(0, 64), financialStatus: String(financial).toLowerCase().slice(0, 64),
     currency: orderCurrency, total: safeAmount(moneyAmount(row)), customerId: c.id, customer: c,
     contactConsent, contactConsentAt,
     lineItems: normalizeLineItems(nodes(row.lineItems || row.line_items)),
+    breakdown: { subtotal, discount, shipping, tax, fees, refunds },
+    shippingLines: moneyLines(row.shipping_lines, 'method_title'), feeLines: moneyLines(row.fee_lines, 'name'),
     lineItemsTruncated: Boolean(row.lineItems?.pageInfo?.hasNextPage || (Array.isArray(row.line_items) && row.line_items.length > 100)),
     transactionsTruncated: Boolean(row.transactions?.pageInfo?.hasNextPage || (row.refunds || []).some(refund => refund.transactions?.pageInfo?.hasNextPage)),
-    createdAt: row.created_at || row.createdAt || null,
-    updatedAt: row.updated_at || row.updatedAt || null, source: provider };
+    createdAt: row.created_at || row.createdAt || row.date_created_gmt || row.date_created || null,
+    updatedAt: row.date_modified_gmt || row.date_modified || row.updated_at || row.updatedAt || null, source: provider };
 }
 function normalizeCheckout(provider, row, now = Date.now()) {
   const id = row?.id == null ? '' : provider === 'shopify' ? canonicalShopifyId('AbandonedCheckout', row.id) : String(row.id);
@@ -235,6 +302,22 @@ function wooSignature(raw, signature, secret) {
 function randomSecret() { return crypto.randomBytes(32).toString('base64url'); }
 function validateId(id) { return typeof id === 'string' && UUID.test(id); }
 function dateOrNull(value) { if (!value) return null; const date = new Date(value); return Number.isFinite(date.getTime()) ? date : null; }
+function sourceTimestampIsStale(existingValue, incomingValue) {
+  const existing = dateOrNull(existingValue), incoming = dateOrNull(incomingValue);
+  return Boolean(existing && (!incoming || incoming.getTime() < existing.getTime()));
+}
+async function sourceRow(db, table, whereSql, params) {
+  if (!['sx_retail_external_customers','sx_retail_external_products','sx_retail_external_product_variants',
+    'sx_retail_external_orders','sx_retail_external_checkouts'].includes(table)) fail('INVALID_SOURCE_TABLE', 500);
+  const extra = table === 'sx_retail_external_customers' ? ',customer_status AS customerStatus' : '';
+  const [[existing]] = await db.query(`SELECT source_updated_at AS sourceUpdatedAt${extra} FROM ${table} WHERE ${whereSql} LIMIT 1 FOR UPDATE`, params);
+  return existing || null;
+}
+async function isStaleSourceRow(db, table, whereSql, params, incomingUpdatedAt) {
+  const existing = await sourceRow(db, table, whereSql, params);
+  return Boolean(existing && sourceTimestampIsStale(existing.sourceUpdatedAt, incomingUpdatedAt));
+}
+const newerSourceUpdate = 'source_updated_at IS NULL OR (VALUES(source_updated_at) IS NOT NULL AND VALUES(source_updated_at)>=source_updated_at)';
 
 function publicIpv4(address) {
   const p = address.split('.').map(Number);
@@ -282,41 +365,120 @@ async function requestHttps(urlValue, { method = 'GET', headers = {}, body = nul
 
 async function upsertCustomer(db, connection, row) {
   const customer = normalizeCustomer(connection.provider, row);
+  const existing = await sourceRow(db, 'sx_retail_external_customers',
+    'tenant_id=? AND connection_id=? AND external_customer_id=?', [connection.tenant_id, connection.id, customer.id]);
+  if (existing?.customerStatus === 'redacted' || existing && sourceTimestampIsStale(existing.sourceUpdatedAt, customer.updatedAt)) {
+    return { ...customer, stale: true, redacted: existing?.customerStatus === 'redacted' };
+  }
   const encrypted = seal(customer, connection.tenant_id, connection.id, `customer:${customer.id}`);
   await db.query(`INSERT INTO sx_retail_external_customers
     (tenant_id,connection_id,external_customer_id,customer_status,customer_ciphertext,customer_iv,customer_auth_tag,source_updated_at)
-    VALUES (?,?,?,'active',?,?,?,?) ON DUPLICATE KEY UPDATE customer_status='active',customer_ciphertext=VALUES(customer_ciphertext),
-    customer_iv=VALUES(customer_iv),customer_auth_tag=VALUES(customer_auth_tag),source_updated_at=VALUES(source_updated_at),imported_at=UTC_TIMESTAMP(3)`,
+    VALUES (?,?,?,'active',?,?,?,?) ON DUPLICATE KEY UPDATE customer_status=IF(${newerSourceUpdate},'active',customer_status),
+    customer_ciphertext=IF(${newerSourceUpdate},VALUES(customer_ciphertext),customer_ciphertext),
+    customer_iv=IF(${newerSourceUpdate},VALUES(customer_iv),customer_iv),customer_auth_tag=IF(${newerSourceUpdate},VALUES(customer_auth_tag),customer_auth_tag),
+    imported_at=IF(${newerSourceUpdate},UTC_TIMESTAMP(3),imported_at),source_updated_at=IF(${newerSourceUpdate},VALUES(source_updated_at),source_updated_at)`,
   [connection.tenant_id, connection.id, customer.id, encrypted.ciphertext, encrypted.iv, encrypted.authTag, dateOrNull(customer.updatedAt)]);
   return customer;
 }
 async function upsertProduct(db, connection, row) {
   const normalizedRow = connection.provider === 'woocommerce' ? { ...row, currency: connection.default_currency || 'QAR' } : row;
   const product = normalizeProduct(connection.provider, normalizedRow);
+  if (await isStaleSourceRow(db, 'sx_retail_external_products',
+      'tenant_id=? AND connection_id=? AND external_product_id=?', [connection.tenant_id, connection.id, product.id], product.updatedAt)) {
+    return { ...product, stale: true };
+  }
   const encrypted = seal(product, connection.tenant_id, connection.id, `product:${product.id}`);
+  const updateGuard = newerSourceUpdate;
   await db.query(`INSERT INTO sx_retail_external_products
-    (tenant_id,connection_id,external_product_id,product_status,currency,price,product_ciphertext,product_iv,product_auth_tag,source_updated_at)
-    VALUES (?,?,?,?,?,?,?,?,?,?) ON DUPLICATE KEY UPDATE product_status=VALUES(product_status),currency=VALUES(currency),price=VALUES(price),
-    product_ciphertext=VALUES(product_ciphertext),product_iv=VALUES(product_iv),product_auth_tag=VALUES(product_auth_tag),
-    source_updated_at=VALUES(source_updated_at),imported_at=UTC_TIMESTAMP(3)`,
-  [connection.tenant_id, connection.id, product.id, product.status, product.currency, product.price, encrypted.ciphertext, encrypted.iv,
+    (tenant_id,connection_id,external_product_id,product_status,sku,currency,price,product_ciphertext,product_iv,product_auth_tag,source_updated_at)
+    VALUES (?,?,?,?,?,?,?,?,?,?,?) ON DUPLICATE KEY UPDATE product_status=IF(${updateGuard},VALUES(product_status),product_status),
+    sku=IF(${updateGuard},VALUES(sku),sku),currency=IF(${updateGuard},VALUES(currency),currency),price=IF(${updateGuard},VALUES(price),price),
+    product_ciphertext=IF(${updateGuard},VALUES(product_ciphertext),product_ciphertext),product_iv=IF(${updateGuard},VALUES(product_iv),product_iv),
+    product_auth_tag=IF(${updateGuard},VALUES(product_auth_tag),product_auth_tag),imported_at=IF(${updateGuard},UTC_TIMESTAMP(3),imported_at),
+    source_updated_at=IF(${updateGuard},VALUES(source_updated_at),source_updated_at)`,
+  [connection.tenant_id, connection.id, product.id, product.status, product.sku, product.currency, product.price, encrypted.ciphertext, encrypted.iv,
     encrypted.authTag, dateOrNull(product.updatedAt)]);
   return product;
 }
+async function upsertProductVariation(db, connection, productId, row) {
+  const normalized = normalizeProductVariation(connection.provider, productId, row, connection.default_currency || 'QAR');
+  if (await isStaleSourceRow(db, 'sx_retail_external_product_variants',
+      'tenant_id=? AND connection_id=? AND external_variant_id=?', [connection.tenant_id, connection.id, normalized.id], normalized.updatedAt)) {
+    return { ...normalized, stale: true };
+  }
+  const encrypted = seal(normalized, connection.tenant_id, connection.id, `product-variant:${normalized.id}`);
+  const updateGuard = newerSourceUpdate;
+  await db.query(`INSERT INTO sx_retail_external_product_variants
+    (tenant_id,connection_id,external_product_id,external_variant_id,sku,variant_status,currency,price,
+      variant_ciphertext,variant_iv,variant_auth_tag,source_updated_at)
+    VALUES (?,?,?,?,?,?,?,?,?,?,?,?) ON DUPLICATE KEY UPDATE external_product_id=IF(${updateGuard},VALUES(external_product_id),external_product_id),
+    sku=IF(${updateGuard},VALUES(sku),sku),variant_status=IF(${updateGuard},VALUES(variant_status),variant_status),
+    currency=IF(${updateGuard},VALUES(currency),currency),price=IF(${updateGuard},VALUES(price),price),
+    variant_ciphertext=IF(${updateGuard},VALUES(variant_ciphertext),variant_ciphertext),variant_iv=IF(${updateGuard},VALUES(variant_iv),variant_iv),
+    variant_auth_tag=IF(${updateGuard},VALUES(variant_auth_tag),variant_auth_tag),imported_at=IF(${updateGuard},UTC_TIMESTAMP(3),imported_at),
+    source_updated_at=IF(${updateGuard},VALUES(source_updated_at),source_updated_at)`,
+  [connection.tenant_id, connection.id, normalized.productId, normalized.id, normalized.sku, normalized.status, normalized.currency,
+    normalized.price, encrypted.ciphertext, encrypted.iv, encrypted.authTag, dateOrNull(normalized.updatedAt)]);
+  return normalized;
+}
+async function markProductVariationDeleted(db, connection, productId, variationId, updatedAt = null) {
+  const parent = String(productId || ''), id = String(variationId || '');
+  if (!/^\d{1,191}$/.test(parent) || !/^\d{1,191}$/.test(id)) fail('INVALID_PROVIDER_VARIATION', 422);
+  const incoming = dateOrNull(updatedAt);
+  const [result] = await db.query(`UPDATE sx_retail_external_product_variants SET variant_status='deleted',
+    source_updated_at=COALESCE(?,source_updated_at),imported_at=UTC_TIMESTAMP(3)
+    WHERE tenant_id=? AND connection_id=? AND external_product_id=? AND external_variant_id=?
+      AND (? IS NULL OR source_updated_at IS NULL OR source_updated_at<=?)`,
+  [incoming, connection.tenant_id, connection.id, parent, id, incoming, incoming]);
+  return Boolean(result.affectedRows);
+}
+async function markProductVariationsDeleted(db, connection, productId, updatedAt = null) {
+  const parent = String(productId || '');
+  if (!/^\d{1,191}$/.test(parent)) fail('INVALID_PROVIDER_PRODUCT', 422);
+  const incoming = dateOrNull(updatedAt);
+  const [result] = await db.query(`UPDATE sx_retail_external_product_variants SET variant_status='deleted',
+    source_updated_at=COALESCE(?,source_updated_at),imported_at=UTC_TIMESTAMP(3)
+    WHERE tenant_id=? AND connection_id=? AND external_product_id=?
+      AND (? IS NULL OR source_updated_at IS NULL OR source_updated_at<=?)`,
+  [incoming, connection.tenant_id, connection.id, parent, incoming, incoming]);
+  return Number(result.affectedRows || 0);
+}
 async function upsertOrder(db, connection, row) {
   const order = normalizeOrder(connection.provider, row);
-  const customer = seal(order.customer, connection.tenant_id, connection.id, `order-customer:${order.id}`);
+  if (order.customerId) {
+    const customerRow = await sourceRow(db, 'sx_retail_external_customers',
+      'tenant_id=? AND connection_id=? AND external_customer_id=?', [connection.tenant_id, connection.id, order.customerId]);
+    if (customerRow?.customerStatus === 'redacted') {
+      order.customer = null; order.customerId = null; order.contactConsent = 'unknown'; order.contactConsentAt = null;
+    }
+  }
+  if (await isStaleSourceRow(db, 'sx_retail_external_orders',
+      'tenant_id=? AND connection_id=? AND external_order_id=?', [connection.tenant_id, connection.id, order.id], order.updatedAt)) {
+    return { ...order, stale: true };
+  }
+  const customer = order.customer ? seal(order.customer, connection.tenant_id, connection.id, `order-customer:${order.id}`) : null;
   const snapshot = seal(order, connection.tenant_id, connection.id, `order:${order.id}`);
+  const updateGuard = newerSourceUpdate;
   await db.query(`INSERT INTO sx_retail_external_orders
-    (tenant_id,connection_id,external_order_id,order_number,order_status,financial_status,currency,total_amount,customer_external_id,
+    (tenant_id,connection_id,external_order_id,order_number,order_status,financial_status,currency,total_amount,subtotal_amount,discount_amount,
+      shipping_amount,tax_amount,fee_amount,refund_amount,customer_external_id,
       contact_consent,consent_at,customer_ciphertext,customer_iv,customer_auth_tag,order_ciphertext,order_iv,order_auth_tag,source_updated_at)
-    VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?) ON DUPLICATE KEY UPDATE order_number=VALUES(order_number),order_status=VALUES(order_status),
-    financial_status=VALUES(financial_status),currency=VALUES(currency),total_amount=VALUES(total_amount),customer_external_id=VALUES(customer_external_id),
-    contact_consent=VALUES(contact_consent),consent_at=VALUES(consent_at),customer_ciphertext=VALUES(customer_ciphertext),customer_iv=VALUES(customer_iv),
-    customer_auth_tag=VALUES(customer_auth_tag),order_ciphertext=VALUES(order_ciphertext),order_iv=VALUES(order_iv),
-    order_auth_tag=VALUES(order_auth_tag),source_updated_at=VALUES(source_updated_at),imported_at=UTC_TIMESTAMP(3)`,
-  [connection.tenant_id, connection.id, order.id, order.number, order.status, order.financialStatus, order.currency, order.total, order.customerId,
-    order.contactConsent, dateOrNull(order.contactConsentAt), customer.ciphertext, customer.iv, customer.authTag, snapshot.ciphertext, snapshot.iv, snapshot.authTag,
+    VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?) ON DUPLICATE KEY UPDATE order_number=IF(${updateGuard},VALUES(order_number),order_number),
+    order_status=IF(${updateGuard},VALUES(order_status),order_status),financial_status=IF(${updateGuard},VALUES(financial_status),financial_status),
+    currency=IF(${updateGuard},VALUES(currency),currency),total_amount=IF(${updateGuard},VALUES(total_amount),total_amount),
+    subtotal_amount=IF(${updateGuard},VALUES(subtotal_amount),subtotal_amount),discount_amount=IF(${updateGuard},VALUES(discount_amount),discount_amount),
+    shipping_amount=IF(${updateGuard},VALUES(shipping_amount),shipping_amount),tax_amount=IF(${updateGuard},VALUES(tax_amount),tax_amount),
+    fee_amount=IF(${updateGuard},VALUES(fee_amount),fee_amount),refund_amount=IF(${updateGuard},VALUES(refund_amount),refund_amount),
+    customer_external_id=IF(${updateGuard},VALUES(customer_external_id),customer_external_id),contact_consent=IF(${updateGuard},VALUES(contact_consent),contact_consent),
+    consent_at=IF(${updateGuard},VALUES(consent_at),consent_at),customer_ciphertext=IF(${updateGuard},VALUES(customer_ciphertext),customer_ciphertext),
+    customer_iv=IF(${updateGuard},VALUES(customer_iv),customer_iv),customer_auth_tag=IF(${updateGuard},VALUES(customer_auth_tag),customer_auth_tag),
+    order_ciphertext=IF(${updateGuard},VALUES(order_ciphertext),order_ciphertext),order_iv=IF(${updateGuard},VALUES(order_iv),order_iv),
+    order_auth_tag=IF(${updateGuard},VALUES(order_auth_tag),order_auth_tag),imported_at=IF(${updateGuard},UTC_TIMESTAMP(3),imported_at),
+    source_updated_at=IF(${updateGuard},VALUES(source_updated_at),source_updated_at)`,
+  [connection.tenant_id, connection.id, order.id, order.number, order.status, order.financialStatus, order.currency, order.total,
+    order.breakdown.subtotal, order.breakdown.discount, order.breakdown.shipping, order.breakdown.tax, order.breakdown.fees, order.breakdown.refunds, order.customerId,
+    order.contactConsent, dateOrNull(order.contactConsentAt), customer?.ciphertext || null, customer?.iv || null, customer?.authTag || null,
+    snapshot.ciphertext, snapshot.iv, snapshot.authTag,
     dateOrNull(order.updatedAt)]);
   for (const tx of order.transactions || []) {
     const txId = String(tx.id || tx.transaction_id || '');
@@ -359,18 +521,33 @@ async function upsertTransaction(db, connection, externalOrderId, transaction) {
 }
 async function upsertCheckout(db, connection, row) {
   const checkout = normalizeCheckout(connection.provider, row);
+  if (checkout.customerId) {
+    const customerRow = await sourceRow(db, 'sx_retail_external_customers',
+      'tenant_id=? AND connection_id=? AND external_customer_id=?', [connection.tenant_id, connection.id, checkout.customerId]);
+    if (customerRow?.customerStatus === 'redacted') {
+      checkout.customer = null; checkout.customerId = null; checkout.contactConsent = 'unknown'; checkout.consentAt = null; checkout.recoveryUrl = null;
+    }
+  }
+  if (await isStaleSourceRow(db, 'sx_retail_external_checkouts',
+      'tenant_id=? AND connection_id=? AND external_checkout_id=?', [connection.tenant_id, connection.id, checkout.id], checkout.updatedAt)) {
+    return { ...checkout, stale: true };
+  }
   const customer = seal(checkout.customer, connection.tenant_id, connection.id, `checkout-customer:${checkout.id}`);
   const snapshot = seal(checkout, connection.tenant_id, connection.id, `checkout:${checkout.id}`);
   const recovery = checkout.recoveryUrl ? seal(Buffer.from(checkout.recoveryUrl), connection.tenant_id, connection.id, `recovery:${checkout.id}`) : null;
+  const updateGuard = newerSourceUpdate;
   await db.query(`INSERT INTO sx_retail_external_checkouts
     (tenant_id,connection_id,external_checkout_id,checkout_status,currency,total_amount,customer_external_id,contact_consent,consent_at,
       customer_ciphertext,customer_iv,customer_auth_tag,recovery_ciphertext,recovery_iv,recovery_auth_tag,checkout_ciphertext,checkout_iv,checkout_auth_tag,source_updated_at)
-    VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?) ON DUPLICATE KEY UPDATE checkout_status=VALUES(checkout_status),currency=VALUES(currency),
-    total_amount=VALUES(total_amount),customer_external_id=VALUES(customer_external_id),contact_consent=VALUES(contact_consent),consent_at=VALUES(consent_at),
-    customer_ciphertext=VALUES(customer_ciphertext),customer_iv=VALUES(customer_iv),customer_auth_tag=VALUES(customer_auth_tag),
-    recovery_ciphertext=VALUES(recovery_ciphertext),recovery_iv=VALUES(recovery_iv),recovery_auth_tag=VALUES(recovery_auth_tag),
-    checkout_ciphertext=VALUES(checkout_ciphertext),checkout_iv=VALUES(checkout_iv),checkout_auth_tag=VALUES(checkout_auth_tag),
-    source_updated_at=VALUES(source_updated_at),imported_at=UTC_TIMESTAMP(3)`,
+    VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?) ON DUPLICATE KEY UPDATE checkout_status=IF(${updateGuard},VALUES(checkout_status),checkout_status),
+    currency=IF(${updateGuard},VALUES(currency),currency),total_amount=IF(${updateGuard},VALUES(total_amount),total_amount),
+    customer_external_id=IF(${updateGuard},VALUES(customer_external_id),customer_external_id),contact_consent=IF(${updateGuard},VALUES(contact_consent),contact_consent),
+    consent_at=IF(${updateGuard},VALUES(consent_at),consent_at),customer_ciphertext=IF(${updateGuard},VALUES(customer_ciphertext),customer_ciphertext),
+    customer_iv=IF(${updateGuard},VALUES(customer_iv),customer_iv),customer_auth_tag=IF(${updateGuard},VALUES(customer_auth_tag),customer_auth_tag),
+    recovery_ciphertext=IF(${updateGuard},VALUES(recovery_ciphertext),recovery_ciphertext),recovery_iv=IF(${updateGuard},VALUES(recovery_iv),recovery_iv),
+    recovery_auth_tag=IF(${updateGuard},VALUES(recovery_auth_tag),recovery_auth_tag),checkout_ciphertext=IF(${updateGuard},VALUES(checkout_ciphertext),checkout_ciphertext),
+    checkout_iv=IF(${updateGuard},VALUES(checkout_iv),checkout_iv),checkout_auth_tag=IF(${updateGuard},VALUES(checkout_auth_tag),checkout_auth_tag),
+    imported_at=IF(${updateGuard},UTC_TIMESTAMP(3),imported_at),source_updated_at=IF(${updateGuard},VALUES(source_updated_at),source_updated_at)`,
   [connection.tenant_id, connection.id, checkout.id, checkout.status, checkout.currency, checkout.total, checkout.customerId,
     checkout.contactConsent, dateOrNull(checkout.consentAt), customer.ciphertext, customer.iv, customer.authTag,
     recovery?.ciphertext || null, recovery?.iv || null, recovery?.authTag || null, snapshot.ciphertext, snapshot.iv, snapshot.authTag,
@@ -422,7 +599,7 @@ async function redactCustomer(db, connection, externalId) {
 }
 async function eraseConnectionData(db, connection) {
   for (const table of ['sx_retail_external_transactions','sx_retail_external_orders','sx_retail_external_checkouts',
-    'sx_retail_external_customers','sx_retail_external_products']) {
+    'sx_retail_external_customers','sx_retail_external_product_variants','sx_retail_external_products']) {
     await db.query(`DELETE FROM ${table} WHERE tenant_id=? AND connection_id=?`, [connection.tenant_id, connection.id]);
   }
   await db.query('DELETE FROM sx_retail_store_privacy_requests WHERE tenant_id=? AND connection_id=?', [connection.tenant_id, connection.id]);
@@ -431,8 +608,10 @@ async function eraseConnectionData(db, connection) {
 }
 
 module.exports = {
-  UUID, fail, encryptionKey, aad, seal, open, openJson, normalizeShop, normalizeWooUrl, safeAmount, currency, canonicalShopifyId,
-  customerOf, normalizeCustomer, normalizeProduct, normalizeOrder, normalizeCheckout, shopifySignature, shopifyQuerySignature,
+  UUID, fail, encryptionKey, aad, seal, open, openJson, normalizeShop, normalizeWooUrl, safeAmount, decimalAdd, decimalAbs, decimalNegate, safeQuantity,
+  currency, canonicalShopifyId, sourceTimestampIsStale,
+  customerOf, normalizeCustomer, normalizeProduct, normalizeProductVariation, normalizeOrder, normalizeCheckout, shopifySignature, shopifyQuerySignature,
   wooSignature, randomSecret, validateId, dateOrNull, publicIpv4, requestHttps, upsertCustomer, upsertProduct, upsertOrder,
+  upsertProductVariation, markProductVariationDeleted, markProductVariationsDeleted,
   upsertCheckout, upsertTransaction, redactCustomer, eraseConnectionData,
 };

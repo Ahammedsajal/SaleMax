@@ -4,12 +4,12 @@ Status as of 16 November 2026. This plan extends the existing 7Network Retail ca
 
 ## Delivery decision
 
-Use the existing Retail & Inventory category and /user panel as the operating workspace. Keep WooCommerce authoritative during the staging pilot. Start with owner-configured, read-only synchronization; do not change a TFB production store until staging reconciliation, stock rules, permissions, and client acceptance pass.
+Use the existing Retail & Inventory category and /user panel as the operating workspace. The first live pilot is Essentials by D, and the owner approved importing that store’s data into its 7Network tenant. Keep WooCommerce authoritative and read-only. Do not change WordPress or WooCommerce: the owner must enter an already-issued read-only REST key in Connected Stores. If a suitable key does not already exist, stop at that prerequisite because creating one would change WordPress. Implement and verify write-back, webhook setup, plugin changes, and customer messaging only with disposable/synthetic environments until the owner separately authorizes those actions for a named live store. TFB is a later rollout after Essentials by D has been configured and accepted.
 
 The rollout order is:
 
 1. Reconcile production source and migration history.
-2. Pilot WooCommerce staging with read-only synchronization.
+2. Pilot Essentials by D’s live WooCommerce store with read-only synchronization.
 3. Agree fabric units and extend stock semantics.
 4. Show imported orders and purchase history in the existing Retail Orders and CRM workflows; then add controlled Woo write-back.
 5. Complete delivery, documents, reports, and the retail notification outbox.
@@ -24,7 +24,7 @@ Each phase is a separately reviewed release. A staging pass is not production ac
 | Category and access | Retail category key retail_boutique version 1, titled Retail & Inventory; private and planable. Current main already has the category, retail navigation entries, policy capabilities, shared feature-session wiring, and Manage Plans/Manage Users flows. | Keep this contract and historical assignments. Do not create a second category or plan flow. |
 | Product and inventory | Existing product catalogue and inventory workspace; SKU/code, product name, status, price/catalogue records, stock movement history, multiple locations, reservation-aware available stock, stock adjustment, and inter-location transfer. Store listing visibility, public photo choice, and store option groups are present. | Stock quantity validation is integer-only. Stock movements are keyed by product and location, not a Woo variation. Store option groups do not establish independent inventory for Woo product variations. No fabric unit model, per-location low-stock threshold, or back-in-stock subscriber workflow was found. |
 | Native retail orders | Existing public 7Network storefront; catalogue, pickup/delivery checkout, order status changes, driver assignment, delivery failure/retry, delivery proof code, cash collection, settlement, returns, and an accounting-source CSV. The native order flow deducts internal stock on completion. | This is the native 7Network storefront. Imported WooCommerce orders are stored in connector-specific tables and are not yet proven to appear in the same Retail Orders workflow. There is no courier tracking adapter or retail invoice/receipt PDF workflow. |
-| Connected stores | WooCommerce and Shopify connection APIs; owner-only setup; encrypted connector credentials and webhook secrets; read-only product/order/customer scopes; signed webhook ingestion; imported product, order, customer, transaction, and checkout records; privacy export/redaction and imported-data erasure. | No production provider round-trip or TFB staging reconciliation is evidenced. No catalog or stock write-back is deployed. The supplied Woo plugin is read-only. |
+| Connected stores | WooCommerce and Shopify connection APIs; owner-only setup; encrypted connector credentials and webhook secrets; read-only product/order/customer scopes; signed webhook ingestion; imported product, order, customer, transaction, and checkout records; privacy export/redaction and imported-data erasure. | Essentials by D live import is approved but not yet connected. No provider round-trip or reconciliation is evidenced. No catalog or stock write-back is deployed. The supplied Woo plugin is read-only. |
 | Woo checkout plugin | Adds an unchecked unfinished-checkout consent field and posts signed started, abandoned, and recovered checkout events. It does not update WooCommerce products, stock, orders, payments, or refunds, and does not send customer messages. | It uses classic checkout hooks. The package does not establish WooCommerce Checkout Blocks support. |
 | CRM and purchase history | Native order actions can link an order to the existing pipeline. Imported Woo customer/order snapshots are tenant-scoped in connector tables. | No explicit and audited match/merge path into tenant CRM purchase history was found. |
 | Finance and notifications | Native retail cash receipts, driver settlement, and CSV export exist. Retail notification and consent migrations exist. | Retail PDF invoices/receipts, email/WhatsApp delivery, period/product/channel/staff retail reports, and tested courier tracking remain incomplete. The live shared notification worker rejects both retail event kinds; see the release blocker below. |
@@ -89,48 +89,48 @@ The running shared worker accepts invoice, payment, daily summary, AI usage, and
 
 Do not cherry-pick the entire notification worker from the retail feature branch. That branch is older than current main and drops newer shared behavior. Implement a targeted handler on current main before enabling retail alerts: tenant and plan checks; staff alert setting; per-order transactional consent and destination-hash check for customers; idempotent event keys; no personal destination in the outbox payload; recheck eligibility before dispatch; and preserve the existing retry/unknown-delivery rules. Test that a provider failure cannot create duplicate orders, receipts, or stock movements.
 
-## 1. WooCommerce staging pilot — read-only
+## 1. Essentials by D live WooCommerce pilot — read-only
 
 ### Build and configure
 
-- Use a TFB-owned WooCommerce staging site. Create a dedicated REST API key with read permission only. Store it through the existing owner-only Connected Stores path, which encrypts credentials at rest. Do not put keys in source, logs, chat, or the deployment record.
+- Connect only `https://essentialsbyd.com` to the Essentials by D 7Network tenant, using an already-issued WooCommerce REST key with read permission only. The owner enters it in the existing Connected Stores form, which encrypts credentials at rest. Do not put keys in source, logs, chat, or the deployment record. Do not log into WordPress or change its settings, create keys, add webhooks, or install the plugin for this pilot.
 - Keep the connector scopes limited to products, orders, and customers. Leave product/stock/order write-back disabled. Make imports read-only and repeatable.
-- Run a baseline import in staging using synthetic or client-approved test records. Follow WooCommerce REST pagination links rather than assuming one page; the REST API defaults collection responses to 10 records. Add bounded concurrency, retry/backoff, a checkpoint per resource, and an audit record for each owner-requested sync.
+- Run the baseline read-only import against the explicitly approved live Essentials by D store. Importing its customer/order data into its own 7Network tenant is approved. Request `status=any` for products, variations, and orders so reconciliation covers non-published catalog entries and all supported order states the read key can access; record the query scope with source totals. Follow WooCommerce pagination headers rather than assuming one page. Add bounded work, checkpoints, retries, and an audit record for each owner-requested sync. Do not create, update, or delete anything in WordPress/WooCommerce; do not send customer messages during this pilot.
 - Store Woo product ID and variation ID separately. Use normalized SKU as the preferred cross-system match. Quarantine missing or duplicate SKUs for owner mapping; never silently merge by product name. Include the Woo store ID in every external key.
 - Import order status, currency, line totals, discounts, shipping, tax, fees, payment state, refunds, timestamps, and customer external IDs as source snapshots. Preserve decimal strings through normalization; compare values in exact currency minor units after confirming the store currency and decimal rules.
 
-WooCommerce REST API keys can be generated with read or read/write permissions, and collection endpoints expose pagination metadata. Use read-only permission and a reconciliation report for this phase: [WooCommerce REST API documentation](https://developer.woocommerce.com/docs/apis/rest-api/).
+The WooCommerce REST API has separate product-variation endpoints, status filters, and `X-WP-Total` / `X-WP-TotalPages` collection headers. The source connector now follows those headers and retains status/variation IDs: [WooCommerce REST API v3: pagination, products, orders, and variations](https://woocommerce.github.io/woocommerce-rest-api-docs/).
 
 ### Pilot acceptance
 
 - Product and variation counts match Woo for the same sync cutoff; report unmapped and duplicate SKUs separately.
 - Order counts reconcile by date range and status. Amounts reconcile by currency and separately show subtotal, discount, shipping, tax, fees, refunds, and net paid. Explain rounding and Woo order-state rules before sign-off.
-- Re-running the same sync creates no duplicate external products, orders, customers, or transactions. Webhook replay and REST resync converge to the same final snapshot.
-- Demonstrate pagination, timeouts, authorization failure, retry, webhook signature rejection, duplicate webhook delivery, and a recoverable interrupted sync.
+- Re-running the same sync creates no duplicate external products, orders, customers, or transactions. In isolated synthetic tests, webhook replay and REST resync converge to the same final snapshot; the Essentials by D live pilot remains REST-pull-only under the no-WordPress-change constraint.
+- Demonstrate pagination, timeouts, authorization failure, bounded retry, webhook signature rejection, duplicate webhook delivery, and a recoverable interrupted sync using mocks/disposable fixtures.
 - No Woo data is changed. No order/customer is copied into the business CRM during this stage.
 
-WooCommerce can disable a webhook after more than five consecutive delivery failures. Watch the store's webhook delivery logs during the pilot and prove that the 7Network connector can recover through an owner-triggered resync: [WooCommerce webhooks documentation](https://woocommerce.com/document/webhooks/).
+For a separately approved future webhook rollout, monitor WooCommerce delivery logs: WooCommerce can disable a webhook after repeated failures, so prove recovery through an owner-triggered resync before enabling the hook: [WooCommerce webhooks documentation](https://woocommerce.com/document/webhooks/).
 
-**Gate:** TFB signs the counts and amount reconciliation report, product/variation-to-SKU mapping, order-state rules, and staging acceptance record. If totals differ, remain read-only and investigate; do not begin write-back.
+**Gate:** The Essentials by D owner reviews and accepts the counts and amount reconciliation report, product/variation-to-SKU mapping, and order-state rules. If totals differ, remain read-only and investigate. Do not begin write-back, install WordPress components, or enable messages. Use this acceptance to decide when to begin a separate TFB rollout.
 
-**Rollback:** Pause or revoke the staging connection key, disable staging webhooks, and remove only synthetic staging imports using the reviewed tenant-scoped cleanup path. Production data and credentials are not part of this pilot.
+**Rollback:** Pause or revoke the connection from 7Network and use the reviewed tenant-scoped erasure path only if the Essentials by D owner requests removal of the imported records. This pilot creates no WordPress/WooCommerce objects, so there are no webhooks or plugin changes to undo. Retain audit evidence and never erase the source store’s records.
 
 ## 2. Fabric inventory semantics
 
-Hold a TFB product and stock workshop before a schema change. Confirm:
+Define a tenant-configurable unit model before a schema change. For Essentials by D, confirm its actual sellable units and count rules with the owner. Separately preserve the supplied TFB requirements for yards, pieces, and panels; do not assume those units describe Essentials by D. Confirm:
 
 - Whether yards are fractional, the smallest sellable increment, and required display precision.
 - Whether pieces and panels are indivisible units, and whether a panel is a separate SKU/variation or a conversion from measured length.
 - Which products may convert between units, and the exact approved factor and rounding rule for each conversion.
 - Which stock locations map to Woo locations. If Woo exposes one stock value only, do not imply branch-level quantities.
 
-Recommended model for approval: one base unit per SKU/variation and location; store quantity in integer base quanta (or verified fixed-decimal representation with decimal-safe arithmetic), never JavaScript float. A possible initial rule is fractional yards to the precision TFB actually sells, with pieces and panels counted whole. Do not convert yards into panels unless TFB supplies a stable per-variation conversion recipe. This recommendation is not a decision; TFB must approve precision and conversions.
+Recommended model for approval: one base unit per SKU/variation and location; store quantity in integer base quanta (or verified fixed-decimal representation with decimal-safe arithmetic), never JavaScript float. A future TFB profile may use fractional yards and whole pieces/panels, but that is not an Essentials by D decision. Do not convert between units without a stable, owner-approved per-variation conversion recipe. This recommendation is not a decision; each tenant must approve precision and conversions.
 
 Add an additive, tenant-scoped stock profile per variation: base unit, display unit, scale/precision, conversion rules, and effective date. Extend stock movements and reservations to key by variation and location. Backfill existing integer product stock as whole units without changing totals. Add a per-variation/per-location low-stock threshold and an idempotent outbox transition when available stock (on hand less reservations) crosses the threshold. Back-in-stock notifications require an explicit customer subscription per product/variation/channel and revocable consent.
 
 Acceptance covers fractional rounding at the chosen scale, piece/panel whole-unit validation, variation/location isolation, transfers, reservations, cancellation, returns, concurrent counts, duplicate requests, and old integer stock compatibility. Use synthetic fixtures and a disposable database before any live migration. Keep Woo authoritative while the new model is read-only.
 
-**Gate:** TFB approves a unit/conversion matrix and location mapping; operations approve how count corrections and returns are audited.
+**Gate:** Essentials by D approves its unit/conversion matrix and location mapping before tenant configuration; TFB repeats this approval during its later rollout. Operations approve how count corrections and returns are audited.
 
 **Rollback:** Disable unit-aware writes and render existing stock as whole units. Keep the additive schema and movement ledger; do not drop tables or reverse committed movements as an application rollback.
 
@@ -153,7 +153,7 @@ Acceptance uses synthetic staging orders for unique match, no match, duplicate c
 
 ## 4. Controlled catalog and stock write-back
 
-The current Woo connector has no write-back path. Add it only after phases 1–3 pass. Continue to treat Woo as the sole stock authority for TFB: 7Network records a staff intent, sends the command to Woo, and updates its local projection only after a successful Woo read-back. Never independently write the same stock count to Woo and the 7Network stock ledger.
+The current Woo connector has no write-back path. Add and test it only after phases 1–3 pass, first against a disposable WooCommerce staging store. Continue to treat Woo as the sole stock authority for any Woo-connected tenant: 7Network records a staff intent, sends the command to Woo, and updates its local projection only after a successful Woo read-back. Never independently write the same stock count to Woo and the 7Network stock ledger. The current Essentials by D live connection remains read-only under the user’s WordPress no-change instruction; enabling live write-back requires separate approval.
 
 - Keep the first release owner/manager-only. Use a separate write-capable Woo key, enabled only for staging. Add an explicit connection capability and audit event for write access.
 - Add a durable command/outbox keyed by tenant, connection, entity/variation, operation, and idempotency key. Record canonical payload hash, expected Woo revision/date_modified, actor, before/after snapshots, and queued/sent/accepted/unknown/conflict/rejected/reconciled states.
@@ -164,7 +164,7 @@ The current Woo connector has no write-back path. Add it only after phases 1–3
 
 Acceptance injects duplicate requests, delayed/duplicate webhook, timeout after Woo accepts a write, 401/403, rate limiting, SKU collision, simultaneous external edits, and app restart with queued commands. Verify no duplicate stock delta and no silent overwrite.
 
-**Gate:** TFB signs off on one stock authority and conflict policy. Deploy first to Woo staging; keep any production connection read-only until a separate owner-approved canary.
+**Gate:** The staging-store owner signs off on one stock authority and conflict policy. Deploy first to disposable Woo staging; keep Essentials by D and any later production connection read-only until a separate owner-approved canary.
 
 **Rollback:** Turn off write capability, stop the command worker, reconcile unknown commands against Woo, and return to read-only sync. Do not restore an older stock snapshot over newer Woo writes.
 
@@ -172,7 +172,7 @@ Acceptance injects duplicate requests, delayed/duplicate webhook, timeout after 
 
 ### Fulfilment
 
-Add carrier, tracking ID, validated tracking URL, dispatched/delivered timestamps, and last provider status to the existing order workflow. Manual courier entry is the first milestone; choose an automatic courier adapter only after TFB names the provider and supplies a staging account. Normalize carrier events into the existing delivery state machine and deduplicate provider event IDs. Do not mark delivery complete from an unverified tracking page scrape.
+Add carrier, tracking ID, validated tracking URL, dispatched/delivered timestamps, and last provider status to the existing order workflow. Manual courier entry is the first milestone; choose an automatic courier adapter only after Essentials by D names the provider and supplies a staging account. Normalize carrier events into the existing delivery state machine and deduplicate provider event IDs. Do not mark delivery complete from an unverified tracking page scrape.
 
 ### Documents and reports
 
@@ -184,15 +184,15 @@ Add reports by period, product/variation, channel, and staff. Attribute staff on
 
 Patch the current shared worker on current main with targeted retail handlers. Preserve newer email, finance, training-report, and handoff behavior. Verify order creation/status updates do not invoke a rejected event kind, and event enqueue is idempotent. Staff alerts require the retail alert setting and entitlement. Customer updates require active, purpose-specific transactional consent for that order, a matching normalized destination hash, and the separate customer-update setting. Recheck eligibility, order state, and consent before dispatch; keep phone/email out of event payloads and logs.
 
-Exercise queued, prepared, accepted, failed, unknown, retry, opt-out, consent withdrawal, duplicate status webhook, and tenant/role denial. A provider timeout remains unknown until reconciliation, not proof of delivery. Enable the worker only for a TFB staging tenant until synthetic email/WhatsApp deliveries and screen settings are accepted.
+Exercise queued, prepared, accepted, failed, unknown, retry, opt-out, consent withdrawal, duplicate status webhook, and tenant/role denial. A provider timeout remains unknown until reconciliation, not proof of delivery. Enable the worker only for a disposable/synthetic tenant until test email/WhatsApp deliveries and screen settings are accepted; real Essentials by D messages require a separate owner approval.
 
-**Gate:** TFB approves invoice numbering, tax display, receipt timing, courier mapping, report totals, and notification templates. Outbox and staging-provider acceptance pass before any customer order update is enabled.
+**Gate:** Essentials by D approves invoice numbering, tax display, receipt timing, courier mapping, report totals, and notification templates. Outbox and staging-provider acceptance pass before any customer order update is enabled. TFB provides its own approvals during its later rollout.
 
 **Rollback:** Disable retail notifications and courier callbacks. Preserve event/delivery history and financial evidence. Roll back application code only; keep additive database history.
 
 ## 6. Consent-aware recovery, stock alerts, campaigns, and Meta
 
-- Keep the supplied plugin limited to classic WooCommerce checkout until tested. Its current hooks include woocommerce_after_order_notes, woocommerce_checkout_update_order_review, woocommerce_checkout_create_order, and woocommerce_checkout_order_processed. WooCommerce documents that not all shortcode checkout hooks run in Checkout Blocks and identifies Store API extension points; the plugin has not implemented or passed those block-specific flows. Inference from the plugin hooks and WooCommerce docs: do not promise Checkout Blocks support. If TFB uses Blocks, leave recovery disabled there or build and test a separate Store API/Blocks adapter: [WooCommerce checkout hook alternatives](https://developer.woocommerce.com/docs/block-development/reference/hooks/hook-alternatives/) and [Cart and Checkout extensibility](https://developer.woocommerce.com/docs/block-development/extensible-blocks/cart-and-checkout-blocks/).
+- Keep the supplied plugin limited to classic WooCommerce checkout until tested. Its current hooks include woocommerce_after_order_notes, woocommerce_checkout_update_order_review, woocommerce_checkout_create_order, and woocommerce_checkout_order_processed. WooCommerce documents that not all shortcode checkout hooks run in Checkout Blocks and identifies Store API extension points; the plugin has not implemented or passed those block-specific flows. Inference from the plugin hooks and WooCommerce docs: do not promise Checkout Blocks support. If Essentials by D uses Blocks, leave recovery disabled there or build and test a separate Store API/Blocks adapter: [WooCommerce checkout hook alternatives](https://developer.woocommerce.com/docs/block-development/reference/hooks/hook-alternatives/) and [Cart and Checkout extensibility](https://developer.woocommerce.com/docs/block-development/extensible-blocks/cart-and-checkout-blocks/).
 - Map unfinished-checkout consent only to the stated recovery purpose. Do not treat transactional updates or a checkout consent field as blanket marketing permission. Store purpose, channel, source, timestamp, destination hash, withdrawal, and suppression state.
 - Queue an abandoned-cart reminder only after an agreed delay and valid consent. Immediately before dispatch, recheck whether an order was paid/created, the cart was recovered, consent was withdrawn, the recipient opted out, or a suppression applies. Deduplicate by connection and cart/checkout ID.
 - Implement low-stock staff alerts and back-in-stock customer alerts as separate event kinds. Recheck available stock and subscription/consent just before send; deduplicate per stock crossing and recipient.
@@ -201,19 +201,19 @@ Exercise queued, prepared, accepted, failed, unknown, retry, opt-out, consent wi
 
 Acceptance includes classic checkout with and without consent, recovery before/after paid order, abandoned then refunded order, consent withdrawal, duplicate event, out-of-stock/restock races, quiet hours, template rejection, Meta disconnect, and cross-tenant denial. Use synthetic/staging recipients only.
 
-**Gate:** TFB confirms classic checkout or funds a separately scoped Blocks implementation; templates, consent text, suppression rules, Meta permissions, and sender ownership are approved. Start with drafts and staff-approved sends; enable only bounded automation after acceptance.
+**Gate:** Essentials by D confirms classic checkout or funds a separately scoped Blocks implementation; templates, consent text, suppression rules, Meta permissions, and sender ownership are approved. Start with drafts and synthetic recipients; enable only bounded automation after acceptance and separate authorization for real sends.
 
 ## Ownership, subscription, and handover gate
 
-Register WordPress/WooCommerce, Meta Business Manager, WhatsApp Business, email sender, courier, and other provider accounts under The Fabric Butik. The TFB owner initiates connections and retains owner/admin credentials and recovery access. 7Network stores only encrypted integration credentials required to operate the connection; staff access is role-scoped and audited. Remove implementation-team access at handover unless TFB explicitly retains a support grant.
+Register each tenant’s WordPress/WooCommerce, Meta Business Manager, WhatsApp Business, email sender, courier, and other provider accounts in that tenant owner’s name. The owner initiates connections and retains owner/admin credentials and recovery access. 7Network stores only encrypted integration credentials required to operate the connection; staff access is role-scoped and audited. Remove implementation-team access at handover unless the tenant explicitly retains a support grant. Essentials by D is the first pilot; The Fabric Butik is a separate later onboarding.
 
 The application code does not define annual pricing or support terms. Before handover, provide an itemized commercial schedule separating the 7Network annual subscription, one-time implementation, optional support/maintenance, hosting, and third-party/provider/message/courier charges. Do not promise all integrations, hosting, updates, or support are included until the contract states it. Demonstrate owner access, staff/role management, export, disconnect, key rotation, and offboarding.
 
 ## Deployment controls and acceptance record
 
 - Use the established guarded release process. Deploy each increment to isolated staging first; apply reviewed additive migrations only after disposable-database rehearsal and verified backup/restore path.
-- Keep feature flags tenant-scoped. Start with one TFB staging tenant, synthetic or client-approved data, and no customer sends. The initial connector uses read-only scope.
+- Keep feature flags tenant-scoped. Start with the Essentials by D tenant, live data import explicitly approved by its owner, and no customer sends or Woo writes. The initial connector uses a read-only key. TFB onboarding remains a separate later rollout.
 - Verify /user owner, accountant, manager, and agent views plus permitted/denied APIs; preserve Manage Plans and Manage Users. Verify English/Arabic, RTL, light/dark, loading/empty/error/denied/retry states, keyboard/touch, and widths 360, 390, 768, 1024, and 1440 CSS pixels.
 - For PWA assets, verify install/navigation and cache versioning. Never cache private connector/customer/order API responses in a shared service worker. Offline or queued writes must not appear confirmed.
 - After each production release, record source commit, image, overlay chain, migration/checksum, backup/rollback reference, API/browser/provider evidence, data reconciliation, and open gates in DEPLOYMENT.md. Roll back app code in reverse overlay order; do not restore an old database over new orders or stock.
-- No TFB staging store was connected during this source/release reconciliation. No migration, write-back, provider event, customer message, or production data change occurred.
+- No store was connected during the source/release reconciliation. The user subsequently selected Essentials by D (`essentialsbyd.com`) as the first live pilot and approved importing its data into its own 7Network tenant. No Woo key has been entered, and no migration, write-back, webhook, customer message, or WordPress change has occurred.

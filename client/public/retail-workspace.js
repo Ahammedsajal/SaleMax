@@ -374,7 +374,7 @@
     connectShopify.onclick=async()=>{connectShopify.disabled=true;try{const result=await api('/connectors/shopify/start','POST',{shop:shopName.value,currency:shopCurrency.value.toUpperCase()});location.assign(result.authorizationUrl);}catch(error){showCode(status,error);connectShopify.disabled=false;}};
 
     const woo=add(root,'section');add(woo,'h2',t('WooCommerce','WooCommerce'));
-    add(woo,'p',t('Create a dedicated read-only WooCommerce REST API key over HTTPS. Checkout abandonment capture uses the optional 7Network plugin; standard WooCommerce webhooks keep orders, customers and products current.','أنشئ مفتاح REST API مخصصاً للقراءة فقط في WooCommerce عبر HTTPS. يستخدم التقاط السلات المتروكة إضافة 7Network الاختيارية؛ وتبقي Webhooks القياسية الطلبات والعملاء والمنتجات محدثة.'));
+    add(woo,'p',t('The pilot uses a dedicated read-only WooCommerce REST key over HTTPS and paginated pulls. It does not change WordPress. Webhooks or the optional checkout plugin require separate approval and setup.','تستخدم التجربة مفتاح REST مخصصاً للقراءة فقط عبر HTTPS مع استيراد الصفحات. لا تغيّر التجربة WordPress. تتطلب Webhooks أو إضافة الدفع الاختيارية موافقة وإعداداً منفصلين.'));
     const wooUrl=input(woo,t('Store URL','رابط المتجر'));wooUrl.placeholder='https://shop.example.com';wooUrl.autocomplete='url';
     const wooDisplay=input(woo,t('Display name','اسم العرض'));
     const wooCurrency=input(woo,t('Store currency (ISO 4217)','عملة المتجر (ISO 4217)'),'QAR');wooCurrency.maxLength=3;wooCurrency.autocomplete='off';
@@ -384,10 +384,10 @@
     const oneTime=add(woo,'div');oneTime.className='sx-retail-one-time-secret';oneTime.hidden=true;
     connectWoo.onclick=async()=>{connectWoo.disabled=true;try{
       const result=await api('/connectors/woocommerce','POST',{storeUrl:wooUrl.value,displayName:wooDisplay.value,currency:wooCurrency.value.toUpperCase(),consumerKey:wooKey.value,consumerSecret:wooSecret.value});
-      wooKey.value='';wooSecret.value='';oneTime.replaceChildren();add(oneTime,'h3',t('Save this webhook secret now','احفظ سر Webhook الآن'));
-      add(oneTime,'p',t('Use it for the WooCommerce order/customer/product webhooks and the abandoned-checkout plugin. You can reveal it later from the setup panel, and the value is never saved in this browser.','استخدمه مع Webhooks الطلبات والعملاء والمنتجات وإضافة السلات المتروكة. يمكنك إظهاره لاحقاً من إعدادات الربط، ولا يُحفظ في المتصفح.'));
+      wooKey.value='';wooSecret.value='';oneTime.replaceChildren();add(oneTime,'h3',t('Save this webhook signing secret securely','احفظ سر توقيع Webhook بأمان'));
+      add(oneTime,'p',t('It is not needed for read-only sync. 7Network stores it encrypted for a later approved webhook setup. Do not configure Woo webhooks or install the optional plugin for the current Essentials by D pilot.','لا يلزم للمزامنة للقراءة فقط. يخزّنه 7Network مشفراً لإعداد Webhook لاحق بعد الموافقة. لا تُعدّ Webhooks في Woo أو تثبّت الإضافة الاختيارية لتجربة Essentials by D الحالية.'));
       const secretArea=add(add(oneTime,'label',t('Webhook secret','سر Webhook')+' '),'textarea');secretArea.readOnly=true;secretArea.value=result.webhookSecret;secretArea.rows=3;
-      oneTime.hidden=false;status.textContent=t('WooCommerce connected. Set up its signed webhooks next.','تم ربط WooCommerce. أعدّ Webhooks الموقعة الآن.');await refreshConnections();
+      oneTime.hidden=false;status.textContent=t('WooCommerce connected. Start a read-only sync when ready; this pilot does not configure WordPress.','تم ربط WooCommerce. ابدأ المزامنة للقراءة فقط عند الاستعداد؛ لا تعدّل هذه التجربة WordPress.');await refreshConnections();
     }catch(error){showCode(status,error);}finally{connectWoo.disabled=false;}};
 
     const connectionsRoot=add(root,'div');connectionsRoot.setAttribute('aria-live','polite');
@@ -403,7 +403,10 @@
             add(card,'strong',t('Order ','طلب ')+String(item.number||item.id));add(card,'p',item.status+' · '+item.financialStatus+' · '+item.currency+' '+item.total);
             if(item.customer?.name||item.customer?.email||item.customer?.phone)add(card,'p',[item.customer.name,item.customer.email,item.customer.phone].filter(Boolean).join(' · '));
             add(card,'p',t('Follow-up permission','إذن المتابعة')+': '+item.contactConsent);
-            for(const line of item.lineItems)add(card,'p',(line.quantity||0)+' × '+(line.name||t('Item','عنصر'))+(line.sku?' · '+line.sku:''));
+            for(const line of item.lineItems)add(card,'p',(line.quantity||0)+' × '+(line.name||t('Item','عنصر'))+(line.sku?' · '+line.sku:'')+
+              (line.total!=null?' · '+item.currency+' '+line.total:''));
+            if(item.breakdown){const parts=[['subtotal',item.breakdown.subtotal],['discount',item.breakdown.discount],['shipping',item.breakdown.shipping],['tax',item.breakdown.tax],['fees',item.breakdown.fees],['refunds',item.breakdown.refunds]].filter(([,value])=>value!=null);
+              if(parts.length)add(card,'p',parts.map(([name,value])=>t(name,name)+' '+item.currency+' '+value).join(' · '));}
             if(item.lineItemsTruncated||item.transactionsTruncated)add(card,'p',t('Some line items or payment transactions need a full-detail import.','تحتاج بعض المنتجات أو معاملات الدفع إلى استيراد التفاصيل الكاملة.'));
             for(const transaction of item.transactions||[])add(card,'p',t('Payment record','سجل دفع')+': '+transaction.kind+' · '+transaction.status+' · '+transaction.currency+' '+transaction.amount+(transaction.gateway?' · '+transaction.gateway:''));
             add(card,'p',t('Payment records are source evidence only; 7Network has not verified settlement or posted accounting.','سجلات الدفع أدلة من المصدر فقط؛ لم يتحقق 7Network من التسوية ولم يسجل قيوداً محاسبية.'));
@@ -412,9 +415,29 @@
             add(card,'p',t('Marketing consent from the provider','موافقة التسويق من المزوّد')+': '+item.marketingConsent);
           }else if(kind==='products'){
             if(item.imageUrl){const image=document.createElement('img');image.className='sx-retail-product-image';image.src=item.imageUrl;image.alt=item.title||t('Product image','صورة المنتج');image.loading='lazy';image.referrerPolicy='no-referrer';card.appendChild(image);}
-            add(card,'strong',item.title);add(card,'p',(item.sku||'—')+' · '+item.status+' · '+item.currency+' '+item.price);
-            for(const variant of item.variants||[])add(card,'p',(variant.title||t('Variant','متغير'))+' · '+(variant.sku||'—')+(variant.price?' · '+item.currency+' '+variant.price:''));
-            if(item.variantsTruncated)add(card,'p',t('Some product variants need a full-detail import.','تحتاج بعض متغيرات المنتج إلى استيراد التفاصيل الكاملة.'));
+            add(card,'strong',item.title);add(card,'p',(item.sku||'—')+' · '+item.status+' · '+(item.priceUnavailable?t('See variation prices','راجع أسعار المتغيرات'):item.currency+' '+item.price));
+            if(item.sourceStock?.managed||item.sourceStock?.quantity!=null)add(card,'p',t('Woo stock quantity (read only)','كمية مخزون Woo (قراءة فقط)')+': '+
+              (item.sourceStock.quantity??'—')+' · '+item.sourceStock.status+' · '+t('unit not mapped','الوحدة غير محددة'));
+            if(item.sourceVariationCount||item.variationCount)add(card,'p',t('Woo variations imported','متغيرات Woo المستوردة')+': '+item.variationCount+
+              (item.sourceVariationCount!=null?' / '+item.sourceVariationCount:''));
+            if(connection.provider==='woocommerce'&&item.sourceVariationCount){
+              const variantSection=add(card,'details');add(variantSection,'summary',t('Woo variations and SKUs','متغيرات Woo وSKU'));
+              const variantHolder=add(variantSection,'div');let variantLoaded=false;
+              const loadVariantPage=async(pageNumber)=>{
+                try{
+                  const result=await api('/connectors/'+encodeURIComponent(connection.id)+'/data/variations?page='+pageNumber+'&productId='+encodeURIComponent(item.id));
+                  for(const variant of result.items){const line=add(variantHolder,'article');add(line,'p',(variant.title||t('Variation','متغير'))+' · ID '+variant.id+' · '+(variant.sku||'—')+' · '+variant.status+
+                    (variant.purchasable===false?' · '+t('not purchasable','غير قابل للشراء'):'')+' · '+variant.currency+' '+variant.price);
+                    if(variant.sourceStock?.managed||variant.sourceStock?.quantity!=null)add(line,'p',t('Woo stock quantity (read only)','كمية مخزون Woo (قراءة فقط)')+': '+
+                      (variant.sourceStock.quantity??'—')+' · '+variant.sourceStock.status+' · '+t('unit not mapped','الوحدة غير محددة'));}
+                  if(result.hasMore)action(variantHolder,t('Load more variations','تحميل المزيد من المتغيرات'),()=>loadVariantPage(pageNumber+1).then(()=>({message:t('More variations loaded.','تم تحميل المزيد من المتغيرات.'),refresh:false})),status);
+                  else if(!result.items.length&&pageNumber===1)add(variantHolder,'p',t('No variation records imported yet. Continue Sync now.','لم تُستورد سجلات المتغيرات بعد. تابع المزامنة الآن.'));
+                }catch(error){add(variantHolder,'p',t('Unable to load Woo variations.','تعذر تحميل متغيرات Woo.'));showCode(status,error);}
+              };
+              variantSection.addEventListener('toggle',()=>{if(variantSection.open&&!variantLoaded){variantLoaded=true;loadVariantPage(1);}});
+            }else for(const variant of item.variants||[])add(card,'p',(variant.title||t('Variation','متغير'))+' · '+(variant.sku||'—')+
+              (variant.price?' · '+item.currency+' '+variant.price:''));
+            if(item.variantsTruncated&&connection.provider!=='woocommerce')add(card,'p',t('Some product variants need a full-detail import.','تحتاج بعض متغيرات المنتج إلى استيراد التفاصيل الكاملة.'));
           }else{
             add(card,'strong',t(item.status==='abandoned'?'Abandoned checkout':item.status==='recovered'?'Recovered checkout':'Checkout',item.status==='abandoned'?'سلة متروكة':item.status==='recovered'?'سلة مستعادة':'سلة'));
             add(card,'p',item.currency+' '+item.total+' · '+t('Follow-up permission','إذن المتابعة')+': '+item.contactConsent);
@@ -439,7 +462,7 @@
         add(area,'p',t('Subscribe to','اشترك في')+': '+result.topics.join(', '));
         if(connection.provider==='shopify'&&result.complianceWebhookUrl)add(area,'p',t('Shopify mandatory privacy topics (configured in Shopify Dev Dashboard): ','موضوعات الخصوصية الإلزامية في Shopify (تُعدّ في لوحة المطور): ')+result.complianceWebhookUrl);
         if(result.abandonedCheckoutPlugin){const link=add(area,'a',t('Download the WooCommerce abandoned-checkout plugin','تنزيل إضافة السلات المتروكة لـ WooCommerce'));link.href=result.abandonedCheckoutPlugin;link.download='7network-retail-connector.zip';link.rel='noopener noreferrer';}
-        if(connection.provider==='woocommerce')add(area,'p',t('In WooCommerce, create active webhooks for the listed topics. Install the downloaded plugin ZIP in WordPress and activate it; then put the signed endpoint and secret into its settings for checkout events. Import remains read only. The plugin supports classic checkout, not Checkout Blocks.','في WooCommerce، أنشئ Webhooks نشطة للموضوعات المذكورة. ثبّت ملف ZIP الذي تم تنزيله في WordPress وفعّله، ثم ضع نقطة الاتصال الموقعة والسر في إعداداته لأحداث السلة. يبقى الاستيراد للقراءة فقط. تدعم الإضافة صفحة الدفع الكلاسيكية ولا تدعم Checkout Blocks.'));
+        if(connection.provider==='woocommerce')add(area,'p',t('This setup section only shows connection details. The current Essentials by D pilot must stay read only: do not create Woo webhooks or install/configure the plugin in WordPress. The optional plugin supports classic checkout, not Checkout Blocks.','يعرض هذا القسم تفاصيل الربط فقط. يجب أن تبقى تجربة Essentials by D للقراءة فقط: لا تنشئ Webhooks أو تثبّت/تعد الإضافة في WordPress. تدعم الإضافة الاختيارية صفحة الدفع الكلاسيكية ولا تدعم Checkout Blocks.'));
         if(connection.provider==='shopify')add(area,'p',t('The store will receive read-only resource webhook subscriptions. Complete the mandatory privacy topic configuration and Shopify protected-customer-data review before production activation.','سيتلقى المتجر اشتراكات Webhook للقراءة فقط. أكمل إعداد موضوعات الخصوصية الإلزامية ومراجعة بيانات العملاء المحمية من Shopify قبل التفعيل الإنتاجي.'));
       }catch(error){add(area,'p',t('Could not load setup details.','تعذر تحميل تفاصيل الإعداد.'));showCode(status,error);}
     }
@@ -473,8 +496,10 @@
         if(!connections.length)add(connectionsRoot,'p',t('No stores connected yet. Connect Shopify or WooCommerce above.','لم يتم ربط أي متجر بعد. اربط Shopify أو WooCommerce أعلاه.'));
         for(const connection of connections){
           const card=add(connectionsRoot,'section');add(card,'h2',connection.displayName+' · '+connection.provider);add(card,'p',connection.storeDomain+' · '+connection.status+' · '+connection.currency);
-          add(card,'p',t('Imported','مستورد')+': '+connection.counts.orders+' '+t('orders','طلبات')+' · '+connection.counts.customers+' '+t('customers','عملاء')+' · '+connection.counts.products+' '+t('products','منتجات')+' · '+connection.counts.checkouts+' '+t('checkouts','سلات'));
-          if(connection.lastSyncAt)add(card,'p',t('Last sync','آخر مزامنة')+': '+connection.lastSyncAt);
+          add(card,'p',t('Imported','مستورد')+': '+connection.counts.orders+' '+t('orders','طلبات')+' · '+connection.counts.customers+' '+t('customers','عملاء')+' · '+connection.counts.products+' '+t('products','منتجات')+
+            (connection.provider==='woocommerce'?' · '+connection.counts.variations+' '+t('variations','متغيرات'):'')+' · '+connection.counts.checkouts+' '+t('checkouts','سلات'));
+          if(connection.lastSyncAt)add(card,'p',t('Last sync attempt','آخر محاولة مزامنة')+': '+connection.lastSyncAt);
+          if(connection.syncProgress?.lastCompleteScanAt)add(card,'p',t('Last complete read-only scan','آخر فحص كامل للقراءة فقط')+': '+connection.syncProgress.lastCompleteScanAt);
           if(connection.lastErrorCode)add(card,'p',t('Provider status','حالة المزوّد')+': '+connection.lastErrorCode);
           const tools=add(card,'div');tools.className='sx-retail-connector-actions';
           action(tools,t('Sync now','مزامنة الآن'),async()=>{
@@ -483,6 +508,46 @@
             return Object.entries(result.resources||{}).map(([name,value])=>name+': '+value.imported+(value.hasMore?' · '+t('more pages','صفحات أخرى'):'')+(value.errorCode?' · '+value.errorCode:'')).join(' | ')||t('No new data.','لا توجد بيانات جديدة.');
           },status);
           action(tools,t('Webhook setup','إعداد Webhook'),()=>showSetup(connection,setup),status);
+          if(connection.provider==='woocommerce'){
+            const reconciliation=add(card,'details');add(reconciliation,'summary',t('Read-only reconciliation','مطابقة للقراءة فقط'));
+            const reportBody=add(reconciliation,'div');
+            reconciliation.addEventListener('toggle',async()=>{
+              if(!reconciliation.open||reconciliation.dataset.loaded)return;
+              reconciliation.dataset.loaded='true';reportBody.replaceChildren();add(reportBody,'p',t('Loading reconciliation…','جارٍ تحميل المطابقة…'));
+              try{
+                const report=await api('/connectors/'+encodeURIComponent(connection.id)+'/reconciliation');reportBody.replaceChildren();
+                const counts=report.scan?.sourceCounts||{};
+                add(reportBody,'p',t('Imported records','السجلات المستوردة')+': '+report.importedCounts.products+' '+t('products','منتجات')+' · '+report.importedCounts.variations+' '+t('variations','متغيرات')+
+                  ' · '+report.importedCounts.orders+' '+t('orders','طلبات')+' · '+report.importedCounts.customers+' '+t('customers','عملاء'));
+                add(reportBody,'p',t('SKU review','مراجعة SKU')+': '+report.skuAudit.missingProductSku+' '+t('products without SKU','منتجات بلا SKU')+' · '+
+                  report.skuAudit.missingVariationSku+' '+t('variations without SKU','متغيرات بلا SKU')+' · '+report.skuAudit.duplicateSkuCount+' '+t('duplicate SKU values','قيم SKU مكررة'));
+                for(const duplicate of report.skuAudit.duplicateSkus)add(reportBody,'p',t('Duplicate SKU','SKU مكرر')+': '+duplicate.sku+' · '+duplicate.count+' '+t('records','سجلات'));
+                if(report.scan){
+                  add(reportBody,'p',t('Last complete source scan','آخر فحص كامل للمصدر')+': '+report.scan.completedAt);
+                  if(report.scan.queryScope)add(reportBody,'p',t('Woo API status scope: products, variations, and orders include all statuses the read key can access; customers include all API-visible records.','نطاق حالة Woo API: تشمل المنتجات والمتغيرات والطلبات كل الحالات التي يتيحها مفتاح القراءة، ويشمل العملاء كل السجلات المتاحة عبر API.'));
+                  for(const resource of ['products','orders','customers']){
+                    const source=counts[resource]||{};add(reportBody,'p',t(resource,resource)+' · '+t('Woo total','إجمالي Woo')+': '+(source.total??'—')+' · '+
+                      t('scanned','تم فحصه')+': '+(source.scanned??'—')+' · '+t('imported now','موجود محلياً')+': '+report.importedCounts[resource]);
+                  }
+                  add(reportBody,'p',t('Woo variations listed by products','المتغيرات المسجلة في المنتجات')+': '+(report.scan.sourceVariationCount??'—')+' · '+
+                    t('imported variations','المتغيرات المستوردة')+': '+report.importedCounts.variations);
+                  if(report.scan.sourceVariationCount!=null&&report.scan.sourceVariationCount!==report.importedCounts.variations)
+                    add(reportBody,'p',t('Woo variation count and imported active count differ. Review missing or deleted variations before accepting reconciliation.','يختلف عدد متغيرات Woo عن عدد المتغيرات النشطة المستوردة. راجع المتغيرات المفقودة أو المحذوفة قبل اعتماد المطابقة.'));
+                  if(!report.scan.stableSourceCounts)add(reportBody,'p',t('Woo counts changed during this scan. Run another complete scan before accepting reconciliation.','تغيرت أعداد Woo أثناء الفحص. أعد فحصاً كاملاً قبل اعتماد المطابقة.'));
+                  const local=new Map(report.localOrderAmounts.map(row=>[row.currency+'|'+row.status+'|'+row.financialStatus,row]));
+                  const source=new Map(report.scan.sourceOrderAmounts.map(row=>[row.currency+'|'+row.status+'|'+row.financialStatus,row]));
+                  const keys=new Set([...local.keys(),...source.keys()]);
+                  for(const key of keys){const l=local.get(key)||{},s=source.get(key)||{};const panel=add(reportBody,'article');
+                    add(panel,'strong',key.replaceAll('|',' · '));add(panel,'p',t('Woo scanned orders','طلبات Woo المفحوصة')+': '+(s.count??0)+' · '+t('Imported locally','المستورد محلياً')+': '+(l.count??0));
+                    for(const [name,sourceValue,localValue] of [['total',s.total,l.total],['subtotal',s.subtotal,l.subtotal],['discount',s.discount,l.discount],['shipping',s.shipping,l.shipping],['tax',s.tax,l.tax],['fees',s.feeComplete===false?null:s.fee,l.fees],['refunds',s.refundComplete===false?null:s.refund,l.refunds]]){
+                      if(sourceValue!=null||localValue!=null)add(panel,t(name,name)+': Woo '+(sourceValue??'—')+' · 7Network '+(localValue??'—'));
+                    }
+                  }
+                }else add(reportBody,'p',t('A complete source scan is not available yet. Continue Sync now until products, variations, orders and customers finish.','لا يتوفر فحص كامل للمصدر بعد. تابع المزامنة حتى تنتهي المنتجات والمتغيرات والطلبات والعملاء.'));
+                add(reportBody,'p',t('This report is read-only. WooCommerce remains the stock and order authority. No WordPress changes or customer messages are made.','هذا التقرير للقراءة فقط. يبقى WooCommerce المرجع للمخزون والطلبات. لا يتم تعديل WordPress أو إرسال رسائل للعملاء.'));
+              }catch(error){reportBody.replaceChildren();add(reportBody,'p',t('Unable to load reconciliation.','تعذر تحميل المطابقة.'));showCode(status,error);}
+            });
+          }
           const nextStatus=connection.status==='active'?'paused':'active';
           if(['active','paused'].includes(connection.status))action(tools,t(connection.status==='active'?'Pause sync':'Resume sync',connection.status==='active'?'إيقاف المزامنة مؤقتاً':'استئناف المزامنة'),
             ()=>api('/connectors/'+encodeURIComponent(connection.id)+'/status','PUT',{status:nextStatus}),status,()=>refreshConnections());

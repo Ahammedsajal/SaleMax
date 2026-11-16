@@ -2,8 +2,7 @@
 
 const express = require('express');
 const crypto = require('node:crypto');
-const path = require('node:path');
-const fs = require('node:fs');
+const {buildConnectorArchive} = require('./woocommerce-connector-package');
 const connector = require('./retail-connected-stores');
 const { decision } = require('./policy');
 const originCheck = require('./request-origin');
@@ -13,9 +12,17 @@ const reply = (res, data) => res.json({ success: true, data });
 const noStore = (req, res, next) => { res.set('Cache-Control', 'private, no-store, max-age=0'); res.set('Pragma', 'no-cache'); next(); };
 const fail = connector.fail;
 const validVersion = value => /^20\d{2}-(01|04|07|10)$/.test(value || '');
-const safeConnection = row => ({ id: row.id, provider: row.provider, storeDomain: row.store_domain, displayName: row.display_name,
-  currency: row.default_currency, status: row.status, scopes: parseJson(row.scopes, []), lastSyncAt: row.last_sync_at,
-  lastErrorCode: row.last_error_code, counts: row.counts || { orders: 0, customers: 0, products: 0, checkouts: 0 } });
+const safeConnection = row => {
+  const woo = row.provider === 'woocommerce' ? parseJson(row.sync_cursor, {}).woocommerce || {} : null;
+  return { id: row.id, provider: row.provider, storeDomain: row.store_domain, displayName: row.display_name,
+    currency: row.default_currency, status: row.status, scopes: parseJson(row.scopes, []), lastSyncAt: row.last_sync_at,
+    lastErrorCode: row.last_error_code, counts: row.counts || { orders: 0, customers: 0, products: 0, variations: 0, checkouts: 0 },
+    syncProgress: woo ? { scanStartedAt: woo.scanStartedAt || null, lastCompleteScanAt: woo.lastCompleteScan?.completedAt || null,
+      resources: Object.fromEntries(['products','orders','customers'].map(resource => [resource, {
+        complete: Boolean(woo[resource]?.complete), page: Number(woo[resource]?.page) || 1,
+        sourceTotal: woo[resource]?.sourceTotal ?? null, scanned: Number(woo[resource]?.scanned) || 0,
+      }])), pendingVariationParents: (woo.variationQueue || []).length } : null };
+};
 function parseJson(value, fallback) { try { return typeof value === 'string' ? JSON.parse(value) : value || fallback; } catch { return fallback; } }
 function jsonFromEncrypted(row, tenantId, connectionId, kind) { return connector.openJson(row, tenantId, connectionId, kind); }
 function auditSql() { return `INSERT INTO sx_audit_events(id,tenant_id,actor_identity_id,actor_kind,action,resource_type,resource_id,changes,correlation_id)
@@ -176,18 +183,32 @@ async function syncShopify(pool, connection) {
 }
 function wooCredentials(connection) { const value = credentials(connection); return { key: value.consumerKey, secret: value.consumerSecret }; }
 async function wooApi(connection, resource, query = {}) {
-  if (!['orders','customers','products'].includes(resource)) fail('INVALID_STORE_RESOURCE', 400);
+  let resourcePath = resource;
+  const params = { ...query };
+  if (resource === 'variations') {
+    const parentId = String(params.productId || '');
+    if (!/^\d{1,191}$/.test(parentId)) fail('INVALID_STORE_RESOURCE', 400);
+    resourcePath = `products/${encodeURIComponent(parentId)}/variations`;
+    delete params.productId;
+  } else if (!['orders','customers','products'].includes(resource)) fail('INVALID_STORE_RESOURCE', 400);
   const { key, secret } = wooCredentials(connection);
   const base = new URL(connection.store_domain);
-  const apiUrl = new URL(`${base.pathname.replace(/\/$/, '')}/wp-json/wc/v3/${resource}`, base.origin);
-  for (const [name, value] of Object.entries(query)) apiUrl.searchParams.set(name, String(value));
-  const response = await connector.requestHttps(apiUrl.toString(), {
-    headers: { Authorization: `Basic ${Buffer.from(`${key}:${secret}`).toString('base64')}`, Accept: 'application/json' },
-  });
+  const apiUrl = new URL(`${base.pathname.replace(/\/$/, '')}/wp-json/wc/v3/${resourcePath}`, base.origin);
+  for (const [name, value] of Object.entries(params)) apiUrl.searchParams.set(name, String(value));
+  let response;
+  for (let attempt = 0; attempt < 2; attempt++) {
+    response = await connector.requestHttps(apiUrl.toString(), {
+      headers: { Authorization: `Basic ${Buffer.from(`${key}:${secret}`).toString('base64')}`, Accept: 'application/json' },
+    });
+    if (![408,429,500,502,503,504].includes(response.status) || attempt === 1) break;
+    await new Promise(resolve => setTimeout(resolve, 250));
+  }
   if (response.status < 200 || response.status >= 300 || !Array.isArray(response.data)) {
     fail(response.status === 401 || response.status === 403 ? 'WOOCOMMERCE_KEY_OR_PERMISSION_INVALID' : 'WOOCOMMERCE_REQUEST_FAILED', 502);
   }
-  return { rows: response.data, totalPages: Math.max(1, Number(response.headers['x-wp-totalpages']) || 1) };
+  const totalPages = Number(response.headers['x-wp-totalpages']), total = Number(response.headers['x-wp-total']);
+  return { rows: response.data, totalPages: Number.isSafeInteger(totalPages) && totalPages > 0 ? totalPages : 1,
+    total: Number.isSafeInteger(total) && total >= 0 ? total : null };
 }
 async function verifyWooConnection(base, key, secret) {
   const url = new URL(`${new URL(base).pathname.replace(/\/$/, '')}/wp-json/wc/v3/orders?per_page=1&orderby=id&order=desc`, new URL(base).origin);
@@ -195,37 +216,122 @@ async function verifyWooConnection(base, key, secret) {
   if (response.status !== 200 || !Array.isArray(response.data)) fail(response.status === 401 || response.status === 403 ? 'WOOCOMMERCE_KEY_OR_PERMISSION_INVALID' : 'WOOCOMMERCE_CONNECTION_FAILED', 502);
   return connection;
 }
+async function checkpointWooCursor(db, connection, lock, local, next) {
+  const [saved] = await db.query(`UPDATE sx_retail_store_connections SET sync_cursor=? WHERE tenant_id=? AND id=? AND sync_lock_token=?`,
+    [JSON.stringify({ ...local, woocommerce: next }), connection.tenant_id, connection.id, lock]);
+  if (!saved.affectedRows) fail('STORE_SYNC_LEASE_LOST', 409);
+}
 async function syncWoo(pool, connection) {
   const lock = crypto.randomUUID();
   const [locked] = await pool.query(`UPDATE sx_retail_store_connections SET sync_lock_token=?,sync_lock_until=UTC_TIMESTAMP(3)+INTERVAL 5 MINUTE
     WHERE tenant_id=? AND id=? AND status='active' AND (sync_lock_until IS NULL OR sync_lock_until<UTC_TIMESTAMP(3))`, [lock, connection.tenant_id, connection.id]);
   if (!locked.affectedRows) fail('STORE_SYNC_ALREADY_RUNNING', 409);
-  const local = cursorState(connection), next = local.woocommerce || {}, result = {};
+  const local = cursorState(connection), next = structuredClone(local.woocommerce || {}), result = {};
   try {
+    const resources = ['products','orders','customers'];
+    if (resources.every(resource => next[resource]?.complete) && !(next.variationQueue || []).length) {
+      const lastCompleteScan = next.lastCompleteScan || null;
+      for (const resource of resources) next[resource] = { page: 1, complete: false, sourceTotal: null, scanned: 0 };
+      next.variationQueue = [];
+      next.scanStartedAt = new Date().toISOString();
+      next.lastCompleteScan = lastCompleteScan;
+    }
+    if (!next.scanStartedAt) next.scanStartedAt = new Date().toISOString();
+    for (const resource of resources) next[resource] ||= { page: 1, complete: false, sourceTotal: null, scanned: 0 };
+    next.variationQueue ||= [];
     for (const resource of ['products','orders','customers']) {
-      const previous = next[resource] || {}, page = previous.complete ? 1 : Math.max(1, Number(previous.page) || 1);
-      const data = await wooApi(connection, resource, { per_page: 50, page, orderby: 'id', order: 'asc' });
+      const state = next[resource];
+      if (state.complete) {
+        result[resource] = { imported: 0, hasMore: false, complete: true, sourceTotal: state.sourceTotal };
+        continue;
+      }
+      if (resource === 'products' && next.variationQueue.length) {
+        result[resource] = { imported: 0, hasMore: true, complete: false, waitingForVariations: true,
+          page: Math.max(1, Number(state.page) || 1), sourceTotal: state.sourceTotal, scanned: state.scanned };
+        continue;
+      }
+      const page = Math.max(1, Number(state.page) || 1);
+      if (page > 10000) fail('WOOCOMMERCE_PAGE_LIMIT_REACHED', 413);
+      const data = await wooApi(connection, resource, { per_page: 50, page, orderby: 'id', order: 'asc',
+        ...(resource === 'products' || resource === 'orders' ? { status: 'any' } : {}) });
+      const hasMore = page < data.totalPages;
+      const sourceChanged = state.sourceTotal != null && data.total != null && Number(state.sourceTotal) !== data.total;
+      state.page = hasMore ? page + 1 : page;
+      state.complete = !hasMore;
+      state.sourceTotal = data.total ?? state.sourceTotal;
+      state.scanned = Number(state.scanned || 0) + data.rows.length;
+      state.sourceChangedDuringScan = Boolean(state.sourceChangedDuringScan || sourceChanged);
+      if (resource === 'products') {
+        state.variationSourceTotal = Number(state.variationSourceTotal || 0) + data.rows.reduce((sum, row) => sum + (Array.isArray(row.variations) ? row.variations.length : 0), 0);
+      }
+      if (resource === 'orders') {
+        state.amounts ||= {};
+        for (const row of data.rows) {
+          const order = connector.normalizeOrder('woocommerce', row), key = `${order.currency}|${order.status}|${order.financialStatus}`;
+          const bucket = state.amounts[key] ||= { currency: order.currency, status: order.status, financialStatus: order.financialStatus, count: 0, total: '0.000000' };
+          bucket.count++;
+          bucket.total = connector.decimalAdd([bucket.total, order.total]);
+          for (const field of ['subtotal','discount','shipping','tax','fees','refunds']) {
+            const target = field === 'fees' ? 'fee' : field === 'refunds' ? 'refund' : field;
+            const value = order.breakdown[field];
+            if (value == null) bucket[`${target}Complete`] = false;
+            else if (bucket[`${target}Complete`] !== false) bucket[target] = connector.decimalAdd([bucket[target] || '0.000000', value]);
+          }
+        }
+      }
       const writer = await pool.getConnection();
       try {
         await writer.beginTransaction();
         for (const row of data.rows) {
-          if (resource === 'products') await connector.upsertProduct(writer, connection, row);
+          if (resource === 'products') {
+            await connector.upsertProduct(writer, connection, row);
+            const variationIds = Array.isArray(row.variations) ? row.variations : [];
+            if (variationIds.length && !next.variationQueue.some(item => item.productId === String(row.id))) {
+              next.variationQueue.push({ productId: String(row.id), page: 1 });
+            }
+          }
           if (resource === 'customers') await connector.upsertCustomer(writer, connection, row);
           if (resource === 'orders') {
             if (Number(row.customer_id) > 0) await connector.upsertCustomer(writer, connection, { ...row.billing, id: row.customer_id, billing: row.billing, updated_at: row.date_modified_gmt });
             await connector.upsertOrder(writer, connection, row);
           }
         }
+        await checkpointWooCursor(writer, connection, lock, local, next);
         await writer.commit();
       } catch (error) { await writer.rollback(); throw error; } finally { writer.release(); }
-      const hasMore = page < data.totalPages;
-      next[resource] = { page: hasMore ? page + 1 : 1, complete: !hasMore };
-      result[resource] = { imported: data.rows.length, hasMore };
+      result[resource] = { imported: data.rows.length, hasMore, complete: !hasMore, page,
+        sourceTotal: state.sourceTotal, scanned: state.scanned };
     }
-    await pool.query(`UPDATE sx_retail_store_connections SET sync_cursor=?,last_sync_at=UTC_TIMESTAMP(3),last_error_code=NULL,
+    let variationsImported = 0, variationRequests = 0;
+    while (next.variationQueue.length && variationRequests < 2) {
+      const pending = next.variationQueue[0];
+      const data = await wooApi(connection, 'variations', { productId: pending.productId, per_page: 100, page: pending.page, orderby: 'id', order: 'asc', status: 'any' });
+      const writer = await pool.getConnection();
+      try {
+        await writer.beginTransaction();
+        for (const row of data.rows) await connector.upsertProductVariation(writer, connection, pending.productId, row);
+        pending.totalPages = data.totalPages;
+        if (pending.page >= data.totalPages) next.variationQueue.shift();
+        else pending.page++;
+        await checkpointWooCursor(writer, connection, lock, local, next);
+        await writer.commit();
+      } catch (error) { await writer.rollback(); throw error; } finally { writer.release(); }
+      variationsImported += data.rows.length;
+      variationRequests++;
+    }
+    result.variations = { imported: variationsImported, hasMore: next.variationQueue.length > 0, pendingParents: next.variationQueue.length };
+    const complete = resources.every(resource => next[resource].complete) && next.variationQueue.length === 0;
+    if (complete) next.lastCompleteScan = { startedAt: next.scanStartedAt, completedAt: new Date().toISOString(),
+      queryScope: { products: { status: 'any' }, variations: { status: 'any' }, orders: { status: 'any' }, customers: 'all API-visible customers' },
+      sourceCounts: Object.fromEntries(resources.map(resource => [resource, { total: next[resource].sourceTotal, scanned: next[resource].scanned,
+        sourceChangedDuringScan: Boolean(next[resource].sourceChangedDuringScan) }])),
+      sourceVariationCount: next.products.variationSourceTotal || 0, orderAmounts: next.orders.amounts || {} };
+    const [completed] = await pool.query(`UPDATE sx_retail_store_connections SET sync_cursor=?,last_sync_at=UTC_TIMESTAMP(3),last_error_code=NULL,
       sync_lock_token=NULL,sync_lock_until=NULL WHERE tenant_id=? AND id=? AND sync_lock_token=?`,
     [JSON.stringify({ ...local, woocommerce: next }), connection.tenant_id, connection.id, lock]);
-    return { provider: 'woocommerce', resources: result, automaticUpdates: 'webhooks', abandonedCheckouts: 'connector_plugin_required' };
+    if (!completed.affectedRows) fail('STORE_SYNC_LEASE_LOST', 409);
+    return { provider: 'woocommerce', complete, lastCompleteScanAt: next.lastCompleteScan?.completedAt || null,
+      resources: result, automaticUpdates: 'webhooks', abandonedCheckouts: 'connector_plugin_required' };
   } catch (error) {
     await pool.query(`UPDATE sx_retail_store_connections SET sync_lock_token=NULL,sync_lock_until=NULL,last_error_code=?
       WHERE tenant_id=? AND id=? AND sync_lock_token=?`, [cleanError(error).code, connection.tenant_id, connection.id, lock]);
@@ -237,9 +343,11 @@ async function listConnections(pool, tenantId) {
   const [rows] = await pool.query(`SELECT c.*, (SELECT COUNT(*) FROM sx_retail_external_orders o WHERE o.tenant_id=c.tenant_id AND o.connection_id=c.id) AS orderCount,
     (SELECT COUNT(*) FROM sx_retail_external_customers u WHERE u.tenant_id=c.tenant_id AND u.connection_id=c.id AND u.customer_status='active') AS customerCount,
     (SELECT COUNT(*) FROM sx_retail_external_products p WHERE p.tenant_id=c.tenant_id AND p.connection_id=c.id AND p.product_status<>'deleted') AS productCount,
+    (SELECT COUNT(*) FROM sx_retail_external_product_variants v WHERE v.tenant_id=c.tenant_id AND v.connection_id=c.id AND v.variant_status<>'deleted') AS variationCount,
     (SELECT COUNT(*) FROM sx_retail_external_checkouts x WHERE x.tenant_id=c.tenant_id AND x.connection_id=c.id) AS checkoutCount
     FROM sx_retail_store_connections c WHERE c.tenant_id=? ORDER BY c.created_at DESC,c.id LIMIT 100`, [tenantId]);
-  return rows.map(row => safeConnection({ ...row, counts: { orders: Number(row.orderCount), customers: Number(row.customerCount), products: Number(row.productCount), checkouts: Number(row.checkoutCount) } }));
+  return rows.map(row => safeConnection({ ...row, counts: { orders: Number(row.orderCount), customers: Number(row.customerCount),
+    products: Number(row.productCount), variations: Number(row.variationCount), checkouts: Number(row.checkoutCount) } }));
 }
 
 function normalizeRecoveryUrl(connection, value) {
@@ -264,10 +372,23 @@ async function upsertSafeCheckout(db, connection, row) {
   const recoveryUrl = normalizeRecoveryUrl(connection, row.recoveryUrl || row.abandonedCheckoutUrl || row.abandoned_checkout_url);
   return connector.upsertCheckout(db, connection, { ...row, recoveryUrl });
 }
-async function connectionData(pool, connection, kind, pageValue) {
-  if (!['orders','customers','products','checkouts'].includes(kind)) fail('INVALID_STORE_RESOURCE', 400);
+async function connectionData(pool, connection, kind, pageValue, parentProductId = null) {
+  if (!['orders','customers','products','checkouts','variations'].includes(kind)) fail('INVALID_STORE_RESOURCE', 400);
   const page = Number(pageValue || 1); if (!Number.isSafeInteger(page) || page < 1 || page > 200) fail('INVALID_PAGE', 400);
   const limit = 50, offset = (page - 1) * limit, { tenant_id: tenantId, id } = connection;
+  if (kind === 'variations') {
+    const parentId = String(parentProductId || '');
+    if (connection.provider !== 'woocommerce' || !/^\d{1,191}$/.test(parentId)) fail('INVALID_STORE_RESOURCE', 400);
+    const [rows] = await pool.query(`SELECT external_variant_id AS id,external_product_id AS productId,sku,variant_status AS status,
+      currency,price,variant_ciphertext AS ciphertext,variant_iv AS iv,variant_auth_tag AS authTag
+      FROM sx_retail_external_product_variants WHERE tenant_id=? AND connection_id=? AND external_product_id=? AND variant_status<>'deleted'
+      ORDER BY external_variant_id LIMIT ? OFFSET ?`, [tenantId,id,parentId,limit+1,offset]);
+    return rows.map(row => { const variation = jsonFromEncrypted(row, tenantId, id, `product-variant:${row.id}`); return {
+      id: row.id, productId: row.productId, title: variation.title, sku: row.sku, status: row.status,
+      purchasable: variation.purchasable, currency: row.currency, price: String(row.price), attributes: variation.attributes || [], sourceStock: variation.sourceStock || null,
+      updatedAt: variation.updatedAt || null,
+    }; });
+  }
   if (kind === 'orders') {
     const [rows] = await pool.query(`SELECT external_order_id AS id,order_number AS orderNumber,order_status AS orderStatus,
       financial_status AS financialStatus,currency,total_amount AS totalAmount,customer_external_id AS customerId,
@@ -286,8 +407,11 @@ async function connectionData(pool, connection, kind, pageValue) {
       return { id: row.id, number: row.orderNumber, status: row.orderStatus, financialStatus: row.financialStatus,
         currency: row.currency, total: String(row.totalAmount), customer: customer && { name: [customer.firstName, customer.lastName].filter(Boolean).join(' '), email: customer.email, phone: customer.phone },
         contactConsent: row.contactConsent, lineItems: (snapshot.lineItems || []).slice(0, 100).map(line => ({
-          name: String(line.title || line.name || line.product_title || '').slice(0, 200), sku: String(line.sku || '').slice(0, 100), quantity: Number(line.quantity) || 0,
+          id: line.id, productId: line.productId, variationId: line.variantId,
+          name: String(line.title || line.name || line.product_title || '').slice(0, 200), sku: String(line.sku || '').slice(0, 100),
+          quantity: String(line.quantity ?? '0.000000'), subtotal: line.subtotal, discount: line.discount, total: line.total, tax: line.tax,
         })), lineItemsTruncated: Boolean(snapshot.lineItemsTruncated), transactionsTruncated: Boolean(snapshot.transactionsTruncated),
+        breakdown: snapshot.breakdown || null,
         transactions: (byOrder.get(row.id) || []).map(tx => ({ kind: tx.kind, status: tx.status, currency: tx.currency,
           amount: String(tx.amount), gateway: tx.gateway, processedAt: tx.processedAt })), updatedAt: row.sourceUpdatedAt };
     });
@@ -305,11 +429,20 @@ async function connectionData(pool, connection, kind, pageValue) {
       product_iv AS iv,product_auth_tag AS authTag,source_updated_at AS updatedAt FROM sx_retail_external_products
       WHERE tenant_id=? AND connection_id=? AND product_status<>'deleted' ORDER BY source_updated_at DESC,external_product_id DESC LIMIT ? OFFSET ?`,
     [tenantId, id, limit + 1, offset]);
-    return rows.map(row => { const product = jsonFromEncrypted(row, tenantId, id, `product:${row.id}`); return {
-      id: row.id, title: product.title, sku: product.sku, status: row.status, currency: row.currency, price: String(row.price), imageUrl: product.imageUrl || null,
-      variants: (product.variants || []).slice(0, 20).map(variant => ({ title: String(variant.title || variant.name || 'Default').slice(0, 100),
-        sku: String(variant.sku || '').slice(0, 100), price: String(variant.price ?? '') })),
-      variantsTruncated: Boolean(product.variantsTruncated), updatedAt: row.updatedAt,
+    const productIds = rows.map(row => row.id);
+    const [variationCounts] = productIds.length ? await pool.query(`SELECT external_product_id AS productId,COUNT(*) AS count
+      FROM sx_retail_external_product_variants WHERE tenant_id=? AND connection_id=? AND external_product_id IN (${productIds.map(() => '?').join(',')})
+        AND variant_status<>'deleted' GROUP BY external_product_id`, [tenantId, id, ...productIds]) : [[]];
+    const counts = new Map(variationCounts.map(row => [row.productId, Number(row.count)]));
+    return rows.map(row => { const product = jsonFromEncrypted(row, tenantId, id, `product:${row.id}`), importedVariants = counts.get(row.id) || 0; return {
+      id: row.id, title: product.title, sku: product.sku, status: row.status, currency: row.currency, price: String(row.price),
+      priceUnavailable: Boolean(product.priceUnavailable), imageUrl: product.imageUrl || null,
+      variants: connection.provider === 'woocommerce' ? [] : (product.variants || []).slice(0,20).map(variant => ({
+        title: String(variant.title || variant.name || 'Default').slice(0,100), sku: String(variant.sku || '').slice(0,100),
+        price: String(variant.price ?? '') })),
+      variationCount: importedVariants, sourceVariationCount: Number(product.variationCount) || null,
+      variantsTruncated: Boolean(product.variantsTruncated || Number(product.variationCount) > importedVariants), updatedAt: row.updatedAt,
+      sourceStock: product.sourceStock || null,
     }; });
   }
   const [rows] = await pool.query(`SELECT external_checkout_id AS id,checkout_status AS status,currency,total_amount AS totalAmount,
@@ -322,9 +455,54 @@ async function connectionData(pool, connection, kind, pageValue) {
       jsonFromEncrypted({ ciphertext: row.customerCiphertext, iv: row.customerIv, authTag: row.customerAuthTag }, tenantId, id, `checkout-customer:${row.id}`) : null;
     return { id: row.id, status: row.status, currency: row.currency, total: String(row.totalAmount),
       customer: customer && { name: [customer.firstName, customer.lastName].filter(Boolean).join(' '), email: customer.email, phone: customer.phone },
-      contactConsent: row.contactConsent, lineItems: (checkout.lineItems || []).slice(0, 50).map(line => ({ name: String(line.title || line.name || '').slice(0, 200), quantity: Number(line.quantity) || 0 })),
+      contactConsent: row.contactConsent, lineItems: (checkout.lineItems || []).slice(0, 50).map(line => ({ name: String(line.title || line.name || '').slice(0, 200), quantity: String(line.quantity ?? '0.000000') })),
       lineItemsTruncated: Boolean(checkout.lineItemsTruncated), canRevealRecoveryLink: Boolean(row.status === 'abandoned'), updatedAt: row.updatedAt };
   });
+}
+async function connectionReconciliation(pool, connection) {
+  const tenantId = connection.tenant_id, id = connection.id;
+  const [[counts]] = await pool.query(`SELECT
+    (SELECT COUNT(*) FROM sx_retail_external_products WHERE tenant_id=? AND connection_id=? AND product_status<>'deleted') AS products,
+    (SELECT COUNT(*) FROM sx_retail_external_product_variants WHERE tenant_id=? AND connection_id=? AND variant_status<>'deleted') AS variations,
+    (SELECT COUNT(*) FROM sx_retail_external_orders WHERE tenant_id=? AND connection_id=?) AS orders,
+    (SELECT COUNT(*) FROM sx_retail_external_customers WHERE tenant_id=? AND connection_id=? AND customer_status='active') AS customers,
+    (SELECT COUNT(*) FROM sx_retail_external_checkouts WHERE tenant_id=? AND connection_id=?) AS checkouts`,
+  [tenantId,id,tenantId,id,tenantId,id,tenantId,id,tenantId,id]);
+  const [localOrderAmounts] = await pool.query(`SELECT currency,order_status AS status,financial_status AS financialStatus,COUNT(*) AS count,
+    CAST(SUM(total_amount) AS CHAR) AS total,CAST(SUM(subtotal_amount) AS CHAR) AS subtotal,
+    CAST(SUM(discount_amount) AS CHAR) AS discount,CAST(SUM(shipping_amount) AS CHAR) AS shipping,
+    CAST(SUM(tax_amount) AS CHAR) AS tax,CAST(SUM(fee_amount) AS CHAR) AS fees,CAST(SUM(refund_amount) AS CHAR) AS refunds
+    FROM sx_retail_external_orders WHERE tenant_id=? AND connection_id=? GROUP BY currency,order_status,financial_status
+    ORDER BY currency,order_status,financial_status`, [tenantId,id]);
+  const [[skuMissing]] = await pool.query(`SELECT
+    (SELECT COUNT(*) FROM sx_retail_external_products WHERE tenant_id=? AND connection_id=? AND product_status<>'deleted' AND NULLIF(TRIM(sku),'') IS NULL) AS products,
+    (SELECT COUNT(*) FROM sx_retail_external_product_variants WHERE tenant_id=? AND connection_id=? AND variant_status<>'deleted' AND NULLIF(TRIM(sku),'') IS NULL) AS variations`,
+  [tenantId,id,tenantId,id]);
+  const skuSourceSql = `SELECT UPPER(TRIM(sku)) AS normalizedSku FROM sx_retail_external_products
+    WHERE tenant_id=? AND connection_id=? AND product_status<>'deleted' AND NULLIF(TRIM(sku),'') IS NOT NULL
+    UNION ALL SELECT UPPER(TRIM(sku)) AS normalizedSku FROM sx_retail_external_product_variants
+    WHERE tenant_id=? AND connection_id=? AND variant_status<>'deleted' AND NULLIF(TRIM(sku),'') IS NOT NULL`;
+  const [duplicateSkus] = await pool.query(`SELECT normalizedSku AS sku,COUNT(*) AS count FROM (${skuSourceSql}) sku_rows
+    GROUP BY normalizedSku HAVING COUNT(*)>1 ORDER BY normalizedSku LIMIT 100`, [tenantId,id,tenantId,id]);
+  const [[duplicateSkuSummary]] = await pool.query(`SELECT COUNT(*) AS count FROM (SELECT normalizedSku FROM (${skuSourceSql}) sku_rows
+    GROUP BY normalizedSku HAVING COUNT(*)>1) duplicates`, [tenantId,id,tenantId,id]);
+  const woo = connection.provider === 'woocommerce' ? parseJson(connection.sync_cursor, {}).woocommerce || {} : null;
+  const scan = woo?.lastCompleteScan || null;
+  return { provider: connection.provider, importedCounts: Object.fromEntries(Object.entries(counts).map(([key,value]) => [key, Number(value)])),
+    lastSyncAt: connection.last_sync_at, lastErrorCode: connection.last_error_code,
+    scan: scan ? { startedAt: scan.startedAt, completedAt: scan.completedAt, queryScope: scan.queryScope || null, sourceCounts: scan.sourceCounts || {},
+      sourceVariationCount: scan.sourceVariationCount ?? null, sourceOrderAmounts: Object.values(scan.orderAmounts || {}),
+      stableSourceCounts: Object.values(scan.sourceCounts || {}).every(item => !item.sourceChangedDuringScan) } : null,
+    currentProgress: woo ? { scanStartedAt: woo.scanStartedAt || null, pendingVariationParents: (woo.variationQueue || []).length,
+      resources: Object.fromEntries(['products','orders','customers'].map(resource => [resource, {
+        complete: Boolean(woo[resource]?.complete), page: Number(woo[resource]?.page) || 1,
+        sourceTotal: woo[resource]?.sourceTotal ?? null, scanned: Number(woo[resource]?.scanned) || 0,
+      }])) } : null,
+    skuAudit: { missingProductSku: Number(skuMissing.products), missingVariationSku: Number(skuMissing.variations),
+      duplicateSkuCount: Number(duplicateSkuSummary.count), duplicateSkus: duplicateSkus.map(row => ({ sku: row.sku, count: Number(row.count) })) },
+    localOrderAmounts: localOrderAmounts.map(row => Object.fromEntries(Object.entries(row).map(([key,value]) =>
+      [key, value == null ? null : ['total','subtotal','discount','shipping','tax','fees','refunds'].includes(key) ? String(value) : key === 'count' ? Number(value) : value]))),
+  };
 }
 async function processWebhook(pool, connection, event) {
   const sourceEventId = event.eventId ? String(event.eventId).slice(0, 300) : crypto.createHash('sha256').update(event.raw).digest('hex');
@@ -389,10 +567,19 @@ async function processWebhook(pool, connection, event) {
       if (/delete|redact/.test(topic)) await connector.redactCustomer(db, connection, String(parsed?.id || ''));
       else await connector.upsertCustomer(db, connection, parsed);
     } else if (topic.includes('product') || resourceType === 'product' || resourceType === 'products') {
-      if (/delete/.test(topic)) await db.query(`UPDATE sx_retail_external_products SET product_status='deleted'
-        WHERE tenant_id=? AND connection_id=? AND external_product_id=?`, [connection.tenant_id, connection.id,
-          connection.provider === 'shopify' ? connector.canonicalShopifyId('Product', externalId) : externalId]);
-      else await connector.upsertProduct(db, connection, parsed);
+      if (connection.provider === 'woocommerce' && Number(parsed?.parent_id) > 0) {
+        if (/delete/.test(topic)) {
+          await connector.upsertProductVariation(db, connection, parsed.parent_id, parsed);
+          await connector.markProductVariationDeleted(db, connection, parsed.parent_id, parsed.id, parsed.date_modified_gmt || parsed.date_modified);
+        } else await connector.upsertProductVariation(db, connection, parsed.parent_id, parsed);
+      } else if (/delete/.test(topic)) {
+        const productId = connection.provider === 'shopify' ? connector.canonicalShopifyId('Product', externalId) : externalId;
+        await db.query(`UPDATE sx_retail_external_products SET product_status='deleted',source_updated_at=COALESCE(?,source_updated_at)
+          WHERE tenant_id=? AND connection_id=? AND external_product_id=? AND (? IS NULL OR source_updated_at IS NULL OR source_updated_at<=?)`,
+        [connector.dateOrNull(parsed?.date_modified_gmt || parsed?.updated_at), connection.tenant_id, connection.id, productId,
+          connector.dateOrNull(parsed?.date_modified_gmt || parsed?.updated_at), connector.dateOrNull(parsed?.date_modified_gmt || parsed?.updated_at)]);
+        if (connection.provider === 'woocommerce') await connector.markProductVariationsDeleted(db, connection, productId, parsed?.date_modified_gmt || parsed?.updated_at);
+      } else await connector.upsertProduct(db, connection, parsed);
     } else if (topic.includes('checkout') || resourceType === 'checkout' || parsed?.type?.startsWith('checkout.')) {
       const checkout = parsed?.data || parsed?.checkout || parsed;
       if (parsed?.type === 'checkout.started') checkout.status = 'started';
@@ -549,8 +736,14 @@ function workspaceRouter({ pool, authenticate, origin }) {
   router.get('/:id/data/:kind', owner(async (req, res, context) => {
     const connection = await loadConnection(pool, context.tenant.id, req.params.id);
     if (connection.status === 'pending') fail('STORE_CONNECTION_NOT_READY', 409);
-    const page = Number(req.query.page || 1), rows = await connectionData(pool, connection, req.params.kind, page);
+    const page = Number(req.query.page || 1), rows = await connectionData(pool, connection, req.params.kind, page, req.query.productId);
     reply(res, { items: rows.slice(0, 50), page, hasMore: rows.length > 50 });
+  }));
+
+  router.get('/:id/reconciliation', owner(async (req, res, context) => {
+    const connection = await loadConnection(pool, context.tenant.id, req.params.id);
+    if (connection.status === 'pending') fail('STORE_CONNECTION_NOT_READY', 409);
+    reply(res, await connectionReconciliation(pool, connection));
   }));
 
   router.get('/:id/recovery-link', owner(async (req, res, context) => {
@@ -655,7 +848,7 @@ function workspaceRouter({ pool, authenticate, origin }) {
     try {
       await db.beginTransaction();
       for (const table of ['sx_retail_external_transactions','sx_retail_external_orders','sx_retail_external_checkouts',
-        'sx_retail_external_customers','sx_retail_external_products','sx_retail_external_events','sx_retail_store_privacy_requests']) {
+        'sx_retail_external_customers','sx_retail_external_product_variants','sx_retail_external_products','sx_retail_external_events','sx_retail_store_privacy_requests']) {
         await db.query(`DELETE FROM ${table} WHERE tenant_id=? AND connection_id=?`, [context.tenant.id, connection.id]);
       }
       await db.query(`INSERT INTO sx_audit_events(id,tenant_id,actor_identity_id,actor_kind,action,resource_type,resource_id,changes,correlation_id)
@@ -770,10 +963,9 @@ function publicRouter({ pool, authenticate, origin }) {
     return handleWebhook(pool, 'woocommerce', connection, req, res);
   }));
   router.get('/woocommerce-plugin', noStore, (req, res) => {
-    const filename = path.resolve(__dirname, '../../integrations/woocommerce/7network-retail-connector.zip');
-    if (!fs.existsSync(filename)) return res.sendStatus(404);
+    const archive = buildConnectorArchive();
     res.set('X-Content-Type-Options', 'nosniff').set('Content-Disposition', 'attachment; filename="7network-retail-connector.zip"');
-    return res.type('application/zip').sendFile(filename);
+    return res.type('application/zip').set('Content-Length', String(archive.length)).send(archive);
   });
   router.use((error, req, res, next) => {
     if (res.headersSent) return next(error);
@@ -783,4 +975,4 @@ function publicRouter({ pool, authenticate, origin }) {
   return router;
 }
 
-module.exports = { workspaceRouter, publicRouter, syncShopify, syncWoo, connectionData, processWebhook, listConnections };
+module.exports = { workspaceRouter, publicRouter, syncShopify, syncWoo, connectionData, connectionReconciliation, processWebhook, listConnections };
