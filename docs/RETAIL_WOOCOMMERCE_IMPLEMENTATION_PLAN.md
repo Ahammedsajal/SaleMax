@@ -83,6 +83,12 @@ The live database ledger reports all entries below as applied, with complete sta
 
 Migration 20270133_retail_woocommerce_product_sync.sql and retail-product-sync.js appear in a remote retail branch, but neither is mounted in the running app nor present in the production migration ledger. They are deliberately excluded from this reconciliation and are not deployed capability.
 
+### Migration rehearsal evidence and blocker
+
+The focused Retail migration pair, `20270132_retail_connected_stores.sql` followed by `20270205_retail_woocommerce_variations_reconciliation.sql`, has applied successfully on isolated MySQL 9.6 and MariaDB 11.4.13 databases with only a minimal `sx_tenants` base table. The MariaDB rehearsal verified all six decimal order-total columns, the product SKU column, and the variation-to-connection foreign key; its temporary database and server were removed. This checks the SQL for the Retail pair, not the full application migration runner or backup/restore.
+
+The full fresh-database migration integration run is not release-ready. On MariaDB 11.4.13 it stops before Retail at `20261024_business_daily_report_default_time.sql`, which alters `sx_business_notification_settings` before `20261225_business_whatsapp_notifications.sql` creates that table. An earlier attempt on MySQL 9.6 stopped even earlier because the baseline migration uses MariaDB-specific generated-column syntax. Treat this as an existing clean-chain dependency defect; do not change an applied historical migration checksum as part of the Retail increment. Resolve the clean-install path in a separately reviewed migration change, then rerun the full chain and backup/restore rehearsal.
+
 ### Release blocker: notification worker kind mismatch
 
 The running shared worker accepts invoice, payment, daily summary, AI usage, and chatbot handoff events. The live retail order service enqueues retail_order_event and retail_customer_order_event. The shared enqueue function rejects unknown kinds; the retail service calls it inside order/status transactions when the corresponding notification setting or customer consent is enabled. This can fail the transaction when retail notifications are enabled. The release snapshot says retail notifications default off and no customer notifications were sent; current tenant settings were not read.
@@ -212,6 +218,7 @@ The application code does not define annual pricing or support terms. Before han
 ## Deployment controls and acceptance record
 
 - Use the established guarded release process. Deploy each increment to isolated staging first; apply reviewed additive migrations only after disposable-database rehearsal and verified backup/restore path.
+- Do not release the Retail migrations until the pre-existing clean-chain blocker above is resolved and the full migration runner plus backup/restore rehearsal pass. The focused pair test does not clear this gate.
 - Keep feature flags tenant-scoped. Start with the Essentials by D tenant, live data import explicitly approved by its owner, and no customer sends or Woo writes. The initial connector uses a read-only key. TFB onboarding remains a separate later rollout.
 - Verify /user owner, accountant, manager, and agent views plus permitted/denied APIs; preserve Manage Plans and Manage Users. Verify English/Arabic, RTL, light/dark, loading/empty/error/denied/retry states, keyboard/touch, and widths 360, 390, 768, 1024, and 1440 CSS pixels.
 - For PWA assets, verify install/navigation and cache versioning. Never cache private connector/customer/order API responses in a shared service worker. Offline or queued writes must not appear confirmed.
