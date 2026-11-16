@@ -18,8 +18,7 @@ SPEC.loader.exec_module(WRAPPER)
 class SevenNetworkDinstarLabelsReleaseHelperTest(unittest.TestCase):
     def test_helper_is_bound_to_current_overlay_and_exact_runtime_files(self):
         helper = WRAPPER.load_helper(ROOT)
-        self.assertEqual(helper.ACTIVE_OVERLAY,
-            '/opt/salemax/releases/email-marketing-completion-cf0e8f0a6401-20261114/compose.email-marketing-completion.json')
+        self.assertIsNone(helper.ACTIVE_OVERLAY)
         self.assertEqual(WRAPPER.REQUIRED_OVERLAYS, (
             '/opt/salemax/releases/call-center-dinstar-model-guard-4069c70da166-20261112/compose.call-center-inbound-lead-link.json',
         ))
@@ -50,6 +49,22 @@ class SevenNetworkDinstarLabelsReleaseHelperTest(unittest.TestCase):
         self.assertEqual(helper.RELEASE_PREFIX, 'call-center-dinstar-labels')
         self.assertEqual(helper.RELEASE_DAY, '20261116')
         self.assertEqual(helper.HELPER_NAME, 'deploy/7network-dinstar-labels-release.py')
+
+    def test_deploy_binds_the_current_live_compose_tail_and_requires_model_guard(self):
+        helper = WRAPPER.load_helper(ROOT)
+        tail = '/opt/salemax/releases/pro-catalyst-course-context-b836d27e1c6c-20261116/compose.pro-catalyst-course-context.json'
+        app = {'Config': {'Labels': {'com.docker.compose.project.config_files': ','.join((
+            '/opt/salemax/releases/training-pipeline-correction-v3-9867ca72-20261104/deploy/compose.yml',
+            *WRAPPER.REQUIRED_OVERLAYS,
+            tail,
+        ))}}}
+        files = WRAPPER.bind_active_compose_chain(helper, app)
+        self.assertEqual(files[-1], tail)
+        self.assertEqual(helper.ACTIVE_OVERLAY, tail)
+
+        app['Config']['Labels']['com.docker.compose.project.config_files'] = tail
+        with self.assertRaisesRegex(RuntimeError, 'Required Dinstar model guard overlay'):
+            WRAPPER.bind_active_compose_chain(helper, app)
 
     def test_live_index_patch_changes_only_one_exact_cache_busted_asset(self):
         original = b'<script src="/admin-telephony.js?v=20261012-tls-readonly2"></script>\n<section>live shell</section>\n'

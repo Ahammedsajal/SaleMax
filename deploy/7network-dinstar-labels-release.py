@@ -7,7 +7,6 @@ from pathlib import Path
 import subprocess
 import sys
 
-ACTIVE_OVERLAY = '/opt/salemax/releases/email-marketing-completion-cf0e8f0a6401-20261114/compose.email-marketing-completion.json'
 REQUIRED_OVERLAYS = (
     '/opt/salemax/releases/call-center-dinstar-model-guard-4069c70da166-20261112/compose.call-center-inbound-lead-link.json',
 )
@@ -40,6 +39,17 @@ def patch_admin_telephony_index(index, expected_preimage):
     if index.count(OLD_ADMIN_TELEPHONY_ASSET) != 1:
         raise RuntimeError('Expected exactly one reviewed admin telephony asset URL')
     return index.replace(OLD_ADMIN_TELEPHONY_ASSET, NEW_ADMIN_TELEPHONY_ASSET, 1)
+
+
+def bind_active_compose_chain(helper, app):
+    labels = app.get('Config', {}).get('Labels', {}) or {}
+    files = labels.get('com.docker.compose.project.config_files', '').split(',')
+    if not files or not files[-1]:
+        raise RuntimeError('Active Compose chain cannot be read from the app container')
+    if any(required not in files for required in REQUIRED_OVERLAYS):
+        raise RuntimeError('Required Dinstar model guard overlay is not active')
+    helper.ACTIVE_OVERLAY = files[-1]
+    return tuple(files)
 
 
 def prepare_live_index(helper, stage, commit):
@@ -90,7 +100,7 @@ def load_helper(source_root=None):
     helper = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(helper)
     helper.RUNTIME_FILES = SOURCE_RUNTIME_FILES
-    helper.ACTIVE_OVERLAY = ACTIVE_OVERLAY
+    helper.ACTIVE_OVERLAY = None
     helper.ACTIVE_HELPER = ACTIVE_HELPER
     helper.EXPECTED_IMAGE = EXPECTED_IMAGE
     helper.RUNTIME_FILES = SOURCE_RUNTIME_FILES
@@ -116,6 +126,7 @@ def main(args):
     elif len(args) == 3 and args[0] == 'deploy':
         helper = load_helper()
         helper.require_production_lock()
+        bind_active_compose_chain(helper, helper.inspect(helper.APP))
         prepare_live_index(helper, args[1], args[2])
         helper.RUNTIME_FILES = SOURCE_RUNTIME_FILES + (INDEX_FILE,)
         helper.main(args)
