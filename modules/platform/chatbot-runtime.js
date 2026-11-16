@@ -542,7 +542,7 @@ async function trainingCenterGuidedTurn({ ctx, profile, uid, message, sessionId,
     if (!pilotGreeting) reply = businessContext.polishGuidedReply({ result: reply, profile, message: textOf(message), state: priorState, defaults: pack.guidedContentDefaults });
     const questionLeadInfo = deferLeadQuestion ? null : leadInfo;
     if (!reply.handoff && !reply.openingTexts) reply.reply = require('./chatbot-lead-capture').addQuestion(reply.reply, questionLeadInfo, profile.config, pack.guidedContentDefaults);
-    if (!reply.handoff && leadInfo?.qatarContactPending && (courseSelection?.context || courseSelection?.unlisted)) {
+    if (!reply.handoff && leadInfo?.qatarContactPending && (courseSelection?.context || courseSelection?.unlisted || courseSelection?.clarify)) {
       const capture = require('./chatbot-lead-capture');
       if (reply.openingTexts?.length) {
         reply.openingTexts[reply.openingTexts.length - 1] = capture.addQatarContactQuestion(reply.openingTexts.at(-1), leadInfo);
@@ -1216,7 +1216,6 @@ async function aiTurn({ ctx, profile, uid, message, user, sessionId, origin, cha
         fullCourseOpening = courseOpening.isOpeningRequest(incoming, selectionContext, selectionFacts?.find(item => item.code === selectionContext.selectedCourseCode));
       }
     }
-    if (courseSelection?.clarify && session?.waitingForCourse) return { handedOff: true, code: 'course-unmatched-after-clarification' };
     const applicationAccepted = acceptsRegistrationForm(session, incoming);
     const routeUsesAi = aiHandlesStaffRoute(profile, route);
     if (courseSelection || (!intakeAnswer && ((route !== 'answer' && !routeUsesAi) || leadInfo?.nameOnly || applicationAccepted || bareCourseSelection || fullCourseOpening || (profile.engine === 'hybrid' && profile.config.aiFallback === false)))) {
