@@ -38,7 +38,7 @@ def require_lock():
         raise RuntimeError('Active base release changed')
 
 
-def reset(source):
+def reset(source, backup=BACKUP):
     require_lock()
     app = inspect(APP)
     labels = app['Config']['Labels']
@@ -46,18 +46,18 @@ def reset(source):
         raise RuntimeError('Active app health or image differs from the reviewed baseline')
     if labels.get('com.docker.compose.project.config_files', '').split(',')[-1] != OVERLAY:
         raise RuntimeError('Expected Pro Catalyst callback overlay is not active')
-    if not source.is_file() or BACKUP.exists():
+    if not source.is_file() or backup.exists():
         raise RuntimeError('Reset source is missing or snapshot path already exists')
 
     os.umask(0o077)
-    BACKUP.mkdir(mode=0o700)
-    (BACKUP / 'release-path.txt').write_text(str(RELEASE) + '\n')
-    (BACKUP / 'active-app.json').write_text(json.dumps({
+    backup.mkdir(mode=0o700)
+    (backup / 'release-path.txt').write_text(str(RELEASE) + '\n')
+    (backup / 'active-app.json').write_text(json.dumps({
         'containerId': app['Id'], 'image': app['Image'], 'baseRelease': BASE,
         'composeInputs': len(labels['com.docker.compose.project.config_files'].split(',')),
     }, indent=2) + '\n')
     support = {name: inspect(name)['Id'] for name in SUPPORT}
-    (BACKUP / 'support-services.json').write_text(json.dumps(support, indent=2) + '\n')
+    (backup / 'support-services.json').write_text(json.dumps(support, indent=2) + '\n')
 
     script = RELEASE / 'deploy/pro-catalyst-handover-system-pause-reset.cjs'
     data = source.read_bytes()
@@ -73,7 +73,7 @@ def reset(source):
         first = json.loads(process.stdout.readline())
         if 'preimage' not in first:
             raise RuntimeError('Reset preflight failed: ' + first.get('error', 'UNKNOWN'))
-        snapshot = BACKUP / 'system-pause-preimage.json'
+        snapshot = backup / 'system-pause-preimage.json'
         with snapshot.open('x') as saved:
             json.dump(first['preimage'], saved)
             saved.flush()
@@ -84,7 +84,7 @@ def reset(source):
             raise RuntimeError('Stale pause reset failed: ' + result.get('error', 'UNKNOWN'))
         result['preimageSha256'] = hashlib.sha256(snapshot.read_bytes()).hexdigest()
         result['resetScriptSha256'] = source_hash
-        (BACKUP / 'system-pause-reset-result.json').write_text(json.dumps(result, indent=2) + '\n')
+        (backup / 'system-pause-reset-result.json').write_text(json.dumps(result, indent=2) + '\n')
 
     after = inspect(APP)
     if after['Id'] != app['Id'] or after['State'].get('Health', {}).get('Status') != 'healthy':
@@ -95,6 +95,6 @@ def reset(source):
 
 
 if __name__ == '__main__':
-    if len(sys.argv) != 2:
-        raise SystemExit('Usage: pro-catalyst-handover-system-pause-reset.py <reset-script.cjs>')
-    reset(Path(sys.argv[1]))
+    if len(sys.argv) not in (2, 3):
+        raise SystemExit('Usage: pro-catalyst-handover-system-pause-reset.py <reset-script.cjs> [backup-path]')
+    reset(Path(sys.argv[1]), Path(sys.argv[2]) if len(sys.argv) == 3 else BACKUP)
