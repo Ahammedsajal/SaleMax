@@ -92,7 +92,7 @@ def read_profile_setting():
       const tenantId=process.env.SALEMAX_CHATBOT_ONE_HOUR_HANDOFF_TENANT_ID;
       if(!tenantId)throw Error('TENANT_SCOPE_UNAVAILABLE');
       const [profiles]=await pool.query("SELECT id,revision,JSON_UNQUOTE(JSON_EXTRACT(config,?)) AS maxCourses FROM sx_chatbot_profiles WHERE tenant_id=? AND status=? AND category_key=? ORDER BY updated_at DESC",["$.guidedContent.display.maxCourses",tenantId,"live","training_center"]);
-      const [[catalogue]]=await pool.query("SELECT COUNT(*) AS activeCourses FROM sx_training_courses WHERE tenant_id=? AND status=?",[tenantId,"active"]);
+      const [[catalogue]]=await pool.query("SELECT COUNT(*) AS activeCourses FROM sx_training_courses WHERE tenant_id=? AND status=? AND deleted_at IS NULL",[tenantId,"active"]);
       console.log(JSON.stringify({profiles,activeCourses:Number(catalogue.activeCourses)}));
     }finally{await pool.end()}})().catch(error=>{console.error(error.code||'PROFILE_READ_FAILED');process.exit(1)})'''
     data = node_json(script)
