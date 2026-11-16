@@ -332,8 +332,11 @@ async function processMessage({
 
       const mockup = require('../../modules/platform/chatbot-mockup');
       const mockupOnly = mockup.ownsInbox(uid, origin);
+      const runtimeMessage = origin === 'qr' && body?.key?.remoteJid
+        ? { ...msg, _qrRecipientJid: body.key.remoteJid }
+        : msg;
       const inboundContext = {
-        uid, message: msg, origin, chatId: latestConversation?.chatId,
+        uid, message: runtimeMessage, origin, chatId: latestConversation?.chatId,
         sessionId: latestConversation?.channelExternalId || sessionId,
       };
 
@@ -414,10 +417,10 @@ async function processMessage({
       }
 
       let configuredBot = { handled: false };
-      const qrPhone = origin === 'qr' && /^([1-9]\d{7,14})@s\.whatsapp\.net$/.exec(body?.key?.remoteJid || '')?.[1];
-      if (mockupOnly && msg.route === 'INCOMING' && qrPhone && qrPhone === msg.senderMobile) {
-        // The configured runtime verifies the saved test audience. Never fall
-        // through to webhook or legacy automation for this Inbox.
+      if (mockupOnly && origin === 'qr' && msg.route === 'INCOMING') {
+        // The configured runtime verifies the saved audience and direct-chat
+        // identity. LID chats are sent back to their original JID only for a
+        // profile with an explicit 100% rollout.
         try { configuredBot = await runConfiguredBot({ ...inboundContext, user }); }
         catch (error) { console.warn('Chatbot test reply unavailable.', error.code || 'CHATBOT_RUNTIME_ERROR'); }
       } else if (!mockupOnly) {

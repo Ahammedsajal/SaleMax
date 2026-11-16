@@ -717,7 +717,7 @@ async function sendWaMessage({
       } else {
         const jid = isGroup
           ? formatGroup(message.senderMobile)
-          : formatPhone(message.senderMobile);
+          : require('../modules/platform/chatbot-mockup').qrSendTarget(message) || formatPhone(message.senderMobile);
 
         const send = await timeoutPromise(
           require("../modules/platform/chatbot-conversation-control").sendAutomatedQr(session, jid, convertMsgToQR, senderKind),

@@ -95,3 +95,24 @@ test('customer replies require an explicit full QR rollout or the existing test 
  assert.equal(liveRecipientAllowed({ rolloutPercent: 100 }, 'qr', customer + '@lid'), false);
  assert.equal(liveRecipientAllowed({ rolloutPercent: 100 }, 'qr', customer + '@g.us'), false);
 });
+
+test('live QR routing preserves canonical phones and replies to unresolved LIDs only on full rollout', () => {
+ const mockup = require('../modules/platform/chatbot-mockup');
+ const phone = '97455550004';
+ const phoneMessage = { senderMobile: `${phone}:7`, _qrRecipientJid: `${phone}:7@s.whatsapp.net` };
+ const allowlisted = { testRecipientPhones: [phone], allowedRecipientPhones: [phone] };
+ assert.equal(mockup.liveQrMessageAllowed(allowlisted, phoneMessage), true);
+ assert.equal(mockup.senderMobileFromQrJid(`${phone}:7@s.whatsapp.net`), phone);
+ assert.equal(mockup.liveQrMessageAllowed({ rolloutPercent: 99 }, phoneMessage), false);
+
+ const lid = '158712094290110';
+ const lidMessage = { senderMobile: lid, _qrRecipientJid: `${lid}@lid` };
+ assert.equal(mockup.liveQrMessageAllowed({ rolloutPercent: 100 }, lidMessage), true);
+ assert.equal(mockup.fullRolloutQrLidAllowed({ rolloutPercent: 100 }, lidMessage), true);
+ assert.equal(mockup.qrSendTarget(lidMessage), `${lid}@lid`);
+ assert.equal(mockup.liveQrMessageAllowed({ rolloutPercent: 99 }, lidMessage), false);
+ assert.equal(mockup.liveQrMessageAllowed({ testRecipientPhones: [lid], allowedRecipientPhones: [lid] }, lidMessage), false);
+ assert.equal(mockup.liveQrMessageAllowed({ rolloutPercent: 100 }, { ...lidMessage, senderMobile: '97455550004' }), false);
+ assert.equal(mockup.qrSendTarget({ ...lidMessage, senderMobile: '97455550004' }), null);
+ assert.equal(mockup.liveQrMessageAllowed({ rolloutPercent: 100 }, { ...lidMessage, _qrRecipientJid: '123@g.us' }), false);
+});

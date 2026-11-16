@@ -305,7 +305,7 @@ async function handleHandoffPriorityMessage({ uid, message, user, sessionId, ori
   const ctx = access.context;
   if (!ctx) return { handled: false };
   const profile = await profileFor(ctx, uid, origin, sessionId);
-  if (mockup.ownsInbox(uid, origin) && !mockup.liveRecipientAllowed(profile?.config, origin, message.senderMobile)) return { handled: true };
+  if (mockup.ownsInbox(uid, origin) && !mockup.liveQrMessageAllowed(profile?.config, message)) return { handled: true };
   if (!profile) return { handled: false };
   const staffPause = await require('./chatbot-conversation-control').readPause(uid, chatId, channelFor(origin), sessionId);
   if (staffPause?.reason === 'staff-replied' || coordinatorHandoffReasons.has(staffPause?.reason)) return { handled: true, paused: true };
@@ -800,13 +800,14 @@ async function saveConversationalState({ ctx, profile, chatId, channelKind, chan
 
 async function canSendNow({ ctx, profile, uid, origin, sessionId, chatId, message, checkPause=true }) {
   const pilot = mockup.ownsInbox(uid, origin);
-  if (pilot && !mockup.liveRecipientAllowed(profile?.config, origin, message?.senderMobile)) return false;
+  if (pilot && !mockup.liveQrMessageAllowed(profile?.config, message)) return false;
   const access=await currentOwnerAccess(uid);
   if(!require('./chatbot-runtime-access').sameBoundary(ctx,access.context))return false;
   const current = await profileFor(access.context, uid, origin, sessionId);
+  const fullRolloutLid = pilot && mockup.fullRolloutQrLidAllowed(current?.config, message);
   return current?.id === profile.id && Number(current.revision) === Number(profile.revision)
-    && recipientAllowed(current.config, message?.senderMobile, current.id)
-    && (!pilot || mockup.liveRecipientAllowed(current.config, origin, message?.senderMobile))
+    && (fullRolloutLid || recipientAllowed(current.config, message?.senderMobile, current.id))
+    && (!pilot || mockup.liveQrMessageAllowed(current.config, message))
     && (!checkPause||!await shouldPause(uid, chatId, channelFor(origin), sessionId));
 }
 
@@ -1596,12 +1597,16 @@ async function runConfiguredBot({ uid, message, user, sessionId, origin, chatId 
     return blocked?{handled:true,paused:true,code:access.code||'BUSINESS_ACCESS_INACTIVE'}:{handled:false};
   }
   const profile = await profileFor(ctx, uid, origin, sessionId);
-  if (pilot && !mockup.liveRecipientAllowed(profile?.config, origin, message.senderMobile)) return { handled: true, paused: true, code: 'RECIPIENT_NOT_ENABLED' };
+  if (pilot && !mockup.liveQrMessageAllowed(profile?.config, message)) {
+    const identity = mockup.qrRecipientIdentity(message);
+    console.info('[chatbot] live QR turn skipped', JSON.stringify({ code: identity ? 'RECIPIENT_NOT_ENABLED' : 'QR_RECIPIENT_IDENTITY_UNVERIFIED' }));
+    return { handled: true, paused: true, code: identity ? 'RECIPIENT_NOT_ENABLED' : 'QR_RECIPIENT_IDENTITY_UNVERIFIED' };
+  }
   if (!profile) return { handled: false };
   const priority = await handleHandoffPriorityMessage({ uid, message, user, sessionId, origin, chatId });
   if (priority.handled) return priority;
   // A restricted chat is handled silently so it cannot fall through to legacy bots.
-  if (!recipientAllowed(profile.config, message?.senderMobile, profile.id)) return { handled: true, paused: true, code: 'RECIPIENT_NOT_ENABLED' };
+  if (!mockup.fullRolloutQrLidAllowed(profile.config, message) && !recipientAllowed(profile.config, message?.senderMobile, profile.id)) return { handled: true, paused: true, code: 'RECIPIENT_NOT_ENABLED' };
   let leadInfo = null;
   if (ctx.tenant.categoryKey === 'training_center') {
     try {

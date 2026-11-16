@@ -22,6 +22,35 @@ function liveRecipientAllowed(config, origin, recipient) {
   return testRecipientAllowed(config, origin, recipient) ||
     Boolean(origin === 'qr' && config?.rolloutPercent === 100 && recipientPhone(recipient));
 }
+function senderMobileFromQrJid(jid) {
+  const value = String(jid || '');
+  const phone = /^([1-9]\d{7,14})(?::\d+)?@s\.whatsapp\.net$/i.exec(value);
+  if (phone) return phone[1];
+  return value.split('@')[0] || 'NA';
+}
+function qrRecipientIdentity(message) {
+  const jid = String(message?._qrRecipientJid || '');
+  const mobile = String(message?.senderMobile || '').replace(/^\+/, '');
+  const phone = /^([1-9]\d{7,14})(?::\d+)?@s\.whatsapp\.net$/i.exec(jid);
+  if (phone && mobile.replace(/:\d+$/, '') === phone[1]) return { kind: 'phone', phone: phone[1], jid };
+  const lid = /^([1-9]\d{7,19})@lid$/i.exec(jid);
+  if (lid && mobile === lid[1]) return { kind: 'lid', phone: null, jid };
+  return null;
+}
+function liveQrMessageAllowed(config, message) {
+  const identity = qrRecipientIdentity(message);
+  if (identity?.kind === 'phone') return liveRecipientAllowed(config, 'qr', identity.phone);
+  // An unresolved LID has no verified phone to match against a test allowlist.
+  // Permit it only when the owner explicitly enabled the full QR rollout.
+  return Boolean(identity?.kind === 'lid' && config?.rolloutPercent === 100);
+}
+function fullRolloutQrLidAllowed(config, message) {
+  return Boolean(config?.rolloutPercent === 100 && qrRecipientIdentity(message)?.kind === 'lid');
+}
+function qrSendTarget(message) {
+  const identity = qrRecipientIdentity(message);
+  return identity?.kind === 'lid' ? identity.jid : null;
+}
 const safeCode = value => String(value || '').match(/^[a-zA-Z0-9_-]{1,100}$/)?.[0] || null;
 
 async function enqueue(pool, { uid, message, origin, sessionId, chatId }) {
@@ -213,4 +242,5 @@ function createRouter({ pool, authenticate }) {
   return router;
 }
 
-module.exports = { enabled, ownsInbox, testRecipientAllowed, liveRecipientAllowed, enqueue, start, tick, list, thread, createRouter };
+module.exports = { enabled, ownsInbox, testRecipientAllowed, liveRecipientAllowed, senderMobileFromQrJid,
+  qrRecipientIdentity, liveQrMessageAllowed, fullRolloutQrLidAllowed, qrSendTarget, enqueue, start, tick, list, thread, createRouter };

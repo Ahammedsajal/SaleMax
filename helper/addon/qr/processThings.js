@@ -489,9 +489,8 @@ async function processBaileysMsg({ sessionId, live, body, uid, userFromMysql, ch
         userFromMysql?.timezone || body.messageTimestamp
       ),
       senderName: groupMessage ? msgContext.group.participantName : body.pushName || "NA",
-      senderMobile: groupMessage ? msgContext.group.participantJid : body.key.remoteJid
-        ? body.key.remoteJid.split("@")[0]
-        : "NA",
+      senderMobile: groupMessage ? msgContext.group.participantJid
+        : require('../../../modules/platform/chatbot-mockup').senderMobileFromQrJid(body.key?.remoteJid),
       status: "",
       star: false,
       route: body.key?.fromMe ? "OUTGOING" : "INCOMING",
