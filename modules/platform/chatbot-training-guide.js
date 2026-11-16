@@ -55,7 +55,7 @@ function menuText(facts = [], settings = {}, language = 'en', { includeGreeting 
 
 function courseLimit(settings) {
   const value = Number(settings.display?.maxCourses);
-  return Number.isSafeInteger(value) ? Math.max(1, Math.min(10, value)) : 10;
+  return Number.isSafeInteger(value) ? Math.max(1, Math.min(20, value)) : 10;
 }
 
 const DURATION_UNITS = Object.freeze({

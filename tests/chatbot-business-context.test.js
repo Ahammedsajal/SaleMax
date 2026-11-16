@@ -37,6 +37,15 @@ test('certificate enquiry does not select a different course with certificate in
  assert.match(c.evidence[0].description,/6–7 weeks and a certificate of completion/);
  assert.equal(validateAnswer({canAnswer:true,reply:'The outline states 6–7 weeks and a certificate of completion.',sourceIds:['course:excel']},c).code,'ANSWER_CERTIFICATE_UNVERIFIED');
 });
+test('spaced caregiver alias selects the caregiver course instead of broader health and social care',()=>{
+ const courses=[
+  {courseId:'caregiver',code:'CAT-NURSING-CAREGIVER',nameEn:'Certificate in Nursing Assistance or Caregiver',descriptionEn:'Nursing assistance and caregiver training.'},
+  {courseId:'health-social',code:'CAT-QUALIFI-HEALTH-SOCIAL',nameEn:'Diploma Health & Social Care – Qualifi (UK)',descriptionEn:'Health and social care qualification.'}
+ ];
+ const context=retrieveContext({facts:courses,message:'Care giver'});
+ assert.equal(context.selectedCourseCode,'CAT-NURSING-CAREGIVER');
+ assert.deepEqual(context.evidence.filter(item=>item.kind==='course').map(item=>item.code),['CAT-NURSING-CAREGIVER']);
+});
 const routing = {
  guided:['hello','hi','hey','good morning','good evening','salam','مرحبا','أهلاً','السلام عليكم','صباح الخير','مساء الخير','menu','back','القائمة','رجوع','0','next','previous','التالي','السابق','form','enquiry form','registration form','نموذج','نموذج التسجيل','English','عربي','courses','course list','show courses','available courses','what courses do you have','الدورات','دورات','عرض الدورات','قائمة الدورات'],
  human:['agent','human','staff','person','talk to a human','موظف','أريد موظف','ابي موظف','Please connect me to an advisor','Can I speak to your team','اريد التحدث مع موظف','اريد التواصل مع الفريق'],

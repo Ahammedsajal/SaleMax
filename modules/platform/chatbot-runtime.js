@@ -1106,7 +1106,7 @@ function courseClarification(state, message, selection = null, facts = [], guide
         display: { ...(base.display || {}), ...(configured.display || {}) },
       };
       const rawLimit = Number(settings.display.maxCourses);
-      const limit = Number.isSafeInteger(rawLimit) ? Math.max(1, Math.min(10, rawLimit)) : 10;
+      const limit = Number.isSafeInteger(rawLimit) ? Math.max(1, Math.min(20, rawLimit)) : 10;
       const visible = courses.slice(0, limit);
       const list = require('./chatbot-training-guide').formatCourseList(visible, settings, language);
       const intro = language === 'ar'

@@ -133,7 +133,7 @@ const TRAINING_CENTER_GUIDED_SCHEMA = {
       localizedField('messages.courseListHeading', 'Course list heading', 'عنوان قائمة الدورات', 160),
       localizedField('messages.courseListEmpty', 'No courses available message', 'رسالة عدم توفر الدورات'),
       localizedField('messages.courseListPrompt', 'Course list instructions', 'تعليمات قائمة الدورات'),
-      { path: 'display.maxCourses', type: 'integer', label: { en: 'Maximum courses to show', ar: 'الحد الأقصى للدورات المعروضة' }, min: 1, max: 10 },
+      { path: 'display.maxCourses', type: 'integer', label: { en: 'Maximum courses to show', ar: 'الحد الأقصى للدورات المعروضة' }, min: 1, max: 20 },
       toggleField('display.showFees', 'Show published course fees', 'إظهار رسوم الدورات المنشورة'),
     ] },
     { id: 'course-details', title: { en: 'Course details', ar: 'تفاصيل الدورة' }, fields: [
