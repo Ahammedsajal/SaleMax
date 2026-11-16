@@ -11,6 +11,10 @@ const tokens = value => normalized(value).split(' ').filter(word => word.length 
 function courseInquiryTopic(message, state = null) {
   const raw = String(message || '').normalize('NFKC').replace(/\s+/g, ' ').trim();
   if (!raw || raw.length > 200) return null;
+  // A callback number may arrive while the guided flow is waiting for a course
+  // name. Never interpret a phone-only answer as course interest.
+  const digits = normalizeDigits(raw);
+  if (/^\+?[\d\s().-]+$/u.test(digits) && digits.replace(/\D/g, '').length >= 7) return null;
   // Keep the alternatives in separate expressions so the captured subject
   // always starts after the complete request phrase.
   const subjectPatterns = [
@@ -111,7 +115,9 @@ function controlRoute(message, config, state = {}, facts = [], { courseCertifica
     return context.selectedCourseCode && context.evidence.some(item => item.kind === 'course' && item.certificateDetails) ? 'answer' : 'handoff';
   }
   if (/^(hi|hello|hey|good morning|good evening|salam|مرحبا|اهلا|السلام عليكم|صباح الخير|مساء الخير|menu|back|القائمة|رجوع|0|english|en|arabic|ar|العربية|عربي)$/.test(text)) return 'guided';
-  if (/^(courses|course list|show courses|available courses|what courses do you have|الدورات|دورات|عرض الدورات|قائمة الدورات|next|previous|التالي|السابق|form|enquiry form|registration form|نموذج|نموذج التسجيل)$/.test(text)) return 'guided';
+  const asksForCourseCatalogue = /^(?:what|which)\s+(?:(?:kinds?|types?|sorts?)\s+of\s+)?courses?\b.*\b(?:offer|available|provide|have|teach|choose)\b|^(?:please\s+)?(?:list|show|share)\b.*\bcourses?\b|^available\s+courses?$/u.test(text)
+    || /^(?:ما|اي)\s+(?:هي\s+)?(?:(?:انواع|نوع)\s+)?(?:الدورات?|دورة)(?=\s|$).*(?:تقدم|توفر|لديكم|متاح|تختار)|^(?:اعرض|اذكر|شارك)(?=\s|$).*الدورات?|^الدورات?\s+المتاحة$/u.test(text);
+  if (asksForCourseCatalogue || /^(courses|course list|show courses|available courses|what courses do you have|الدورات|دورات|عرض الدورات|قائمة الدورات|next|previous|التالي|السابق|form|enquiry form|registration form|نموذج|نموذج التسجيل)$/.test(text)) return 'guided';
   if (/^\d{1,2}$/.test(text) && state.step) return 'guided';
   if (keywordReply(message, config?.guidedContent?.keywordReplies)) return 'keyword';
   return 'answer';
@@ -597,7 +603,7 @@ function previewState(value) {
   }
   if (typeof value.greeted === 'boolean') result.greeted = value.greeted;
   if (Number.isSafeInteger(value.page) && value.page >= 0 && value.page <= 250) result.page = value.page;
-  if (Array.isArray(value.courseCodes)) result.courseCodes = value.courseCodes.filter(item => typeof item === 'string' && item.length <= 40).slice(0, 9);
+  if (Array.isArray(value.courseCodes)) result.courseCodes = value.courseCodes.filter(item => typeof item === 'string' && item.length <= 40).slice(0, 10);
   if (Array.isArray(value.recentConversation)) result.recentConversation = value.recentConversation.slice(-4).filter(item => ['user', 'assistant'].includes(item?.role) && typeof item.text === 'string').map(item => ({ role: item.role, text: item.text.slice(0, 500) }));
   return result;
 }

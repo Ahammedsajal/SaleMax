@@ -1,3 +1,7 @@
+## Pro Catalyst course discovery and Qatar callback context — source implemented, production rollout pending
+
+Natural requests such as “which kind of courses do you offer?” now route to the published course-list flow. It will show the 10 active catalogue courses, ask which course the customer wants, and provide that course’s saved details after selection. Qatar callback numbers are kept as contact data rather than course interest; a coordinator callback is queued only after a published course is identified. Static and synthetic flow checks passed. Production rollout is pending the protected release lock; no customer messages have been sent by this change.
+
 ## Tenant SES region inheritance — deployed, 15 November 2026
 
 Email Marketing Setup now shows the shared SES sending region as read-only; tenant users enter only their own domain and sender. The domain-creation API ignores a client-supplied region and uses the Super Admin's configured SES region. This avoids asking tenant users to understand AWS regions and prevents identities being created outside the region of the shared credentials. Production verification showed the Salemax Setup screen using `eu-north-1`, the app and database healthy, and HTTPS 200. No domain or email was submitted. Source, release and rollback evidence are in `DEPLOYMENT.md`.

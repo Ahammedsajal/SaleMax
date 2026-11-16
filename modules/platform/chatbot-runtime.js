@@ -467,11 +467,13 @@ async function trainingCenterGuidedTurn({ ctx, profile, uid, message, sessionId,
   onStage?.('training-db-connect');
   const db = await dbPool.getConnection();
   let reply = null;
+  let facts = [];
+  let selectedForCallback = null;
   let deferLeadQuestion = false;
   let qatarContactPromptAdded = false;
   try {
     onStage?.('training-course-facts');
-    const facts = leadInfo?.facts || (pack.requiresDatabase
+    facts = leadInfo?.facts || (pack.requiresDatabase
       ? await pack.loadFacts({ db, tenantId: ctx.tenant.id, platformOrigin: process.env.SALEMAX_PLATFORM_ORIGIN, config: profile.config })
       : []);
     onStage?.('training-approved-faqs');
@@ -552,6 +554,10 @@ async function trainingCenterGuidedTurn({ ctx, profile, uid, message, sessionId,
       qatarContactPromptAdded = true;
     }
     reply.state.sentCoursePdfIds = priorState?.sentCoursePdfIds || [];
+    if (leadInfo?.qatarContactNumber && !leadInfo.qatarContactSubmitted
+      && reply.state.selectedCourseCode && reply.state.selectedCourseCode !== priorState?.selectedCourseCode) {
+      selectedForCallback = facts.find(item => !item.kind && item.code === reply.state.selectedCourseCode) || null;
+    }
     if (!reply.openingTexts) {
       const pdfs = require('./chatbot-course-media').coursePdfs(facts, reply.state.selectedCourseCode, textOf(message), reply.state.sentCoursePdfIds);
       reply.media = [...(reply.media || []).filter(item => item.kind !== 'document'), ...pdfs];
@@ -599,6 +605,13 @@ async function trainingCenterGuidedTurn({ ctx, profile, uid, message, sessionId,
   onStage?.('training-conversation-persist');
   await require('./chatbot-conversation-store').persistConversationMessage({ uid, chatId, data: { ...messageData, msgContext: JSON.stringify(messageData.msgContext), context: null } });
   await query(`UPDATE beta_chats SET last_message=? WHERE uid=? AND chat_id=?`, [JSON.stringify(messageData), uid, chatId]);
+  if (selectedForCallback) {
+    const courseName = selectedForCallback.nameEn || selectedForCallback.nameAr || selectedForCallback.code;
+    await handoffConversation(ctx, chatId, channelKind, sessionId, 'qatar-coordinator-callback', profile, uid,
+      { courseInterest: courseName, qatarContactNumber: leadInfo.qatarContactNumber }, { pause: false }).catch(error => {
+      console.warn('[chatbot] Qatar callback handoff unavailable', error.code || 'QATAR_CALLBACK_HANDOFF_FAILED');
+    });
+  }
   if (courseSelection?.unlisted && leadInfo?.senderIsQatar) {
     await handoffConversation(ctx, chatId, channelKind, sessionId, 'course-details-need-coordinator', profile, uid,
       { courseInterest: courseSelection.topic }, { pause: false }).catch(error => {
@@ -688,13 +701,29 @@ function coordinatorReply({ language, followUp = false }) {
     : 'I’ve passed your enquiry to the course coordinator so they can contact you soon and help you further.';
 }
 
+function qatarCallbackCourseName(leadInfo) {
+  const interest = String(leadInfo?.courseInterest || '').trim();
+  if (!interest || /^\+?[\d\s().-]+$/u.test(interest) && interest.replace(/\D/g, '').length >= 7) return null;
+  const facts = Array.isArray(leadInfo?.facts) ? leadInfo.facts : [];
+  const parts = interest.split(/\s*;\s*/u).filter(Boolean);
+  if (!parts.length) return null;
+  const courses = parts.map(part => facts.find(item => !item.kind && [item.code, item.nameEn, item.nameAr]
+    .some(name => name && businessContext.normalized(name) === businessContext.normalized(part))));
+  if (courses.some(course => !course)) return null;
+  return [...new Set(courses)].map(course => leadInfo.language === 'ar'
+    ? course.nameAr || course.nameEn || course.code
+    : course.nameEn || course.nameAr || course.code).join('; ');
+}
+
 async function sendQatarContactResult({ ctx, profile, uid, message, sessionId, origin, chatId, leadInfo, invalid = false }) {
   const language = leadInfo?.language === 'ar' ? 'ar' : 'en';
+  const callbackCourse = qatarCallbackCourseName(leadInfo);
   let queued = null;
-  if (!invalid && leadInfo?.qatarContactSubmitted) {
+  if (!invalid && leadInfo?.qatarContactSubmitted && callbackCourse) {
     try {
-      queued = await handoffConversation(ctx, chatId, channelFor(origin), sessionId, 'qatar-coordinator-callback', profile, uid,
-        { courseInterest: leadInfo.courseInterest, qatarContactNumber: leadInfo.qatarContactNumber }, { pause: false });
+      const claim = await handoffConversation(ctx, chatId, channelFor(origin), sessionId, 'qatar-coordinator-callback', profile, uid,
+        { courseInterest: callbackCourse, qatarContactNumber: leadInfo.qatarContactNumber }, { pause: false });
+      if (claim?.id && (claim.created === true || claim.reason === 'qatar-coordinator-callback')) queued = claim;
     } catch (error) {
       console.warn('[chatbot] Qatar callback handoff unavailable', error.code || 'QATAR_CALLBACK_HANDOFF_FAILED');
     }
@@ -705,14 +734,14 @@ async function sendQatarContactResult({ ctx, profile, uid, message, sessionId, o
       : 'Please send a valid Qatar mobile number with 8 digits, beginning with 3, 5, 6 or 7. You can include +974.')
     : queued
       ? (language === 'ar'
-        ? `شكرًا، حفظت رقم التواصل القطري مع استفسارك عن ${leadInfo.courseInterest || 'الدورة'} وأحلت طلب المتابعة إلى منسقي الدورات. ويمكنني مواصلة مساعدتك هنا.`
-        : `Thanks, I’ve saved this Qatar number with your ${leadInfo.courseInterest || 'course'} enquiry and sent the follow-up request to our course coordinators. I can keep helping you here.`)
+        ? `شكرًا، حفظت رقم التواصل القطري مع استفسارك عن ${callbackCourse} وأحلت طلب المتابعة إلى منسقي الدورات. ويمكنني مواصلة مساعدتك هنا.`
+        : `Thanks, I’ve saved this Qatar number with your ${callbackCourse} enquiry and sent the follow-up request to our course coordinators. I can keep helping you here.`)
       : (language === 'ar'
-        ? 'شكرًا، حفظت رقم التواصل القطري مع استفسارك. ما السؤال الآخر الذي يمكنني مساعدتك فيه؟'
-        : 'Thanks, I’ve saved the Qatar contact number with your enquiry. What else can I help you with?');
+        ? 'شكرًا، حفظت رقم التواصل القطري. ما الدورة التي تود معرفة المزيد عنها؟ يمكنني مشاركة التفاصيل المنشورة هنا.'
+        : 'Thanks, I’ve saved your Qatar contact number. Which course would you like to know more about? I can share its published details here.');
   if (!await canSendNow({ ctx, profile, uid, origin, sessionId, chatId, message, checkPause: false })) return { paused: true };
   const sent = await sendBotText({ origin, sessionId, message, uid, chatId, body, bypassBotPause: true });
-  return sent ? { sent: true, route: invalid ? 'qatar-contact-validation' : 'qatar-coordinator-callback' }
+  return sent ? { sent: true, route: invalid ? 'qatar-contact-validation' : queued ? 'qatar-coordinator-callback' : 'qatar-contact-saved' }
     : { handedOff: true, code: 'CHANNEL_SEND_FAILED' };
 }
 
@@ -1144,11 +1173,13 @@ async function aiTurn({ ctx, profile, uid, message, user, sessionId, origin, cha
   if (leadInfo?.qatarContactSubmitted && leadCapture.phoneOnly(incomingText)) {
     return sendQatarContactResult({ ctx, profile, uid, message, sessionId, origin, chatId, leadInfo });
   }
+  const qatarCallbackCourse = qatarCallbackCourseName(leadInfo);
   let qatarCallbackClaim = null;
-  if (leadInfo?.qatarContactSubmitted) {
+  if (leadInfo?.qatarContactSubmitted && qatarCallbackCourse) {
     try {
-      qatarCallbackClaim = await handoffConversation(ctx, chatId, channelFor(origin), sessionId, 'qatar-coordinator-callback', profile, uid,
-        { courseInterest: leadInfo.courseInterest, qatarContactNumber: leadInfo.qatarContactNumber }, { pause: false });
+      const claim = await handoffConversation(ctx, chatId, channelFor(origin), sessionId, 'qatar-coordinator-callback', profile, uid,
+        { courseInterest: qatarCallbackCourse, qatarContactNumber: leadInfo.qatarContactNumber }, { pause: false });
+      if (claim?.id && (claim.created === true || claim.reason === 'qatar-coordinator-callback')) qatarCallbackClaim = claim;
     } catch (error) {
       console.warn('[chatbot] Qatar callback handoff unavailable', error.code || 'QATAR_CALLBACK_HANDOFF_FAILED');
     }
@@ -1254,8 +1285,8 @@ async function aiTurn({ ctx, profile, uid, message, user, sessionId, origin, cha
         ? 'حفظت رقم التواصل القطري وأحلت طلب المتابعة إلى منسقي الدورات. ويمكنني مواصلة مساعدتك هنا.'
         : 'I’ve saved the Qatar number and sent your follow-up request to our course coordinators. I can keep helping you here.')
       : (leadInfo.language === 'ar'
-        ? 'حفظت رقم التواصل القطري مع استفسارك.'
-        : 'I’ve saved the Qatar contact number with your enquiry.');
+        ? 'حفظت رقم التواصل القطري. يمكنني مشاركة تفاصيل الدورات المنشورة هنا بينما نحدد الدورة التي تهمك.'
+        : 'I’ve saved your Qatar contact number. I can share published course details here while we identify the course you’re interested in.');
     answer.reply = [String(answer.reply || '').trim(), callbackNote].filter(Boolean).join('\n\n');
   }
   const pack = getDomainPack(ctx.category.key, ctx.category.version);

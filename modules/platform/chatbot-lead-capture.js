@@ -101,6 +101,11 @@ async function captureLead(pool, { ctx, profile, uid, chatId, origin, message, f
     const inboundKey = context.fingerprint([profile.channelKind, profile.channelRef, chatId, message.metaChatId]).slice(0, 24);
     const previousKeys = Array.isArray(prior.inboundKeys) ? prior.inboundKeys : [];
     const alreadyCaptured = previousKeys.includes(inboundKey);
+    const priorCourseDigits = normalizedDigits(qualification.courseInterest || '').replace(/\D/g, '');
+    const incomingDigits = normalizedDigits(text).replace(/\D/g, '');
+    const qatarDigits = normalizedDigits(qatarContactNumber || '').replace(/\D/g, '');
+    const stalePhoneCourseInterest = !alreadyCaptured && qatarContactNumber && phoneOnly(qualification.courseInterest)
+      && (priorCourseDigits === incomingDigits || priorCourseDigits === qatarDigits);
     const retrieval = context.retrieveContext({ facts, message: text, referral: message?.msgContext?.referral || null });
     let courses = retrieval.explicitCourses ? retrieval.evidence.filter(item => item.kind === 'course') : [];
     let guidedState = {};
@@ -126,9 +131,11 @@ async function captureLead(pool, { ctx, profile, uid, chatId, origin, message, f
     if (useIntake && !details.courseInterest) details.courseInterest = admissions.courseInterest(text);
     if (!alreadyCaptured && courses.length) qualification.courseInterest = courses.map(item => item.name).join('; ').slice(0, 180);
     else if (!alreadyCaptured && details.courseInterest) qualification.courseInterest = details.courseInterest;
+    if (stalePhoneCourseInterest && !(courses.length || details.courseInterest)) delete qualification.courseInterest;
     if (!alreadyCaptured && qatarContactNumber) qualification.qatarContactNumber = qatarContactNumber;
     for (const key of ['preferredSchedule', 'learningGoal']) if (!alreadyCaptured && details[key]) qualification[key] = details[key];
     let meta = { ...prior };
+    if (stalePhoneCourseInterest && !(courses.length || details.courseInterest)) meta.courseConfirmed = false;
     if (!alreadyCaptured && name) meta.nameConfirmed = true;
     if (!alreadyCaptured && courses.length) meta.courseConfirmed = true;
     if (!alreadyCaptured && details.courseInterest) meta.courseConfirmed = true;

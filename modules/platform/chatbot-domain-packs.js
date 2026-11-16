@@ -112,7 +112,7 @@ const TRAINING_CENTER_GUIDED_DEFAULTS = {
     unavailableMessage: { en: 'I can’t confirm that detail from the information I have just yet. If you’d like, type “agent” and I’ll ask our team to check.', ar: 'لا أستطيع تأكيد هذه المعلومة من التفاصيل المتاحة لدي حالياً. إذا رغبت، اكتب «موظف» وسأطلب من الفريق التحقق منها.' },
     fallbackMessage: { en: 'What would you like to know about the course? If you’d prefer help from our team, type “agent”.', ar: 'ما الذي تود معرفته عن الدورة؟ إذا كنت تفضّل مساعدة فريقنا، اكتب «موظف».' },
   },
-  display: { maxCourses: 9, showFees: true, showDescription: true, showDuration: true, showDelivery: true, showRegistrationFee: true, showUpcomingBatches: true, showEnquiryForm: true },
+  display: { maxCourses: 10, showFees: true, showDescription: true, showDuration: true, showDelivery: true, showRegistrationFee: true, showUpcomingBatches: true, showEnquiryForm: true },
 };
 
 const localizedField = (path, labelEn, labelAr, maxLength = 600) => ({ path, type: 'localized-text', label: { en: labelEn, ar: labelAr }, maxLength });
@@ -133,7 +133,7 @@ const TRAINING_CENTER_GUIDED_SCHEMA = {
       localizedField('messages.courseListHeading', 'Course list heading', 'عنوان قائمة الدورات', 160),
       localizedField('messages.courseListEmpty', 'No courses available message', 'رسالة عدم توفر الدورات'),
       localizedField('messages.courseListPrompt', 'Course list instructions', 'تعليمات قائمة الدورات'),
-      { path: 'display.maxCourses', type: 'integer', label: { en: 'Maximum courses to show', ar: 'الحد الأقصى للدورات المعروضة' }, min: 1, max: 9 },
+      { path: 'display.maxCourses', type: 'integer', label: { en: 'Maximum courses to show', ar: 'الحد الأقصى للدورات المعروضة' }, min: 1, max: 10 },
       toggleField('display.showFees', 'Show published course fees', 'إظهار رسوم الدورات المنشورة'),
     ] },
     { id: 'course-details', title: { en: 'Course details', ar: 'تفاصيل الدورة' }, fields: [
