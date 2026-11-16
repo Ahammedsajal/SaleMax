@@ -26,7 +26,7 @@ HASHES = {
     'modules/platform/chatbot-runtime.js': ('190743197756a6d3cd9a8178f7b6e1f6c73920dab5594fe75197eb1d02211407', '783f1a70b1304187a23cae1e693f50a1715307f00ed10fafd459817b19884603'),
     'modules/platform/chatbot-business-context.js': ('947b1f345c2f4d831697dc222a2fb63301c5895ce2cf3e7cd9ff4d1252b0e0b4', '49b0e5b802baf76f5406fe30602c175be21c6a29736479161610aacc11d744b0'),
     'modules/platform/chatbot-lead-capture.js': ('2676255fb8ad39d1d1c6ef45c20fd6c1af5113ccf4feff1365857227433308e2', '1b1a5b8272d544e96f24357b59443830488ad3f476c073e144933a39c557b0f2'),
-    'client/public/pipeline/pipeline.js': ('023addf72b859a74507916a1a74d004d99aea4dbd955a5cd2b74d3cf74c2ae22', 'e7f3bf36d379d77e0d793d3e450c27541aad6d7d1db6b130fbb403367466864c'),
+    'client/public/pipeline/pipeline.js': ('023addf72b859a74507916a1a74d004d99aea4dbd955a5cd2b74d3cf74c2ae22', 'e7f3bf36d379d77d0e793d3e450c27541aad6d7d1db6b130fbb403367466864c'),
     'client/public/pipeline/index.html': ('1dde0bdcf51d9b8a54d271042bde1f7d4f3f46571296b644aee809c53423cf4b', '2a632fa6c43c085fc6a2ab5619681fe5e326e7b2fd136e0e4bd327dea3ab57f1'),
 }
 
