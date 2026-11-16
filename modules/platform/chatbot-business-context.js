@@ -8,6 +8,39 @@ const { findApprovedFaq, keywords: faqKeywords } = require('./chatbot-faq');
 const normalized = value => normalizeDigits(value).toLowerCase().normalize('NFKC').replace(/[أإآ]/g, 'ا').replace(/ى/g, 'ي').replace(/[^\p{L}\p{N}]+/gu, ' ').trim();
 const STOP_WORDS = new Set('the for your our are can you what how want would like tell about course courses training please help certificate certification professional class classes session sessions certificates certifications accreditation accredited attestation attested certified شهادة الشهادة شهادات الشهادات اعتماد معتمدة تصديق مصدقة احترافي اريد دورة الدورات التدريب ماهي ممكن لو سمحت'.split(' '));
 const tokens = value => normalized(value).split(' ').filter(word => word.length > 2 && !STOP_WORDS.has(word));
+function courseInquiryTopic(message, state = null) {
+  const raw = String(message || '').normalize('NFKC').replace(/\s+/g, ' ').trim();
+  if (!raw || raw.length > 200) return null;
+  // Keep the alternatives in separate expressions so the captured subject
+  // always starts after the complete request phrase.
+  const subjectPatterns = [
+    /\b(?:more\s+(?:info(?:rmation)?|details?)|info(?:rmation)?|details?)\s+(?:on|about)\s+(?:the\s+)?(.+?)[?!.…]*$/iu,
+    /\b(?:tell me (?:more )?about|asking about|interested in)\s+(?:the\s+)?(.+?)[?!.…]*$/iu,
+    /\b(?:looking for|want to study|want to learn)\s+(?:the\s+)?(.+?)[?!.…]*$/iu,
+    /(?:معلومات(?:\s+أكثر)?|تفاصيل|مزيد من المعلومات)\s+(?:عن|حول)\s+(.+?)[؟?!.…]*$/u,
+  ];
+  let subject = null;
+  for (const pattern of subjectPatterns) {
+    const match = raw.match(pattern);
+    if (match?.[1]) { subject = match[1]; break; }
+  }
+  if (!subject) {
+    const bare = raw.replace(/^(?:hi|hello|hey|salam)[,!\s]+/iu, '').replace(/[?!.…]+$/u, '').trim();
+    const genericReply = /^(?:hi|hello|hey|salam|yes|yeah|yep|no|nope|ok|okay|sure|thanks|thank you|not sure|not certain|course|training|class|programme|program|workshop|دورة|التدريب|تدريب|ورشة|نعم|لا|حسنًا|تمام|شكرا|شكرًا|لا اعرف|لا أعرف)$/iu.test(bare);
+    const sentenceLike = /^(?:i|i'm|im|my|can|could|would|what|how|when|where|do|does|is|are|please|tell|more|thanks|thank|not|نعم|هل|ماذا|كيف|متى|من فضلك)\b/iu.test(bare);
+    const shortCourseAnswer = state?.waitingForCourse === true && bare.length <= 80
+      && bare.split(/\s+/u).length <= 4 && !/[?؟]/u.test(bare) && !genericReply && !sentenceLike;
+    if (bare.length <= 80 && /\b(?:course|training|class|programme|program|workshop)\b|دورة|تدريب|ورشة/iu.test(bare)
+      && !/^(?:course|training|class|programme|program|workshop|دورة|التدريب|تدريب|ورشة)$/iu.test(bare)) subject = bare;
+    else if (shortCourseAnswer) subject = bare;
+  }
+  if (!subject) return null;
+  subject = subject.replace(/^(?:the|a|an)\s+/iu, '').replace(/\s+course$/iu, '').replace(/[\u0000-\u001f<>`{}\[\]\\]/gu, ' ').replace(/\s+/g, ' ').trim();
+  if (!subject || subject.length > 80 || !/[\p{L}\p{N}]/u.test(subject)) return null;
+  const key = normalized(subject);
+  if (!key || /^(?:this|that|it|course|training|class|programme|program|workshop|الدورة|دورة|التدريب|تدريب)$/u.test(key)) return null;
+  return subject;
+}
 function isBareCourseSelection(message, context) {
   if (Number(context?.explicitCourses) !== 1 || !context?.selectedCourseCode) return false;
   const words = normalized(message).split(/\s+/u).filter(Boolean);
@@ -589,4 +622,4 @@ function polishGuidedReply({ result, profile, message, state, defaults }) {
   return result;
 }
 
-module.exports = { normalized, fingerprint, languageFor, controlRoute, isScheduleQuestion, hasPublishedSchedule, courseDetailNeedsCoordinator, trainingCenterCoordinatorReason, publishedDurationRange, retrieveContext, validateAnswer, clarification, unavailableReply, publishedTrainingReply, simpleFactualReply, isCourseOverviewRequest, shouldSkipApprovedFaq, isGenericAdInterest, shouldClarifyGenericCourseInterest, isBareCourseSelection, previewState, redactCustomerText, polishGuidedReply, qrAdReferral, courseFromVerifiedReferral, isTrainingGreeting, trainingGreeting, repeatQuestion, repeatedCourseFact, isCertificateQuestion, courseCertificateReply, certificateFollowUp };
+module.exports = { normalized, fingerprint, languageFor, controlRoute, isScheduleQuestion, hasPublishedSchedule, courseDetailNeedsCoordinator, trainingCenterCoordinatorReason, publishedDurationRange, retrieveContext, validateAnswer, clarification, unavailableReply, publishedTrainingReply, simpleFactualReply, isCourseOverviewRequest, shouldSkipApprovedFaq, isGenericAdInterest, shouldClarifyGenericCourseInterest, isBareCourseSelection, courseInquiryTopic, previewState, redactCustomerText, polishGuidedReply, qrAdReferral, courseFromVerifiedReferral, isTrainingGreeting, trainingGreeting, repeatQuestion, repeatedCourseFact, isCertificateQuestion, courseCertificateReply, certificateFollowUp };

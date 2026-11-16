@@ -4,6 +4,33 @@ const context = require('./chatbot-business-context');
 const admissions = require('./chatbot-admissions-intake');
 const { recipientAllowed } = require('./chatbot-audience');
 const parse = value => typeof value === 'string' ? JSON.parse(value) : value || {};
+const normalizedDigits = value => require('./chatbot-training-guide').normalizeDigits(value);
+
+function qatarMobile(value) {
+  const digits = normalizedDigits(value).replace(/\D/g, '').replace(/^00/, '');
+  const national = digits.startsWith('974') && digits.length === 11 ? digits.slice(3) : digits.length === 8 ? digits : '';
+  return /^[3567]\d{7}$/.test(national) ? `+974${national}` : null;
+}
+
+function qatarMobileFromText(value) {
+  const text = normalizedDigits(value);
+  const matches = text.match(/(?<!\d)(?:\+|00)?[\s().-]*(?:974[\s().-]*)?[3567](?:[\s().-]*\d){7}(?!\d)/gu) || [];
+  for (const match of matches) {
+    const number = qatarMobile(match);
+    if (number) return number;
+  }
+  return null;
+}
+
+function phoneOnly(value) {
+  const text = normalizedDigits(value).trim();
+  return text.length > 0 && /^\+?[\d\s().-]+$/.test(text) && text.replace(/\D/g, '').length >= 7;
+}
+
+function qatarCallbackEnabled(ctx) {
+  // This callback-number policy is currently owner-approved for Pro Catalyst.
+  return ctx?.tenant?.slug === 'pro-catalyst-05f1f2b34f';
+}
 
 function genericCaptureEnabled(ctx) {
   return ctx?.category?.chatbotLeadCapture === 'generic'
@@ -22,12 +49,14 @@ function customerName(text, waitingForName = false) {
   return value;
 }
 
-function qualificationFromText(text) {
+function qualificationFromText(text, state = null) {
   const data = {};
   const email = String(text).match(/\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b/i)?.[0];
   if (email && (String(text).trim() === email || /my email|email\s*[:=]|بريدي|ايميلي|إيميلي/iu.test(text))) data.email = email.toLowerCase().slice(0, 254);
   const interest = String(text).match(/(?:interested in|looking for|course in|مهتم ب(?:دورة)?|دورة في)\s+([^.!?؟\n]+)/iu)?.[1];
   if (interest) data.courseInterest = context.redactCustomerText(interest).slice(0, 180);
+  const namedTopic = context.courseInquiryTopic(text, state);
+  if (namedTopic) data.courseInterest = namedTopic.slice(0, 180);
   if (/evening|weekend|morning|afternoon|مساء|صباح|نهاية الاسبوع|عطلة/i.test(text)) data.preferredSchedule = String(text).slice(0, 255);
   const goal = String(text).match(/(?:i want to|my goal is|اريد ان|أريد أن)\s+([^.!?؟\n]+)/iu)?.[1];
   if (goal) data.learningGoal = context.redactCustomerText(goal).slice(0, 500);
@@ -65,6 +94,10 @@ async function captureLead(pool, { ctx, profile, uid, chatId, origin, message, f
     if (!lead) throw Object.assign(new Error('BOT_LEAD_NOT_FOUND'), { code: 'BOT_LEAD_NOT_FOUND' });
     const qualification = parse(lead.qualification_data);
     const prior = qualification.botCapture || {};
+    const senderIsQatar = Boolean(qatarMobile(message.senderMobile));
+    const waitingForQatar = qatarCallbackEnabled(ctx) && prior.waitingFor === 'qatarContact';
+    const qatarContactNumber = waitingForQatar ? qatarMobileFromText(text) : null;
+    const qatarContactInvalid = waitingForQatar && !qatarContactNumber && phoneOnly(text);
     const inboundKey = context.fingerprint([profile.channelKind, profile.channelRef, chatId, message.metaChatId]).slice(0, 24);
     const previousKeys = Array.isArray(prior.inboundKeys) ? prior.inboundKeys : [];
     const alreadyCaptured = previousKeys.includes(inboundKey);
@@ -89,14 +122,24 @@ async function captureLead(pool, { ctx, profile, uid, chatId, origin, message, f
     const waitingForName = useIntake ? ['name', 'confirmName'].includes(priorIntake.waiting) : prior.waitingFor === 'name';
     let name = customerName(text, waitingForName && !courses.length && !(useIntake && admissions.acknowledgement(text)));
     const simpleName = name && ['', 'my name is ', 'my name s ', 'call me ', 'اسمي ', 'انا اسمي '].some(prefix => context.normalized(text) === prefix + context.normalized(name));
-    const details = qualificationFromText(text);
+    const details = qualificationFromText(text, guidedState);
     if (useIntake && !details.courseInterest) details.courseInterest = admissions.courseInterest(text);
     if (!alreadyCaptured && courses.length) qualification.courseInterest = courses.map(item => item.name).join('; ').slice(0, 180);
     else if (!alreadyCaptured && details.courseInterest) qualification.courseInterest = details.courseInterest;
+    if (!alreadyCaptured && qatarContactNumber) qualification.qatarContactNumber = qatarContactNumber;
     for (const key of ['preferredSchedule', 'learningGoal']) if (!alreadyCaptured && details[key]) qualification[key] = details[key];
     let meta = { ...prior };
     if (!alreadyCaptured && name) meta.nameConfirmed = true;
     if (!alreadyCaptured && courses.length) meta.courseConfirmed = true;
+    if (!alreadyCaptured && details.courseInterest) meta.courseConfirmed = true;
+    if (!alreadyCaptured && qatarContactNumber) {
+      meta.qatarContactAsked = true;
+      meta.qatarContactCaptured = true;
+      meta.waitingFor = null;
+      // Do not append optional name/course questions after the requested callback number.
+      meta.nameAsked = true;
+      meta.courseAsked = true;
+    }
     if (!alreadyCaptured && /^(?:reset bot|restart bot|إعادة ضبط الروبوت)$/iu.test(text)) meta = { ...meta, waitingFor: null, nameAsked: false, courseAsked: false };
     if (!alreadyCaptured) meta.inboundKeys = [...previousKeys, inboundKey].slice(-25);
     const language = context.languageFor(text, guidedState);
@@ -113,8 +156,10 @@ async function captureLead(pool, { ctx, profile, uid, chatId, origin, message, f
       const currentIntake = enquiryChanged
         ? { ...priorIntake, startConfirmed: false, startAsked: 0, confirmStartAsked: 0, replaceStart: false, waiting: null }
         : priorIntake;
-      intake = admissions.advance({ prior: currentIntake, text, name, nameOnly: !!simpleName && !retrieval.explicitCourses,
-        savedName, savedStart, language });
+      intake = waitingForQatar && (qatarContactNumber || qatarContactInvalid)
+        ? { state: { ...priorIntake, lastSeen: Date.now() }, key: null, prompt: null, courseInterest: qualification.courseInterest || null }
+        : admissions.advance({ prior: currentIntake, text, name, nameOnly: !!simpleName && !retrieval.explicitCourses,
+          savedName, savedStart, language });
       if (!alreadyCaptured) {
         if (!name && !priorIntake.nameConfirmed && intake.state.nameConfirmed) name = fullSavedName;
         if (name) meta.nameConfirmed = true;
@@ -129,18 +174,24 @@ async function captureLead(pool, { ctx, profile, uid, chatId, origin, message, f
       intake.name = intake.state.nameConfirmed ? name || storedName : null;
       intake.preferredStart = intake.state.startConfirmed ? admissions.savedStartLabel(qualification, language) : null;
     }
-    const questionKey = useIntake ? null : !meta.nameConfirmed && !meta.nameAsked ? 'collectNameMessage' : !qualification.courseInterest && !meta.courseAsked ? 'collectCourseMessage' : null;
+    const questionKey = useIntake || meta.waitingFor === 'qatarContact' ? null : !meta.nameConfirmed && !meta.nameAsked ? 'collectNameMessage' : !qualification.courseInterest && !meta.courseAsked ? 'collectCourseMessage' : null;
     qualification.botCapture = meta;
     const changed = !alreadyCaptured && (JSON.stringify(qualification) !== JSON.stringify(parse(lead.qualification_data)) || (name && name !== lead.learner_name) || !!details.email);
     if (changed) {
       await db.query('UPDATE pipeline_leads SET qualification_data=?,learner_name=COALESCE(?,learner_name),contact_name=COALESCE(?,contact_name),last_activity_at=UTC_TIMESTAMP(3) WHERE uid_hash=? AND uid=? AND id=?', [JSON.stringify(qualification), name, name, uidHash, uid, lead.id]);
       if (lead.contact_id && (name || details.email)) await db.query('UPDATE pipeline_contacts SET display_name=COALESCE(?,display_name),normalized_email=COALESCE(?,normalized_email) WHERE uid_hash=? AND uid=? AND id=?', [name, details.email || null, uidHash, uid, lead.contact_id]);
       const old = parse(lead.qualification_data);
-      const fields = [...(name && (name !== lead.learner_name || !prior.nameConfirmed) ? ['learnerName'] : []), ...['courseInterest','preferredSchedule','preferredStartWindow','preferredStartDetail','learningGoal'].filter(key => qualification[key] !== old[key]), ...(details.email ? ['email'] : [])];
+      const fields = [...(name && (name !== lead.learner_name || !prior.nameConfirmed) ? ['learnerName'] : []), ...['courseInterest','qatarContactNumber','preferredSchedule','preferredStartWindow','preferredStartDetail','learningGoal'].filter(key => qualification[key] !== old[key]), ...(details.email ? ['email'] : [])];
       if (fields.length) await db.query(`INSERT INTO pipeline_activity(uid_hash,lead_id,actor_type,activity_type,summary,details,created_at) VALUES (?,?,'system','lead_updated','Bot saved learner enquiry details',?,UTC_TIMESTAMP(3))`, [uidHash, lead.id, JSON.stringify({ origin: 'chatbot', profileId: profile.id, fields, ...(fields.includes('courseInterest') ? { courseInterest: qualification.courseInterest } : {}) })]);
     }
     await db.commit();
-    return { leadId: lead.id, uidHash, facts, questionKey, language, nameCaptured: !!name, nameOnly: !!simpleName && !retrieval.explicitCourses, courseInterest: qualification.courseInterest || null, intake };
+    return { leadId: lead.id, uidHash, facts, questionKey, language, nameCaptured: !!name, nameOnly: !!simpleName && !retrieval.explicitCourses,
+      courseInterest: qualification.courseInterest || null, intake, senderIsQatar,
+      qatarContactNumber: qualification.qatarContactNumber || null,
+      qatarContactPending: qatarCallbackEnabled(ctx) && !senderIsQatar && !qualification.qatarContactNumber,
+      qatarContactAsked: prior.qatarContactAsked === true,
+      qatarContactSubmitted: Boolean(!alreadyCaptured && qatarContactNumber), qatarContactInvalid,
+      qatarContactPhoneOnly: qatarContactInvalid && phoneOnly(text) };
   } catch (error) { await db.rollback(); throw error; }
   finally { db.release(); }
 }
@@ -176,6 +227,29 @@ function appendPrompt(reply, text) {
   return [reply.replace(/[^\n.!?؟]*[?؟]\s*$/u, '').trim(), text].filter(Boolean).join('\n\n');
 }
 
+function addQatarContactQuestion(reply, info) {
+  if (!info?.qatarContactPending) return reply;
+  const question = info.language === 'ar'
+    ? info.qatarContactAsked
+      ? 'يلزم رقم جوال قطري (+974، من 8 أرقام) ليتمكن منسقو الدورات من التواصل معك. يرجى إرساله عندما تكون مستعدًا.'
+      : 'بما أنك تتواصل معنا من خارج قطر، يرجى إرسال رقم جوال قطري (+974، من 8 أرقام) ليتمكن منسقو الدورات من التواصل معك.'
+    : info.qatarContactAsked
+      ? 'Our course coordinators need a Qatar mobile number (+974, 8 digits) to contact you. Please send it when you’re ready.'
+      : 'Since you’re messaging from outside Qatar, please send a Qatar mobile number (+974, 8 digits) so our course coordinators can contact you.';
+  return appendPrompt(String(reply || ''), question);
+}
+
+async function markQatarContactAsked(pool, info, uid) {
+  if (!info?.qatarContactPending || !info?.leadId || !info?.uidHash || !uid) return;
+  const db = await pool.getConnection();
+  try {
+    await db.query(`UPDATE pipeline_leads SET qualification_data=JSON_SET(COALESCE(qualification_data,JSON_OBJECT()),
+      '$.botCapture.qatarContactAsked',true,'$.botCapture.waitingFor','qatarContact',
+      '$.botCapture.nameAsked',true,'$.botCapture.courseAsked',true)
+      WHERE uid_hash=? AND uid=? AND id=?`, [info.uidHash, uid, info.leadId]);
+  } finally { db.release(); }
+}
+
 async function markAsked(pool, info, uid) {
   if (info?.intake) {
     if (!info.intake.key || (!info.courseInterest && !info.intake.session.admissionsEscalation)) return;
@@ -193,4 +267,5 @@ async function markAsked(pool, info, uid) {
     await db.query(`UPDATE pipeline_leads SET qualification_data=JSON_SET(COALESCE(qualification_data,JSON_OBJECT()),?,true,'$.botCapture.waitingFor',?) WHERE uid_hash=? AND uid=? AND id=?`, ['$.botCapture.' + key + 'Asked', key, info.uidHash, uid, info.leadId]);
   } finally { db.release(); }
 }
-module.exports = { savedContactName, captureLead, captureGenericLead, genericCaptureEnabled, customerName, qualificationFromText, addQuestion, standaloneNamePrompt, markAsked };
+module.exports = { savedContactName, captureLead, captureGenericLead, genericCaptureEnabled, customerName, qualificationFromText,
+  qatarMobile, qatarMobileFromText, phoneOnly, qatarCallbackEnabled, addQuestion, addQatarContactQuestion, markQatarContactAsked, standaloneNamePrompt, markAsked };
