@@ -58,6 +58,25 @@ function courseLimit(settings) {
   return Number.isSafeInteger(value) ? Math.max(1, Math.min(20, value)) : 10;
 }
 
+function isCourseCatalogueRequest(message) {
+  const text = normalizeDigits(clean(message, 2000)).toLowerCase().normalize('NFKC')
+    .replace(/[أإآ]/g, 'ا').replace(/ى/g, 'ي')
+    .replace(/^[\s,!.؟?]*(?:hi|hello|hey|salam|مرحبا|اهلا|السلام عليكم)[\s,!.؟?]+/u, '')
+    .replace(/[^\p{L}\p{N}]+/gu, ' ').trim();
+  if (!text) return false;
+  const courseNoun = '(?:courses?|training|classes?|programmes?|programs?|workshops?|الدورات?|دورة|التدريب|تدريبات|البرامج|برامج|الورش|ورش)';
+  const pluralCourseNoun = '(?:courses|trainings|classes|programmes|programs|workshops|الدورات|تدريبات|البرامج|الورش)';
+  const listCourses = new RegExp(`^(?:(?:can|could|would) you )?(?:please )?(?:tell me|show me|list|share|name)(?: me)? (?:all |your |available |the ){0,3}${courseNoun}(?: |$)`, 'u');
+  const askCourses = new RegExp(`^(?:what|which|any|all|some) (?:(?:kinds?|types?|sorts?) of )?(?:(?:other|additional|more|available) )?${pluralCourseNoun}(?: |$)`, 'u');
+  const haveCourses = new RegExp(`^(?:do you have|have you got|are there) (?:(?:any|your|available|the) )?${courseNoun}(?: |$)`, 'u');
+  const offerCourses = new RegExp(`^(?:what|which) ${courseNoun} (?:do you (?:offer|provide|teach|have|run)|are available|is available|are there|can i choose)(?: |$)`, 'u');
+  return /^(?:what do you (?:offer|provide|teach|have)|what are you offering|what is on offer|what(?:s| is) available|what do you have available)(?: in general| generally| here| at your (?:center|centre|academy|school))?$/u.test(text)
+    || listCourses.test(text) || askCourses.test(text) || haveCourses.test(text) || offerCourses.test(text)
+    || new RegExp(`^${courseNoun} (?:available|do you offer)$`, 'u').test(text)
+    || /^(?:ماذا تقدمون|ماذا تقدم|ما الذي تقدمونه|ما هي الدورات المتاحة|ما الدورات المتاحة|الدورات المتاحة|قائمة الدورات|اعرض الدورات|اذكر الدورات|شارك الدورات)(?:\s|$)/u.test(text)
+    || /^(?:ما|اي) (?:هي )?(?:(?:انواع|نوع) )?(?:الدورات?|دورة)(?: .*?(?:تقدم|توفر|لديكم|متاح|تختار))?$/u.test(text);
+}
+
 const DURATION_UNITS = Object.freeze({
   hours: { en: ['hour', 'hours'], ar: ['ساعة', 'ساعتان', 'ساعات'] },
   days: { en: ['day', 'days'], ar: ['يوم', 'يومان', 'أيام'] },
@@ -243,6 +262,7 @@ function trainingCenterGuidedReplyTurn({ message, state, facts, config, defaults
     return { reply: formatCourseDetails(course, formUrl, settings, language, !!registrationFormUrl), state: nextState('course_detail', { courseCodes: state.courseCodes || [], selectedCourseCode: course.code }) };
   }
   const browseCourses = (step !== 'course_list' && text === '1')
+    || isCourseCatalogueRequest(message)
     || /^(?:courses?|course list|course details|fees?|prices?|cost|schedule|batches|training|enrol|enroll|register|admission|الدورات|عرض الدورات|دورة|رسوم|السعر|جدول|مواعيد|التسجيل|القبول)$/i.test(text)
     || /\b(?:courses?|fees?|prices?|costs?|schedule|batches?|classes?|training|enrol|enroll|register|admission)\b|الدورات|دورة|رسوم|السعر|جدول|مواعيد|التسجيل|القبول/i.test(text);
   if (browseCourses || (step === 'course_list' && /^\d+$/.test(text) && Number(text) < 1)) {
@@ -298,4 +318,4 @@ function shouldStartGuided(message) {
     || /\b(?:courses?|fees?|prices?|costs?|schedule|batches?|classes?|training|enrol|enroll|register|registration|admission|form|enquiry|human|person|agent|staff|advisor|representative)\b|الدورات|دورة|رسوم|السعر|جدول|مواعيد|التسجيل|القبول|نموذج|استفسار|موظف|شخص|مستشار|خدمة العملاء/i.test(text);
 }
 
-module.exports = { trainingCenterGuidedReply, shouldStartGuided, menuText, formatCourseList, formatCourseDetails, normalizeDigits };
+module.exports = { trainingCenterGuidedReply, shouldStartGuided, menuText, formatCourseList, formatCourseDetails, normalizeDigits, isCourseCatalogueRequest };

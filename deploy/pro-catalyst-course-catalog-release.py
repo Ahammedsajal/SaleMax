@@ -1,4 +1,4 @@
-"""Guarded app-only overlay for Pro Catalyst course discovery and contact capture."""
+"""Guarded app-only overlay for Pro Catalyst course catalogue intent routing."""
 import copy
 import hashlib
 import json
@@ -17,17 +17,11 @@ SUPPORT = ('salemax-db-1', 'salemax-report-worker-1', 'salemax-libretranslate-1'
            'salemax-recruitment-founder-notification-worker-1', 'salemax-bot-lead-test-db')
 ASSETS = {
     'modules/platform/chatbot-business-context.js': 'modules/platform/chatbot-business-context.js',
-    'modules/platform/chatbot-domain-packs.js': 'modules/platform/chatbot-domain-packs.js',
-    'modules/platform/chatbot-lead-capture.js': 'modules/platform/chatbot-lead-capture.js',
-    'modules/platform/chatbot-runtime.js': 'modules/platform/chatbot-runtime.js',
     'modules/platform/chatbot-training-guide.js': 'modules/platform/chatbot-training-guide.js',
 }
 HASHES = {
-    'modules/platform/chatbot-business-context.js': ('f0f472fa3830c7da9d6e7ca128b0e57cf3e14435abc420776e9bc24e04febd76', '135c589b4fb140a3a4b9b06980d5844423d23b7c18841cb4ecf53a066da8194f'),
-    'modules/platform/chatbot-domain-packs.js': ('18e5114966b3eec91001f1dd0ea6ad02747d8d71ab53a309c2a8141a2c2f868f', 'a9f4d05e18b982a3b97cb36321cbfee93865d171f35f7b69e0075a213cfee113'),
-    'modules/platform/chatbot-lead-capture.js': ('d108bb15190c43084e9ded0a13e359fb2e64f904219ab73dadc2b1cca1a846f1', 'd108bb15190c43084e9ded0a13e359fb2e64f904219ab73dadc2b1cca1a846f1'),
-    'modules/platform/chatbot-runtime.js': ('c13ddb5cd53dd8756b568db5b8a8f0e062891336a3a41a5b8e98061da8510ed6', '7632022faad8c470d515640f6a5d90167e1d40cc9d50433ee12afe695ccf7a03'),
-    'modules/platform/chatbot-training-guide.js': ('177a127efc053705052f2ae97faf876fce7c920b445e946fd154a1baf17bf33a', 'a7ea092caaec61c77037e31b071f09356823184dfb6e9b3e869918148777b07e'),
+    'modules/platform/chatbot-business-context.js': ('135c589b4fb140a3a4b9b06980d5844423d23b7c18841cb4ecf53a066da8194f', 'a9381b7bddd6ff7d382bc40ae7c72daa9400fae64ef455feaeee78a19385caca'),
+    'modules/platform/chatbot-training-guide.js': ('a7ea092caaec61c77037e31b071f09356823184dfb6e9b3e869918148777b07e', '2347ac24266dce990c5e28ce5f0f18f53f51028b26e17f9139ee3f6b02cf50a4'),
 }
 PROFILE_PATH = '$.guidedContent.display.maxCourses'
 

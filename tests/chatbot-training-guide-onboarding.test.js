@@ -40,6 +40,21 @@ test('capitalized legacy number prompts are replaced in greetings and course lis
   assert.match(list.reply, /Tell me the course name/i);
 });
 
+test('general offer questions show the full published catalogue without AI clarification', () => {
+  const courses = Array.from({ length: 11 }, (_, index) => ({
+    kind: 'course', code: `COURSE-${index + 1}`, nameEn: `Published Course ${index + 1}`,
+    offer: { priceAmount: 100 + index, currency: 'QAR' },
+  }));
+  const result = trainingCenterGuidedReply({
+    message: 'what do you offer', state: { greeted: true, waitingForCourse: true },
+    facts: courses, config: { display: { maxCourses: 11 } }, defaults,
+  });
+  for (let index = 1; index <= courses.length; index++) assert.match(result.reply, new RegExp(`Published Course ${index}`));
+  assert.match(result.reply, /which course|what would you like to know|tell me the course name/i);
+  assert.equal(result.state.step, 'course_list');
+  assert.equal(result.state.courseCodes.length, 11);
+});
+
 test('guided FAQs answer after two meaningful question words match', () => {
   const config = { knowledgeEntries: [{ questionEn: 'What are your opening hours?', answerEn: 'We open from 9 AM.', questionAr: 'ما هي ساعات العمل؟', answerAr: 'نفتح الساعة التاسعة.' }] };
   const matched = trainingCenterGuidedReply({ message: 'opening hours please', state: { greeted: true }, facts, config, defaults });
