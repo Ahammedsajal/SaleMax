@@ -8,11 +8,25 @@ const Module = require('node:module');
 const {splitSql} = require('../database/migration-runner');
 const connector = require('../modules/platform/retail-connected-stores');
 const load = Module._load;
+const expressRouters = [];
+const expressStub = {
+  Router() {
+    const routes = new Map();
+    const router = {routes, use() { return this; }};
+    for (const method of ['get','post','put','patch','delete']) router[method] = (path, ...handlers) => {
+      routes.set(`${method.toUpperCase()} ${path}`, handlers.at(-1)); return router;
+    };
+    expressRouters.push(router);
+    return router;
+  },
+  json: () => (_req,_res,next) => next(),
+  raw: () => (_req,_res,next) => next(),
+};
 Module._load = function(request, parent, isMain) {
-  if (request === 'express') return {};
+  if (request === 'express') return expressStub;
   return load.call(this, request, parent, isMain);
 };
-const {syncWoo, processWebhook} = require('../modules/platform/retail-connected-stores-router');
+const {syncWoo, processWebhook, workspaceRouter} = require('../modules/platform/retail-connected-stores-router');
 Module._load = load;
 
 test('Retail connector preserves decimal amounts and quantities without binary float arithmetic', () => {
@@ -136,6 +150,49 @@ test('older provider snapshots cannot replace newer synced records', () => {
   assert.equal(connector.sourceTimestampIsStale('2026-11-15T10:00:00Z', '2026-11-15T09:59:59Z'), true);
   assert.equal(connector.sourceTimestampIsStale('2026-11-15T10:00:00Z', '2026-11-15T10:00:00Z'), false);
   assert.equal(connector.sourceTimestampIsStale('2026-11-15T10:00:00Z', null), true);
+});
+
+test('connected-store reads are tenant-scoped and owner-only', async () => {
+  const tenantId = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
+  const otherTenantId = 'cccccccc-cccc-4ccc-8ccc-cccccccccccc';
+  const connectionId = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb';
+  const connection = {id: connectionId, tenant_id: tenantId, provider: 'woocommerce', status: 'active', default_currency: 'QAR'};
+  const queries = [];
+  const pool = {query: async(sql,params)=>{
+    queries.push({sql,params});
+    if (sql.startsWith('SELECT * FROM sx_retail_store_connections')) return params[0] === tenantId ? [[connection],[]] : [[],[]];
+    if (sql.startsWith('SELECT external_customer_id AS id')) return [[],[]];
+    throw new Error('Unexpected tenant-scope query: ' + sql);
+  }};
+  const authenticate = (_req,_res,next)=>next();
+  const router = workspaceRouter({pool, authenticate, origin: 'https://workspace.example.invalid'});
+  const handler = router.routes.get('GET /:id/data/:kind');
+  const contextFor = (id, role='owner') => ({audience:'tenant',tenant:{id,status:'active',categoryKey:'retail_boutique',categoryVersion:1},
+    membership:{tenantId:id,status:'active',role},subscription:{status:'active',capabilities:['retail.commerce']},
+    category:{key:'retail_boutique',version:1,capabilities:['retail.commerce']},identity:{id:'dddddddd-dddd-4ddd-8ddd-dddddddddddd'}});
+  const invoke = async context => {
+    let response = null, error = null;
+    const req = {businessContext:context,params:{id:connectionId,kind:'customers'},query:{page:'1'}};
+    const res = {json(value){response={status:200,value};return this;},sendStatus(status){response={status};return this;}};
+    await handler(req,res,value=>{error=value;});
+    return {response,error};
+  };
+  const own = await invoke(contextFor(tenantId));
+  assert.equal(own.response.status, 200);
+  assert.deepEqual(own.response.value.data.items, []);
+  const other = await invoke(contextFor(otherTenantId));
+  assert.equal(other.error?.code, 'STORE_CONNECTION_NOT_FOUND');
+  assert.equal(other.error?.status, 404);
+  const connectionLookups = queries.filter(item=>item.sql.startsWith('SELECT * FROM sx_retail_store_connections'));
+  assert.deepEqual(connectionLookups.map(item=>item.params[0]), [tenantId,otherTenantId]);
+  const customerLists = queries.filter(item=>item.sql.startsWith('SELECT external_customer_id AS id'));
+  assert.equal(customerLists.length, 1);
+  assert.deepEqual(customerLists[0].params.slice(0,2), [tenantId,connectionId]);
+  const beforeDenied = queries.length;
+  const staff = await invoke(contextFor(tenantId,'manager'));
+  assert.equal(staff.response.status, 403);
+  assert.equal(queries.length, beforeDenied);
+  assert.equal(expressRouters.includes(router), true);
 });
 
 test('Woo variation and reconciliation migration parses as additive SQL', () => {
