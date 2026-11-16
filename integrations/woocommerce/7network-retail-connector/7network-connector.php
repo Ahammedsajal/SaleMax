@@ -1,8 +1,8 @@
 <?php
 /**
  * Plugin Name: 7Network Retail Connector
- * Description: Signed, read-only order, customer, product and checkout event bridge for 7Network Retail & Inventory.
- * Version: 1.0.0
+ * Description: Signed WooCommerce event bridge for 7Network with no storefront or checkout fields.
+ * Version: 1.0.1
  * Requires Plugins: woocommerce
  * Requires PHP: 7.4
  * Text Domain: 7network-retail-connector
@@ -19,7 +19,6 @@ final class SevenNetwork_Retail_Connector {
     public static function init() {
         add_action('admin_menu', [__CLASS__, 'menu']);
         add_action('admin_post_7network_retail_save', [__CLASS__, 'save']);
-        add_action('woocommerce_after_order_notes', [__CLASS__, 'checkout_consent_field']);
         add_action('woocommerce_checkout_update_order_review', [__CLASS__, 'capture_checkout']);
         add_action('woocommerce_checkout_create_order', [__CLASS__, 'attach_cart_to_order'], 10, 2);
         add_action('woocommerce_checkout_order_processed', [__CLASS__, 'checkout_recovered'], 10, 3);
@@ -43,7 +42,7 @@ final class SevenNetwork_Retail_Connector {
         ?>
         <div class="wrap">
             <h1>7Network Retail Connector</h1>
-            <p>Configure the signed event endpoint from the 7Network Connected Stores screen. The connector only sends store data to that endpoint. It does not change WooCommerce products, stock, orders, payments or refunds.</p>
+            <p>Configure the signed event endpoint from the 7Network Connected Stores screen. This connector adds no visible fields, scripts or notices to the storefront or checkout and does not change payment gateways, product prices, stock, order totals, payments or refunds.</p>
             <form method="post" action="<?php echo esc_url(admin_url('admin-post.php')); ?>">
                 <?php wp_nonce_field('7network_retail_save'); ?>
                 <input type="hidden" name="action" value="7network_retail_save">
@@ -83,21 +82,7 @@ final class SevenNetwork_Retail_Connector {
         exit;
     }
 
-    public static function checkout_consent_field($checkout) {
-        woocommerce_form_field('7network_checkout_followup_consent', [
-            'type' => 'checkbox', 'class' => ['form-row-wide'], 'required' => false,
-            'label' => 'I agree to receive a follow-up from this store about this unfinished checkout.',
-        ], $checkout->get_value('7network_checkout_followup_consent'));
-    }
-
-    private static function parse_checkout_post($post_data) {
-        $values = [];
-        if (is_string($post_data)) { parse_str(wp_unslash($post_data), $values); }
-        if (empty($values) && is_array($_POST)) { $values = wp_unslash($_POST); }
-        return is_array($values) ? $values : [];
-    }
-
-    private static function cart_snapshot($values = []) {
+    private static function cart_snapshot() {
         if (!function_exists('WC') || !WC()->cart || !WC()->session) { return null; }
         $items = [];
         foreach (WC()->cart->get_cart() as $item) {
@@ -117,9 +102,6 @@ final class SevenNetwork_Retail_Connector {
             $cart_id = wp_generate_uuid4();
             WC()->session->set('7network_retail_cart_id', $cart_id);
         }
-        $consent = !empty($values['7network_checkout_followup_consent']) && in_array((string)$values['7network_checkout_followup_consent'], ['1','yes','on'], true);
-        $email = $consent ? sanitize_email($values['billing_email'] ?? '') : '';
-        $phone = $consent ? sanitize_text_field($values['billing_phone'] ?? '') : '';
         $token = WC()->session->get('7network_retail_recovery_token');
         if (!is_string($token) || strlen($token) < 32) {
             $token = wp_generate_password(40, false, false);
@@ -132,9 +114,9 @@ final class SevenNetwork_Retail_Connector {
             'status' => 'started',
             'currency' => get_woocommerce_currency(),
             'total' => (string)WC()->cart->get_total('edit'),
-            'customer' => ['id' => null, 'email' => $email ?: null, 'phone' => $phone ?: null],
-            'contactConsent' => $consent ? 'granted' : 'denied',
-            'consentAt' => $consent ? gmdate('c') : null,
+            'customer' => ['id' => null, 'email' => null, 'phone' => null],
+            'contactConsent' => 'denied',
+            'consentAt' => null,
             'recoveryUrl' => add_query_arg('7network_recover', rawurlencode($token), wc_get_checkout_url()),
             'lineItems' => $items,
             'createdAt' => gmdate('c'),
@@ -144,8 +126,8 @@ final class SevenNetwork_Retail_Connector {
         return $snapshot;
     }
 
-    public static function capture_checkout($post_data) {
-        $snapshot = self::cart_snapshot(self::parse_checkout_post($post_data));
+    public static function capture_checkout($post_data = '') {
+        $snapshot = self::cart_snapshot();
         if (!$snapshot) { return; }
         self::send_event('checkout.started', $snapshot);
         $args = [$snapshot['id']];
@@ -153,13 +135,10 @@ final class SevenNetwork_Retail_Connector {
         wp_schedule_single_event(time() + HOUR_IN_SECONDS, '7network_retail_mark_abandoned', $args);
     }
 
-    public static function attach_cart_to_order($order, $data) {
+    public static function attach_cart_to_order($order, $data = []) {
         if (!$order || !function_exists('WC') || !WC()->session) { return; }
         $cart_id = WC()->session->get('7network_retail_cart_id');
         if (is_string($cart_id) && preg_match('/^[a-f0-9-]{36}$/i', $cart_id)) { $order->update_meta_data('_7network_retail_cart_id', $cart_id); }
-        $consent = !empty($data['7network_checkout_followup_consent']) && in_array((string)$data['7network_checkout_followup_consent'], ['1','yes','on'], true);
-        $order->update_meta_data('_7network_retail_followup_consent', $consent ? 'granted' : 'denied');
-        if ($consent) { $order->update_meta_data('_7network_retail_followup_consent_at', gmdate('c')); }
     }
 
     public static function mark_abandoned($cart_id) {
@@ -180,8 +159,8 @@ final class SevenNetwork_Retail_Connector {
         if (!is_array($snapshot)) { return; }
         $snapshot['status'] = 'recovered';
         $snapshot['order_id'] = (string)$order_id;
-        $snapshot['contactConsent'] = $order->get_meta('_7network_retail_followup_consent') ?: 'unknown';
-        $snapshot['consentAt'] = $order->get_meta('_7network_retail_followup_consent_at') ?: null;
+        $snapshot['contactConsent'] = 'denied';
+        $snapshot['consentAt'] = null;
         $snapshot['updatedAt'] = gmdate('c');
         self::send_event('checkout.recovered', $snapshot);
         wp_clear_scheduled_hook('7network_retail_mark_abandoned', [$cart_id]);
