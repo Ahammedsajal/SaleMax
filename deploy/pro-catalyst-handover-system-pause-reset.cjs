@@ -6,6 +6,7 @@ const readline = require('node:readline');
 const crypto = require('node:crypto');
 const root = process.cwd();
 const tenantId = process.env.SALEMAX_CHATBOT_ONE_HOUR_HANDOFF_TENANT_ID;
+console.log = () => {};
 const pool = require(root + '/database/config').promise();
 const write = value => process.stdout.write(JSON.stringify(value) + '\n');
 
