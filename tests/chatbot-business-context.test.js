@@ -37,8 +37,17 @@ test('certificate enquiry does not select a different course with certificate in
  assert.match(c.evidence[0].description,/6–7 weeks and a certificate of completion/);
  assert.equal(validateAnswer({canAnswer:true,reply:'The outline states 6–7 weeks and a certificate of completion.',sourceIds:['course:excel']},c).code,'ANSWER_CERTIFICATE_UNVERIFIED');
 });
+test('spaced caregiver alias selects the caregiver course instead of broader health and social care',()=>{
+ const courses=[
+  {courseId:'caregiver',code:'CAT-NURSING-CAREGIVER',nameEn:'Certificate in Nursing Assistance or Caregiver',descriptionEn:'Nursing assistance and caregiver training.'},
+  {courseId:'health-social',code:'CAT-QUALIFI-HEALTH-SOCIAL',nameEn:'Diploma Health & Social Care – Qualifi (UK)',descriptionEn:'Health and social care qualification.'}
+ ];
+ const context=retrieveContext({facts:courses,message:'Care giver'});
+ assert.equal(context.selectedCourseCode,'CAT-NURSING-CAREGIVER');
+ assert.deepEqual(context.evidence.filter(item=>item.kind==='course').map(item=>item.code),['CAT-NURSING-CAREGIVER']);
+});
 const routing = {
- guided:['hello','hi','hey','good morning','good evening','salam','مرحبا','أهلاً','السلام عليكم','صباح الخير','مساء الخير','menu','back','القائمة','رجوع','0','next','previous','التالي','السابق','form','enquiry form','registration form','نموذج','نموذج التسجيل','English','عربي','courses','course list','show courses','available courses','what courses do you have','الدورات','دورات','عرض الدورات','قائمة الدورات'],
+ guided:['hello','hi','hey','good morning','good evening','salam','مرحبا','أهلاً','السلام عليكم','صباح الخير','مساء الخير','menu','back','القائمة','رجوع','0','next','previous','التالي','السابق','form','enquiry form','registration form','نموذج','نموذج التسجيل','English','عربي','courses','course list','show courses','available courses','what courses do you have','what do you offer','hello what do you offer','Can you list all available courses?','do you have any courses?','which courses are available?','ماذا تقدمون؟','ما هي الدورات المتاحة؟','الدورات','دورات','عرض الدورات','قائمة الدورات'],
  human:['agent','human','staff','person','talk to a human','موظف','أريد موظف','ابي موظف','Please connect me to an advisor','Can I speak to your team','اريد التحدث مع موظف','اريد التواصل مع الفريق'],
  handoff:['Can you guarantee a certificate?','هل الشهادة معتمدة؟','I attached a document for you to review.','I sent a voice note about this.','I shared my location with you.','أرفقت ملفاً','أرسلت رسالة صوتية','شاركت موقعي'],
  keyword:['opening time','اوقات الدوام'],
@@ -58,6 +67,10 @@ for (const message of [
  'أريد تقديم شكوى عن التسجيل.',
 ]) test('training-center support and high-impact enquiries route to a person before AI: '+message,()=>assert.equal(controlRoute(message,config),'handoff'));
 for (const message of ['I want to ask about Excel course fees.','هل يمكن معرفة رسوم دورة إكسل؟']) test('routine course enquiries remain eligible for AI: '+message,()=>assert.equal(controlRoute(message,config),'answer'));
+test('a named-course availability question is not mistaken for a catalogue request',()=>{
+ assert.equal(controlRoute('Do you offer First Aid?',config),'answer');
+ assert.equal(controlRoute('What course does First Aid cover?',config),'answer');
+});
 for (const message of ['When is the next batch?','What is the course schedule?','متى تبدأ الدفعة القادمة؟']) test('schedule questions use the live batch gate: '+message,()=>assert.equal(isScheduleQuestion(message),true));
 test('schedule enquiry without a published batch is handed to a coordinator',()=>assert.equal(trainingCenterCoordinatorReason('When is the next batch?',facts,'EXCEL'),'SCHEDULE_REQUIRES_COORDINATOR'));
 test('duration with a published value stays answerable',()=>assert.equal(trainingCenterCoordinatorReason('How long is Business English?',facts,'ENG'),null));

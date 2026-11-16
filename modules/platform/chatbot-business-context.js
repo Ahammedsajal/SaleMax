@@ -1,11 +1,11 @@
 'use strict';
 const crypto = require('node:crypto');
 const { isOpeningGreeting } = require('./chatbot-opening-flow');
-const { normalizeDigits } = require('./chatbot-training-guide');
+const { normalizeDigits, isCourseCatalogueRequest } = require('./chatbot-training-guide');
 const { keywordReply } = require('./chatbot-keyword-replies');
 const { findApprovedFaq, keywords: faqKeywords } = require('./chatbot-faq');
 
-const normalized = value => normalizeDigits(value).toLowerCase().normalize('NFKC').replace(/[أإآ]/g, 'ا').replace(/ى/g, 'ي').replace(/[^\p{L}\p{N}]+/gu, ' ').trim();
+const normalized = value => normalizeDigits(value).toLowerCase().normalize('NFKC').replace(/[أإآ]/g, 'ا').replace(/ى/g, 'ي').replace(/[^\p{L}\p{N}]+/gu, ' ').replace(/\bcare\s+givers?\b/gu, 'caregiver').trim();
 const STOP_WORDS = new Set('the for your our are can you what how want would like tell about course courses training please help certificate certification professional class classes session sessions certificates certifications accreditation accredited attestation attested certified شهادة الشهادة شهادات الشهادات اعتماد معتمدة تصديق مصدقة احترافي اريد دورة الدورات التدريب ماهي ممكن لو سمحت'.split(' '));
 const tokens = value => normalized(value).split(' ').filter(word => word.length > 2 && !STOP_WORDS.has(word));
 function courseInquiryTopic(message, state = null) {
@@ -119,9 +119,7 @@ function controlRoute(message, config, state = {}, facts = [], { courseCertifica
     return context.selectedCourseCode && context.evidence.some(item => item.kind === 'course' && item.certificateDetails) ? 'answer' : 'handoff';
   }
   if (/^(hi|hello|hey|good morning|good evening|salam|مرحبا|اهلا|السلام عليكم|صباح الخير|مساء الخير|menu|back|القائمة|رجوع|0|english|en|arabic|ar|العربية|عربي)$/.test(text)) return 'guided';
-  const asksForCourseCatalogue = /^(?:what|which|any|all|some)\s+(?:(?:(?:kinds?|types?|sorts?)\s+of\s+)?|(?:other|additional|more)\s+)?courses?\b.*\b(?:offer|available|provide|have|teach|choose)\b|^(?:please\s+)?(?:list|show|share)\b.*\bcourses?\b|^available\s+courses?$/u.test(text)
-    || /^(?:ما|اي)\s+(?:هي\s+)?(?:(?:انواع|نوع)\s+)?(?:الدورات?|دورة)(?=\s|$).*(?:تقدم|توفر|لديكم|متاح|تختار)|^(?:اعرض|اذكر|شارك)(?=\s|$).*الدورات?|^الدورات?\s+المتاحة$/u.test(text);
-  if (asksForCourseCatalogue || /^(courses|course list|show courses|available courses|what courses do you have|الدورات|دورات|عرض الدورات|قائمة الدورات|next|previous|التالي|السابق|form|enquiry form|registration form|نموذج|نموذج التسجيل)$/.test(text)) return 'guided';
+  if (isCourseCatalogueRequest(message) || /^(courses|course list|show courses|available courses|what courses do you have|الدورات|دورات|عرض الدورات|قائمة الدورات|next|previous|التالي|السابق|form|enquiry form|registration form|نموذج|نموذج التسجيل)$/.test(text)) return 'guided';
   if (/^\d{1,2}$/.test(text) && state.step) return 'guided';
   if (keywordReply(message, config?.guidedContent?.keywordReplies)) return 'keyword';
   return 'answer';

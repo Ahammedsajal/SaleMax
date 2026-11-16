@@ -1,4 +1,4 @@
-"""Guarded app-only overlay for Pro Catalyst course discovery and contact capture."""
+"""Guarded app-only overlay for Pro Catalyst course catalogue intent routing."""
 import copy
 import hashlib
 import json
@@ -17,17 +17,11 @@ SUPPORT = ('salemax-db-1', 'salemax-report-worker-1', 'salemax-libretranslate-1'
            'salemax-recruitment-founder-notification-worker-1', 'salemax-bot-lead-test-db')
 ASSETS = {
     'modules/platform/chatbot-business-context.js': 'modules/platform/chatbot-business-context.js',
-    'modules/platform/chatbot-domain-packs.js': 'modules/platform/chatbot-domain-packs.js',
-    'modules/platform/chatbot-lead-capture.js': 'modules/platform/chatbot-lead-capture.js',
-    'modules/platform/chatbot-runtime.js': 'modules/platform/chatbot-runtime.js',
     'modules/platform/chatbot-training-guide.js': 'modules/platform/chatbot-training-guide.js',
 }
 HASHES = {
-    'modules/platform/chatbot-business-context.js': ('49b0e5b802baf76f5406fe30602c175be21c6a29736479161610aacc11d744b0', 'f0f472fa3830c7da9d6e7ca128b0e57cf3e14435abc420776e9bc24e04febd76'),
-    'modules/platform/chatbot-domain-packs.js': ('46c88dd63701408dfff58d44fc7f82954cf7610bdadb680b192337602591d1c6', '18e5114966b3eec91001f1dd0ea6ad02747d8d71ab53a309c2a8141a2c2f868f'),
-    'modules/platform/chatbot-lead-capture.js': ('1b1a5b8272d544e96f24357b59443830488ad3f476c073e144933a39c557b0f2', 'd108bb15190c43084e9ded0a13e359fb2e64f904219ab73dadc2b1cca1a846f1'),
-    'modules/platform/chatbot-runtime.js': ('1719f2ade49b388323a1ac9a0bc9160b95ceffdedf485b779742cbda02916356', 'c13ddb5cd53dd8756b568db5b8a8f0e062891336a3a41a5b8e98061da8510ed6'),
-    'modules/platform/chatbot-training-guide.js': ('e7f392a2ee798c78a0ef7f8f126c5d72c5ff0f1bc581f79d8a6df95034ae2a69', '177a127efc053705052f2ae97faf876fce7c920b445e946fd154a1baf17bf33a'),
+    'modules/platform/chatbot-business-context.js': ('135c589b4fb140a3a4b9b06980d5844423d23b7c18841cb4ecf53a066da8194f', 'a9381b7bddd6ff7d382bc40ae7c72daa9400fae64ef455feaeee78a19385caca'),
+    'modules/platform/chatbot-training-guide.js': ('a7ea092caaec61c77037e31b071f09356823184dfb6e9b3e869918148777b07e', '2347ac24266dce990c5e28ce5f0f18f53f51028b26e17f9139ee3f6b02cf50a4'),
 }
 PROFILE_PATH = '$.guidedContent.display.maxCourses'
 
@@ -92,15 +86,15 @@ def read_profile_setting():
       const tenantId=process.env.SALEMAX_CHATBOT_ONE_HOUR_HANDOFF_TENANT_ID;
       if(!tenantId)throw Error('TENANT_SCOPE_UNAVAILABLE');
       const [profiles]=await pool.query("SELECT id,revision,JSON_UNQUOTE(JSON_EXTRACT(config,?)) AS maxCourses FROM sx_chatbot_profiles WHERE tenant_id=? AND status=? AND category_key=? ORDER BY updated_at DESC",["$.guidedContent.display.maxCourses",tenantId,"live","training_center"]);
-      const [[catalogue]]=await pool.query("SELECT COUNT(*) AS activeCourses FROM sx_training_courses WHERE tenant_id=? AND status=?",[tenantId,"active"]);
+      const [[catalogue]]=await pool.query("SELECT COUNT(*) AS activeCourses FROM sx_training_courses WHERE tenant_id=? AND status=? AND deleted_at IS NULL",[tenantId,"active"]);
       console.log(JSON.stringify({profiles,activeCourses:Number(catalogue.activeCourses)}));
     }finally{await pool.end()}})().catch(error=>{console.error(error.code||'PROFILE_READ_FAILED');process.exit(1)})'''
     data = node_json(script)
     if len(data.get('profiles') or []) != 1:
         raise RuntimeError('Expected exactly one live Training Center chatbot profile')
     count = int(data.get('activeCourses') or 0)
-    if not 1 <= count <= 10:
-        raise RuntimeError('Active catalogue size is outside the reviewed ten-course list capacity')
+    if not 1 <= count <= 20:
+        raise RuntimeError('Active catalogue size is outside the reviewed course list capacity')
     profile = data['profiles'][0]
     configured = int(profile['maxCourses']) if profile.get('maxCourses') is not None else None
     return {'profileId': profile['id'], 'revisionBefore': int(profile['revision']),
