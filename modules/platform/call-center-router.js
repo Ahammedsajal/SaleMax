@@ -287,7 +287,7 @@ function createCallCenterRouter({pool,userGuard,canonicalGuard,origin,fetchImpl=
       membershipRole:context.membership.role,
       asterisk:{configured,enabled:!!pbx?.enabled,revision:configured?Number(pbx.revision):0,health:configured?pbx.last_test_status||'unknown':'not_configured',lastTestedAt:pbx.last_tested_at||null,version:pbx.last_test_version||null,
         events:{status:eventRuntime?.status||'not_started',ready:Number(eventRuntime?.heartbeat_fresh)===1,lastHeartbeatAt:eventRuntime?.updated_at||null}},
-      gateway:{model:tenantGateway?.gateway_name||'DINSTAR UC2000-VE',channelCapacity:4,settingsConfigured:!!tenantGateway?.gateway_host,
+      gateway:{model:tenantGateway?.gateway_name||'Dinstar 4-Port LTE Gateway (model unverified)',channelCapacity:4,settingsConfigured:!!tenantGateway?.gateway_host,
         endpointStatus:tenantGateway?.connection_status||'not_configured',liveEndpointStatus:gatewayLiveStatus,endpointTestedAt:tenantGateway?.updated_at||null,
         provisioned:['online','offline'].includes(tenantGateway?.connection_status),
         channelPolicy:{assignedChannels:Number(portPolicy.assignedChannels),enabledChannels:Number(portPolicy.enabledChannels),inboundChannels:Number(portPolicy.inboundChannels),outboundChannels:Number(portPolicy.outboundChannels)}},

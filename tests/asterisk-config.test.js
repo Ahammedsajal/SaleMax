@@ -224,7 +224,7 @@ test('PBX settings have a dedicated admin sidebar page and tenant gateways live 
   assert.match(migration,/CREATE TABLE sx_telephony_gateways/);
   assert.match(migration,/PRIMARY KEY \(tenant_id,gateway_id,channel_no\)/);
   assert.match(telephony,/<input type="tel" inputmode="tel" autocomplete="tel" data-did/);
-  assert.match(index,/admin-telephony\.js\?v=20261012-tls-readonly2/);
+  assert.match(index,/admin-telephony\.js\?v=20261116-dinstar-model-caveat1/);
   assert.match(ui,/VERIFIED_ADMIN_LINK_REQUIRED:tr\(/);
 });
 
