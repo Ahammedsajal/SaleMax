@@ -1,7 +1,7 @@
 'use strict';
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { controlRoute, isScheduleQuestion, hasPublishedSchedule, courseDetailNeedsCoordinator, trainingCenterCoordinatorReason, publishedDurationRange, retrieveContext, validateAnswer, languageFor, fingerprint, previewState, simpleFactualReply, unavailableReply, isCourseOverviewRequest, shouldSkipApprovedFaq, isGenericAdInterest, shouldClarifyGenericCourseInterest, isBareCourseSelection, publishedTrainingReply } = require('../modules/platform/chatbot-business-context');
+const { controlRoute, isScheduleQuestion, hasPublishedSchedule, courseDetailNeedsCoordinator, trainingCenterCoordinatorReason, publishedDurationRange, retrieveContext, validateAnswer, languageFor, fingerprint, previewState, simpleFactualReply, unavailableReply, isCourseOverviewRequest, shouldSkipApprovedFaq, isGenericAdInterest, shouldClarifyGenericCourseInterest, courseDiscoveryReply, isBareCourseSelection, publishedTrainingReply } = require('../modules/platform/chatbot-business-context');
 const facts = [
  { courseId:'english',code:'ENG',nameEn:'Business English',nameAr:'الإنجليزية للأعمال',descriptionEn:'English communication for work and presentations',descriptionAr:'التواصل باللغة الإنجليزية في العمل والعروض',durationValue:8,durationUnit:'weeks',offer:{priceAmount:'350.00',registrationFeeAmount:'25.00',currency:'QAR'},batches:[{startsOn:'2026-11-15',seatsAvailable:7}] },
  { courseId:'excel',code:'EXCEL',nameEn:'Excel Essentials',nameAr:'أساسيات إكسل',descriptionEn:'Practical spreadsheets and office skills',descriptionAr:'مهارات الجداول والحاسوب المكتبية',offer:{priceAmount:'250.00',currency:'QAR'},batches:[] },
@@ -192,6 +192,18 @@ test('generic ad interest clarifies despite ambiguous retrieval candidates, but 
  assert.equal(shouldClarifyGenericCourseInterest(message,named,{}),false);
  assert.equal(shouldClarifyGenericCourseInterest('Tell me more about Business English',named,{}),false);
  assert.equal(shouldClarifyGenericCourseInterest('What is the fee for Business English?',named,{}),false);
+});
+
+test('generic ad enquiry greets first and asks one course discovery question without spending AI tokens',()=>{
+ const message='Hello! Can I get more info on this?';
+ const context=retrieveContext({facts,message});
+ assert.equal(shouldClarifyGenericCourseInterest(message,context,{}),true);
+ const first=courseDiscoveryReply({language:'en',greeting:'Hi! Welcome to Pro Catalyst Training Center. I’m happy to help.',firstMessage:true});
+ assert.equal(first,'Hi! Welcome to Pro Catalyst Training Center. I’m happy to help.\n\nWhich course are you interested in, and what would you like to know about it?');
+ assert.equal(courseDiscoveryReply({language:'en',firstMessage:false}),'Of course — which course are you interested in, and what would you like to know about it?');
+ assert.match(courseDiscoveryReply({language:'ar',greeting:'مرحبًا! أهلًا بك في مركز التدريب.',firstMessage:true}),/ما الدورة التي تهمك، وما الذي تود معرفته عنها؟/);
+ const referral=retrieveContext({facts,message,referral:{source_type:'ad',source_id:'campaign-1',headline:'Business English course'}});
+ assert.equal(shouldClarifyGenericCourseInterest(message,referral,{}),false);
 });
 
 test('Meta ad referral resolves a generic first message to one published course without guessing',()=>{

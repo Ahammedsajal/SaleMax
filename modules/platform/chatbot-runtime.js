@@ -888,14 +888,13 @@ async function generateAiAnswer({ ctx, profile, uid, customerMessage, chatId = n
     state: { ...nextState, greeted: true }, route: 'empathy', suppressIntakeQuestion: true,
     metrics: { inputTokens: 0, outputTokens: 0, cacheHit: false, sources: [] } };
   if (typeof businessContext.shouldClarifyGenericCourseInterest === 'function' && businessContext.shouldClarifyGenericCourseInterest(customerMessage, context, session)) {
-    if (continuity) {
-      const discovery = businessContext.trainingGreeting({ message: customerMessage, state: { ...nextState, greeted: true }, facts });
-      return { ...discovery, canAnswer: true, confidence: 1, route: 'clarification' };
-    }
-    const reply = context.language === 'ar'
-      ? 'بكل سرور — عن أي دورة تسأل؟ إذا وصلت من إعلان، أرسل اسم الدورة الظاهر فيه وسأشاركك التفاصيل المناسبة.'
-      : 'Of course — which course are you asking about? If you came from an ad, share the course name shown there and I’ll send the right details.';
-    return { canAnswer: true, confidence: 1, reply, state: nextState, route: 'clarification', metrics: { inputTokens: 0, outputTokens: 0, cacheHit: false, sources: context.sources } };
+    const firstDiscovery = !continuity && session.greeted !== true;
+    const greeting = profile.config?.guidedContent?.messages?.greeting?.[context.language]
+      || pack.guidedContentDefaults.messages.greeting[context.language];
+    const reply = businessContext.courseDiscoveryReply({ language: context.language, greeting, firstMessage: firstDiscovery });
+    return { canAnswer: true, confidence: 1, reply,
+      state: { ...nextState, greeted: true, waitingForCourse: true }, route: 'clarification',
+      metrics: { inputTokens: 0, outputTokens: 0, cacheHit: false, sources: context.sources } };
   }
   const courseOverview = profile.engine === 'hybrid' && profile.config?.aiFallback !== false && businessContext.isCourseOverviewRequest(customerMessage, context);
   const published = admissionsIntake ? businessContext.publishedTrainingReply(customerMessage, context) : null;

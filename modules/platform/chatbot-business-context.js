@@ -377,6 +377,16 @@ function shouldClarifyGenericCourseInterest(message, context, state = {}) {
   return isGenericAdInterest(message) && !(context?.selectedCourseCode || state?.selectedCourseCode);
 }
 
+function courseDiscoveryReply({ language = 'en', greeting = '', firstMessage = false } = {}) {
+  const ar = language === 'ar';
+  const question = ar
+    ? 'ما الدورة التي تهمك، وما الذي تود معرفته عنها؟'
+    : 'Which course are you interested in, and what would you like to know about it?';
+  if (!firstMessage) return ar ? `بالطبع، ${question}` : `Of course — ${question[0].toLowerCase()}${question.slice(1)}`;
+  const intro = String(greeting || (ar ? 'مرحبًا! أهلًا بك في مركز التدريب.' : 'Hi! Welcome to Pro Catalyst Training Center.')).trim();
+  return [intro, question].filter(Boolean).join('\n\n');
+}
+
 function publishedTrainingReply(message, context) {
   const text = normalized(message);
   const ar = context.language === 'ar';
@@ -630,4 +640,4 @@ function polishGuidedReply({ result, profile, message, state, defaults }) {
   return result;
 }
 
-module.exports = { normalized, fingerprint, languageFor, controlRoute, isScheduleQuestion, hasPublishedSchedule, courseDetailNeedsCoordinator, trainingCenterCoordinatorReason, publishedDurationRange, retrieveContext, validateAnswer, clarification, unavailableReply, publishedTrainingReply, simpleFactualReply, isCourseOverviewRequest, shouldSkipApprovedFaq, isGenericAdInterest, shouldClarifyGenericCourseInterest, isBareCourseSelection, courseInquiryTopic, previewState, redactCustomerText, polishGuidedReply, qrAdReferral, courseFromVerifiedReferral, isTrainingGreeting, trainingGreeting, repeatQuestion, repeatedCourseFact, isCertificateQuestion, courseCertificateReply, certificateFollowUp };
+module.exports = { normalized, fingerprint, languageFor, controlRoute, isScheduleQuestion, hasPublishedSchedule, courseDetailNeedsCoordinator, trainingCenterCoordinatorReason, publishedDurationRange, retrieveContext, validateAnswer, clarification, unavailableReply, publishedTrainingReply, simpleFactualReply, isCourseOverviewRequest, shouldSkipApprovedFaq, isGenericAdInterest, shouldClarifyGenericCourseInterest, courseDiscoveryReply, isBareCourseSelection, courseInquiryTopic, previewState, redactCustomerText, polishGuidedReply, qrAdReferral, courseFromVerifiedReferral, isTrainingGreeting, trainingGreeting, repeatQuestion, repeatedCourseFact, isCertificateQuestion, courseCertificateReply, certificateFollowUp };
