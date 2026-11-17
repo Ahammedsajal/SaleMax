@@ -1,5 +1,5 @@
 -- Transactional business alerts; historical invoices are not backfilled.
-CREATE TABLE sx_business_notification_settings (
+CREATE TABLE IF NOT EXISTS sx_business_notification_settings (
  tenant_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL PRIMARY KEY,
  enabled TINYINT(1) NOT NULL DEFAULT 1,
  daily_enabled TINYINT(1) NOT NULL DEFAULT 1,
