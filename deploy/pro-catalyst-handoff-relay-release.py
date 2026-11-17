@@ -107,6 +107,12 @@ def profile_flag():
     return node_json(db_query_source("SELECT JSON_TYPE(JSON_EXTRACT(config,'$.staffWhatsAppRelayEnabled')) AS kind,JSON_UNQUOTE(JSON_EXTRACT(config,'$.staffWhatsAppRelayEnabled')) AS value FROM sx_chatbot_profiles WHERE tenant_id=? AND id=? AND status='live' AND engine='hybrid' LIMIT 2", [TENANT_ID, PROFILE_ID]))
 
 
+def flag_is_enabled(state):
+    if state.get('kind') not in ('BOOLEAN', 'TRUE', 'FALSE'):
+        return False
+    return str(state.get('value', '')).lower() == 'true'
+
+
 def set_profile_flag(enabled):
     expression = "JSON_SET(config,'$.staffWhatsAppRelayEnabled',true)" if enabled else "JSON_REMOVE(config,'$.staffWhatsAppRelayEnabled')"
     result = node_json(db_query_source(f"UPDATE sx_chatbot_profiles SET config={expression},revision=revision+1 WHERE tenant_id=? AND id=? AND status='live' AND engine='hybrid'", [TENANT_ID, PROFILE_ID], mode='result'))
@@ -118,8 +124,8 @@ def restore_profile_flag(kind, value):
     if kind in (None, 'NULL'):
         set_profile_flag(False)
         return
-    if kind == 'BOOLEAN' and value in ('true', 'false'):
-        enabled = value == 'true'
+    if kind in ('BOOLEAN', 'TRUE', 'FALSE') and str(value).lower() in ('true', 'false'):
+        enabled = str(value).lower() == 'true'
         expression = 'true' if enabled else 'false'
         node_json(db_query_source(f"UPDATE sx_chatbot_profiles SET config=JSON_SET(config,'$.staffWhatsAppRelayEnabled',{expression}),revision=revision+1 WHERE tenant_id=? AND id=?", [TENANT_ID, PROFILE_ID], mode='result'))
         return
@@ -270,16 +276,16 @@ def deploy(stage, commit):
         if len(state) != 1:
             raise RuntimeError('target profile was not found uniquely')
         prior = state[0]
-        if prior.get('kind') == 'NULL':
+        if prior.get('kind') in (None, 'NULL'):
             set_profile_flag(True)
             enabled = True
-        elif prior.get('kind') == 'BOOLEAN' and prior.get('value') == 'false':
+        elif prior.get('kind') in ('BOOLEAN', 'TRUE', 'FALSE') and str(prior.get('value', '')).lower() == 'false':
             set_profile_flag(True)
             enabled = True
-        elif prior.get('kind') != 'BOOLEAN' or prior.get('value') != 'true':
+        elif not flag_is_enabled(prior):
             raise RuntimeError('profile relay flag has an unexpected value')
         final = profile_flag()
-        if len(final) != 1 or final[0].get('kind') != 'BOOLEAN' or final[0].get('value') != 'true':
+        if len(final) != 1 or not flag_is_enabled(final[0]):
             raise RuntimeError('profile relay flag did not become true')
         health = run('python3', '-c', "import urllib.request; r=urllib.request.urlopen('https://crm.salemax.qa/healthz',timeout=20); print(r.status)").stdout.strip()
         if health != '200':
