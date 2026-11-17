@@ -359,7 +359,7 @@ def deploy(stage_path, commit):
     overlay.chmod(0o644)
     helper_target = release / HELPER
     helper_target.parent.mkdir(mode=0o755, parents=True, exist_ok=True)
-    helper_target.write_bytes((stage_path / HELPER).read_bytes())
+    helper_target.write_bytes((stage_path / 'source' / HELPER).read_bytes())
     helper_target.chmod(0o644)
 
     candidate = common + ['-f', str(overlay)]
