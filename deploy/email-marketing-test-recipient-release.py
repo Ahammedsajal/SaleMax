@@ -26,7 +26,7 @@ INDEX = 'client/public/index.html'
 HELPER = 'deploy/email-marketing-test-recipient-release.py'
 SOURCE_FILES = (UI, SERVICE, ROUTER, INDEX, HELPER)
 RUNTIME_FILES = (UI, SERVICE, ROUTER, INDEX)
-OLD_REF = b'/email-marketing-workspace.js?v=20261114-analytics1'
+OLD_REF = b'/email-marketing-workspace.js?v=20261115-no-region-field1'
 NEW_REF = b'/email-marketing-workspace.js?v=20261117-test-recipient1'
 SIDEBAR_REF = b'/training-sidebar.js?v=20261117-email-marketing-nav1'
 PREIMAGES = {
