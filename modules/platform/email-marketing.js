@@ -3,6 +3,7 @@
 const crypto=require('node:crypto');
 const ses=require('./email-marketing-ses');
 const providerSettings=require('./email-marketing-provider-settings');
+const inbound=require('./email-marketing-inbound');
 const fail=(code,status=400)=>{throw Object.assign(Error(code),{code,status});};
 const uuid=()=>crypto.randomUUID();
 const sha=value=>crypto.createHash('sha256').update(String(value)).digest('hex');
@@ -64,16 +65,27 @@ async function providerStatus(db,ctx,key){
   let eventTrackingConfigured=false;
   if(!settings.configured)return {configured:false,credentialSource:'super_admin',region:settings.region,eventTrackingConfigured,code:'AWS_CREDENTIALS_REQUIRED',account:null};
   try{eventTrackingConfigured=await ses.eventDestinationConfigured(settings.region,settings.configurationSetName,settings.snsTopicArn,settings.credentials);}catch{}
-  try{return {configured:true,credentialSource:'super_admin',region:settings.region,eventTrackingConfigured,account:await ses.getAccount(settings.region,settings.credentials)};}
+  try{return {configured:true,credentialSource:'super_admin',region:settings.region,eventTrackingConfigured,inboundTopicConfigured:Boolean(settings.inboundSnsTopicArn),inboundSubscriptionConfirmed:Boolean(settings.inboundSnsSubscriptionConfirmedAt),account:await ses.getAccount(settings.region,settings.credentials)};}
   catch(error){return {configured:false,credentialSource:'super_admin',region:settings.region,eventTrackingConfigured,code:safeSesError(error),account:null};}
 }
 async function setup(db,ctx,key){
   emailMarketingAccess(ctx.context);
   const [domains]=await db.query('SELECT * FROM sx_email_sender_domains WHERE tenant_id=? ORDER BY created_at,id',[ctx.tenantId]);
+  const [inboundDomains]=await db.query(`SELECT id,sender_domain_id,region,reply_domain,verification_status,mx_verified_at,receiving_status,
+    receipt_rule_set_name,receipt_rule_name,last_error_code,verification_token FROM sx_email_inbound_domains WHERE tenant_id=? ORDER BY created_at,id`,[ctx.tenantId]);
+  const inboundBySender=new Map(inboundDomains.map(row=>[row.sender_domain_id,row]));
   const [senders]=await db.query('SELECT * FROM sx_email_senders WHERE tenant_id=? ORDER BY created_at,id',[ctx.tenantId]);
   const [books]=await db.query('SELECT id,name,(SELECT COUNT(*) FROM contact c WHERE c.uid=p.uid AND c.phonebook_id=p.id) AS contactCount FROM phonebook p WHERE p.uid=? ORDER BY p.name,p.id',[ctx.ownerUid]);
   const [templates]=await db.query('SELECT id,name,subject,text_body AS text,revision,updated_at AS updatedAt FROM sx_email_templates WHERE tenant_id=? ORDER BY updated_at DESC,id',[ctx.tenantId]);
-  return {provider:await providerStatus(db,ctx,key),domains:domains.map(decodeDomain),senders:senders.map(decodeSender),phonebooks:books,templates};
+  return {provider:await providerStatus(db,ctx,key),domains:domains.map(row=>({...decodeDomain(row),inbound:decodeInbound(inboundBySender.get(row.id),row.domain)})),senders:senders.map(decodeSender),phonebooks:books,templates};
+}
+
+function decodeInbound(row,domain){
+  if(!row)return null;
+  return {id:row.id,replyDomain:row.reply_domain,region:row.region,verificationStatus:row.verification_status,mxVerified:Boolean(row.mx_verified_at),
+    receivingStatus:row.receiving_status,receiptRuleSetName:row.receipt_rule_set_name,receiptRuleName:row.receipt_rule_name,lastErrorCode:row.last_error_code,
+    records:[{type:'TXT',name:`_amazonses.${row.reply_domain}`,value:row.verification_token},
+      {type:'MX',name:row.reply_domain,value:`inbound-smtp.${row.region}.amazonaws.com`,priority:10}],sendingDomain:domain};
 }
 
 async function addDomain(db,ctx,input,key){
@@ -125,6 +137,72 @@ async function refreshSender(db,ctx,id,key){
   let identity;try{identity=await ses.getIdentity(row.region,row.email,settings.credentials);}catch(error){fail(safeSesError(error),error?.status||503);}
   const status=domainStatus(identity.VerificationStatus);await db.query('UPDATE sx_email_senders SET verification_status=?,last_error_code=NULL WHERE tenant_id=? AND id=?',[status,ctx.tenantId,id]);
   return {...decodeSender({...row,verification_status:status}),region:row.region};
+}
+
+async function enableReplies(db,ctx,senderDomainId,key){
+  emailMarketingAccess(ctx.context);
+  if(typeof senderDomainId!=='string'||!/^[-0-9a-f]{36}$/i.test(senderDomainId))fail('INVALID_EMAIL_DOMAIN_ID');
+  const settings=await configuredProvider(db,key);
+  const [[domain]]=await db.query('SELECT id,domain,region,verification_status,dkim_status FROM sx_email_sender_domains WHERE tenant_id=? AND id=?',[ctx.tenantId,senderDomainId]);
+  if(!domain)fail('EMAIL_DOMAIN_NOT_FOUND',404);
+  if(domain.verification_status!=='verified'||domain.dkim_status!=='SUCCESS')fail('EMAIL_SENDER_NOT_VERIFIED',409);
+  let replyDomain;try{replyDomain=cleanDomain(`reply.${domain.domain}`);}catch{fail('INVALID_EMAIL_REPLY_DOMAIN');}
+  const [[existing]]=await db.query('SELECT id FROM sx_email_inbound_domains WHERE tenant_id=? AND sender_domain_id=?',[ctx.tenantId,senderDomainId]);
+  if(existing)return refreshReplies(db,ctx,existing.id,key);
+  const [[claimed]]=await db.query('SELECT tenant_id FROM sx_email_inbound_domains WHERE region=? AND reply_domain=? LIMIT 1',[domain.region,replyDomain]);
+  if(claimed&&claimed.tenant_id!==ctx.tenantId)fail('EMAIL_REPLY_DOMAIN_ALREADY_CONNECTED',409);
+  let verification;try{verification=await inbound.domainVerification(domain.region,replyDomain,settings.credentials);}catch(error){fail(safeSesError(error),error?.status||503);}
+  const id=uuid();
+  try{
+    await db.query(`INSERT INTO sx_email_inbound_domains(id,tenant_id,sender_domain_id,region,reply_domain,verification_token,verification_status,created_by_identity_id)
+      VALUES(?,?,?,?,?,?,'pending',?)`,[id,ctx.tenantId,senderDomainId,domain.region,replyDomain,verification.token,ctx.identityId]);
+  }catch(error){if(error?.code==='ER_DUP_ENTRY')fail('EMAIL_REPLY_DOMAIN_ALREADY_CONNECTED',409);throw error;}
+  await audit(db,ctx,'email.inbound-domain.created','email-inbound-domain',id,{replyDomain,region:domain.region});
+  return refreshReplies(db,ctx,id,key);
+}
+
+async function refreshReplies(db,ctx,id,key){
+  emailMarketingAccess(ctx.context);
+  if(typeof id!=='string'||!/^[-0-9a-f]{36}$/i.test(id))fail('INVALID_EMAIL_INBOUND_DOMAIN_ID');
+  const settings=await configuredProvider(db,key);
+  const [[row]]=await db.query('SELECT * FROM sx_email_inbound_domains WHERE tenant_id=? AND id=?',[ctx.tenantId,id]);if(!row)fail('EMAIL_INBOUND_DOMAIN_NOT_FOUND',404);
+  let identityStatus=row.verification_status,mxVerified=false,receivingStatus=row.receiving_status,
+    ruleSetName=row.receipt_rule_set_name,ruleName=row.receipt_rule_name,lastErrorCode=null;
+  let identityCheckFailed=false,mxCheckFailed=false;
+  try{
+    const status=await inbound.domainVerificationStatus(row.region,row.reply_domain,settings.credentials);
+    identityStatus=status==='Success'?'verified':status==='Failed'?'failed':'pending';
+  }catch(error){identityCheckFailed=true;lastErrorCode=safeSesError(error);}
+  try{mxVerified=await inbound.checkMx(row.reply_domain,row.region);}catch(error){mxCheckFailed=true;lastErrorCode=error.code||'DNS_LOOKUP_UNAVAILABLE';}
+  if(identityStatus==='failed'){lastErrorCode='SES_IDENTITY_NOT_VERIFIED';receivingStatus='failed';}
+  const topicRegion=String(settings.inboundSnsTopicArn||'').split(':')[3];
+  const inboundReady=Boolean(settings.inboundSnsTopicArn&&settings.inboundSnsSubscriptionConfirmedAt);
+  if(inboundReady&&topicRegion!==row.region){lastErrorCode='SES_SNS_REGION_MISMATCH';receivingStatus='failed';}
+  if(identityStatus==='verified'&&mxVerified&&inboundReady&&topicRegion===row.region){
+    try{
+      const configured=await inbound.receiptRule(row.region,row.reply_domain,settings.inboundSnsTopicArn,settings.credentials);
+      ruleSetName=configured.ruleSetName;ruleName=configured.ruleName;receivingStatus='active';lastErrorCode=null;
+    }catch(error){
+      const awsCode=String(error?.awsCode||error?.code||'');
+      lastErrorCode=/AccessDenied|UnauthorizedOperation|not authorized/i.test(awsCode)?'AWS_SES_PERMISSION_DENIED':
+        awsCode==='SES_RECEIPT_RULE_CONFLICT'||awsCode==='SES_RECEIPT_RULE_SET_CONFLICT'?awsCode:'SES_RECEIPT_RULE_FAILED';
+      if(row.receiving_status!=='active')receivingStatus='failed';
+    }
+  }else if(identityStatus==='verified'&&mxVerified&&!inboundReady){
+    lastErrorCode='SES_INBOUND_PROVIDER_NOT_READY';receivingStatus=row.receiving_status==='active'?'failed':'pending';
+  }else if(!mxCheckFailed&&!mxVerified){
+    if(identityStatus!=='failed'&&!identityCheckFailed)lastErrorCode=identityStatus==='verified'?null:'SES_IDENTITY_NOT_VERIFIED';
+    receivingStatus=row.receiving_status==='active'?'failed':'pending';
+  }else if(!identityCheckFailed&&identityStatus!=='verified'){
+    if(identityStatus!=='failed')lastErrorCode='SES_IDENTITY_NOT_VERIFIED';
+    receivingStatus=row.receiving_status==='active'?'failed':'pending';
+  }
+  await db.query(`UPDATE sx_email_inbound_domains SET verification_status=?,mx_verified_at=IF(?,COALESCE(mx_verified_at,UTC_TIMESTAMP(3)),NULL),
+    receiving_status=?,receipt_rule_set_name=?,receipt_rule_name=?,last_error_code=? WHERE tenant_id=? AND id=?`,
+  [identityStatus,mxVerified?1:0,receivingStatus,ruleSetName,ruleName,lastErrorCode,ctx.tenantId,id]);
+  return {id,senderDomainId:row.sender_domain_id,replyDomain:row.reply_domain,region:row.region,verificationStatus:identityStatus,mxVerified,receivingStatus,
+    receiptRuleSetName:ruleSetName,receiptRuleName:ruleName,lastErrorCode,records:[{type:'TXT',name:`_amazonses.${row.reply_domain}`,value:row.verification_token},
+      {type:'MX',name:row.reply_domain,value:`inbound-smtp.${row.region}.amazonaws.com`,priority:10}],mxPriority:10};
 }
 
 async function audit(db,ctx,action,resourceType,resourceId,changes){
@@ -333,14 +411,17 @@ async function inbox(db,ctx){
   emailMarketingAccess(ctx.context);
   const [rows]=await db.query(`SELECT id,campaign_id AS campaignId,recipient_id AS recipientId,recipient_email AS email,recipient_name AS name,subject,last_message_at AS lastMessageAt,unread_count AS unreadCount
     FROM sx_email_threads WHERE tenant_id=? ORDER BY last_message_at DESC,id DESC LIMIT 200`,[ctx.tenantId]);
-  return {items:rows.map(row=>({...row,unreadCount:Number(row.unreadCount||0)})),receivingReady:false};
+  const [[receiving]]=await db.query("SELECT COUNT(*) AS total FROM sx_email_inbound_domains WHERE tenant_id=? AND receiving_status='active'",[ctx.tenantId]);
+  return {items:rows.map(row=>({...row,unreadCount:Number(row.unreadCount||0)})),receivingReady:Number(receiving?.total||0)>0};
 }
 async function threadMessages(db,ctx,id){
   emailMarketingAccess(ctx.context);if(typeof id!=='string'||!/^[-0-9a-f]{36}$/i.test(id))fail('INVALID_EMAIL_THREAD_ID');
+  await db.query('UPDATE sx_email_threads SET unread_count=0 WHERE tenant_id=? AND id=?',[ctx.tenantId,id]);
   const [[thread]]=await db.query('SELECT id,subject,recipient_email AS email,recipient_name AS name FROM sx_email_threads WHERE tenant_id=? AND id=?',[ctx.tenantId,id]);if(!thread)fail('EMAIL_THREAD_NOT_FOUND',404);
-  const [messages]=await db.query(`SELECT id,direction,subject,text_body AS text,provider_message_id AS providerMessageId,sent_at AS sentAt,created_at AS createdAt
-    FROM sx_email_messages WHERE tenant_id=? AND thread_id=? ORDER BY id LIMIT 500`,[ctx.tenantId,id]);
-  return {thread,messages,receivingReady:false};
+  const [messages]=await db.query(`SELECT id,direction,from_email AS fromEmail,subject,text_body AS text,provider_message_id AS providerMessageId,sent_at AS sentAt,created_at AS createdAt
+    FROM sx_email_messages WHERE tenant_id=? AND thread_id=? ORDER BY COALESCE(sent_at,created_at),id LIMIT 500`,[ctx.tenantId,id]);
+  const [[receiving]]=await db.query("SELECT COUNT(*) AS total FROM sx_email_inbound_domains WHERE tenant_id=? AND receiving_status='active'",[ctx.tenantId]);
+  return {thread,messages,receivingReady:Number(receiving?.total||0)>0};
 }
 async function testSend(db,ctx,input,key){
   emailMarketingAccess(ctx.context);const senderId=String(input?.senderId||'');if(!/^[-0-9a-f]{36}$/i.test(senderId))fail('INVALID_EMAIL_SENDER_ID');
@@ -377,4 +458,4 @@ async function applyUnsubscribe(db,key,token){
   }catch(error){try{await db.rollback();}catch{}throw error;}
 }
 
-module.exports={MAX_RECIPIENTS,MAX_ATTACHMENT_BYTES,MAX_TOTAL_ATTACHMENT_BYTES,MAX_ATTACHMENTS,normalizeEmail,validEmail,cleanDomain,cleanRegion,cleanEmail,tokenFor,decodeToken,safeFilename,sniffAttachment,summarizeAudience,fingerprint,emailMarketingAccess,sessionContext,providerStatus,setup,addDomain,refreshDomain,addSender,refreshSender,audit,saveAttachment,loadAttachments,listTemplates,saveTemplate,previewAudience,createCampaign,listCampaigns,campaignDetail,analytics,inbox,threadMessages,testSend,applyUnsubscribe};
+module.exports={MAX_RECIPIENTS,MAX_ATTACHMENT_BYTES,MAX_TOTAL_ATTACHMENT_BYTES,MAX_ATTACHMENTS,normalizeEmail,validEmail,cleanDomain,cleanRegion,cleanEmail,tokenFor,decodeToken,safeFilename,sniffAttachment,summarizeAudience,fingerprint,emailMarketingAccess,sessionContext,providerStatus,setup,addDomain,refreshDomain,addSender,refreshSender,enableReplies,refreshReplies,audit,saveAttachment,loadAttachments,listTemplates,saveTemplate,previewAudience,createCampaign,listCampaigns,campaignDetail,analytics,inbox,threadMessages,testSend,applyUnsubscribe};

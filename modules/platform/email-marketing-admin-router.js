@@ -34,12 +34,16 @@ function createEmailMarketingAdminRouter({pool,key,origin}={}){
     const data=await withDb(db=>provider.configureEvents(db,key,req.businessContext));
     res.json({success:true,data});
   }));
+  router.post('/inbound/configure',wrap(async(req,res)=>{
+    const data=await withDb(db=>provider.configureInbound(db,key,req.businessContext));
+    res.json({success:true,data});
+  }));
   router.use((error,req,res,next)=>{
     if(res.headersSent)return next(error);
     const code=error.code||'',status=Number.isInteger(error.status)?error.status:
       ['PERMISSION_DENIED','VERIFIED_ADMIN_LINK_REQUIRED'].includes(code)?403:
       code==='STALE_REVISION'?409:code.startsWith('INVALID_')||['AWS_CREDENTIALS_REQUIRED','SES_EVENT_SETTINGS_REQUIRED','SES_SNS_REGION_MISMATCH'].includes(code)?400:503;
-    const known=new Set(['PERMISSION_DENIED','VERIFIED_ADMIN_LINK_REQUIRED','INVALID_SES_REGION','INVALID_AWS_CREDENTIALS','INVALID_SES_CONFIGURATION_SET','INVALID_SES_SNS_TOPIC','SES_EVENT_SETTINGS_REQUIRED','SES_SNS_REGION_MISMATCH','AWS_CREDENTIALS_REQUIRED','AWS_CREDENTIALS_UNAVAILABLE','AWS_SES_PERMISSION_DENIED','SES_THROTTLED','SES_PROVIDER_UNAVAILABLE','EMAIL_PROVIDER_KEY_UNAVAILABLE','EMAIL_PROVIDER_SETTINGS_UNAVAILABLE','STALE_REVISION']);
+    const known=new Set(['PERMISSION_DENIED','VERIFIED_ADMIN_LINK_REQUIRED','INVALID_SES_REGION','INVALID_AWS_CREDENTIALS','INVALID_SES_CONFIGURATION_SET','INVALID_SES_SNS_TOPIC','SES_EVENT_SETTINGS_REQUIRED','SES_SNS_REGION_MISMATCH','AWS_CREDENTIALS_REQUIRED','AWS_CREDENTIALS_UNAVAILABLE','AWS_SES_PERMISSION_DENIED','AWS_SNS_PERMISSION_DENIED','AWS_SNS_PROVIDER_UNAVAILABLE','AWS_PROVIDER_TIMEOUT','SES_THROTTLED','SES_PROVIDER_UNAVAILABLE','EMAIL_PROVIDER_KEY_UNAVAILABLE','EMAIL_PROVIDER_SETTINGS_UNAVAILABLE','STALE_REVISION']);
     res.status(status).json({success:false,code:known.has(code)?code:status===403?'PERMISSION_DENIED':'SES_PROVIDER_UNAVAILABLE'});
   });
   return router;

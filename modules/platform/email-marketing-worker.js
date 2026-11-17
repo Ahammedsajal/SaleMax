@@ -5,6 +5,7 @@ const crypto=require('node:crypto');
 const service=require('./email-marketing');
 const ses=require('./email-marketing-ses');
 const providerSettings=require('./email-marketing-provider-settings');
+const inbound=require('./email-marketing-inbound');
 const workerId=`email-${os.hostname().replace(/[^A-Za-z0-9._:-]/g,'-').slice(0,60)}-${process.pid}`;
 const id=()=>crypto.randomUUID();
 const interval=5000,leaseSeconds=180;
@@ -17,10 +18,12 @@ async function claim(pool,{limit=8,now=new Date()}={}){
     await db.query("UPDATE sx_email_campaign_recipients SET status='unknown',lease_owner=NULL,lease_expires_at=NULL,last_error_code='DELIVERY_OUTCOME_UNKNOWN' WHERE status='sending' AND lease_expires_at<=UTC_TIMESTAMP(3)");
     const [rows]=await db.query(`SELECT r.id,r.tenant_id AS tenantId,r.campaign_id AS campaignId,r.contact_id AS contactId,r.recipient_email AS recipientEmail,
       r.normalized_email AS normalizedEmail,r.attempt_count AS attemptCount,c.subject,c.text_body AS textBody,c.status AS campaignStatus,
-      s.email AS senderEmail,s.verification_status AS senderStatus,d.region,d.domain,d.verification_status AS domainStatus,d.dkim_status AS dkimStatus
+      s.email AS senderEmail,s.verification_status AS senderStatus,d.region,d.domain,d.verification_status AS domainStatus,d.dkim_status AS dkimStatus,
+      i.reply_domain AS replyDomain,i.receiving_status AS receivingStatus
       FROM sx_email_campaign_recipients r JOIN sx_email_campaigns c ON c.tenant_id=r.tenant_id AND c.id=r.campaign_id
       JOIN sx_email_senders s ON s.tenant_id=c.tenant_id AND s.id=c.sender_id
       JOIN sx_email_sender_domains d ON d.tenant_id=s.tenant_id AND d.id=s.domain_id
+      LEFT JOIN sx_email_inbound_domains i ON i.tenant_id=d.tenant_id AND i.sender_domain_id=d.id
       WHERE c.status IN ('queued','sending') AND (c.scheduled_at IS NULL OR c.scheduled_at<=UTC_TIMESTAMP(3))
         AND r.status='pending' AND r.available_at<=UTC_TIMESTAMP(3)
       ORDER BY r.available_at,r.created_at,r.id LIMIT ? FOR UPDATE SKIP LOCKED`,[limit]);
@@ -80,7 +83,8 @@ async function dispatch(pool,item,{key,origin,send=ses.sendSimple,providerCache=
   if(account.max24HourSend>0&&account.sentLast24Hours+account.localAccepted>=account.max24HourSend)return finish(pool,item,{status:'retry',errorCode:'SES_DAILY_QUOTA_REACHED',delaySeconds:300});
   const contact=current.contact,subject=personalize(item.subject,contact),url=unsubscribeUrl(origin,key,item);
   const text=`${personalize(item.textBody,contact)}\n\n---\nUnsubscribe / إلغاء الاشتراك: ${url}`;
-  const message={FromEmailAddress:item.senderEmail,Destination:{ToAddresses:[item.recipientEmail]},ReplyToAddresses:[item.senderEmail],
+  const replyTo=item.receivingStatus==='active'&&item.replyDomain?`${inbound.replyToken(key,item.tenantId,item.campaignId,item.id)}@${item.replyDomain}`:item.senderEmail;
+  const message={FromEmailAddress:item.senderEmail,Destination:{ToAddresses:[item.recipientEmail]},ReplyToAddresses:[replyTo],
     Content:{Simple:{Subject:{Data:subject,Charset:'UTF-8'},Body:{Text:{Data:text,Charset:'UTF-8'}},
       Headers:[{Name:'List-Unsubscribe',Value:`<${url}>`},{Name:'List-Unsubscribe-Post',Value:'List-Unsubscribe=One-Click'}],
       ...(attachments.length?{Attachments:attachments.map(file=>({FileName:file.fileName,ContentType:file.contentType,ContentDisposition:'ATTACHMENT',ContentTransferEncoding:'BASE64',RawContent:file.content}))}:{})}},

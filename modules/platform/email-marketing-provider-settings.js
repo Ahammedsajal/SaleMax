@@ -2,6 +2,7 @@
 
 const crypto=require('node:crypto');
 const ses=require('./email-marketing-ses');
+const inbound=require('./email-marketing-inbound');
 
 function fail(code,status=400){throw Object.assign(Error(code),{code,status});}
 function encryptionKey(platformKey){
@@ -20,12 +21,12 @@ function decrypt(ciphertext,iv,tag,platformKey,field){
   return Buffer.concat([decipher.update(Buffer.from(ciphertext)),decipher.final()]).toString('utf8');
 }
 function decode(row,platformKey){
-  if(!row)return {configured:false,region:ses.defaultRegion(),configurationSetName:'',snsTopicArn:'',credentials:null,revision:0,updatedAt:null};
-  try{return {configured:true,region:ses.region(row.region),configurationSetName:String(row.configuration_set_name||''),snsTopicArn:String(row.sns_topic_arn||''),credentials:{accessKeyId:decrypt(row.access_key_ciphertext,row.access_key_iv,row.access_key_tag,platformKey,'access-key-id'),secretAccessKey:decrypt(row.secret_key_ciphertext,row.secret_key_iv,row.secret_key_tag,platformKey,'secret-access-key')},revision:Number(row.revision)||1,updatedAt:row.updated_at||null};}
+  if(!row)return {configured:false,region:ses.defaultRegion(),configurationSetName:'',snsTopicArn:'',inboundSnsTopicArn:'',inboundSnsSubscriptionConfirmedAt:null,credentials:null,revision:0,updatedAt:null};
+  try{return {configured:true,region:ses.region(row.region),configurationSetName:String(row.configuration_set_name||''),snsTopicArn:String(row.sns_topic_arn||''),inboundSnsTopicArn:String(row.inbound_sns_topic_arn||''),inboundSnsSubscriptionConfirmedAt:row.inbound_sns_subscription_confirmed_at||null,credentials:{accessKeyId:decrypt(row.access_key_ciphertext,row.access_key_iv,row.access_key_tag,platformKey,'access-key-id'),secretAccessKey:decrypt(row.secret_key_ciphertext,row.secret_key_iv,row.secret_key_tag,platformKey,'secret-access-key')},revision:Number(row.revision)||1,updatedAt:row.updated_at||null};}
   catch{fail('EMAIL_PROVIDER_SETTINGS_UNAVAILABLE',503);}
 }
 async function read(db,platformKey){
-  const [[row]]=await db.query(`SELECT region,configuration_set_name,sns_topic_arn,access_key_ciphertext,access_key_iv,access_key_tag,
+  const [[row]]=await db.query(`SELECT region,configuration_set_name,sns_topic_arn,inbound_sns_topic_arn,inbound_sns_subscription_confirmed_at,access_key_ciphertext,access_key_iv,access_key_tag,
     secret_key_ciphertext,secret_key_iv,secret_key_tag,revision,updated_at
     FROM sx_platform_email_provider_settings WHERE provider_key='ses' LIMIT 1`);
   return decode(row,platformKey);
@@ -40,7 +41,7 @@ function publicAccount(account){
 }
 async function status(db,platformKey,context){
   superAdmin(context);const settings=await read(db,platformKey);
-  const data={configured:settings.configured,credentialSource:settings.configured?'super_admin':'none',region:settings.region,configurationSetName:settings.configurationSetName,snsTopicArn:settings.snsTopicArn,eventEndpoint:'https://7network.live/api/public/email/ses/events',eventDestinationConfigured:false,revision:settings.revision,updatedAt:settings.updatedAt,account:null};
+  const data={configured:settings.configured,credentialSource:settings.configured?'super_admin':'none',region:settings.region,configurationSetName:settings.configurationSetName,snsTopicArn:settings.snsTopicArn,eventEndpoint:'https://7network.live/api/public/email/ses/events',eventDestinationConfigured:false,inboundSnsTopicArn:settings.inboundSnsTopicArn,inboundSnsSubscriptionConfirmed:Boolean(settings.inboundSnsSubscriptionConfirmedAt),inboundSnsSubscriptionConfirmedAt:settings.inboundSnsSubscriptionConfirmedAt,inboundEndpoint:inbound.INBOUND_ENDPOINT,revision:settings.revision,updatedAt:settings.updatedAt,account:null};
   if(!settings.configured)return {...data,code:'AWS_CREDENTIALS_REQUIRED'};
   try{
     const account=await ses.getAccount(settings.region,settings.credentials);
@@ -102,4 +103,27 @@ async function configureEvents(db,platformKey,context){
   return {configured:true,configurationSetName:settings.configurationSetName,snsTopicArn:settings.snsTopicArn,eventEndpoint:'https://7network.live/api/public/email/ses/events'};
 }
 
-module.exports={encryptionKey,encrypt,decrypt,decode,read,status,save,snsTopic,configureEvents,superAdmin};
+async function configureInbound(db,platformKey,context){
+  const actorId=superAdmin(context),settings=await read(db,platformKey);
+  if(!settings.configured)fail('AWS_CREDENTIALS_REQUIRED');
+  let result;
+  try{
+    result=await inbound.ensureInboundTopic(settings.region,settings.credentials,async topicArn=>{
+      if(topicArn!==settings.inboundSnsTopicArn)await db.query("UPDATE sx_platform_email_provider_settings SET inbound_sns_topic_arn=?,inbound_sns_subscription_confirmed_at=NULL WHERE provider_key='ses'",[topicArn]);
+    });
+  }catch(error){
+    const awsCode=String(error?.awsCode||error?.code||'');
+    if(/AccessDenied|UnauthorizedOperation|not authorized/i.test(awsCode))fail('AWS_SNS_PERMISSION_DENIED',503);
+    if(/Credentials|UnrecognizedClient|InvalidClientToken|ExpiredToken/i.test(awsCode))fail('AWS_CREDENTIALS_UNAVAILABLE',503);
+    fail(awsCode==='AWS_PROVIDER_TIMEOUT'?'AWS_PROVIDER_TIMEOUT':'AWS_SNS_PROVIDER_UNAVAILABLE',503);
+  }
+  await db.query("UPDATE sx_platform_email_provider_settings SET inbound_sns_subscription_confirmed_at=IF(?,COALESCE(inbound_sns_subscription_confirmed_at,UTC_TIMESTAMP(3)),NULL) WHERE provider_key='ses' AND inbound_sns_topic_arn=?",[result.subscriptionConfirmed?1:0,result.topicArn]);
+  await db.query(`INSERT INTO sx_audit_events(id,actor_identity_id,actor_kind,action,resource_type,resource_id,changes,correlation_id)
+    VALUES(?,?,'identity','platform.email-ses.inbound-configured','provider','ses',?,?)`,[crypto.randomUUID(),actorId,JSON.stringify({region:settings.region,topicArnConfigured:true,subscriptionConfirmed:result.subscriptionConfirmed}),crypto.randomUUID()]);
+  return {...result,configured:true};
+}
+
+async function inboundSnsTopic(db){const [[row]]=await db.query("SELECT inbound_sns_topic_arn AS topicArn FROM sx_platform_email_provider_settings WHERE provider_key='ses' LIMIT 1");return String(row?.topicArn||'').trim()||null;}
+async function markInboundSubscriptionConfirmed(db,topicArn){await db.query("UPDATE sx_platform_email_provider_settings SET inbound_sns_subscription_confirmed_at=COALESCE(inbound_sns_subscription_confirmed_at,UTC_TIMESTAMP(3)) WHERE provider_key='ses' AND inbound_sns_topic_arn=?",[topicArn]);}
+
+module.exports={encryptionKey,encrypt,decrypt,decode,read,status,save,snsTopic,inboundSnsTopic,configureEvents,configureInbound,markInboundSubscriptionConfirmed,superAdmin};

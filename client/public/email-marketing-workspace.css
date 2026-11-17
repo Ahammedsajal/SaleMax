@@ -10,3 +10,4 @@ html[data-theme="dark"] #sx-email-marketing,body.dark #sx-email-marketing,html[d
 
 .em-domain-form{grid-template-columns:minmax(0,1fr) auto}
 @media(max-width:640px){.em-domain-form{grid-template-columns:1fr}.em-domain-form button{grid-column:auto}}
+.em-inbound{border-inline-start:3px solid var(--em-good);background:var(--em-good-bg)}.em-inbound-domain{display:grid;gap:12px;padding-top:14px;border-top:1px solid var(--em-line)}.em-inbound-domain .em-card-heading{align-items:center}.em-inbound-domain .em-card-heading strong{overflow-wrap:anywhere}.em-inbound-domain .em-secondary{justify-self:start}

@@ -5,7 +5,7 @@ const https=require('node:https');
 
 const certificateCache=new Map();
 const MAX_CERT_BYTES=16*1024;
-const MAX_SNS_BODY_BYTES=64*1024;
+const MAX_SNS_BODY_BYTES=240*1024;
 const FAIL=(code,status=400)=>Object.assign(Error(code),{code,status});
 
 function trustedSnsUrl(value,topicArn,{certificate=false}={}){
