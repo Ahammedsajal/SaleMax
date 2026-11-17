@@ -121,12 +121,18 @@ test('a Qatar mobile app local dial is normalized before it is reserved and sent
 test('browser incoming SIP calls wait for an explicit accept or decline and can reconnect',()=>{
   const fs=require('node:fs'),path=require('node:path');
   const sip=fs.readFileSync(path.join(__dirname,'../client/src/call-center-sip.js'),'utf8');
+  const builtSip=fs.readFileSync(path.join(__dirname,'../client/public/call-center/sip-runtime.js'),'utf8');
   const ui=fs.readFileSync(path.join(__dirname,'../client/public/call-center/call-center.js'),'utf8');
+  const page=fs.readFileSync(path.join(__dirname,'../client/public/call-center/index.html'),'utf8');
   assert.match(sip,/onCallReceived:\s*\(\)\s*=>\s*status\('incoming-call'\)/);
   assert.doesNotMatch(sip,/onCallReceived:[^\n]*(?:\.answer\(|\.decline\()/);
   assert.match(sip,/export async function answerBrowserCall\(\)/);
   assert.match(sip,/export async function declineBrowserCall\(\)/);
   assert.match(sip,/if \(user && !user\.isConnected\(\)\)[\s\S]*?user = null;[\s\S]*?await stale\.disconnect\(\)/);
+  assert.match(sip,/sipIdentity[\s\S]*?config\.authorizationUsername !== sipIdentity/);
+  assert.match(builtSip,/salemax-\[0-9\]\{3,8\}-browser/);
+  assert.doesNotMatch(builtSip,/[0-9]\{3,8\}-browser-r/);
+  assert.match(page,/sip-runtime\.js\?v=20261117-sip-endpoint-identity1/);
   assert.match(sip,/onServerDisconnect:[\s\S]*?if \(user === candidate\) \{ user = null; userConfigKey = ''; \}/);
   assert.match(sip,/if \(!candidate\.isConnected\(\)\) await candidate\.connect\(\)/);
   assert.match(ui,/window\.SevenNetworkSip\.answerBrowserCall\(\)/);
