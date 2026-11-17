@@ -32,7 +32,7 @@ async function main(){
     await admin.query(`CREATE DATABASE \`${dbName}\``);created=true;
     db=await mysql.createConnection({...config,database:dbName});other=await mysql.createConnection({...config,database:dbName});pool=mysql.createPool({...config,database:dbName,connectionLimit:5});
     const [versionRows]=await db.query('SELECT VERSION() AS version');
-    await db.query(`CREATE TABLE sx_tenants(id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin PRIMARY KEY,slug VARCHAR(80) NOT NULL,name VARCHAR(120) NOT NULL,category_key VARCHAR(80) NOT NULL,category_version INT NOT NULL,timezone VARCHAR(80) NOT NULL DEFAULT 'Asia/Qatar',status VARCHAR(20) NOT NULL) ENGINE=InnoDB`);
+    await db.query(`CREATE TABLE sx_tenants(id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin PRIMARY KEY,slug VARCHAR(80) NOT NULL,name VARCHAR(120) NOT NULL,category_key VARCHAR(80) NOT NULL,category_version INT NOT NULL,country_code CHAR(2) CHARACTER SET ascii NOT NULL DEFAULT 'QA',timezone VARCHAR(80) NOT NULL DEFAULT 'Asia/Qatar',status VARCHAR(20) NOT NULL) ENGINE=InnoDB`);
     await db.query(`CREATE TABLE sx_identities(id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin PRIMARY KEY,email_normalized VARCHAR(254) NOT NULL,display_name VARCHAR(120) NOT NULL,status VARCHAR(20) NOT NULL) ENGINE=InnoDB`);
     await db.query(`CREATE TABLE sx_memberships(id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,tenant_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,identity_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,role VARCHAR(20) NOT NULL,status VARCHAR(20) NOT NULL DEFAULT 'active',PRIMARY KEY(id),UNIQUE KEY uq_test_membership_tenant_id(tenant_id,id),FOREIGN KEY(tenant_id) REFERENCES sx_tenants(id),FOREIGN KEY(identity_id) REFERENCES sx_identities(id)) ENGINE=InnoDB`);
     await db.query(`CREATE TABLE sx_audit_events(id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin PRIMARY KEY,tenant_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NULL,actor_identity_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,actor_kind VARCHAR(24) NOT NULL,action VARCHAR(100) NOT NULL,resource_type VARCHAR(100) NOT NULL,resource_id VARCHAR(120) NOT NULL,reason VARCHAR(1000) NULL,changes JSON NOT NULL,correlation_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,FOREIGN KEY(actor_identity_id) REFERENCES sx_identities(id),FOREIGN KEY(tenant_id) REFERENCES sx_tenants(id)) ENGINE=InnoDB`);
@@ -43,7 +43,7 @@ async function main(){
     await db.query('INSERT INTO sx_platform_asterisk_config(id) VALUES(1)');
     await db.query(`CREATE TABLE sx_platform_asterisk_gateway_ports(channel_no TINYINT UNSIGNED PRIMARY KEY,enabled TINYINT(1) NOT NULL DEFAULT 0,inbound_enabled TINYINT(1) NOT NULL DEFAULT 0,outbound_enabled TINYINT(1) NOT NULL DEFAULT 0,revision BIGINT UNSIGNED NOT NULL DEFAULT 0,updated_by_identity_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NULL,updated_at DATETIME(3) NULL,FOREIGN KEY(updated_by_identity_id) REFERENCES sx_identities(id)) ENGINE=InnoDB`);
     await db.query('INSERT INTO sx_platform_asterisk_gateway_ports(channel_no) VALUES(1),(2),(3),(4)');
-    for(const name of ['20261106_tenant_telephony_extensions.sql','20261107_gateway_tenant_assignment.sql','20261108_telephony_queues.sql','20261109_gateway_inbound_queues.sql','20261110_asterisk_ari_runtime.sql','20261111_telephony_call_sessions.sql','20261112_asterisk_endpoint_credentials.sql','20261113_telephony_endpoint_provisioning.sql','20261114_tenant_asterisk_gateways.sql','20261115_tenant_gateway_call_leases.sql','20261115_telephony_call_recordings.sql','20261128_telephony_call_coaching.sql','20261204_telephony_call_lead_links.sql']){
+    for(const name of ['20261106_tenant_telephony_extensions.sql','20261107_gateway_tenant_assignment.sql','20261108_telephony_queues.sql','20261109_gateway_inbound_queues.sql','20261110_asterisk_ari_runtime.sql','20261111_telephony_call_sessions.sql','20261204_telephony_call_lead_links.sql','20261112_telephony_call_remote_number.sql','20261112_asterisk_endpoint_credentials.sql','20261113_telephony_endpoint_provisioning.sql','20261114_tenant_asterisk_gateways.sql','20261115_tenant_gateway_call_leases.sql','20261115_telephony_call_recordings.sql','20261128_telephony_call_coaching.sql']){
       const sql=fs.readFileSync(require('node:path').join(__dirname,'../database/migrations',name),'utf8');
       for(const statement of sql.split(';').map(part=>part.trim()).filter(Boolean))await db.query(statement);
     }
@@ -90,6 +90,8 @@ async function main(){
     assert.match(preview.config,/Stasis\(salemax-call-center,inbound-did,\$\{EXTEN\}\)/);
     assert.deepEqual(preview.dinstarOutboundRoutes.map(route=>[route.channelNo,route.gatewayPort,route.routePrefix,route.digitsToDelete]),[[1,0,'9901',4]]);
     assert.match(preview.config,/Destination Prefix: 9901[\s\S]*Digits to be Deleted: 4/);
+    assert.match(preview.config,/exact model and firmware are unverified/);
+    assert.ok(preview.warnings.some(message=>message.includes('unverified assumptions')));
     const finalQueue=(await queues.list(db,tenantContext)).find(item=>item.id===createdQueue.id);
     await assert.rejects(queues.save(db,tenantContext,{...finalQueue,membershipIds:finalQueue.members.map(member=>member.membershipId),expectedRevision:finalQueue.revision,enabled:false}),{code:'TELEPHONY_QUEUE_INBOUND_CHANNELS_ACTIVE'});
     const tenantGatewayId=crypto.randomUUID();
@@ -98,11 +100,15 @@ async function main(){
     for(let channelNo=1;channelNo<=4;channelNo++)await db.query(`INSERT INTO sx_telephony_gateway_channels
       (tenant_id,gateway_id,channel_no,enabled,inbound_enabled,outbound_enabled,inbound_did,inbound_queue_id,updated_by_identity_id)
       VALUES(?,?,?,?,?,?,?,?,?)`,[tenantId,tenantGatewayId,channelNo,channelNo===1?1:0,channelNo===1?1:0,channelNo===1?1:0,channelNo===1?'+97455550001':null,channelNo===1?createdQueue.id:null,channelNo===1?ownerId:null]);
+    for(const [membershipId,extension] of [[ownerMembership,'7401'],[agentMembership,'7402']])for(const clientType of ['mobile','browser'])
+      await db.query(`INSERT INTO sx_telephony_endpoint_provisioning(tenant_id,membership_id,client_type,extension,extension_revision,credential_revision,asterisk_config_revision)
+        VALUES(?,?,?, ?,1,1,7)`,[tenantId,membershipId,clientType,extension]);
     await db.query("UPDATE sx_platform_asterisk_runtime SET status='connected',worker_id=?,events_received=events_received+1,last_event_type='StasisStart',last_event_at=UTC_TIMESTAMP(3) WHERE id=1",['synthetic-worker']);
     const ariActions=[],originated=[],outboundGatewayOriginated=[];let liveAriChannels=[];
     const ariFactory=async()=>({
       async listChannels(){return liveAriChannels;},
       async createMixingBridge(id){ariActions.push(['bridge-create',id]);return{id};},
+      async ring(id){ariActions.push(['ring',id]);},
       async answer(id){ariActions.push(['answer',id]);},
       async addToBridge(bridgeId,ids){ariActions.push(['bridge-add',bridgeId,...ids]);},
       async originateAgent(input){originated.push(input);ariActions.push(['originate',input.channelId,input.extension,input.clientType]);return{id:input.channelId};},
@@ -112,17 +118,21 @@ async function main(){
     });
     const callControl=new AsteriskCallControl({pool,ariClientFactory:ariFactory});
     const inboundChannel='synthetic-pjsip-inbound-1';
-    const inboundEvent={type:'StasisStart',application:'salemax-call-center',args:['inbound-did','+97455550001'],channel:{id:inboundChannel,name:`PJSIP/salemax_gw_${tenantGatewayId.replace(/-/g,'')}-0001`}};
+    const inboundEvent={type:'StasisStart',application:'salemax-call-center',args:['inbound-did','+97455550001'],channel:{id:inboundChannel,name:`PJSIP/salemax_gw_${tenantGatewayId.replace(/-/g,'')}-0001`,caller:{number:'+97455550099'}}};
     assert.equal(await callControl.handle(inboundEvent),true);
+    assert.ok(ariActions.findIndex(action=>action[0]==='ring'&&action[1]===inboundChannel)<ariActions.findIndex(action=>action[0]==='originate'),
+      'the inbound caller receives a ringing indication before any agent leg is originated');
     assert.equal(originated.length,4);
+    assert.ok(originated.every(leg=>leg.callerId==='+97455550099'),'staff mobile/browser legs receive caller ANI, not the called DID');
     await callControl.handle(inboundEvent);
     assert.equal(originated.length,4,'a duplicate StasisStart must not originate additional agent legs');
     const winner=originated[0];
     const agentEvent={type:'StasisStart',application:'salemax-call-center',args:winner.appArgs,channel:{id:winner.channelId}};
     assert.equal(await callControl.handle(agentEvent),true);
     await callControl.handle(agentEvent);
-    const [[connectedCall]]=await db.query('SELECT status,leased_channel_no,answered_by_membership_id FROM sx_telephony_calls WHERE inbound_channel_id=?',[inboundChannel]);
+    const [[connectedCall]]=await db.query('SELECT status,remote_number,leased_channel_no,answered_by_membership_id FROM sx_telephony_calls WHERE inbound_channel_id=?',[inboundChannel]);
     assert.equal(connectedCall.status,'connected');assert.equal(Number(connectedCall.leased_channel_no),1);assert.equal(connectedCall.answered_by_membership_id,winner.appArgs[2]);
+    assert.equal(connectedCall.remote_number,'+97455550099','inbound call history persists the caller ANI');
     await callControl.handle({type:'ChannelDestroyed',application:'salemax-call-center',channel:{id:winner.channelId}});
     const [[endedCall]]=await db.query('SELECT status,leased_channel_no FROM sx_telephony_calls WHERE inbound_channel_id=?',[inboundChannel]);
     assert.equal(endedCall.status,'ended');assert.equal(endedCall.leased_channel_no,null);
@@ -133,6 +143,9 @@ async function main(){
     await db.query(`INSERT INTO sx_identities(id,email_normalized,display_name,status) VALUES(?,?,?,'active'),(?,?,?,'active')`,[tenant2OwnerId,'owner-b@example.invalid','Synthetic Owner B',tenant2AgentId,'agent-b@example.invalid','Synthetic Agent B']);
     await db.query(`INSERT INTO sx_memberships(id,tenant_id,identity_id,role) VALUES(?,?,?,'owner'),(?,?,?,'agent')`,[tenant2OwnerMembership,tenant2Id,tenant2OwnerId,tenant2AgentMembership,tenant2Id,tenant2AgentId]);
     await db.query('INSERT INTO sx_telephony_extensions(tenant_id,membership_id,extension,revision,assigned_by_identity_id) VALUES(?,?,?,1,?),(?,?,?,1,?)',[tenant2Id,tenant2OwnerMembership,'7501',tenant2OwnerId,tenant2Id,tenant2AgentMembership,'7502',tenant2OwnerId]);
+    for(const [membershipId,extension] of [[tenant2OwnerMembership,'7501'],[tenant2AgentMembership,'7502']])for(const clientType of ['mobile','browser'])
+      await db.query(`INSERT INTO sx_telephony_endpoint_provisioning(tenant_id,membership_id,client_type,extension,extension_revision,credential_revision,asterisk_config_revision)
+        VALUES(?,?,?, ?,1,1,7)`,[tenant2Id,membershipId,clientType,extension]);
     const tenant2Context={...tenantContext,identity:{id:tenant2OwnerId},tenant:{...tenantContext.tenant,id:tenant2Id},membership:{...tenantContext.membership,id:tenant2OwnerMembership,tenantId:tenant2Id}};
     const tenant2Queue=await queues.save(db,tenant2Context,{id:null,expectedRevision:0,name:'support_secondary',strategy:'ringall',ringTimeoutSeconds:20,enabled:true,membershipIds:[tenant2OwnerMembership,tenant2AgentMembership]});
     const tenant2GatewayId=crypto.randomUUID();
@@ -142,12 +155,14 @@ async function main(){
       (tenant_id,gateway_id,channel_no,enabled,inbound_enabled,outbound_enabled,inbound_did,inbound_queue_id,updated_by_identity_id)
       VALUES(?,?,?,?,?,?,?,?,?)`,[tenant2Id,tenant2GatewayId,channelNo,channelNo===1?1:0,channelNo===1?1:0,0,channelNo===1?'+97455550002':null,channelNo===1?tenant2Queue.id:null,channelNo===1?tenant2OwnerId:null]);
     const tenant2InboundChannel='synthetic-pjsip-inbound-tenant-b',originatedBeforeTenant2=originated.length;
-    assert.equal(await callControl.handle({type:'StasisStart',application:'salemax-call-center',args:['inbound-did','+97455550002'],channel:{id:tenant2InboundChannel,name:`PJSIP/salemax_gw_${tenant2GatewayId.replace(/-/g,'')}-0002`}}),true);
+    assert.equal(await callControl.handle({type:'StasisStart',application:'salemax-call-center',args:['inbound-did','+97455550002'],channel:{id:tenant2InboundChannel,name:`PJSIP/salemax_gw_${tenant2GatewayId.replace(/-/g,'')}-0002`,caller:{number:'+97455550088'}}}),true);
     const tenant2AgentLegs=originated.slice(originatedBeforeTenant2);
     assert.equal(tenant2AgentLegs.length,4);
+    assert.ok(tenant2AgentLegs.every(leg=>leg.callerId==='+97455550088'));
     assert.deepEqual(tenant2AgentLegs.map(leg=>leg.extension).sort(),['7501','7501','7502','7502'],'the second tenant rings only its own queue members');
-    const [[tenant2InboundCall]]=await db.query('SELECT tenant_id,gateway_id,inbound_queue_id,id FROM sx_telephony_calls WHERE inbound_channel_id=?',[tenant2InboundChannel]);
+    const [[tenant2InboundCall]]=await db.query('SELECT tenant_id,gateway_id,inbound_queue_id,id,remote_number FROM sx_telephony_calls WHERE inbound_channel_id=?',[tenant2InboundChannel]);
     assert.deepEqual([tenant2InboundCall.tenant_id,tenant2InboundCall.gateway_id,tenant2InboundCall.inbound_queue_id],[tenant2Id,tenant2GatewayId,tenant2Queue.id]);
+    assert.equal(tenant2InboundCall.remote_number,'+97455550088');
     const [tenant2InboundMemberships]=await db.query(`SELECT DISTINCT m.tenant_id FROM sx_telephony_call_legs l
       JOIN sx_memberships m ON m.id=l.membership_id WHERE l.tenant_id=? AND l.call_id=? AND l.leg_role='agent'`,[tenant2Id,tenant2InboundCall.id]);
     assert.deepEqual(tenant2InboundMemberships.map(row=>row.tenant_id),[tenant2Id],'tenant B call legs cannot reference tenant A memberships');
@@ -163,12 +178,20 @@ async function main(){
     const oldEndpointEnv={key:process.env.SALEMAX_PLATFORM_KEY_BASE64,hosts:process.env.SALEMAX_ASTERISK_ALLOWED_HOSTS,ws:process.env.SALEMAX_ASTERISK_WS_URL,mobile:process.env.SALEMAX_ASTERISK_MOBILE_SIP_HOST};
     process.env.SALEMAX_PLATFORM_KEY_BASE64=crypto.randomBytes(32).toString('base64');process.env.SALEMAX_ASTERISK_ALLOWED_HOSTS='crm.example.invalid,sip.example.invalid';process.env.SALEMAX_ASTERISK_WS_URL='wss://crm.example.invalid/ws';process.env.SALEMAX_ASTERISK_MOBILE_SIP_HOST='sip.example.invalid';
     try{
-      const agentEndpointWrites=[];const endpointClientFactory=async()=>({async upsertPjsipObject(type,id,fields){agentEndpointWrites.push({type,id,fields});return{attributes:fields.length};}});
+      const agentEndpointWrites=[],configuredEndpointObjects=new Map();
+      configuredEndpointObjects.set('endpoint:salemax-7401-browser',[{attribute:'auth',value:'salemax-7401-browser-r1-auth'},
+        {attribute:'aors',value:'salemax-7401-browser-r1-aor'}]);
+      const endpointClientFactory=async()=>({
+        async getPjsipObject(type,id){const fields=configuredEndpointObjects.get(`${type}:${id}`);if(!fields)throw Object.assign(new Error('missing'),{code:'ARI_RESOURCE_NOT_FOUND'});return fields;},
+        async upsertPjsipObject(type,id,fields){agentEndpointWrites.push({operation:'upsert',type,id,fields});configuredEndpointObjects.set(`${type}:${id}`,fields);return{attributes:fields.length};},
+        async deletePjsipObject(type,id){agentEndpointWrites.push({operation:'delete',type,id});return{deleted:true};},
+      });
       const browserCredentials=await asteriskConfig.ownBrowserEndpoint(db,tenantContext,endpointClientFactory),mobileCredentials=await asteriskConfig.ownMobileEndpoint(db,tenantContext,endpointClientFactory);
-      assert.equal(browserCredentials.authorizationUsername,'7401-browser');assert.equal(mobileCredentials.username,'7401-mobile');
+      assert.equal(browserCredentials.authorizationUsername,'7401-browser-r2');assert.equal(mobileCredentials.username,'7401-mobile-r1');
       assert.notEqual(browserCredentials.authorizationPassword,mobileCredentials.password);
       assert.equal(browserCredentials.authorizationPassword,asteriskSecrets.endpointCredential({tenantId,membershipId:ownerMembership,extension:'7401',clientType:'browser',revision:2}));
-      assert.equal(agentEndpointWrites.length,6,'opening SIP settings applies auth, AOR and endpoint objects for mobile and browser');
+      assert.equal(agentEndpointWrites.filter(write=>write.operation==='upsert').length,6,'opening SIP settings applies auth, AOR and endpoint objects for mobile and browser');
+      assert.equal(agentEndpointWrites.filter(write=>write.operation==='delete').length,2,'rotated credentials remove the previous revision auth and AOR objects');
       const [[provisionAudits]]=await db.query("SELECT COUNT(*) AS total FROM sx_audit_events WHERE action IN ('telephony.endpoint-provision-requested','telephony.endpoint-provisioned')");
       assert.equal(Number(provisionAudits.total),4,'each member endpoint apply attempt and success is audited without secrets');
       const priorWriteCount=agentEndpointWrites.length;

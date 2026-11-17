@@ -219,9 +219,13 @@ function createChatbotRouter({ pool, origin, userGuard, canonicalGuard }) {
     if (!/^[0-9a-f-]{36}$/i.test(req.params.id) || !Number.isSafeInteger(req.body.expectedRevision) || req.body.expectedRevision < 1) fail('INVALID_REVISION');
     const data = await withDb(async db => {
       await db.beginTransaction(); try {
-        const [[row]] = await db.query(`SELECT revision,status,category_key AS categoryKey,category_version AS categoryVersion FROM sx_chatbot_profiles WHERE tenant_id=? AND id=? FOR UPDATE`, [ctx.tenant.id, req.params.id]);
+        const [[row]] = await db.query(`SELECT revision,status,config,category_key AS categoryKey,category_version AS categoryVersion FROM sx_chatbot_profiles WHERE tenant_id=? AND id=? FOR UPDATE`, [ctx.tenant.id, req.params.id]);
         if (!row) fail('BOT_NOT_FOUND');
         if (Number(row.revision) !== req.body.expectedRevision) fail('STALE_REVISION');
+        const storedConfig = typeof row.config === 'string' ? JSON.parse(row.config || '{}') : row.config;
+        for (const key of ['staffWhatsAppRelayEnabled', 'shortHandoffCodesEnabled']) {
+          if (storedConfig?.[key] === true) input.config[key] = true;
+        }
         await require('./chatbot-capture-forms').validate(db,ctx,input.config);
         await validateHandoffAssignee(db,ctx,input.config.handoffAssigneeIdentityId);
         if (row.status === 'live') await assertLiveProfileReady(db, req, ctx, {

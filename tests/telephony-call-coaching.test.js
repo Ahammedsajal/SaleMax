@@ -86,13 +86,13 @@ test('Call Center exposes the audited coaching API to owners and denies agent wr
     throw new Error(`Unexpected query: ${sql}`);
   }};
   const buildServer=ctx=>{
-    const app=express();app.use('/call-center',createCallCenterRouter({pool:{async getConnection(){return db;}},userGuard(){throw new Error('unexpected legacy auth');},canonicalGuard(req,_res,next){req.businessContext=ctx;next();},origin:'http://127.0.0.1'}));
+    const app=express();app.use('/call-center',createCallCenterRouter({pool:{async getConnection(){return db;}},userGuard(){throw new Error('unexpected legacy auth');},canonicalGuard(req,_res,next){req.businessContext=ctx;next();},origin:'https://7network.live'}));
     const server=http.createServer(app);return new Promise((resolve,reject)=>{server.once('error',reject);server.listen(0,'127.0.0.1',()=>resolve(server));});
   };
   const ownerServer=await buildServer(context('owner'));t.after(()=>new Promise(resolve=>ownerServer.close(resolve)));
-  const response=await fetch(`http://127.0.0.1:${ownerServer.address().port}/call-center/calls/${callId}/coaching`,{method:'POST',headers:{Origin:'http://127.0.0.1','Content-Type':'application/json'},body:JSON.stringify({agentMembershipId:agentId,quality:'effective',feedback:'The agent listened and confirmed the requirement.'})});
+  const response=await fetch(`http://127.0.0.1:${ownerServer.address().port}/call-center/calls/${callId}/coaching`,{method:'POST',headers:{Origin:'https://7network.live','Content-Type':'application/json'},body:JSON.stringify({agentMembershipId:agentId,quality:'effective',feedback:'The agent listened and confirmed the requirement.'})});
   const result=await response.json();assert.equal(response.status,201,JSON.stringify(result));assert.equal(result.data.callId,callId);assert.equal(writes,2);
   const agentServer=await buildServer(context('agent'));t.after(()=>new Promise(resolve=>agentServer.close(resolve)));
-  const denied=await fetch(`http://127.0.0.1:${agentServer.address().port}/call-center/calls/${callId}/coaching`,{method:'POST',headers:{Origin:'http://127.0.0.1','Content-Type':'application/json'},body:JSON.stringify({agentMembershipId:agentId,quality:'effective',feedback:'An agent must not self-author coaching.'})});
+  const denied=await fetch(`http://127.0.0.1:${agentServer.address().port}/call-center/calls/${callId}/coaching`,{method:'POST',headers:{Origin:'https://7network.live','Content-Type':'application/json'},body:JSON.stringify({agentMembershipId:agentId,quality:'effective',feedback:'An agent must not self-author coaching.'})});
   assert.equal(denied.status,403);assert.equal((await denied.json()).code,'PERMISSION_DENIED');assert.equal(writes,2);
 });

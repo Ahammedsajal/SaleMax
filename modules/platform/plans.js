@@ -138,7 +138,8 @@ async function loadEntitlements(db,tenantId){
   const [[row]]=await db.query(`SELECT a.id,a.status,a.role_limits,p.capabilities,p.category_key,p.category_version,
     (a.effective_from<=UTC_TIMESTAMP(3) AND a.expires_at>UTC_TIMESTAMP(3)) AS current_period
     FROM sx_plan_assignments a JOIN sx_plan_versions p ON p.id=a.plan_version_id AND p.status='published'
-    JOIN sx_tenants t ON t.id=a.tenant_id AND (t.category_key=p.category_key OR (t.category_key='7network_sales' AND p.category_key='salemax_sales')) AND t.category_version=p.category_version
+    JOIN sx_tenants t ON t.id=a.tenant_id AND (t.category_key=p.category_key
+      OR (t.category_key IN ('7network_sales','salemax_sales') AND p.category_key IN ('7network_sales','salemax_sales'))) AND t.category_version=p.category_version
     WHERE a.tenant_id=? AND a.current_tenant IS NOT NULL`,[uuid(tenantId)]);
   if(!row)return null;
   const category=getCategory(row.category_key,Number(row.category_version));if(!category)fail('CATEGORY_UNAVAILABLE');
@@ -159,7 +160,7 @@ async function reserveInvite(db,ctx,input){
     const entitlement=await loadEntitlements(db,ctx.tenant.id);
     const category=getCategory(tenant.category_key,Number(tenant.category_version));
     const trusted={...ctx,tenant:{...ctx.tenant,status:tenant.status,categoryKey:tenant.category_key,categoryVersion:tenant.category_version},category,membership:{...ctx.membership,role:member.role,status:member.status,delegatedPermissions:json(member.delegated_permissions)},subscription:entitlement};
-    if(!entitlement||entitlement.categoryKey!==tenant.category_key||entitlement.categoryVersion!==tenant.category_version||!decision(trusted,{capability:'team.members',permission:'team.invite'}).allowed)fail('FEATURE_UNAVAILABLE');
+    if(!entitlement||!categoryKeyMatches(entitlement.categoryKey,tenant.category_key)||entitlement.categoryVersion!==tenant.category_version||!decision(trusted,{capability:'team.members',permission:'team.invite'}).allowed)fail('FEATURE_UNAVAILABLE');
     const used=await usage(db,ctx.tenant.id);
     const [[prior]]=await db.query('SELECT id,email_normalized,role,status FROM sx_team_invites WHERE tenant_id=? AND request_key=?',[ctx.tenant.id,input.requestKey]);
     if(prior){if(prior.email_normalized!==email||prior.role!==input.role)fail('IDEMPOTENCY_CONFLICT');return {id:prior.id,status:prior.status,repeated:true};}

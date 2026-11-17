@@ -7,7 +7,7 @@ const fail = code => { throw Object.assign(new Error(code), { code }); };
 
 function parseYes(value) {
   const text = String(value || '').normalize('NFKC').trim().replace(/\s+/g, ' ');
-  const match = text.match(/^(?:yes|y|available|i can take(?: it)?|i am available|i'm available|نعم|متاح|متاحة)\s+([a-z0-9]{6})[.!؟]?$/iu);
+  const match = text.match(/^(?:yes|y|available|i can take(?: it)?|i am available|i'm available|نعم|متاح|متاحة)\s+([a-z][0-9]|[a-z0-9]{6})[.!؟]?$/iu);
   return match ? { code: String(match[1]).toUpperCase() } : null;
 }
 
@@ -16,7 +16,36 @@ function phone(value, normalizer = require('./business-whatsapp').phone) {
   return normalizer(raw);
 }
 
-function newCode() { return crypto.randomInt(36 ** 6).toString(36).toUpperCase().padStart(6, '0'); }
+async function codeIsRegistered(db, tenantId, code) {
+  const [rows] = await db.query(`SELECT id FROM sx_chatbot_handoff_code_registry
+    WHERE tenant_id=? AND claim_code=? LIMIT 1 FOR UPDATE`, [tenantId, code]);
+  return Array.isArray(rows) && rows.length > 0;
+}
+
+async function newCode(db, tenantId, preferShort, unavailable = new Set()) {
+  const count = 26 * 10;
+  if (preferShort) {
+    const start = crypto.randomInt(count);
+    for (let offset = 0; offset < count; offset++) {
+      const value = (start + offset) % count;
+      const code = String.fromCharCode(65 + Math.floor(value / 10)) + String(value % 10);
+      if (!unavailable.has(code) && !await codeIsRegistered(db, tenantId, code)) return code;
+    }
+  }
+  // Never recycle a short code: old staff alerts may still be visible in WhatsApp.
+  // Keep handoffs available with a longer code only after the tenant uses all 260 short codes.
+  for (let attempt = 0; attempt < 32; attempt++) {
+    const code = crypto.randomInt(36 ** 6).toString(36).toUpperCase().padStart(6, '0');
+    if (!unavailable.has(code) && !await codeIsRegistered(db, tenantId, code)) return code;
+  }
+  fail('HANDOFF_CODE_POOL_EXHAUSTED');
+}
+
+function isCodeCollision(error) {
+  const detail = `${error?.sqlMessage || ''} ${error?.message || ''}`.toLowerCase();
+  return error?.code === 'ER_DUP_ENTRY'
+    && /uq_sx_chatbot_handoff_code(?:_registry_code)?(?:['`]|$)/.test(detail);
+}
 
 function oneHourTenant() {
   return process.env.SALEMAX_CHATBOT_ONE_HOUR_HANDOFF_TENANT_ID || null;
@@ -234,24 +263,47 @@ async function open(db, { ctx, profile, uid, chatId, channelKind, channelRef, re
   }
   const id = existing?.id || crypto.randomUUID();
   const revision = Number(existing?.revision || 0) + 1;
-  const claimCode = newCode();
   const eventKey = `chatbot-handoff:${id}:${revision}`;
-  if (existing) {
-    await db.query(`UPDATE sx_chatbot_handoff_claims SET profile_id=?,owner_uid_hash=?,claim_code=?,reason=?,status='open',
-      expires_at=TIMESTAMPADD(MINUTE,?,UTC_TIMESTAMP(3)),
-      handoff_task_id=NULL,notification_event_key=?,claimed_identity_id=NULL,claimed_at=NULL,last_customer_ack_at=NULL,
-      last_customer_ack_inbound_id=NULL,customer_name=?,customer_phone=?,course_details=?,latest_enquiry=?,summary_context=?,ai_summary=NULL,
-      ai_summary_status='pending',ai_summary_lease_until=NULL,ai_summary_attempts=0,relay_enabled=0,closed_at=NULL,closed_identity_id=NULL,revision=? WHERE tenant_id=? AND id=?`,
-    [profile.id, ownerHash, claimCode, String(reason || 'human-review').slice(0, 120), claimWindowMinutes, eventKey,
-      brief.customerName || null, brief.customerPhone || null, JSON.stringify(brief.courseDetails || []), brief.latestEnquiry || null,
-      brief.summaryContext ? JSON.stringify(brief.summaryContext) : null, revision, ctx.tenant.id, id]);
-  } else {
-    await db.query(`INSERT INTO sx_chatbot_handoff_claims(id,tenant_id,profile_id,channel_kind,channel_ref,conversation_id,owner_uid_hash,claim_code,reason,expires_at,notification_event_key,customer_name,customer_phone,course_details,latest_enquiry,summary_context,revision)
-      VALUES (?,?,?,?,?,?,?,?,?,TIMESTAMPADD(MINUTE,?,UTC_TIMESTAMP(3)),?,?,?,?,?,?,?)`,
-    [id, ctx.tenant.id, profile.id, channelKind, channelRef, chatId, ownerHash, claimCode, String(reason || 'human-review').slice(0, 120), claimWindowMinutes, eventKey,
-      brief.customerName || null, brief.customerPhone || null, JSON.stringify(brief.courseDetails || []), brief.latestEnquiry || null,
-      brief.summaryContext ? JSON.stringify(brief.summaryContext) : null, revision]);
+  let claimCode = null;
+  let claimRowWritten = false;
+  let written = false;
+  const unavailableCodes = new Set();
+  const preferShort = profile?.config?.shortHandoffCodesEnabled === true;
+  if (preferShort) {
+    const [[tenantLock]] = await db.query('SELECT id FROM sx_tenants WHERE id=? FOR UPDATE', [ctx.tenant.id]);
+    if (!tenantLock) fail('HANDOFF_TENANT_NOT_FOUND');
   }
+  for (let attempt = 0; attempt < 32; attempt++) {
+    claimCode = await newCode(db, ctx.tenant.id, preferShort, unavailableCodes);
+    try {
+      if (existing || claimRowWritten) {
+        await db.query(`UPDATE sx_chatbot_handoff_claims SET profile_id=?,owner_uid_hash=?,claim_code=?,reason=?,status='open',
+          expires_at=TIMESTAMPADD(MINUTE,?,UTC_TIMESTAMP(3)),
+          handoff_task_id=NULL,notification_event_key=?,claimed_identity_id=NULL,claimed_at=NULL,last_customer_ack_at=NULL,
+          last_customer_ack_inbound_id=NULL,customer_name=?,customer_phone=?,course_details=?,latest_enquiry=?,summary_context=?,ai_summary=NULL,
+          ai_summary_status='pending',ai_summary_lease_until=NULL,ai_summary_attempts=0,relay_enabled=0,closed_at=NULL,closed_identity_id=NULL,revision=? WHERE tenant_id=? AND id=?`,
+        [profile.id, ownerHash, claimCode, String(reason || 'human-review').slice(0, 120), claimWindowMinutes, eventKey,
+          brief.customerName || null, brief.customerPhone || null, JSON.stringify(brief.courseDetails || []), brief.latestEnquiry || null,
+          brief.summaryContext ? JSON.stringify(brief.summaryContext) : null, revision, ctx.tenant.id, id]);
+        claimRowWritten = true;
+      } else {
+        await db.query(`INSERT INTO sx_chatbot_handoff_claims(id,tenant_id,profile_id,channel_kind,channel_ref,conversation_id,owner_uid_hash,claim_code,reason,expires_at,notification_event_key,customer_name,customer_phone,course_details,latest_enquiry,summary_context,revision)
+          VALUES (?,?,?,?,?,?,?,?,?,TIMESTAMPADD(MINUTE,?,UTC_TIMESTAMP(3)),?,?,?,?,?,?,?)`,
+        [id, ctx.tenant.id, profile.id, channelKind, channelRef, chatId, ownerHash, claimCode, String(reason || 'human-review').slice(0, 120), claimWindowMinutes, eventKey,
+          brief.customerName || null, brief.customerPhone || null, JSON.stringify(brief.courseDetails || []), brief.latestEnquiry || null,
+          brief.summaryContext ? JSON.stringify(brief.summaryContext) : null, revision]);
+        claimRowWritten = true;
+      }
+      await db.query(`INSERT INTO sx_chatbot_handoff_code_registry(id,tenant_id,claim_code,claim_id,revision)
+        VALUES (?,?,?,?,?)`, [crypto.randomUUID(), ctx.tenant.id, claimCode, id, revision]);
+      written = true;
+      break;
+    } catch (error) {
+      if (!isCodeCollision(error)) throw error;
+      unavailableCodes.add(claimCode);
+    }
+  }
+  if (!written) fail('HANDOFF_CODE_ALLOCATION_FAILED');
   return { id, claimCode, revision, notificationEventKey: eventKey, created: true };
 }
 

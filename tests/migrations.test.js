@@ -32,6 +32,9 @@ test('actual discovery excludes destructive rollback', () => {
   const salesOrg=migrations.findIndex(m=>m.file==='20261114_sales_organization.sql');
   const salesFinance=migrations.findIndex(m=>m.file==='20261115_sales_commissions.sql');
   assert.ok(teamRoles>=0&&salesOrg>teamRoles&&salesFinance>salesOrg,'Sales migrations follow the Team Leader role migration');
+  const telephonyLeadLinks=migrations.findIndex(m=>m.file==='20261204_telephony_call_lead_links.sql');
+  const telephonyRemoteNumber=migrations.findIndex(m=>m.file==='20261112_telephony_call_remote_number.sql');
+  assert.ok(telephonyLeadLinks>=0&&telephonyRemoteNumber>telephonyLeadLinks,'call lead columns are created before the remote-number column is positioned after lead_id');
   assert.ok(migrations.every(m => !/rollback/.test(m.file)));
   assert.equal(migrations[0].file, '20260928_lead_pipeline.sql');
 });
@@ -88,6 +91,18 @@ test('the exact deployed notification migration checksum remains valid after its
   const connection = fake({ rows: [appliedRow] });
   assert.deepEqual(await applyMigrations(connection, [notificationMigration]), { applied: [], skipped: [notificationMigration.file] });
   assert.ok(!connection.calls.some(call => call.sql.startsWith('INSERT')));
+});
+test('an explicitly selected telephony migration requires its applied schema prerequisite', async () => {
+  const all=discover(path.join(__dirname,'../database/migrations'));
+  const relevant=all.filter(item=>['20261204_telephony_call_lead_links.sql','20261112_telephony_call_remote_number.sql'].includes(item.file));
+  const connection=fake();
+  await assert.rejects(applyMigrations(connection,relevant,{only:'20261112_telephony_call_remote_number.sql'}),{code:'MIGRATION_DEPENDENCY_REQUIRED'});
+  assert.ok(!connection.calls.some(call=>call.sql.startsWith('INSERT INTO salemax_schema_migrations')),'missing prerequisite is detected before recording or executing the selected migration');
+  assert.ok(connection.calls.at(-1).sql.includes('RELEASE_LOCK'));
+  const prerequisite=relevant.find(item=>item.file==='20261204_telephony_call_lead_links.sql');
+  const remote=relevant.find(item=>item.file==='20261112_telephony_call_remote_number.sql');
+  assert.deepEqual(await applyMigrations(fake({rows:[{migration_name:prerequisite.file,checksum:prerequisite.checksum,status:'applied'}]}),relevant,{only:remote.file}),
+    {applied:[remote.file],skipped:[]},'the separately deployed migration remains applicable when its prerequisite is already recorded');
 });
 test('failed/interrupted history requires recovery before retrying DDL', async () => {
   for (const status of ['failed', 'running']) {
