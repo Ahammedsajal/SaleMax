@@ -249,7 +249,7 @@ def validate_stage(stage_path, commit):
     if ('data-enable-replies' not in ui or 'data-refresh-inbound' not in ui or
             'domainVerificationStatus' not in service or "'/ses/inbound'" not in router or
             'data-inbound' not in admin_ui or 'ReplyToAddresses:[replyTo]' not in worker or
-            'inbound_sns_message_id' not in migration or 'Notification' not in inbound):
+            'inbound_sns_message_id' not in migration or 'eventType' not in inbound or 'Received' not in inbound):
         raise RuntimeError('Staged files do not contain the reviewed inbound reply flow')
     return stage_path, manifest
 
