@@ -1,3 +1,7 @@
+### Pro Catalyst ambiguous diploma clarification — deployed, 17 November 2026
+
+Generic diploma-duration enquiries now prompt the customer to select one of the three published diploma courses before the bot answers a specific duration or requests staff. The exact live runtime preview passed with no AI provider call. Source `575588d2445f6fc28786fb10f57ad95e7b5d0732` is pushed and deployed; production health and mounted hashes are verified. No real WhatsApp message was sent, and owner acceptance on a fresh inbound conversation remains open. Release and guarded rollback evidence are in `DEPLOYMENT.md`.
+
 ## Pro Catalyst generic ad enquiry discovery prompt — deployed, 16 November 2026
 
 A generic first message such as “Hello! Can I get more info on this?” now receives the saved welcome and one focused course-discovery question when no course is named and no verified ad referral supplies one. A known course from the message or ad context still gets its published details. The clarification is deterministic and uses zero AI tokens; the bot saves that it is waiting for a course answer. Production health, deployed hashes and a synthetic live check passed. No customer message was sent. A fresh inbound is still needed for WhatsApp device acceptance. See `DEPLOYMENT.md` for release and rollback evidence.
