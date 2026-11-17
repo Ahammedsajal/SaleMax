@@ -393,21 +393,29 @@ function setQrMsgObj(obj) {
     case "text":
       return { text: obj.text?.body || "" };
     case "image":
-      return {
-        image: {
-          url: obj?.image?.link,
-        },
-        caption: obj?.image?.caption || null,
-        jpegThumbnail: fetchImageAsBase64(obj?.image?.link),
-      };
+      {
+        const imageData = obj?.image?.data;
+        const binary = Buffer.isBuffer(imageData) ? imageData
+          : imageData instanceof Uint8Array ? Buffer.from(imageData) : null;
+        return {
+          image: binary || { url: obj?.image?.link },
+          ...(obj?.image?.mimetype ? { mimetype: obj.image.mimetype } : {}),
+          caption: obj?.image?.caption || null,
+          ...(!binary && obj?.image?.link ? { jpegThumbnail: fetchImageAsBase64(obj.image.link) } : {}),
+        };
+      }
 
     case "video":
-      return {
-        video: {
-          url: obj?.video?.link,
-        },
-        caption: obj?.video?.caption || null,
-      };
+      {
+        const videoData = obj?.video?.data;
+        const binary = Buffer.isBuffer(videoData) ? videoData
+          : videoData instanceof Uint8Array ? Buffer.from(videoData) : null;
+        return {
+          video: binary || { url: obj?.video?.link },
+          ...(obj?.video?.mimetype ? { mimetype: obj.video.mimetype } : {}),
+          caption: obj?.video?.caption || null,
+        };
+      }
 
     case "audio":
       const mp3FileName = extractFileName(obj?.audio?.link);

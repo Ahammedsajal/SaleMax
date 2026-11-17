@@ -1,4 +1,4 @@
-"""Guarded app-only Pro Catalyst text handoff relay release."""
+"""Guarded app-only Pro Catalyst WhatsApp handoff relay release."""
 import copy
 import hashlib
 import json
@@ -24,6 +24,7 @@ ASSETS = {
     'database/migrations/' + MIGRATION: 'database/migrations/' + MIGRATION,
     'helper/inbox/inbox.js': 'helper/inbox/inbox.js',
     'helper/addon/qr/processThings.js': 'helper/addon/qr/processThings.js',
+    'helper/socket/function.js': 'helper/socket/function.js',
     'modules/platform/chatbot-business-context.js': 'modules/platform/chatbot-business-context.js',
     'modules/platform/chatbot-conversation-control.js': 'modules/platform/chatbot-conversation-control.js',
     'modules/platform/chatbot-handoff-claims.js': 'modules/platform/chatbot-handoff-claims.js',
@@ -136,7 +137,10 @@ def apply_migration(stage, expected_checksum):
     source = stage / ('database/migrations/' + MIGRATION)
     if sha(source.read_bytes()) != expected_checksum:
         raise RuntimeError('staged migration hash changed')
-    run('docker', 'cp', str(source), f'{APP}:/app/database/migrations/{MIGRATION}')
+    target = f'/app/database/migrations/{MIGRATION}'
+    live = run('docker', 'exec', APP, 'sha256sum', target, check=False)
+    if live.returncode != 0 or not live.stdout.split() or live.stdout.split()[0] != expected_checksum:
+        run('docker', 'cp', str(source), f'{APP}:{target}')
     node_json(migration_source(MIGRATION))
     rows = node_json(db_query_source('SELECT migration_name,status,checksum FROM salemax_schema_migrations WHERE migration_name=? LIMIT 2', [MIGRATION]))
     if len(rows) != 1 or rows[0].get('status') != 'applied' or rows[0].get('checksum') != expected_checksum:
