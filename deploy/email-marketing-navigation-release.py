@@ -264,7 +264,7 @@ def public_check():
     with urlopen('https://7network.live/healthz', timeout=20) as response:
         if response.status != 200:
             raise RuntimeError('Public health endpoint did not return HTTP 200')
-    for suffix in ('/', NEW_SIDEBAR_REF.decode('ascii')):
+    for suffix in ('/user?page=campaign-dashboard&channel=email', NEW_SIDEBAR_REF.decode('ascii')):
         with urlopen('https://7network.live' + suffix, timeout=20) as response:
             if response.status != 200:
                 raise RuntimeError('Public sidebar asset check failed')
