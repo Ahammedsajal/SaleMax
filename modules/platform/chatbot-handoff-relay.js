@@ -1,25 +1,100 @@
 'use strict';
 
 const crypto = require('node:crypto');
+const fs = require('node:fs/promises');
+const path = require('node:path');
 
 const STAFF_ROLES = ['owner', 'manager', 'team_leader', 'agent'];
 const MAX_ATTEMPTS = 5;
 const RETRY_SECONDS = [15, 45, 120, 300];
+const MAX_RELAY_MEDIA_BYTES = 16 * 1024 * 1024;
+const MEDIA_ROOT = path.resolve(__dirname, '../../client/public/meta-media');
 const workerId = `handoff-relay-${process.pid}`;
 
 function fail(code) { throw Object.assign(new Error(code), { code }); }
 function sha(value) { return crypto.createHash('sha256').update(String(value)).digest('hex'); }
+function shaBuffer(value) { return crypto.createHash('sha256').update(value).digest('hex'); }
+function contextOf(message) {
+  if (message?.msgContext && typeof message.msgContext === 'object') return message.msgContext;
+  if (typeof message?.msgContext === 'string') {
+    try { return JSON.parse(message.msgContext); } catch { return null; }
+  }
+  return null;
+}
+function messageTypeOf(message) {
+  return String(message?.type || contextOf(message)?.type || 'text').toLowerCase();
+}
 function textOf(message) {
-  const body = message?.msgContext?.text?.body;
+  const body = contextOf(message)?.text?.body;
   return typeof body === 'string' ? body : '';
 }
-function parseCommand(value) {
+function messageBodyOf(message) {
+  const text = textOf(message);
+  if (text) return text;
+  const type = messageTypeOf(message);
+  const caption = contextOf(message)?.[type]?.caption;
+  return typeof caption === 'string' ? caption : '';
+}
+function parseCommand(value, { allowEmptyReply = false } = {}) {
   const text = String(value || '').normalize('NFKC').trim();
   const close = text.match(/^CLOSE\s+([A-Z0-9]{6})[.!؟]?$/iu);
   if (close) return { action: 'close', code: close[1].toUpperCase() };
-  const reply = text.match(/^([A-Z0-9]{6}):\s*([\s\S]{1,4000})$/iu);
-  if (reply && reply[2].trim()) return { action: 'reply', code: reply[1].toUpperCase(), body: reply[2].trim() };
+  const reply = text.match(/^([A-Z0-9]{6})\s*:\s*([\s\S]{0,4000})$/iu);
+  if (reply && (reply[2].trim() || allowEmptyReply)) return { action: 'reply', code: reply[1].toUpperCase(), body: reply[2].trim() };
   return null;
+}
+function resolveStaffReply(value, activeClaims = [], { allowEmptyReply = false } = {}) {
+  const command = parseCommand(value, { allowEmptyReply });
+  if (command) return { command, mode: 'explicit' };
+  const body = String(value || '').normalize('NFKC').trim();
+  const activeCodes = [...new Set((activeClaims || []).map(item => String(item?.claimCode || '').toUpperCase())
+    .filter(code => /^[A-Z0-9]{6}$/.test(code)))];
+  if (!body && !allowEmptyReply) return { command: null, mode: 'empty' };
+  if (/^CLOSE(?:\s|$)/iu.test(body) || /^[A-Z0-9]{6}\s*:/iu.test(body)) return { command: null, mode: 'invalid_format' };
+  if (body.length > 4000) return { command: null, mode: 'too_long' };
+  if (activeCodes.length === 1) return { command: { action: 'reply', code: activeCodes[0], body }, mode: 'single_active' };
+  if (activeCodes.length > 1) return { command: null, mode: 'choose_code' };
+  return { command: null, mode: 'no_active' };
+}
+
+function mediaReference(message, kind, caption) {
+  const source = contextOf(message)?.[kind] || {};
+  let base, target;
+  try {
+    base = new URL(process.env.FRONTENDURI);
+    target = new URL(String(source.link || ''), base);
+  } catch { fail('RELAY_MEDIA_UNAVAILABLE'); }
+  if (target.origin !== base.origin || target.search || target.hash) fail('RELAY_MEDIA_UNAVAILABLE');
+  const match = target.pathname.match(/^\/meta-media\/([^/]+)$/);
+  if (!match) fail('RELAY_MEDIA_UNAVAILABLE');
+  let fileName;
+  try { fileName = decodeURIComponent(match[1]); } catch { fail('RELAY_MEDIA_UNAVAILABLE'); }
+  if (fileName !== path.basename(fileName) || !/^[a-z0-9_-]{1,96}\.[a-z0-9]{2,8}$/i.test(fileName)) fail('RELAY_MEDIA_UNAVAILABLE');
+  const captionText = caption === undefined ? source.caption : caption;
+  return { kind, fileName, link: target.href, caption: String(captionText || '').trim().slice(0, 1024) };
+}
+
+async function inspectRelayMedia(media) {
+  if (!media || !['image', 'video'].includes(media.kind)) fail('RELAY_MEDIA_TYPE_UNSUPPORTED');
+  const filePath = path.resolve(MEDIA_ROOT, media.fileName);
+  if (path.dirname(filePath) !== MEDIA_ROOT) fail('RELAY_MEDIA_UNAVAILABLE');
+  let rootInfo, info;
+  try { rootInfo = await fs.lstat(MEDIA_ROOT); info = await fs.lstat(filePath); } catch { fail('RELAY_MEDIA_UNAVAILABLE'); }
+  if (!rootInfo.isDirectory() || rootInfo.isSymbolicLink()) fail('RELAY_MEDIA_UNAVAILABLE');
+  if (!info.isFile() || info.isSymbolicLink() || info.size < 8 || info.size > MAX_RELAY_MEDIA_BYTES) fail('RELAY_MEDIA_SIZE_OR_TYPE_UNSUPPORTED');
+  let data;
+  try { data = await fs.readFile(filePath); } catch { fail('RELAY_MEDIA_UNAVAILABLE'); }
+  const spec = require('./qr-group-media').inspect({ data, name: media.fileName });
+  if (spec.kind !== media.kind) fail('RELAY_MEDIA_TYPE_MISMATCH');
+  if (media.sha256 && shaBuffer(data) !== media.sha256) fail('RELAY_MEDIA_CHANGED');
+  return { ...media, mimeType: spec.mime, sha256: shaBuffer(data), data };
+}
+
+async function queueMediaReference(message, kind, caption) {
+  const reference = mediaReference(message, kind, caption);
+  const inspected = await inspectRelayMedia(reference);
+  const { data, ...stored } = inspected;
+  return stored;
 }
 
 function relayKey() {
@@ -164,6 +239,8 @@ async function currentRelayAuthorization(pool, row, payload) {
 async function finishDelivery(pool, row, outcome, payload = null, uid = null) {
   const db = await pool.getConnection();
   let accepted = false;
+  let finalStatus = outcome.status;
+  let finalErrorCode = outcome.errorCode || null;
   try {
     await db.beginTransaction();
     const [[current]] = await db.query(`SELECT status,lease_owner,attempts FROM sx_chatbot_handoff_relay_deliveries WHERE tenant_id=? AND id=? FOR UPDATE`,
@@ -177,6 +254,8 @@ async function finishDelivery(pool, row, outcome, payload = null, uid = null) {
       if (attempts >= MAX_ATTEMPTS) status = 'failed';
       else { status = 'pending'; availableInSeconds = RETRY_SECONDS[Math.min(attempts - 1, RETRY_SECONDS.length - 1)]; }
     }
+    finalStatus = status;
+    finalErrorCode = errorCode;
     const terminal = ['sent', 'failed', 'unknown', 'suppressed'].includes(status);
     const [updated] = await db.query(`UPDATE sx_chatbot_handoff_relay_deliveries SET status=?,available_at=IF(?='pending',DATE_ADD(UTC_TIMESTAMP(3),INTERVAL ? SECOND),available_at),
       lease_owner=NULL,lease_until=NULL,provider_message_id=?,last_error_code=?,accepted_at=IF(?='sent',UTC_TIMESTAMP(3),NULL),
@@ -195,15 +274,19 @@ async function finishDelivery(pool, row, outcome, payload = null, uid = null) {
     throw error;
   } finally { db.release(); }
   if (accepted && payload && uid) await persistOutbound({ pool, row, payload, uid, providerMessageId: outcome.providerMessageId });
-  return { id: row.id, status: accepted ? 'sent' : outcome.status, errorCode: outcome.errorCode || null };
+  return { id: row.id, status: accepted ? 'sent' : finalStatus, errorCode: finalErrorCode };
 }
 
 async function persistOutbound({ pool, row, payload, uid, providerMessageId }) {
   if (!providerMessageId || !payload?.targetChatId) return;
-  const body = payload.text;
-  const content = { type: 'text', text: { preview_url: false, body } };
+  const media = payload.media;
+  const type = media?.kind || 'text';
+  const body = payload.text || '';
+  const content = media
+    ? { type, [type]: { link: media.link, caption: media.caption || '', filename: media.fileName, mimetype: media.mimeType } }
+    : { type: 'text', text: { preview_url: false, body } };
   const actorName = row.direction === 'staff_to_customer' ? payload.staffName : '7Network';
-  const record = { type: 'text', metaChatId: providerMessageId, msgContext: JSON.stringify(content), reaction: '',
+  const record = { type, metaChatId: providerMessageId, msgContext: JSON.stringify(content), reaction: '',
     timestamp: Math.trunc(Date.now() / 1000), senderName: actorName, senderMobile: payload.targetPhone, star: 0,
     route: 'OUTGOING', context: row.direction === 'staff_to_customer' ? { kind: 'handoff-relay', claimId: row.claim_id, actorIdentityId: row.actor_identity_id } : null,
     origin: 'qr', sentBy: row.direction === 'staff_to_customer' ? 'human' : 'bot' };
@@ -222,7 +305,16 @@ async function deliverOne(pool, row) {
   catch (error) { return finishDelivery(pool, row, { status: 'failed', errorCode: error.code || 'RELAY_PAYLOAD_UNREADABLE' }); }
   const authorization = await currentRelayAuthorization(pool, row, payload).catch(() => null);
   if (!authorization) return finishDelivery(pool, row, { status: 'suppressed', errorCode: 'RELAY_ASSIGNMENT_NO_LONGER_ACTIVE' });
-  const content = { type: 'text', text: { preview_url: false, body: payload.text } };
+  let content;
+  try {
+    if (payload.media) {
+      const media = await inspectRelayMedia(payload.media);
+      const { kind, mimeType, caption, link, data } = media;
+      content = { type: kind, [kind]: { data, mimetype: mimeType, caption: caption || '', link } };
+    } else content = { type: 'text', text: { preview_url: false, body: payload.text } };
+  } catch (error) {
+    return finishDelivery(pool, row, { status: 'failed', errorCode: error.code || 'RELAY_MEDIA_UNAVAILABLE' });
+  }
   const stableId = '3EB0' + sha(row.id).slice(0, 18).toUpperCase();
   const outcome = await require('../../automation/functions').sendWaMessage({
     origin: 'qr', sessionId: payload.channelRef,
@@ -333,13 +425,24 @@ async function staffReply(pool, { ctx, profile, uid, message, sessionId, staff, 
     await db.commit();
     const delivery = await enqueue(pool, { tenantId: ctx.tenant.id, claimId: claim.id, direction: 'staff_to_customer',
       sourceId: sourceMessageId(message), actorIdentityId: staff.identityId,
-      payload: { text: command.body, targetPhone: customer.senderMobile, staffPhone: staff.phone,
+      payload: { text: command.body, ...(command.media ? { media: command.media } : {}), targetPhone: customer.senderMobile, staffPhone: staff.phone,
         staffIdentityId: staff.identityId, staffName: staff.name, targetChatId: claim.customerChatId,
         customerChatId: claim.customerChatId, channelRef: sessionId } });
-    if (delivery.created || delivery.status === 'pending') await tick(pool, { limit: 1 }).catch(error => {
-      console.warn('[chatbot handoff relay] staff text queue pending', error.code || 'RELAY_QUEUE_PENDING');
-    });
-    return { handled: true, queued: true, claimCode: claim.claimCode, deliveryStatus: delivery.status };
+    let deliveryStatus = delivery.status;
+    if (delivery.created || delivery.status === 'pending') {
+      const processed = await tick(pool, { limit: 1 }).catch(error => {
+        console.warn('[chatbot handoff relay] staff reply queue pending', error.code || 'RELAY_QUEUE_PENDING');
+        return [];
+      });
+      const ownResult = processed.find(item => item.id === delivery.id);
+      if (ownResult) deliveryStatus = ownResult.status;
+      else {
+        const [[current]] = await pool.query('SELECT status FROM sx_chatbot_handoff_relay_deliveries WHERE tenant_id=? AND id=? LIMIT 1',
+          [ctx.tenant.id, delivery.id]);
+        deliveryStatus = current?.status || deliveryStatus;
+      }
+    }
+    return { handled: true, queued: true, claimCode: claim.claimCode, deliveryStatus };
   } catch (error) {
     await db.rollback().catch(() => {});
     console.warn('[chatbot handoff relay] staff command failed', error.code || 'RELAY_STAFF_COMMAND_FAILED');
@@ -365,22 +468,39 @@ async function forwardCustomer(pool, { ctx, profile, uid, message, sessionId, cl
       ORDER BY updated_at DESC LIMIT 1`, [uid, assignedPhone]);
     staffChatId = chat?.chatId || null;
   } finally { db.release(); }
-  const messageType = String(message?.type || message?.msgContext?.type || 'text').toLowerCase();
+  const messageType = messageTypeOf(message);
   let body;
-  if (messageType !== 'text' && messageType !== 'unknown') {
-    body = `Customer ${claim.customerName || ''} sent ${messageType.replace(/_/g, ' ')}. Open the assigned conversation in Inbox to view it. Reply ${claim.claimCode}: <your text> to respond, or CLOSE ${claim.claimCode} to finish.`.trim();
+  let media = null;
+  if (['image', 'video'].includes(messageType)) {
+    const caption = contextOf(message)?.[messageType]?.caption || '';
+    try {
+      media = await queueMediaReference(message, messageType,
+        [`Customer · ${claim.claimCode} · ${claim.customerName || 'Customer'}`, caption].filter(Boolean).join('\n').slice(0, 1024));
+      body = '';
+    } catch (error) {
+      body = `Customer sent a ${messageType}, but it could not be relayed. Open the assigned conversation in Inbox to view it. Reply normally if this is your only active handoff; if you have several, prefix your reply with ${claim.claimCode}:`;
+      console.warn('[chatbot handoff relay] customer media unavailable', error.code || 'RELAY_MEDIA_UNAVAILABLE');
+    }
+  } else if (messageType !== 'text' && messageType !== 'unknown') {
+    body = `Customer sent ${messageType.replace(/_/g, ' ')}. Open the assigned conversation in Inbox to view it. Reply normally if this is your only active handoff; if you have several, prefix your reply with ${claim.claimCode}:.`;
   } else {
     const incomingText = textOf(message);
-    body = `Customer message · ${claim.claimCode}\nCustomer: ${claim.customerName || 'Customer'}\n${incomingText}\n\nReply: ${claim.claimCode}: <your reply>\nClose: CLOSE ${claim.claimCode}`;
+    body = `Customer · ${claim.customerName || 'Customer'} · ${claim.claimCode}\n${incomingText}\n\nReply normally if this is your only active handoff. If you have several, start with ${claim.claimCode}:\nClose: CLOSE ${claim.claimCode}`;
   }
   const delivery = await enqueue(pool, { tenantId: ctx.tenant.id, claimId: claim.id,
-    direction: 'customer_to_staff', sourceId, payload: { text: body, targetPhone: assignedPhone,
+    direction: 'customer_to_staff', sourceId, payload: { text: body, ...(media ? { media } : {}), targetPhone: assignedPhone,
       staffPhone: assignedPhone, staffIdentityId: staff.identityId, staffName: staff.name,
       targetChatId: staffChatId, customerChatId: claim.customerChatId, channelRef: sessionId } });
   if (delivery.created || delivery.status === 'pending') await tick(pool, { limit: 1 }).catch(error => {
     console.warn('[chatbot handoff relay] customer text queue pending', error.code || 'RELAY_QUEUE_PENDING');
   });
   return { handled: true, paused: true, relayed: true, deliveryStatus: delivery.status };
+}
+
+async function sendStaffNotice(uid, sessionId, staff, text) {
+  return require('../../automation/functions').sendWaMessage({ origin: 'qr', sessionId,
+    message: { senderMobile: staff.phone, senderName: '7Network' }, uid, chatId: null,
+    content: { type: 'text', text: { preview_url: false, body: text } }, senderKind: 'handoff-relay' });
 }
 
 async function handleInbound({ pool, ctx, profile, uid, message, sessionId, origin, chatId }) {
@@ -395,7 +515,7 @@ async function handleInbound({ pool, ctx, profile, uid, message, sessionId, orig
     if (staff) {
       db.release();
       dbReleased = true;
-      const raw = textOf(message);
+      const raw = messageBodyOf(message);
       if (staff.ambiguous) {
         await require('../../automation/functions').sendWaMessage({ origin: 'qr', sessionId,
           message: { senderMobile: staff.phone, senderName: '7Network' }, uid, chatId: null,
@@ -421,7 +541,7 @@ async function handleInbound({ pool, ctx, profile, uid, message, sessionId, orig
               AND h.relay_enabled=1 AND h.expires_at>UTC_TIMESTAMP(3) LIMIT 1`,
           [ctx.tenant.id, profile.id, sessionId, parsedYes.code, staff.identityId]);
           if (prior) {
-            const reply = `You’ve claimed handoff ${prior.claimCode}. AI replies are paused while it is active.\n\nReply ${prior.claimCode}: <your message> to respond to the customer.\nSend CLOSE ${prior.claimCode} to finish and resume the assistant.\nFor customer media, open the assigned chat in Inbox.`;
+            const reply = `You’ve claimed ${prior.claimCode}. The bot is paused. Reply normally with text, a photo or a video. If you have several active chats, start your message or media caption with ${prior.claimCode}:. Send CLOSE ${prior.claimCode} when finished.`;
             const ack = await enqueue(pool, { tenantId: ctx.tenant.id, claimId: prior.id, direction: 'assignment_ack',
               sourceId, actorIdentityId: staff.identityId, payload: { text: reply, targetPhone: staff.phone,
                 staffPhone: staff.phone, staffIdentityId: staff.identityId, staffName: staff.name,
@@ -435,7 +555,7 @@ async function handleInbound({ pool, ctx, profile, uid, message, sessionId, orig
         if (!result.handled) return { handled: false };
         let reply = 'There are no open staff handoffs to claim.';
         if (result.outcome === 'claimed' && result.relayEnabled) {
-          reply = `You’ve claimed handoff ${result.claimCode}. AI replies are paused while it is active.\n\nReply ${result.claimCode}: <your message> to respond to the customer.\nSend CLOSE ${result.claimCode} to finish and resume the assistant.\nFor customer media, open the assigned chat in Inbox.`;
+          reply = `You’ve claimed ${result.claimCode}. The bot is paused. Reply normally with text, a photo or a video. If you have several active chats, start your message or media caption with ${result.claimCode}:. Send CLOSE ${result.claimCode} when finished.`;
           const eventId = sourceMessageId(message);
           if (eventId) await enqueue(pool, { tenantId: ctx.tenant.id, claimId: result.claimId,
             direction: 'assignment_ack', sourceId: eventId, actorIdentityId: staff.identityId,
@@ -456,30 +576,52 @@ async function handleInbound({ pool, ctx, profile, uid, message, sessionId, orig
         }
         return { handled: true, staffMessage: true, handoffClaim: result.outcome };
       }
-      const command = parseCommand(raw);
-      if (command) {
+      const inboundType = messageTypeOf(message);
+      const isRelayMedia = ['image', 'video'].includes(inboundType);
+      const [activeClaims] = await pool.query(`SELECT claim_code AS claimCode FROM sx_chatbot_handoff_claims
+        WHERE tenant_id=? AND profile_id=? AND channel_kind='whatsapp_qr' AND channel_ref=?
+          AND claimed_identity_id=? AND relay_enabled=1 AND status='claimed' AND expires_at>UTC_TIMESTAMP(3)
+        ORDER BY expires_at,created_at LIMIT 2`,
+      [ctx.tenant.id, profile.id, sessionId, staff.identityId]);
+      const resolution = resolveStaffReply(raw, activeClaims, { allowEmptyReply: isRelayMedia });
+      if (resolution.command) {
+        const command = { ...resolution.command };
+        if (command.action === 'reply' && isRelayMedia) {
+          try { command.media = await queueMediaReference(message, inboundType, command.body); command.body = ''; }
+          catch (error) {
+            await sendStaffNotice(uid, sessionId, staff,
+              'I could not send that image or video. Use a JPG/PNG/MP4 up to 16 MB, or send it from Inbox.');
+            return { handled: true, staffMessage: true, sent: false, reason: error.code || 'RELAY_MEDIA_UNAVAILABLE' };
+          }
+        }
         const outcome = await staffReply(pool, { ctx, profile, uid, message, sessionId, staff, command, staffChatId: chatId });
-        if (outcome.reason === 'STALE_OR_UNASSIGNED_CODE') {
-          await require('../../automation/functions').sendWaMessage({ origin: 'qr', sessionId,
-            message: { senderMobile: staff.phone, senderName: '7Network' }, uid, chatId: null,
-            content: { type: 'text', text: { preview_url: false, body: 'That handoff code is closed, expired, or assigned to another staff member.' } },
-            senderKind: 'handoff-relay' });
+        if (outcome.queued) {
+          const statusText = outcome.deliveryStatus === 'sent' ? 'Sent to the customer.'
+            : ['pending', 'processing'].includes(outcome.deliveryStatus) ? 'Reply queued. I’ll send it when the QR connection is ready.'
+              : outcome.deliveryStatus === 'unknown' ? 'I could not confirm delivery. Check the customer chat in Inbox before sending again.'
+                : 'The reply was not sent. Please open the customer chat in Inbox.';
+          await sendStaffNotice(uid, sessionId, staff, statusText);
+        } else if (outcome.reason === 'STALE_OR_UNASSIGNED_CODE') {
+          await sendStaffNotice(uid, sessionId, staff, 'That handoff is closed, expired, or assigned to another staff member.');
         } else if (outcome.reason === 'CUSTOMER_CHAT_MISSING') {
-          await require('../../automation/functions').sendWaMessage({ origin: 'qr', sessionId,
-            message: { senderMobile: staff.phone, senderName: '7Network' }, uid, chatId: null,
-            content: { type: 'text', text: { preview_url: false, body: 'I could not find the customer chat. Please reply from the Inbox.' } },
-            senderKind: 'handoff-relay' });
+          await sendStaffNotice(uid, sessionId, staff, 'I could not find the customer chat. Please reply from Inbox.');
         }
         return { ...outcome, staffMessage: true };
       }
-      const [[active]] = await pool.query(`SELECT claim_code AS claimCode FROM sx_chatbot_handoff_claims
-        WHERE tenant_id=? AND profile_id=? AND channel_kind='whatsapp_qr' AND channel_ref=?
-          AND claimed_identity_id=? AND relay_enabled=1 AND status='claimed' AND expires_at>UTC_TIMESTAMP(3) LIMIT 1`,
-      [ctx.tenant.id, profile.id, sessionId, staff.identityId]);
-      if (active?.claimCode) await require('../../automation/functions').sendWaMessage({ origin: 'qr', sessionId,
-        message: { senderMobile: staff.phone, senderName: '7Network' }, uid, chatId: null,
-        content: { type: 'text', text: { preview_url: false, body: `To reply to the customer, send ${active.claimCode}: followed by your message. Send CLOSE ${active.claimCode} when finished.` } },
-        senderKind: 'handoff-relay' });
+      if (resolution.mode === 'choose_code') {
+        const example = activeClaims[0]?.claimCode || 'CODE';
+        await sendStaffNotice(uid, sessionId, staff,
+          `You have more than one active chat. Start your text or photo/video caption with ${example}: your message. Send CLOSE CODE to finish.`);
+      } else if (resolution.mode === 'invalid_format' || resolution.mode === 'too_long') {
+        const example = activeClaims[0]?.claimCode || 'CODE';
+        await sendStaffNotice(uid, sessionId, staff,
+          `Reply with ${example}: your message. Spaces around : are okay. To finish, send CLOSE ${example}.`);
+      } else if (resolution.mode === 'empty' && activeClaims.length) {
+        await sendStaffNotice(uid, sessionId, staff,
+          'Send a text, photo or video here. Use Inbox for audio, documents, or other media.');
+      } else if (resolution.mode === 'no_active') {
+        await sendStaffNotice(uid, sessionId, staff, 'You do not have an active customer handoff right now.');
+      }
       return { handled: true, staffMessage: true };
     }
     if (require('./chatbot-mockup').ownsInbox(uid, origin)
@@ -494,4 +636,4 @@ function findClaimId(result) {
   return result?.claimId || null;
 }
 
-module.exports = { parseCommand, handleInbound, tick, start, encryptPayload, decryptPayload };
+module.exports = { parseCommand, resolveStaffReply, handleInbound, tick, start, encryptPayload, decryptPayload };

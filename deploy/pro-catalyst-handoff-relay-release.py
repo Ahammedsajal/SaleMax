@@ -24,6 +24,7 @@ ASSETS = {
     'database/migrations/' + MIGRATION: 'database/migrations/' + MIGRATION,
     'helper/inbox/inbox.js': 'helper/inbox/inbox.js',
     'helper/addon/qr/processThings.js': 'helper/addon/qr/processThings.js',
+    'helper/socket/function.js': 'helper/socket/function.js',
     'modules/platform/chatbot-business-context.js': 'modules/platform/chatbot-business-context.js',
     'modules/platform/chatbot-conversation-control.js': 'modules/platform/chatbot-conversation-control.js',
     'modules/platform/chatbot-handoff-claims.js': 'modules/platform/chatbot-handoff-claims.js',
