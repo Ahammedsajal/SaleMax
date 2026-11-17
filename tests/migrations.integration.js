@@ -8,6 +8,62 @@ const mysql = require('mysql2/promise');
 const bcrypt = require('bcrypt');
 const { bootstrap: bootstrapSuperAdmin } = require('../modules/platform/bootstrap-super-admin');
 const { discover, applyMigrations } = require('../database/migration-runner');
+async function createLegacyMigrationBaseline(connection) {
+  // Pre-versioned tables are represented by empty synthetic fixtures. The
+  // migration chain may alter them, but no production rows are copied here.
+  const statements = [
+    `CREATE TABLE instance (
+      id INT NOT NULL PRIMARY KEY,
+      uid VARCHAR(999) NULL,
+      number VARCHAR(999) NULL,
+      uniqueId VARCHAR(999) NULL,
+      status LONGTEXT NULL
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`,
+    `CREATE TABLE beta_chats (
+      id INT NOT NULL AUTO_INCREMENT PRIMARY KEY,
+      uid VARCHAR(999) NULL,
+      chat_id VARCHAR(999) NULL,
+      origin VARCHAR(999) NULL,
+      origin_instance_id VARCHAR(999) NULL
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`,
+    `CREATE TABLE beta_conversation (
+      id INT NOT NULL AUTO_INCREMENT PRIMARY KEY,
+      uid VARCHAR(999) NULL,
+      chat_id VARCHAR(999) NULL,
+      origin VARCHAR(999) NULL,
+      route VARCHAR(999) NULL,
+      sentBy VARCHAR(999) NULL,
+      metaChatId VARCHAR(999) NULL,
+      timestamp VARCHAR(999) NULL,
+      createdAt TIMESTAMP NULL
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`,
+    `CREATE TABLE user (
+      id INT NOT NULL AUTO_INCREMENT PRIMARY KEY,
+      uid VARCHAR(999) NULL,
+      name VARCHAR(999) NULL,
+      plan LONGTEXT NULL,
+      plan_expire VARCHAR(999) NULL,
+      timezone VARCHAR(100) NULL
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`,
+    `CREATE TABLE broadcast (
+      broadcast_id VARCHAR(255) NOT NULL PRIMARY KEY,
+      uid VARCHAR(999) NULL,
+      timezone VARCHAR(100) NULL
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`,
+    `CREATE TABLE beta_campaign (
+      campaign_id VARCHAR(255) NOT NULL PRIMARY KEY,
+      uid VARCHAR(999) NULL,
+      timezone VARCHAR(100) NULL
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`,
+    `CREATE TABLE contact (
+      id INT NOT NULL AUTO_INCREMENT PRIMARY KEY,
+      uid VARCHAR(999) NULL,
+      phonebook_id VARCHAR(999) NULL,
+      mobile VARCHAR(999) NULL
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`,
+  ];
+  for (const statement of statements) await connection.query(statement);
+}
 async function main() {
   if (process.env.LOCAL_ONLY_MODE !== 'true' || !['127.0.0.1', 'localhost', '::1'].includes(process.env.DBHOST)) throw new Error('LOCAL_DATABASE_ONLY');
   const suppliedDb=process.env.SALEMAX_TEST_DATABASE||null;
@@ -46,8 +102,14 @@ async function main() {
       for(const row of tables)await connection.query(`DROP TABLE IF EXISTS \`${String(row.TABLE_NAME).replace(/`/g,'``')}\``);
       await connection.query('SET FOREIGN_KEY_CHECKS=1');
     }
-    await connection.query('CREATE TABLE instance (id INT PRIMARY KEY, status VARCHAR(20))');
-    await connection.query("INSERT INTO instance VALUES (1, 'INACTIVE')");
+    await createLegacyMigrationBaseline(connection);
+    await connection.query(
+      "INSERT INTO instance (id,uid,number,uniqueId,status) VALUES (1,'synthetic-owner','+974 5000 0001','synthetic-qr-instance','INACTIVE')"
+    );
+    await connection.query(
+      'INSERT INTO beta_chats (uid,origin_instance_id,origin) VALUES (?,?,?)',
+      ['synthetic-owner', JSON.stringify({id: '97450000001@s.whatsapp.net'}), 'qr']
+    );
     const migrations = discover(path.join(__dirname, '../database/migrations'));
     const result = await applyMigrations(connection, migrations);
     assert.equal(result.applied.length, migrations.length);
@@ -58,6 +120,14 @@ async function main() {
     await applyMigrations(connection, migrations);
     const [[count]] = await connection.query('SELECT COUNT(*) AS n FROM pipeline_settings');
     assert.equal(count.n, 1);
+    const [[qrChat]] = await connection.query(
+      'SELECT origin_instance_unique_id FROM beta_chats WHERE uid=?', ['synthetic-owner']
+    );
+    assert.equal(qrChat.origin_instance_unique_id, 'synthetic-qr-instance');
+    if(process.env.SALEMAX_TEST_MIGRATIONS_ONLY==='true'){
+      console.log(JSON.stringify({realMariaDb:true,database:db,forwardMigrations:migrations.length,repeatedRunsPreserveRecords:true,legacyQrChannelBackfill:true,customerDataTouched:false,externalWrites:false}));
+      return;
+    }
     await connection.query('CREATE TABLE admin (id INT NOT NULL AUTO_INCREMENT PRIMARY KEY,uid VARCHAR(999) NOT NULL,email VARCHAR(254) NOT NULL,password VARCHAR(255) NOT NULL,role VARCHAR(20) NOT NULL DEFAULT \'admin\') ENGINE=InnoDB');
     const ownerPassword=['Synthetic-Owner','-Password-97'].join(''),ownerUid='verified-synthetic-owner-uid';
     const [legacyOwner]=await connection.query('INSERT INTO admin(uid,email,password) VALUES (?,?,?)',[ownerUid,'a@example.invalid',await bcrypt.hash(ownerPassword,10)]);
@@ -129,11 +199,12 @@ async function main() {
     }
     throw error;
   } finally {
+    const retainSyntheticSchema=process.env.SALEMAX_TEST_RETAIN_SCHEMA==='true';
     if (other) await other.end();
     if (pool) await pool.end();
     const legacyPoolPath=require.resolve('../database/config');
     if(require.cache[legacyPoolPath])await require(legacyPoolPath).end();
-    if(connection&&suppliedDb){
+    if(connection&&suppliedDb&&!retainSyntheticSchema){
       try{
         const [tables]=await connection.query('SELECT TABLE_NAME FROM information_schema.TABLES WHERE TABLE_SCHEMA=?',[db]);
         await connection.query('SET FOREIGN_KEY_CHECKS=0');
@@ -142,7 +213,7 @@ async function main() {
       }catch(cleanupError){console.error('Synthetic test schema cleanup failed:',cleanupError.code||'ERROR');}
     }
     if (connection) await connection.end();
-    try { if (created) await admin.query(`DROP DATABASE IF EXISTS \`${db}\``); }
+    try { if (created&&!retainSyntheticSchema) await admin.query(`DROP DATABASE IF EXISTS \`${db}\``); }
     finally { if(admin)await admin.end(); }
   }
 }
