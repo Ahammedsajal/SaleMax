@@ -1,10 +1,12 @@
 # 7Network Asterisk and GSM Gateway Integration
 
-Status: the existing 7Network Call Center and mobile SIP app flow are deployed in production. The PBX is not configured or active; the verified current readiness is summarized below and in `docs/IMPLEMENTATION_STATUS.md` / `DEPLOYMENT.md`.
+Status: 7Network Call Center code, including SIP credential revocation and inbound queue safeguards, is deployed in production. The PBX remains intentionally inactive; hardware, carrier, mobile-app/push and real-call acceptance gates are open. The verified release is summarized below and in `docs/IMPLEMENTATION_STATUS.md` / `DEPLOYMENT.md`.
 
-## Current production readiness — 12 November 2026
+## Current production readiness — 17 November 2026
 
-The production app code supports inbound queue ringing and staff-first mobile SIP outbound dialing. Staff can dial a number in the SIP app without CRM login or lead browsing; the Call Center may match calls to leads when uniquely permitted. A read-only production audit found all 16 telephony migration records applied, but operational setup is empty: PBX disabled at revision 0, no ARI URL/credentials, worker stopped, and zero configured gateway channels, queues, extensions, or mobile SIP endpoints. Host Asterisk is inactive/disabled and has no SIP/ARI listeners. Production code and schema are deployed; actual inbound/outbound calls are not ready.
+Source commit `93e0359c63fecd9b6b5fad15fb3d3526d960823b` is live in app overlay `/opt/salemax/releases/call-center-sip-endpoint-revocation-93e0359c63fe-20261116`. The app sends ringback before ringing inbound agents, retains caller ID and permitted lead association, and fails closed for stale SIP credentials; browser SIP requires agent acceptance and can reconnect after transport loss. Staff dial numbers in their SIP mobile app without CRM login or CRM lead browsing. The public Call Center is healthy, while the PBX itself remains inactive with no SIP/ARI listeners; no live registration or call was tested.
+
+The latest read-only telephony configuration audit (12 November) found all 16 telephony migration records applied, but operational setup was empty: PBX disabled at revision 0, no ARI URL/credentials, worker stopped, and zero configured gateway channels, queues, extensions, or mobile SIP endpoints. The 17 November app-only release made no database migration, PBX service/configuration, gateway, SIM or route change; those operational values were not re-read during this deployment. Confirm them after the hardware and carrier details are available.
 
 The quotation photo only confirms a Dinstar four-port LTE gateway. It does not identify the model/SKU, bands, firmware, TLS/SRTP support, web UI route syntax, or physical port labels. UC2000-VE references below are conditional candidate documentation, not confirmed hardware. The PJSIP peer and 9901–9904 / Port-0–Port-3 route previews now label these assumptions and must not be applied until the delivered label/manual and carrier profile are verified.
 
