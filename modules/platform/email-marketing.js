@@ -349,11 +349,12 @@ async function testSend(db,ctx,input,key){
     FROM sx_email_senders s JOIN sx_email_sender_domains d ON d.tenant_id=s.tenant_id AND d.id=s.domain_id
     WHERE s.tenant_id=? AND s.id=?`,[ctx.tenantId,senderId]);if(!sender)fail('EMAIL_SENDER_NOT_FOUND',404);
   if(sender.verification_status!=='verified'||sender.domainStatus!=='verified'||sender.dkimStatus!=='SUCCESS')fail('EMAIL_SENDER_NOT_VERIFIED',409);
+  const recipient=input?.recipient===undefined?sender.email:cleanEmail(input.recipient,true);
   let account;try{account=await ses.getAccount(sender.region,settings.credentials);}catch(error){fail(safeSesError(error),503);}
   if(!account.sendingEnabled)fail('SES_SENDING_DISABLED',409);
-  try{const sent=await ses.sendSimple(sender.region,{FromEmailAddress:sender.email,Destination:{ToAddresses:[sender.email]},
+  try{const sent=await ses.sendSimple(sender.region,{FromEmailAddress:sender.email,Destination:{ToAddresses:[recipient]},
     Content:{Simple:{Subject:{Data:'7Network Email setup test',Charset:'UTF-8'},Body:{Text:{Data:'Your 7Network Sales email sender is connected. Campaigns will only include contacts with explicit email marketing consent.',Charset:'UTF-8'}}}}},settings.credentials);
-    return {sent:true,recipient:sender.email,messageId:sent.messageId};
+    return {sent:true,recipient,messageId:sent.messageId};
   }catch(error){fail(safeSesError(error),error?.$metadata?.httpStatusCode||503);}
 }
 

@@ -18,22 +18,31 @@ const REQUIRED_MODULES = Object.freeze({
   sipSecurityLogging: ['res_security_log'],
 });
 function memberEndpointProfile(extension, clientType, credentialRevision) {
-  const endpointId = `salemax-${extension}-${clientType}`;
-  // Asterisk's username identifier resolves the SIP From user to the endpoint object ID.
+  credentialRevision=Number(credentialRevision);
+  if (!/^[0-9]{3,8}$/.test(extension || '') || !['mobile','browser'].includes(clientType)
+    || !Number.isSafeInteger(credentialRevision) || credentialRevision < 1) fail('INVALID_SIP_ENDPOINT');
+  const legacyEndpointId = `salemax-${extension}-${clientType}`;
+  const endpointId = `${legacyEndpointId}-r${credentialRevision}`;
+  // Keep the SIP username, endpoint and AoR revisioned together: Asterisk
+  // matches both From and REGISTER To users to these object names. A credential
+  // reset therefore moves registrations to a new AoR and can revoke the old one.
   const username = endpointId;
   return {
     username,
-    authId: `${endpointId}-r${credentialRevision}-auth`,
-    aorId: `${endpointId}-r${credentialRevision}-aor`,
+    authId: `${legacyEndpointId}-r${credentialRevision}-auth`,
+    aorId: endpointId,
     endpointId,
+    legacyEndpointId,
   };
 }
 
 function profileObjectIds(extension, clientType, credentialRevision) {
-  const base = `salemax-${extension}-${clientType}`;
+  const profile=memberEndpointProfile(extension,clientType,credentialRevision);
+  const base = profile.legacyEndpointId;
   return {
-    authIds: [`${base}-auth`, `${base}-r${credentialRevision}-auth`],
-    aorIds: [`${base}-aor`, `${base}-r${credentialRevision}-aor`],
+    endpointIds: [base, profile.endpointId],
+    authIds: [`${base}-auth`, profile.authId],
+    aorIds: [base, `${base}-aor`, profile.aorId, `${profile.aorId}-aor`],
   };
 }
 
@@ -42,9 +51,40 @@ function endpointField(fields, name) {
 }
 
 function memberProfileObjectId(value, extension, clientType, objectType) {
-  if (typeof value !== 'string') return false;
+  if (typeof value !== 'string' || !/^[0-9]{3,8}$/.test(extension || '') || !['mobile','browser'].includes(clientType)) return false;
   const base = `salemax-${extension}-${clientType}`;
-  return value === `${base}-${objectType}` || new RegExp(`^${base}-r[1-9][0-9]*-${objectType}$`).test(value);
+  if (objectType === 'endpoint') return value === base || new RegExp(`^${base}-r[1-9][0-9]*$`).test(value);
+  if (objectType === 'aor') return value === base || value === `${base}-aor`
+    || new RegExp(`^${base}-r[1-9][0-9]*(?:-aor)?$`).test(value);
+  if (objectType === 'auth') return value === `${base}-auth` || new RegExp(`^${base}-r[1-9][0-9]*-auth$`).test(value);
+  return false;
+}
+
+async function readPjsipObject(client, objectType, objectId) {
+  if (typeof client.getPjsipObject !== 'function') return null;
+  try { return await client.getPjsipObject(objectType, objectId); }
+  catch (error) { if (error.code === 'ARI_RESOURCE_NOT_FOUND') return null; throw error; }
+}
+
+async function deleteMemberProfile(client, extension, clientType, credentialRevision, fieldsByEndpointId = new Map(), keep = {}) {
+  const profileIds = profileObjectIds(extension, clientType, credentialRevision);
+  const endpointIds = new Set([...profileIds.endpointIds, ...fieldsByEndpointId.keys()]);
+  const aorIds = new Set(profileIds.aorIds);
+  const authIds = new Set(profileIds.authIds);
+  for (const [endpointId, fields] of fieldsByEndpointId) {
+    if (memberProfileObjectId(endpointField(fields, 'aors'), extension, clientType, 'aor')) aorIds.add(endpointField(fields, 'aors'));
+    if (memberProfileObjectId(endpointField(fields, 'auth'), extension, clientType, 'auth')) authIds.add(endpointField(fields, 'auth'));
+    if (!memberProfileObjectId(endpointId, extension, clientType, 'endpoint')) endpointIds.delete(endpointId);
+  }
+  for (const endpointId of endpointIds) {
+    if (endpointId !== keep.endpointId) await client.deletePjsipObject('endpoint', endpointId);
+  }
+  for (const aorId of aorIds) {
+    if (aorId !== keep.aorId && memberProfileObjectId(aorId, extension, clientType, 'aor')) await client.deletePjsipObject('aor', aorId);
+  }
+  for (const authId of authIds) {
+    if (authId !== keep.authId && memberProfileObjectId(authId, extension, clientType, 'auth')) await client.deletePjsipObject('auth', authId);
+  }
 }
 
 async function auditEndpointCredentialAccess(db, context, clientType, targetMembershipId = context.membership?.id) {
@@ -136,22 +176,13 @@ async function applyMemberEndpoint(db, context, extension, clientType, extension
     const [staleProfiles] = await db.query(`SELECT client_type,extension,credential_revision FROM sx_telephony_endpoint_provisioning
       WHERE tenant_id=? AND membership_id=? AND extension<>?`, [context.tenant.id, targetMembershipId, extension]);
     for (const stale of staleProfiles) {
-      const staleProfile = profileObjectIds(stale.extension, stale.client_type, Number(stale.credential_revision));
-      const staleEndpointId = `salemax-${stale.extension}-${stale.client_type}`;
-      let staleEndpointFields = null;
-      if (typeof client.getPjsipObject === 'function') {
-        try { staleEndpointFields = await client.getPjsipObject('endpoint', staleEndpointId); }
-        catch (error) { if (error.code !== 'ARI_RESOURCE_NOT_FOUND') throw error; }
+      const staleFields = new Map();
+      const staleRevision = Number(stale.credential_revision);
+      for (const staleEndpointId of profileObjectIds(stale.extension, stale.client_type, staleRevision).endpointIds) {
+        const staleEndpointFields = await readPjsipObject(client, 'endpoint', staleEndpointId);
+        if (staleEndpointFields) staleFields.set(staleEndpointId, staleEndpointFields);
       }
-      await client.deletePjsipObject('endpoint', staleEndpointId);
-      const staleAors = new Set(staleProfile.aorIds);
-      const attachedAor = endpointField(staleEndpointFields, 'aors');
-      if (memberProfileObjectId(attachedAor, stale.extension, stale.client_type, 'aor')) staleAors.add(attachedAor);
-      const staleAuths = new Set(staleProfile.authIds);
-      const attachedAuth = endpointField(staleEndpointFields, 'auth');
-      if (memberProfileObjectId(attachedAuth, stale.extension, stale.client_type, 'auth')) staleAuths.add(attachedAuth);
-      for (const staleAorId of staleAors) await client.deletePjsipObject('aor', staleAorId);
-      for (const staleAuthId of staleAuths) await client.deletePjsipObject('auth', staleAuthId);
+      await deleteMemberProfile(client, stale.extension, stale.client_type, staleRevision, staleFields);
       await db.query(`DELETE FROM sx_telephony_endpoint_provisioning WHERE tenant_id=? AND membership_id=? AND client_type=?`,
         [context.tenant.id, targetMembershipId, stale.client_type]);
     }
@@ -165,6 +196,10 @@ async function applyMemberEndpoint(db, context, extension, clientType, extension
       { attribute: 'max_contacts', value: '1' },
       { attribute: 'remove_existing', value: 'yes' },
       { attribute: 'qualify_frequency', value: '30' },
+      ...(clientType === 'mobile' ? [
+        { attribute: 'maximum_expiration', value: '2600000' },
+        { attribute: 'support_path', value: 'yes' },
+      ] : []),
     ]);
     objectsApplied++;
     const fields = [
@@ -197,15 +232,16 @@ async function applyMemberEndpoint(db, context, extension, clientType, extension
     );
     await client.upsertPjsipObject('endpoint', endpointId, fields);
     objectsApplied++;
-    if (applied?.extension === extension) {
-      const oldAuthId = endpointField(previousEndpointFields, 'auth');
-      const oldAorId = endpointField(previousEndpointFields, 'aors');
-      if (oldAorId !== aorId && memberProfileObjectId(oldAorId, extension, clientType, 'aor')) {
-        await client.deletePjsipObject('aor', oldAorId);
-      }
-      if (oldAuthId !== authId && memberProfileObjectId(oldAuthId, extension, clientType, 'auth')) {
-        await client.deletePjsipObject('auth', oldAuthId);
-      }
+    const priorRevision = applied?.extension === extension && Number.isSafeInteger(Number(applied.credential_revision))
+      && Number(applied.credential_revision) > 0 ? Number(applied.credential_revision) : credentialRevision;
+    const priorFields = new Map();
+    for (const priorEndpointId of profileObjectIds(extension, clientType, priorRevision).endpointIds) {
+      if (priorEndpointId === endpointId) continue;
+      const priorEndpointFields = await readPjsipObject(client, 'endpoint', priorEndpointId);
+      if (priorEndpointFields) priorFields.set(priorEndpointId, priorEndpointFields);
+    }
+    if (priorFields.size || (applied?.extension === extension && priorRevision !== credentialRevision)) {
+      await deleteMemberProfile(client, extension, clientType, priorRevision, priorFields, { endpointId, aorId, authId });
     }
     await db.query(`INSERT INTO sx_telephony_endpoint_provisioning(tenant_id,membership_id,client_type,extension,extension_revision,credential_revision,asterisk_config_revision,applied_at)
       VALUES (?,?,?,?,?,?,?,UTC_TIMESTAMP(3)) ON DUPLICATE KEY UPDATE extension=VALUES(extension),extension_revision=VALUES(extension_revision),
@@ -566,7 +602,9 @@ async function previewAgentEndpoints(db, context) {
         revision});
       lines.push(`[${authId}]`, 'type=auth', 'auth_type=userpass', `username=${username}`,
         `password=${password}`, '',
-        `[${aorId}]`, 'type=aor', 'max_contacts=1', 'remove_existing=yes', 'qualify_frequency=30', '',
+        `[${aorId}]`, 'type=aor', 'max_contacts=1', 'remove_existing=yes', 'qualify_frequency=30');
+      if (client === 'mobile') lines.push('maximum_expiration=2600000', 'support_path=yes');
+      lines.push('',
         `[${endpointId}]`, 'type=endpoint', `context=${client === 'mobile' ? 'from-salemax-mobile-outbound' : 'from-salemax-agents-unrouted'}`, 'disallow=all', 'allow=alaw,ulaw',
         `auth=${authId}`, `aors=${aorId}`, 'identify_by=username', `from_user=${username}`, 'direct_media=no', 'rtp_symmetric=yes', 'force_rport=yes',
         'rewrite_contact=yes');
@@ -821,7 +859,7 @@ async function probeGatewayEndpoint(fetchImpl, ariBaseUrl, username, password) {
 
 async function probePjsipEndpointStates(fetchImpl, ariBaseUrl, username, password, resources) {
   if (!Array.isArray(resources) || resources.length > 32 || resources.some(resource => typeof resource !== 'string'
-    || !(/^(?:salemax_dinstar_uc2000ve|salemax_gw_[a-f0-9]{32}|salemax-[0-9]{3,8}-(?:mobile|browser))$/.test(resource)))) fail('INVALID_ARI_ENDPOINT_PROBE');
+    || !(/^(?:salemax_dinstar_uc2000ve|salemax_gw_[a-f0-9]{32}|salemax-[0-9]{3,8}-(?:mobile|browser)(?:-r[1-9][0-9]*)?)$/.test(resource)))) fail('INVALID_ARI_ENDPOINT_PROBE');
   const states = Object.fromEntries([...new Set(resources)].map(resource => [resource, 'unknown']));
   if (!Object.keys(states).length) return states;
   const target = endpoint(ariBaseUrl);
@@ -874,4 +912,4 @@ async function recordTest(db, context, revision, hostname, status, version, fail
 
 module.exports = { endpoint, allowlisted, browserWebsocketUrl, mobileSipHost, ownBrowserEndpoint, ownMobileEndpoint,
   memberMobileEndpoint, synchronizeMemberEndpointCredential, gateway, gatewayPjsipPreview, present, get, previewGateway,
-  applyGatewayPeer, previewAgentEndpoints, previewHostSetup, save, test, probeModuleReadiness, probePjsipEndpointStates };
+  applyGatewayPeer, previewAgentEndpoints, previewHostSetup, save, test, probeModuleReadiness, probePjsipEndpointStates, memberEndpointProfile };

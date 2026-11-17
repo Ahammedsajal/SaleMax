@@ -63,8 +63,8 @@ async function main(){
     assert.equal(Number(peerAudit.total),2,'gateway peer apply attempt and completion are audited');
     const endpointPreview=await asteriskConfig.previewAgentEndpoints(db,platformContext);
     assert.deepEqual(endpointPreview.extensions,['7401','7402']);
-    assert.match(endpointPreview.config,/\[salemax-7401-mobile\]/);
-    assert.match(endpointPreview.config,/\[salemax-7401-browser\]/);
+    assert.match(endpointPreview.config,/\[salemax-7401-mobile-r1\]/);
+    assert.match(endpointPreview.config,/\[salemax-7401-browser-r1\]/);
     const createdQueue=await queues.save(db,tenantContext,{id:null,expectedRevision:0,name:'support_main',strategy:'ringall',ringTimeoutSeconds:20,enabled:false,membershipIds:[ownerMembership,agentMembership]});
     assert.equal(createdQueue.members.length,2);
     const memberIds=createdQueue.members.map(member=>member.membershipId);
@@ -123,6 +123,8 @@ async function main(){
     assert.ok(ariActions.findIndex(action=>action[0]==='ring'&&action[1]===inboundChannel)<ariActions.findIndex(action=>action[0]==='originate'),
       'the inbound caller receives a ringing indication before any agent leg is originated');
     assert.equal(originated.length,4);
+    assert.ok(originated.every(leg=>leg.endpointId===`salemax-${leg.extension}-${leg.clientType}-r1`),
+      'inbound legs target the current revisioned Zoiper/browser endpoint');
     assert.ok(originated.every(leg=>leg.callerId==='+97455550099'),'staff mobile/browser legs receive caller ANI, not the called DID');
     await callControl.handle(inboundEvent);
     assert.equal(originated.length,4,'a duplicate StasisStart must not originate additional agent legs');
@@ -179,19 +181,24 @@ async function main(){
     process.env.SALEMAX_PLATFORM_KEY_BASE64=crypto.randomBytes(32).toString('base64');process.env.SALEMAX_ASTERISK_ALLOWED_HOSTS='crm.example.invalid,sip.example.invalid';process.env.SALEMAX_ASTERISK_WS_URL='wss://crm.example.invalid/ws';process.env.SALEMAX_ASTERISK_MOBILE_SIP_HOST='sip.example.invalid';
     try{
       const agentEndpointWrites=[],configuredEndpointObjects=new Map();
-      configuredEndpointObjects.set('endpoint:salemax-7401-browser',[{attribute:'auth',value:'salemax-7401-browser-r1-auth'},
-        {attribute:'aors',value:'salemax-7401-browser-r1-aor'}]);
+      configuredEndpointObjects.set('endpoint:salemax-7401-browser-r1',[{attribute:'auth',value:'salemax-7401-browser-r1-auth'},
+        {attribute:'aors',value:'salemax-7401-browser-r1'}]);
       const endpointClientFactory=async()=>({
         async getPjsipObject(type,id){const fields=configuredEndpointObjects.get(`${type}:${id}`);if(!fields)throw Object.assign(new Error('missing'),{code:'ARI_RESOURCE_NOT_FOUND'});return fields;},
         async upsertPjsipObject(type,id,fields){agentEndpointWrites.push({operation:'upsert',type,id,fields});configuredEndpointObjects.set(`${type}:${id}`,fields);return{attributes:fields.length};},
         async deletePjsipObject(type,id){agentEndpointWrites.push({operation:'delete',type,id});return{deleted:true};},
       });
       const browserCredentials=await asteriskConfig.ownBrowserEndpoint(db,tenantContext,endpointClientFactory),mobileCredentials=await asteriskConfig.ownMobileEndpoint(db,tenantContext,endpointClientFactory);
-      assert.equal(browserCredentials.authorizationUsername,'salemax-7401-browser');assert.equal(mobileCredentials.username,'salemax-7401-mobile');
+      assert.equal(browserCredentials.authorizationUsername,'salemax-7401-browser-r1');assert.equal(mobileCredentials.username,'salemax-7401-mobile-r1');
       assert.notEqual(browserCredentials.authorizationPassword,mobileCredentials.password);
       assert.equal(browserCredentials.authorizationPassword,asteriskSecrets.endpointCredential({tenantId,membershipId:ownerMembership,extension:'7401',clientType:'browser',revision:2}));
       assert.equal(agentEndpointWrites.filter(write=>write.operation==='upsert').length,6,'opening SIP settings applies auth, AOR and endpoint objects for mobile and browser');
-      assert.equal(agentEndpointWrites.filter(write=>write.operation==='delete').length,2,'rotated credentials remove the previous revision auth and AOR objects');
+      assert.equal(agentEndpointWrites.filter(write=>write.operation==='delete'&&write.type==='endpoint').length,2,
+        'rotated credentials remove the prior and legacy endpoints');
+      assert.equal(agentEndpointWrites.filter(write=>write.operation==='delete'&&write.type==='aor').length,4,
+        'rotated credentials remove all known prior and legacy AoRs');
+      assert.equal(agentEndpointWrites.filter(write=>write.operation==='delete'&&write.type==='auth').length,2,
+        'rotated credentials remove prior and legacy authentication profiles');
       const [[provisionAudits]]=await db.query("SELECT COUNT(*) AS total FROM sx_audit_events WHERE action IN ('telephony.endpoint-provision-requested','telephony.endpoint-provisioned')");
       assert.equal(Number(provisionAudits.total),4,'each member endpoint apply attempt and success is audited without secrets');
       const priorWriteCount=agentEndpointWrites.length;
@@ -214,10 +221,10 @@ async function main(){
         assert.equal(options.headers.Authorization,`Basic ${Buffer.from(`salemax-status:${statusPassword}`).toString('base64')}`);
         return{ok:true,async text(){return JSON.stringify([
           {technology:'PJSIP',resource:`salemax_gw_${tenantGatewayId.replace(/-/g,'')}`,state:'online',channel_ids:[]},
-          {technology:'PJSIP',resource:'salemax-7401-mobile',state:'online',channel_ids:[]},
-          {technology:'PJSIP',resource:'salemax-7401-browser',state:'offline',channel_ids:[]},
-          {technology:'PJSIP',resource:'salemax-7402-mobile',state:'offline',channel_ids:[]},
-          {technology:'PJSIP',resource:'salemax-7402-browser',state:'offline',channel_ids:[]},
+          {technology:'PJSIP',resource:'salemax-7401-mobile-r1',state:'online',channel_ids:[]},
+          {technology:'PJSIP',resource:'salemax-7401-browser-r1',state:'offline',channel_ids:[]},
+          {technology:'PJSIP',resource:'salemax-7402-mobile-r1',state:'offline',channel_ids:[]},
+          {technology:'PJSIP',resource:'salemax-7402-browser-r1',state:'offline',channel_ids:[]},
         ]);}};
       }}));
     const statusServer=http.createServer(statusApp);

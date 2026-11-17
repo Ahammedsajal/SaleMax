@@ -2,6 +2,7 @@
 
 const crypto = require('node:crypto');
 const ari = require('./asterisk-ari-client');
+const asteriskConfig = require('./asterisk-config');
 const gatewayPorts = require('./asterisk-gateway-ports');
 const callRecordings = require('./telephony-recordings');
 const callLeads = require('./telephony-call-leads');
@@ -49,9 +50,16 @@ function mobileOutboundArgs(args) {
   return { destination: args[1] };
 }
 
+function mobileEndpointIdentity(channelName) {
+  const match = String(channelName || '').match(/^(PJSIP\/(salemax-[0-9]{3,8}-mobile-r([1-9][0-9]*)))(?:-[A-Za-z0-9_.:-]+)?$/);
+  if (!match) return null;
+  const credentialRevision=Number(match[3]);
+  if (!Number.isSafeInteger(credentialRevision)) return null;
+  return { channelPrefix:match[1],endpointId:match[2],extension:match[2].match(/^salemax-([0-9]{3,8})-/)[1],credentialRevision };
+}
+
 function mobileEndpointExtension(channelName) {
-  const match = String(channelName || '').match(/^PJSIP\/salemax-([0-9]{3,8})-mobile(?:-[A-Za-z0-9_.:-]+)?$/);
-  return match ? match[1] : null;
+  return mobileEndpointIdentity(channelName)?.extension||null;
 }
 
 function mobileDialString(value) {
@@ -188,8 +196,9 @@ class AsteriskCallControl {
       const [[events]] = await db.query(`SELECT status,(updated_at>=UTC_TIMESTAMP(3)-INTERVAL 15 SECOND) AS heartbeat_fresh
         FROM sx_platform_asterisk_runtime WHERE id=1 FOR UPDATE`);
       if (events?.status !== 'connected' || Number(events.heartbeat_fresh) !== 1) fail('ASTERISK_EVENTS_NOT_READY');
+      const revisionColumn=input.clientType==='mobile'?'mobile_credential_revision':'browser_credential_revision';
       const [[member]] = await db.query(`SELECT x.extension,m.status AS membership_status,i.status AS identity_status,t.status AS tenant_status,
-          t.category_key,t.category_version FROM sx_telephony_extensions x
+          x.${revisionColumn} AS credential_revision,t.category_key,t.category_version FROM sx_telephony_extensions x
         JOIN sx_telephony_endpoint_provisioning ep ON ep.tenant_id=x.tenant_id AND ep.membership_id=x.membership_id
           AND ep.client_type=? AND ep.extension=x.extension AND ep.extension_revision=x.revision
           AND ep.credential_revision=CASE ep.client_type WHEN 'mobile' THEN x.mobile_credential_revision ELSE x.browser_credential_revision END
@@ -224,7 +233,8 @@ class AsteriskCallControl {
       await db.query(`INSERT INTO sx_telephony_call_legs(tenant_id,id,call_id,asterisk_channel_id,leg_role,device_kind,membership_id,status)
         VALUES(?,?,?,?,'agent',?,?, 'originating')`, [context.tenant.id,crypto.randomUUID(),callId,agentChannelId,input.clientType,context.membership.id]);
       reservation = { tenantId: context.tenant.id, callId, channelNo: Number(port.channel_no), gatewayEndpoint: gatewayEndpoint(gateway.id), agentChannelId,
-        extension: member.extension, destination: recipient.destination, clientType: input.clientType };
+        extension: member.extension, endpointId:asteriskConfig.memberEndpointProfile(member.extension,input.clientType,Number(member.credential_revision)).endpointId,
+        destination: recipient.destination, clientType: input.clientType };
       await db.commit();
     } catch (error) {
       try { await db.rollback(); } catch (_) {}
@@ -233,7 +243,7 @@ class AsteriskCallControl {
     } finally { db.release(); }
     try {
       const client = await this.client();
-      await client.originateAgent({ extension: reservation.extension, clientType: reservation.clientType,
+      await client.originateAgent({ extension: reservation.extension, endpointId:reservation.endpointId, clientType: reservation.clientType,
         channelId: reservation.agentChannelId, appArgs: ['outbound-agent',reservation.callId,context.membership.id,
           reservation.clientType,reservation.destination], timeout: 30 });
       return { callId: reservation.callId, status: 'starting' };
@@ -244,7 +254,8 @@ class AsteriskCallControl {
   }
 
   async startMobileOutbound(channelId, input) {
-    const extension = mobileEndpointExtension(input?.channelName);
+    const endpointIdentity = mobileEndpointIdentity(input?.channelName);
+    const extension = endpointIdentity?.extension;
     const dialedNumber = mobileDialString(input?.destination);
     if (!extension || !dialedNumber || !CHANNEL_ID.test(channelId || '')) {
       try { await (await this.client()).hangup(channelId); } catch (_) {}
@@ -260,7 +271,7 @@ class AsteriskCallControl {
       const [[events]] = await db.query(`SELECT status,(updated_at>=UTC_TIMESTAMP(3)-INTERVAL 15 SECOND) AS heartbeat_fresh
         FROM sx_platform_asterisk_runtime WHERE id=1 FOR UPDATE`);
       if (events?.status !== 'connected' || Number(events.heartbeat_fresh) !== 1) fail('ASTERISK_EVENTS_NOT_READY');
-      const [[member]] = await db.query(`SELECT x.tenant_id,x.membership_id,x.extension,m.role,m.status AS membership_status,
+      const [[member]] = await db.query(`SELECT x.tenant_id,x.membership_id,x.extension,x.mobile_credential_revision,m.role,m.status AS membership_status,
           i.status AS identity_status,t.status AS tenant_status,t.category_key,t.category_version,t.country_code
         FROM sx_telephony_extensions x
         JOIN sx_telephony_endpoint_provisioning p ON p.tenant_id=x.tenant_id AND p.membership_id=x.membership_id
@@ -271,6 +282,10 @@ class AsteriskCallControl {
         JOIN sx_identities i ON i.id=m.identity_id JOIN sx_tenants t ON t.id=m.tenant_id
         WHERE x.extension=? AND x.extension REGEXP '^[0-9]{3,8}$' AND m.role IN ('owner','manager','team_leader','agent') FOR UPDATE`,[extension]);
       if (!member || member.membership_status !== 'active' || member.identity_status !== 'active' || member.tenant_status !== 'active') fail('OUTBOUND_EXTENSION_NOT_READY');
+      if (endpointIdentity.credentialRevision!==Number(member.mobile_credential_revision)
+        || endpointIdentity.endpointId!==asteriskConfig.memberEndpointProfile(member.extension,'mobile',Number(member.mobile_credential_revision)).endpointId) {
+        fail('STALE_ENDPOINT_CREDENTIAL');
+      }
       const destination=externalNumber(dialedNumber,member.country_code);
       if(!destination)fail('INVALID_OUTBOUND_CALL');
       if (!(await gatewayPorts.eligible(db, { id: member.tenant_id, status: member.tenant_status,
@@ -485,7 +500,7 @@ class AsteriskCallControl {
       input = { ...input, tenantId: mapping.tenant_id, channelNo: Number(mapping.channel_no), queueId: mapping.inbound_queue_id };
       if (!(await gatewayPorts.eligible(db, { id: mapping.tenant_id, status: mapping.tenant_status,
         category_key: mapping.category_key, category_version: mapping.category_version }))) fail('INBOUND_TENANT_NOT_ELIGIBLE');
-      const [members] = await db.query(`SELECT m.id AS membership_id,x.extension,
+      const [members] = await db.query(`SELECT m.id AS membership_id,x.extension,x.mobile_credential_revision,x.browser_credential_revision,
           EXISTS(SELECT 1 FROM sx_telephony_endpoint_provisioning pm JOIN sx_platform_asterisk_config acm ON acm.id=1 AND acm.enabled=1
             WHERE pm.tenant_id=x.tenant_id AND pm.membership_id=x.membership_id AND pm.client_type='mobile'
               AND pm.extension=x.extension AND pm.extension_revision=x.revision AND pm.credential_revision=x.mobile_credential_revision
@@ -522,7 +537,8 @@ class AsteriskCallControl {
       for (const member of members) for (const clientType of CLIENT_TYPES) {
         if (Number(member[clientType === 'mobile' ? 'mobile_ready' : 'browser_ready']) !== 1) continue;
         const leg = { id: crypto.randomUUID(), channelId: crypto.randomUUID(), membershipId: member.membership_id,
-          extension: member.extension, clientType };
+          extension: member.extension,endpointId:asteriskConfig.memberEndpointProfile(member.extension,clientType,
+            Number(member[clientType==='mobile'?'mobile_credential_revision':'browser_credential_revision'])).endpointId,clientType };
         await db.query(`INSERT INTO sx_telephony_call_legs(tenant_id,id,call_id,asterisk_channel_id,leg_role,device_kind,membership_id,status)
           VALUES(?,?,?,?,'agent',?,?,'originating')`, [input.tenantId, leg.id, callId, leg.channelId, clientType, leg.membershipId]);
         agentLegs.push(leg);
@@ -599,7 +615,7 @@ class AsteriskCallControl {
         return;
       }
       try {
-        await client.originateAgent({ extension: leg.extension, clientType: leg.clientType, channelId: leg.channelId,
+        await client.originateAgent({ extension: leg.extension, endpointId:leg.endpointId, clientType: leg.clientType, channelId: leg.channelId,
           appArgs: ['inbound-agent', reserved.callId, leg.membershipId, leg.clientType], callerId: reserved.remoteNumber || undefined,
           timeout: reserved.ringTimeoutSeconds });
         originatedLegs++;
@@ -822,4 +838,4 @@ class AsteriskCallControl {
 }
 
 module.exports = { AsteriskCallControl, inboundArgs, agentArgs, outboundAgentArgs, outboundGatewayArgs,
-  mobileOutboundArgs, mobileEndpointExtension, externalNumber, callerNumber };
+  mobileOutboundArgs, mobileEndpointIdentity, mobileEndpointExtension, externalNumber, callerNumber };
