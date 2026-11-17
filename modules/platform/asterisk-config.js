@@ -300,7 +300,7 @@ async function ownMobileEndpoint(db, context, clientFactory) {
   const host=mobileSipHost(),{username}=memberEndpointProfile(row.extension,'mobile',revision);
   const password=secrets.endpointCredential({tenantId:context.tenant.id,membershipId:context.membership.id,extension:row.extension,clientType:'mobile',revision});
   await applyMemberEndpoint(db,context,row.extension,'mobile',Number(row.extension_revision),revision,pbx,password,clientFactory);
-  const config={host,port:5061,transport:'TLS',mediaEncryption:'SRTP',countryCode:row.country_code,uri:`sip:${username}@${host}`,username,
+  const config={host,port:5061,transport:'TLS',mediaEncryption:'SRTP (SDES)',countryCode:row.country_code,uri:`sip:${username}@${host}`,username,
     password};
   await auditEndpointCredentialAccess(db,context,'mobile');
   return config;
@@ -325,7 +325,7 @@ async function memberMobileEndpoint(db, context, membershipId, clientFactory) {
   const password = secrets.endpointCredential({ tenantId: context.tenant.id, membershipId, extension: row.extension, clientType: 'mobile', revision });
   await applyMemberEndpoint(db, context, row.extension, 'mobile', Number(row.extension_revision), revision, pbx, password, clientFactory, membershipId);
   await auditEndpointCredentialAccess(db, context, 'mobile', membershipId);
-  return { membershipId, displayName: row.display_name || '', host, port: 5061, transport: 'TLS', mediaEncryption: 'SRTP',countryCode:row.country_code,
+  return { membershipId, displayName: row.display_name || '', host, port: 5061, transport: 'TLS', mediaEncryption: 'SRTP (SDES)',countryCode:row.country_code,
     uri: `sip:${username}@${host}`, username, password };
 }
 

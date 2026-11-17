@@ -131,8 +131,12 @@ test('browser incoming SIP calls wait for an explicit accept or decline and can 
   assert.match(sip,/if \(!candidate\.isConnected\(\)\) await candidate\.connect\(\)/);
   assert.match(ui,/window\.SevenNetworkSip\.answerBrowserCall\(\)/);
   assert.match(ui,/window\.SevenNetworkSip\.declineBrowserCall\(\)/);
-  assert.match(ui,/Staff use the SIP app only; they do not need a 7Network CRM login/);
-  assert.match(ui,/Incoming calls while the phone is locked or the app is in the background depend on the chosen app’s push service/);
+  assert.match(ui,/Staff dial from Zoiper’s keypad; they do not need a 7Network CRM login or lead list/);
+  assert.match(ui,/Zoiper setup: use the server and port above, TLS transport, and SRTP key negotiation set to SDES/);
+  assert.match(ui,/Zoiper’s optional paid Push subscription/);
+  assert.match(ui,/Keep SIP registration expiry at 3600 seconds or higher/);
+  assert.match(ui,/do not open SIP\/RTP to all internet addresses/);
+  assert.match(ui,/إعداد Zoiper: استخدم الخادم والمنفذ أعلاه/);
   assert.doesNotMatch(ui,/window\.SaleMaXSip/);
 });
 

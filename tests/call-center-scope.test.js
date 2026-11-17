@@ -81,7 +81,7 @@ test('Call Center identifies the assigned staff member beside each call and reco
   assert.match(ui,/if\(callHistory\.recordingsOnly\)params\.set\('recordedOnly','1'\)/);
   assert.match(ui,/params\.set\('agentMembershipId',callHistory\.agentMembershipId\)/);
   assert.match(ui,/request\('\/calls\/agents'\)/);
-  assert.match(html,/call-center\.js\?v=20261116-sip-credential-revision1/);
+  assert.match(html,/call-center\.js\?v=20261117-zoiper-mobile-settings1/);
   assert.match(html,/id="recordingsOnly"/);
   assert.match(html,/id="agentReviewFilter"/);
 });

@@ -280,7 +280,7 @@ test('Call Center status reports call readiness only with live Asterisk and endp
   assert.match(client,/node\('extensionsSection'\)\.hidden=true/);
   assert.match(client,/node\('queuesSection'\)\.hidden=true/);
   assert.match(router,/categoryKey:canonicalCategoryKey\(context\.tenant\.categoryKey\)/);
-  assert.match(page,/call-center\.js\?v=20261116-sip-credential-revision1/);
+  assert.match(page,/call-center\.js\?v=20261117-zoiper-mobile-settings1/);
   assert.match(page,/call-center\.css\?v=20261112-sip-direct-dial1/);
   assert.match(page,/Call history includes caller or dialed numbers/);
   assert.match(page,/The SIP app does not display CRM leads/);
@@ -408,7 +408,7 @@ test('mobile endpoint credentials are own-member scoped and require an allowlist
   const tenantId='11111111-1111-4111-8111-111111111111',membershipId='22222222-2222-4222-8222-222222222222';
   const context={audience:'tenant',identity:{id:'identity'},tenant:{id:tenantId,status:'active',categoryKey:'training_center',categoryVersion:1},membership:{id:membershipId,tenantId,role:'agent',status:'active'},category:{key:'training_center',version:1,capabilities:['telephony.call-center']},subscription:{status:'active',capabilities:['telephony.call-center']}};
   const db={async query(sql){if(sql.includes('sx_platform_asterisk_config'))return [[{enabled:1,revision:2}]];if(sql.includes('sx_telephony_extensions'))return [[{extension:'1201',extension_revision:1,mobile_credential_revision:1,membership_status:'active',identity_status:'active',tenant_status:'active',country_code:'QA'}]];if(sql.includes('sx_telephony_endpoint_provisioning'))return [[]];return [{affectedRows:1}];}};const writes=[];const clientFactory=async()=>({async getPjsipObject(){throw Object.assign(new Error('missing'),{code:'ARI_RESOURCE_NOT_FOUND'});},async upsertPjsipObject(type,id,fields){writes.push({type,id,fields});return{attributes:fields.length};},async deletePjsipObject(type,id){writes.push({type,id,deleted:true});return{deleted:true};}});
-  try{const config=await asterisk.ownMobileEndpoint(db,context,clientFactory);assert.equal(config.host,'sip.example.test');assert.equal(config.port,5061);assert.equal(config.transport,'TLS');assert.equal(config.mediaEncryption,'SRTP');assert.equal(config.countryCode,'QA');assert.equal(config.username,'1201-mobile-r1');assert.equal(config.password.length,43);assert.match(config.uri,/^sip:1201-mobile-r1@sip\.example\.test$/);assert.deepEqual(writes.map(row=>[row.type,row.id]),[['auth','salemax-1201-mobile-r1-auth'],['aor','salemax-1201-mobile-r1-aor'],['endpoint','salemax-1201-mobile']]);assert.ok(writes[2].fields.some(field=>field.attribute==='transport'&&field.value==='transport-salemax-tls'));assert.ok(writes[2].fields.some(field=>field.attribute==='media_encryption'&&field.value==='sdes'));assert.ok(writes[2].fields.some(field=>field.attribute==='context'&&field.value==='from-salemax-mobile-outbound'));}
+  try{const config=await asterisk.ownMobileEndpoint(db,context,clientFactory);assert.equal(config.host,'sip.example.test');assert.equal(config.port,5061);assert.equal(config.transport,'TLS');assert.equal(config.mediaEncryption,'SRTP (SDES)');assert.equal(config.countryCode,'QA');assert.equal(config.username,'1201-mobile-r1');assert.equal(config.password.length,43);assert.match(config.uri,/^sip:1201-mobile-r1@sip\.example\.test$/);assert.deepEqual(writes.map(row=>[row.type,row.id]),[['auth','salemax-1201-mobile-r1-auth'],['aor','salemax-1201-mobile-r1-aor'],['endpoint','salemax-1201-mobile']]);assert.ok(writes[2].fields.some(field=>field.attribute==='transport'&&field.value==='transport-salemax-tls'));assert.ok(writes[2].fields.some(field=>field.attribute==='media_encryption'&&field.value==='sdes'));assert.ok(writes[2].fields.some(field=>field.attribute==='context'&&field.value==='from-salemax-mobile-outbound'));}
   finally{if(oldKey===undefined)delete process.env.SALEMAX_PLATFORM_KEY_BASE64;else process.env.SALEMAX_PLATFORM_KEY_BASE64=oldKey;if(oldHosts===undefined)delete process.env.SALEMAX_ASTERISK_ALLOWED_HOSTS;else process.env.SALEMAX_ASTERISK_ALLOWED_HOSTS=oldHosts;if(oldHost===undefined)delete process.env.SALEMAX_ASTERISK_MOBILE_SIP_HOST;else process.env.SALEMAX_ASTERISK_MOBILE_SIP_HOST=oldHost;}
 });
 
@@ -466,7 +466,7 @@ test('an authorized owner can provision and reveal mobile SIP settings for a sam
   try{
     const config=await asterisk.memberMobileEndpoint(db,context,agentId,clientFactory);
     assert.equal(config.membershipId,agentId);assert.equal(config.displayName,'Team Leader One');assert.equal(config.username,'1202-mobile-r2');
-    assert.equal(config.host,'sip.example.test');assert.equal(config.transport,'TLS');assert.equal(config.mediaEncryption,'SRTP');assert.equal(config.countryCode,'QA');
+    assert.equal(config.host,'sip.example.test');assert.equal(config.transport,'TLS');assert.equal(config.mediaEncryption,'SRTP (SDES)');assert.equal(config.countryCode,'QA');
     const mobileUi=require('node:fs').readFileSync(require('node:path').join(__dirname,'../client/public/call-center/call-center.js'),'utf8');
     assert.match(mobileUi,/config\.countryCode==='QA'/);assert.match(mobileUi,/Dial 8-digit Qatar local numbers directly/);
     assert.equal(config.password.length,43);assert.ok(writes.some(item=>item.type==='endpoint'&&item.id==='salemax-1202-mobile'));
