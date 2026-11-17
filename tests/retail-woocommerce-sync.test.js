@@ -152,6 +152,58 @@ test('older provider snapshots cannot replace newer synced records', () => {
   assert.equal(connector.sourceTimestampIsStale('2026-11-15T10:00:00Z', null), true);
 });
 
+test('WooCommerce connection persists a verified read-only store without starting an import', async () => {
+  const originalRequest = connector.requestHttps;
+  const originalKey = process.env.SALEMAX_PLATFORM_KEY_BASE64;
+  process.env.SALEMAX_PLATFORM_KEY_BASE64 = Buffer.alloc(32, 12).toString('base64');
+  const tenantId = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
+  const connectionWrites = [];
+  const requests = [];
+  const db = {
+    beginTransaction: async () => {},
+    query: async (sql, params) => {
+      connectionWrites.push({sql, params});
+      if (sql.startsWith('SELECT id,tenant_id,status FROM sx_retail_store_connections')) return [[],[]];
+      return [{affectedRows: 1},[]];
+    },
+    commit: async () => {}, rollback: async () => {}, release: () => {},
+  };
+  const pool = {getConnection: async () => db};
+  const authenticate = (_req,_res,next) => next();
+  const router = workspaceRouter({pool, authenticate, origin: 'https://workspace.example.invalid'});
+  const handler = router.routes.get('POST /woocommerce');
+  const context = {audience:'tenant',tenant:{id:tenantId,status:'active',categoryKey:'retail_boutique',categoryVersion:1,currency:'QAR'},
+    membership:{tenantId,status:'active',role:'owner'},subscription:{status:'active',capabilities:['retail.commerce']},
+    category:{key:'retail_boutique',version:1,capabilities:['retail.commerce']},
+    identity:{id:'dddddddd-dddd-4ddd-8ddd-dddddddddddd'}};
+  let response = null, error = null;
+  const req = {businessContext:context,params:{},query:{},body:{storeUrl:'https://store.example.com',displayName:'Test Store',currency:'QAR',
+    consumerKey:'ck_'+'A'.repeat(32),consumerSecret:'cs_'+'B'.repeat(32)}};
+  const res = {json(value){response={status:200,value};return this;},sendStatus(status){response={status};return this;}};
+  connector.requestHttps = async (url, options) => {
+    requests.push({url,method:options.method || 'GET'});
+    return {status:200,data:[]};
+  };
+  try {
+    await handler(req,res,value=>{error=value;});
+    assert.equal(error, null);
+    assert.equal(response.status, 200);
+    assert.equal(response.value.success, true);
+    assert.equal(response.value.data.connection.provider, 'woocommerce');
+    assert.equal(response.value.data.connection.status, 'active');
+    assert.equal(response.value.data.connection.storeDomain, 'https://store.example.com');
+    assert.equal(requests.length, 1);
+    assert.equal(requests[0].method, 'GET');
+    assert.match(new URL(requests[0].url).pathname, /\/wp-json\/wc\/v3\/orders$/);
+    assert.equal(connectionWrites.filter(item=>item.sql.startsWith('INSERT INTO sx_retail_store_connections')).length, 1);
+    assert.equal(connectionWrites.filter(item=>/sx_retail_external_(products|product_variants|orders|customers)/.test(item.sql)).length, 0);
+  } finally {
+    connector.requestHttps = originalRequest;
+    if (originalKey === undefined) delete process.env.SALEMAX_PLATFORM_KEY_BASE64;
+    else process.env.SALEMAX_PLATFORM_KEY_BASE64 = originalKey;
+  }
+});
+
 test('connected-store reads are tenant-scoped and owner-only', async () => {
   const tenantId = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
   const otherTenantId = 'cccccccc-cccc-4ccc-8ccc-cccccccccccc';

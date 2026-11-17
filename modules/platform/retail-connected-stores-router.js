@@ -214,7 +214,7 @@ async function verifyWooConnection(base, key, secret) {
   const url = new URL(`${new URL(base).pathname.replace(/\/$/, '')}/wp-json/wc/v3/orders?per_page=1&orderby=id&order=desc`, new URL(base).origin);
   const response = await connector.requestHttps(url.toString(), { headers: { Authorization: `Basic ${Buffer.from(`${key}:${secret}`).toString('base64')}`, Accept: 'application/json' } });
   if (response.status !== 200 || !Array.isArray(response.data)) fail(response.status === 401 || response.status === 403 ? 'WOOCOMMERCE_KEY_OR_PERMISSION_INVALID' : 'WOOCOMMERCE_CONNECTION_FAILED', 502);
-  return connection;
+  return true;
 }
 async function checkpointWooCursor(db, connection, lock, local, next) {
   const [saved] = await db.query(`UPDATE sx_retail_store_connections SET sync_cursor=? WHERE tenant_id=? AND id=? AND sync_lock_token=?`,
