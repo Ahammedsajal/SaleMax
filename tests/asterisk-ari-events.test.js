@@ -419,6 +419,38 @@ test('ARI channel snapshot validates channel IDs and response bounds for reconne
   }finally{if(oldKey===undefined)delete process.env.SALEMAX_PLATFORM_KEY_BASE64;else process.env.SALEMAX_PLATFORM_KEY_BASE64=oldKey;if(oldHosts===undefined)delete process.env.SALEMAX_ASTERISK_ALLOWED_HOSTS;else process.env.SALEMAX_ASTERISK_ALLOWED_HOSTS=oldHosts;}
 });
 
+test('an unanswered outbound GSM leg fails the call and releases the agent and SIM lease', async () => {
+  const call={tenant_id:'tenant-id',id:'call-id',direction:'outbound',status:'starting',bridge_id:'bridge-id',inbound_channel_id:null,
+    answered_by_membership_id:null,leased_channel_no:1,end_reason:null};
+  const gatewayLeg={tenant_id:'tenant-id',leg_id:'gateway-leg-id',call_id:'call-id',leg_role:'gateway',membership_id:null,status:'originating'};
+  const agentLeg={asterisk_channel_id:'agent-channel',status:'connected'};
+  const db={
+    async beginTransaction(){},async commit(){},async rollback(){},release(){},
+    async query(sql,args=[]){
+      if(sql.includes('SELECT tenant_id,id AS leg_id,call_id,leg_role,membership_id,status FROM sx_telephony_call_legs'))return [[gatewayLeg],[]];
+      if(sql.includes('UPDATE sx_telephony_call_legs SET status=\'ended\'')&&sql.includes('WHERE tenant_id=? AND id=?')){
+        gatewayLeg.status='ended';gatewayLeg.end_reason=args[0];return[{affectedRows:1},[]];
+      }
+      if(sql.includes('SELECT direction,status,bridge_id,inbound_channel_id,answered_by_membership_id FROM sx_telephony_calls'))return [[call],[]];
+      if(sql.includes('SELECT asterisk_channel_id FROM sx_telephony_call_legs')&&sql.includes('asterisk_channel_id<>?'))return [[agentLeg],[]];
+      if(sql.includes('UPDATE sx_telephony_call_legs SET status=\'ended\'')&&sql.includes('WHERE tenant_id=? AND call_id=?')){
+        agentLeg.status='ended';return[{affectedRows:1},[]];
+      }
+      if(sql.includes('UPDATE sx_telephony_calls SET status=\'failed\'')){
+        call.status='failed';call.leased_channel_no=null;call.end_reason='OUTBOUND_GATEWAY_FAILED';return[{affectedRows:1},[]];
+      }
+      return[[],[]];
+    },
+  };
+  const control=new AsteriskCallControl({pool:{async getConnection(){return db;}}});
+  const hungUp=[],destroyed=[];
+  control.client=async()=>({async hangup(id){hungUp.push(id);},async destroyBridge(id){destroyed.push(id);}});
+  assert.equal(await control.handle({type:'ChannelDestroyed',application:APP_NAME,channel:{id:'gateway-channel'},cause_txt:'BUSY'}),true);
+  assert.equal(call.status,'failed');assert.equal(call.leased_channel_no,null);assert.equal(call.end_reason,'OUTBOUND_GATEWAY_FAILED');
+  assert.equal(gatewayLeg.status,'ended');assert.equal(agentLeg.status,'ended');
+  assert.deepEqual(hungUp,['agent-channel']);assert.deepEqual(destroyed,['bridge-id']);
+});
+
 test('call control reconciles on ARI reconnect and unregisters the recovery listener on stop', async () => {
   const events=new EventEmitter();let snapshots=0,queries=0;
   const pool={async query(sql){queries++;assert.match(sql,/sx_telephony_calls/);return[[]];}};
