@@ -4,6 +4,30 @@ const crypto = require('node:crypto');
 class MigrationError extends Error {
   constructor(code) { super(code); this.code = code; }
 }
+// Keep historical migration filenames/checksums intact while expressing the
+// one known schema dependency whose date prefix predates its prerequisite.
+const migrationDependencies = Object.freeze({
+  '20261112_telephony_call_remote_number.sql': Object.freeze(['20261204_telephony_call_lead_links.sql']),
+});
+function orderMigrations(migrations) {
+  const byName = new Map(migrations.map(migration => [migration.file, migration]));
+  const ordered = [], visiting = new Set(), visited = new Set();
+  function visit(migration) {
+    if (visited.has(migration.file)) return;
+    if (visiting.has(migration.file)) throw new MigrationError('MIGRATION_DEPENDENCY_CYCLE');
+    visiting.add(migration.file);
+    for (const dependencyName of migrationDependencies[migration.file] || []) {
+      const dependency = byName.get(dependencyName);
+      if (!dependency) throw new MigrationError('MIGRATION_DEPENDENCY_MISSING');
+      visit(dependency);
+    }
+    visiting.delete(migration.file);
+    visited.add(migration.file);
+    ordered.push(migration);
+  }
+  for (const migration of migrations) visit(migration);
+  return ordered;
+}
 // Parse single SQL statements without enabling mysql2 multipleStatements.
 function splitSql(source) {
   if (/^\s*DELIMITER\b/im.test(source)) throw new MigrationError('UNSUPPORTED_DELIMITER');
@@ -34,7 +58,7 @@ function splitSql(source) {
 }
 function discover(directory) {
   const root = fs.realpathSync(directory);
-  return fs.readdirSync(root).filter(file => /^\d{8}_[a-z0-9_]+\.sql$/i.test(file))
+  const migrations = fs.readdirSync(root).filter(file => /^\d{8}_[a-z0-9_]+\.sql$/i.test(file))
     .filter(file => !/(?:^|_)(?:rollback|down|revert)(?:_|\.)/i.test(file))
     .sort().map(file => {
       const filename = path.join(root, file);
@@ -45,6 +69,7 @@ function discover(directory) {
       if (statements.some(sql => /^(?:DROP\b|TRUNCATE\b)|\bDROP\s+(?:COLUMN|TABLE|DATABASE)\b/i.test(sql))) throw new MigrationError('DESTRUCTIVE_FORWARD_MIGRATION');
       return { file, checksum: crypto.createHash('sha256').update(source).digest('hex'), statements };
     });
+  return orderMigrations(migrations);
 }
 const ledgerSql = `CREATE TABLE IF NOT EXISTS salemax_schema_migrations (
   migration_name VARCHAR(190) NOT NULL PRIMARY KEY,
@@ -57,11 +82,13 @@ const ledgerSql = `CREATE TABLE IF NOT EXISTS salemax_schema_migrations (
   error_code VARCHAR(100) NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`;
 async function applyMigrations(connection, migrations, { only = null } = {}) {
-  const current = new Map(migrations.map(m => [m.file, m]));
-  const selected = only == null ? migrations : (() => {
+  const ordered = orderMigrations(migrations);
+  const current = new Map(ordered.map(m => [m.file, m]));
+  const selected = only == null ? ordered : (() => {
     const names = Array.isArray(only) ? only : [only];
     if (!names.length || names.some(name => typeof name !== 'string' || !current.has(name))) throw new MigrationError('MIGRATION_NOT_FOUND');
-    return names.map(name => current.get(name));
+    const selectedNames = new Set(names);
+    return ordered.filter(migration => selectedNames.has(migration.file));
   })();
   const [[database]] = await connection.query('SELECT DATABASE() AS db');
   if (!database.db) throw new MigrationError('DATABASE_REQUIRED');
@@ -79,18 +106,23 @@ async function applyMigrations(connection, migrations, { only = null } = {}) {
       if (current.get(row.migration_name).checksum !== row.checksum) throw new MigrationError('MIGRATION_CHECKSUM_CHANGED');
       if (row.status !== 'applied') throw new MigrationError('MIGRATION_RECOVERY_REQUIRED');
     }
+    const completedMigrations = new Set(prior.keys());
     for (const migration of selected) {
-      if (prior.has(migration.file)) { skipped.push(migration.file); continue; }
+      if ((migrationDependencies[migration.file] || []).some(dependency => !completedMigrations.has(dependency))) {
+        throw new MigrationError('MIGRATION_DEPENDENCY_REQUIRED');
+      }
+      if (prior.has(migration.file)) { skipped.push(migration.file); completedMigrations.add(migration.file); continue; }
       await connection.query('INSERT INTO salemax_schema_migrations (migration_name, checksum, status, statement_count) VALUES (?, ?, ?, ?)', [migration.file, migration.checksum, 'running', migration.statements.length]);
-      let completed = 0;
+      let completedStatements = 0;
       try {
         for (const sql of migration.statements) {
           await connection.query(sql);
-          completed++;
-          await connection.query('UPDATE salemax_schema_migrations SET statements_completed = ? WHERE migration_name = ?', [completed, migration.file]);
+          completedStatements++;
+          await connection.query('UPDATE salemax_schema_migrations SET statements_completed = ? WHERE migration_name = ?', [completedStatements, migration.file]);
         }
         await connection.query('UPDATE salemax_schema_migrations SET status = ?, completed_at = CURRENT_TIMESTAMP(3), error_code = NULL WHERE migration_name = ?', ['applied', migration.file]);
         applied.push(migration.file);
+        completedMigrations.add(migration.file);
       } catch (error) {
         const code = /^[A-Z0-9_]{1,100}$/.test(error.code || '') ? error.code : Number.isInteger(error.errno) ? 'DB_ERRNO_' + error.errno : 'MIGRATION_STATEMENT_FAILED';
         // MariaDB DDL may commit before its checkpoint. Failed/running blocks
