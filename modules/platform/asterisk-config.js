@@ -24,7 +24,9 @@ function memberEndpointProfile(extension, clientType, credentialRevision) {
   return {
     username,
     authId: `${endpointId}-r${credentialRevision}-auth`,
-    aorId: `${endpointId}-r${credentialRevision}-aor`,
+    // Asterisk resolves REGISTER To-user against the AoR object name.
+    // Keep the AoR stable and equal to the SIP username across password rotations.
+    aorId: endpointId,
     endpointId,
   };
 }
@@ -33,7 +35,7 @@ function profileObjectIds(extension, clientType, credentialRevision) {
   const base = `salemax-${extension}-${clientType}`;
   return {
     authIds: [`${base}-auth`, `${base}-r${credentialRevision}-auth`],
-    aorIds: [`${base}-aor`, `${base}-r${credentialRevision}-aor`],
+    aorIds: [base, `${base}-aor`, `${base}-r${credentialRevision}-aor`],
   };
 }
 
@@ -44,6 +46,7 @@ function endpointField(fields, name) {
 function memberProfileObjectId(value, extension, clientType, objectType) {
   if (typeof value !== 'string') return false;
   const base = `salemax-${extension}-${clientType}`;
+  if (objectType === 'aor' && value === base) return true;
   return value === `${base}-${objectType}` || new RegExp(`^${base}-r[1-9][0-9]*-${objectType}$`).test(value);
 }
 
@@ -197,7 +200,7 @@ async function applyMemberEndpoint(db, context, extension, clientType, extension
     );
     await client.upsertPjsipObject('endpoint', endpointId, fields);
     objectsApplied++;
-    if (applied?.extension === extension) {
+    if (previousEndpointFields) {
       const oldAuthId = endpointField(previousEndpointFields, 'auth');
       const oldAorId = endpointField(previousEndpointFields, 'aors');
       if (oldAorId !== aorId && memberProfileObjectId(oldAorId, extension, clientType, 'aor')) {
