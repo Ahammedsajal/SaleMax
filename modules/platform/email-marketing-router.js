@@ -25,8 +25,9 @@ function createEmailMarketingRouter({pool:injectedPool,authenticate,origin,key}=
   router.post('/senders',run(async(db,ctx,req)=>service.addSender(db,ctx,req.body,key)));
   router.post('/senders/:id/refresh',run(async(db,ctx,req)=>service.refreshSender(db,ctx,req.params.id,key)));
   router.post('/senders/:id/test',run(async(db,ctx,req)=>{
-    const result=await service.testSend(db,ctx,{senderId:req.params.id},key);
-    await service.audit(db,ctx,'email.sender.test-sent','email-sender',req.params.id,{recipient:result.recipient});
+    const result=await service.testSend(db,ctx,{senderId:req.params.id,recipient:req.body?.recipient},key);
+    const [local,domain]=result.recipient.split('@');
+    await service.audit(db,ctx,'email.sender.test-sent','email-sender',req.params.id,{recipient:`${local.slice(0,1)}***@${domain}`});
     return result;
   }));
   router.post('/attachments',express.raw({type:'application/octet-stream',limit:service.MAX_ATTACHMENT_BYTES}),run(async(db,ctx,req)=>{
