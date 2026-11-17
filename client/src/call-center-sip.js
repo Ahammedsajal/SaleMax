@@ -12,7 +12,7 @@ function status(state, detail = '') {
 
 export async function connectBrowserSip(config, remoteAudio, onState = () => {}) {
   const sipIdentity = typeof config?.uri === 'string'
-    ? /^sip:(salemax-[0-9]{3,8}-browser)@[!-~]+$/.exec(config.uri)?.[1] || '' : '';
+    ? /^sip:(salemax-[0-9]{3,8}-browser-r[1-9][0-9]*)@[!-~]+$/.exec(config.uri)?.[1] || '' : '';
   if (!config || typeof config.server !== 'string' || !config.server.startsWith('wss://')
     || !sipIdentity || typeof config.authorizationUsername !== 'string' || config.authorizationUsername !== sipIdentity
     || typeof config.authorizationPassword !== 'string' || config.authorizationPassword.length < 40

@@ -89,11 +89,15 @@ function createAriClient(row, { fetchImpl = globalThis.fetch, timeoutMs = 5000, 
         throw error;
       }
     },
-    async originateAgent({ extension, clientType, channelId, appArgs, callerId, timeout = 25 }) {
-      if (!EXTENSION.test(extension || '') || !['mobile', 'browser'].includes(clientType) || !UUID.test(channelId || '')
+    async originateAgent({ extension, endpointId, clientType, channelId, appArgs, callerId, timeout = 25 }) {
+      const identity=typeof endpointId==='string'?endpointId.match(/^salemax-([0-9]{3,8})-(mobile|browser)-r([1-9][0-9]*)$/):null;
+      const credentialRevision=identity?Number(identity[3]):0;
+      if (!EXTENSION.test(extension || '') || !['mobile', 'browser'].includes(clientType)
+        || !identity || !Number.isSafeInteger(credentialRevision) || identity[1]!==extension || identity[2]!==clientType
+        || asterisk.memberEndpointProfile(extension,clientType,credentialRevision).endpointId!==endpointId || !UUID.test(channelId || '')
         || callerId !== undefined && callerId !== null && !/^\+?[1-9][0-9]{6,14}$/.test(callerId)
         || !Number.isInteger(timeout) || timeout < 5 || timeout > 60) fail('INVALID_ARI_ORIGINATE');
-      const channel = await request('POST', 'channels', { endpoint: `PJSIP/salemax-${extension}-${clientType}`, app: APP_NAME,
+      const channel = await request('POST', 'channels', { endpoint: `PJSIP/${endpointId}`, app: APP_NAME,
         appArgs: safeArgs(appArgs), channelId, timeout: String(timeout), callerId: callerId || undefined });
       if (typeof channel.id !== 'string' || channel.id !== channelId) fail('ARI_INVALID_RESPONSE');
       return { id: channel.id, name: typeof channel.name === 'string' ? channel.name.slice(0, 160) : '' };

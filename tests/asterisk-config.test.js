@@ -11,6 +11,17 @@ const secrets = require('../modules/platform/asterisk-secrets');
 const staff = require('../modules/platform/staff-access');
 const policy = require('../modules/platform/policy');
 
+test('SIP username, endpoint and AoR move together on each credential revision',()=>{
+  const first=asterisk.memberEndpointProfile('1201','mobile',1),second=asterisk.memberEndpointProfile('1201','mobile',2);
+  assert.equal(first.username,'salemax-1201-mobile-r1');
+  assert.equal(first.endpointId,first.username);
+  assert.equal(first.aorId,first.username);
+  assert.equal(second.endpointId,'salemax-1201-mobile-r2');
+  assert.notEqual(first.aorId,second.aorId);
+  assert.throws(()=>asterisk.memberEndpointProfile('1201','mobile',0),{code:'INVALID_SIP_ENDPOINT'});
+  assert.throws(()=>asterisk.memberEndpointProfile('1201;include=unsafe','mobile',1),{code:'INVALID_SIP_ENDPOINT'});
+});
+
 test('existing Super Admin host setup preview covers loopback ARI, shared TLS, dynamic PJSIP, DID routing and SIP intrusion blocking without secrets', () => {
   const context={audience:'platform',identity:{id:'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'},membership:{role:'super_admin',status:'active'},mfaVerified:true};
   const preview=asterisk.previewHostSetup(context);
@@ -118,15 +129,15 @@ test('live PJSIP registration probe returns only requested bounded endpoint stat
       request={url:new URL(url),options};
       return{ok:true,async text(){return JSON.stringify([
         {technology:'PJSIP',resource:'salemax_dinstar_uc2000ve',state:'online',channel_ids:[]},
-        {technology:'PJSIP',resource:'salemax-7401-mobile',state:'offline',channel_ids:[]},
+        {technology:'PJSIP',resource:'salemax-7401-mobile-r1',state:'offline',channel_ids:[]},
         {technology:'PJSIP',resource:'salemax-9999-mobile',state:'online',channel_ids:[]},
       ]);}};
-    },'https://pbx.example.com/ari','salemax-admin','ari-probe-password',['salemax_dinstar_uc2000ve','salemax-7401-mobile','salemax-7401-browser']);
+    },'https://pbx.example.com/ari','salemax-admin','ari-probe-password',['salemax_dinstar_uc2000ve','salemax-7401-mobile-r1','salemax-7401-browser-r1']);
     assert.equal(request.url.pathname,'/ari/endpoints/PJSIP');
     assert.equal(request.options.method,'GET');assert.equal(request.options.redirect,'error');
     assert.equal(states.salemax_dinstar_uc2000ve,'online');
-    assert.equal(states['salemax-7401-mobile'],'offline');
-    assert.equal(states['salemax-7401-browser'],'unknown','unlisted provisioned endpoints remain unknown');
+    assert.equal(states['salemax-7401-mobile-r1'],'offline');
+    assert.equal(states['salemax-7401-browser-r1'],'unknown','unlisted provisioned endpoints remain unknown');
     assert.equal(Object.hasOwn(states,'salemax-9999-mobile'),false,'unrequested tenant endpoints are not returned');
     await assert.rejects(asterisk.probePjsipEndpointStates(async()=>({ok:true,async text(){return'[]';}}),
       'https://pbx.example.com/ari','salemax-admin','password',['endpoint/injection']),{code:'INVALID_ARI_ENDPOINT_PROBE'});
@@ -367,21 +378,21 @@ test('agent endpoint preview builds distinct credentials and routes mobile diali
   assert.match(queries[0], /m\.status='active'/);
   assert.match(queries[0], /i\.status='active'/);
   assert.match(queries[0], /t\.status='active'/);
-  assert.match(result.config, /\[salemax-1201-mobile\]/);
+  assert.match(result.config, /\[salemax-1201-mobile-r1\]/);
   assert.match(result.config, /\[from-salemax-mobile-outbound\][\s\S]*?Stasis\(salemax-call-center,mobile-outbound,/);
   assert.match(result.config, /context=from-salemax-mobile-outbound/);
-  assert.match(result.config, /username=salemax-1201-mobile/);
+  assert.match(result.config, /username=salemax-1201-mobile-r1/);
   assert.match(result.config, /identify_by=username/);
   assert.match(result.config, /\[salemax-1201-mobile-r1-auth\]/);
-  assert.match(result.config, /\[salemax-1201-mobile\][\s\S]*?type=aor[\s\S]*?max_contacts=1/);
-  assert.doesNotMatch(result.config, /\[salemax-1201-mobile-r1-aor\]/);
+  assert.match(result.config, /\[salemax-1201-mobile-r1\][\s\S]*?type=aor[\s\S]*?max_contacts=1/);
+  assert.match(result.config, /\[salemax-1201-mobile-r1\][\s\S]*?type=endpoint/);
   assert.match(result.config, /context=from-salemax-agents-unrouted/);
   assert.match(result.config, /transport=transport-salemax-tls/);
   assert.equal((result.config.match(/\[transport-salemax-tls\]/g) || []).length, 1,
     'the gateway and mobile endpoints must share one TLS transport and socket');
   assert.match(result.config, /media_encryption=sdes/);
   assert.match(result.config, /media_encryption_optimistic=no/);
-  assert.match(result.config, /\[salemax-1201-browser\]/);
+  assert.match(result.config, /\[salemax-1201-browser-r1\]/);
   assert.match(result.config, /protocol=wss/);
   assert.match(result.config, /webrtc=yes/);
   assert.match(result.config, /media_encryption=dtls/);
@@ -409,7 +420,7 @@ test('browser endpoint credentials are own-member scoped and require enabled Ast
   process.env.SALEMAX_PLATFORM_KEY_BASE64=Buffer.alloc(32,23).toString('base64');process.env.SALEMAX_ASTERISK_ALLOWED_HOSTS='crm.example.test';process.env.SALEMAX_ASTERISK_WS_URL='wss://crm.example.test/ws';
   const context={audience:'tenant',identity:{id:'identity'},tenant:{id:'11111111-1111-4111-8111-111111111111',status:'active',categoryKey:'training_center',categoryVersion:1},membership:{id:'22222222-2222-4222-8222-222222222222',tenantId:'11111111-1111-4111-8111-111111111111',role:'agent',status:'active'},category:{key:'training_center',version:1,capabilities:['telephony.call-center']},subscription:{status:'active',capabilities:['telephony.call-center']}};
   const db={async query(sql){if(sql.includes('sx_platform_asterisk_config'))return [[{enabled:1,revision:2}]];if(sql.includes('sx_telephony_extensions'))return [[{extension:'1201',extension_revision:1,browser_credential_revision:1,membership_status:'active',identity_status:'active',tenant_status:'active'}]];if(sql.includes('sx_telephony_endpoint_provisioning'))return [[]];return [{affectedRows:1}];}};const writes=[];const clientFactory=async()=>({async getPjsipObject(){throw Object.assign(new Error('missing'),{code:'ARI_RESOURCE_NOT_FOUND'});},async upsertPjsipObject(type,id,fields){writes.push({type,id,fields});return{attributes:fields.length};},async deletePjsipObject(type,id){writes.push({type,id,deleted:true});return{deleted:true};}});
-  try{const credential=await asterisk.ownBrowserEndpoint(db,context,clientFactory);assert.equal(credential.server,'wss://crm.example.test/ws');assert.equal(credential.authorizationUsername,'salemax-1201-browser');assert.equal(credential.authorizationPassword.length,43);assert.match(credential.uri,/^sip:salemax-1201-browser@crm\.example\.test$/);assert.deepEqual(writes.map(row=>[row.type,row.id]),[['auth','salemax-1201-browser-r1-auth'],['aor','salemax-1201-browser'],['endpoint','salemax-1201-browser']]);assert.ok(writes[2].fields.some(field=>field.attribute==='aors'&&field.value==='salemax-1201-browser'));assert.ok(writes[2].fields.some(field=>field.attribute==='identify_by'&&field.value==='username'));assert.ok(writes[2].fields.some(field=>field.attribute==='webrtc'&&field.value==='yes'));}
+  try{const credential=await asterisk.ownBrowserEndpoint(db,context,clientFactory);assert.equal(credential.server,'wss://crm.example.test/ws');assert.equal(credential.authorizationUsername,'salemax-1201-browser-r1');assert.equal(credential.authorizationPassword.length,43);assert.match(credential.uri,/^sip:salemax-1201-browser-r1@crm\.example\.test$/);assert.deepEqual(writes.map(row=>[row.type,row.id]),[['auth','salemax-1201-browser-r1-auth'],['aor','salemax-1201-browser-r1'],['endpoint','salemax-1201-browser-r1']]);assert.ok(writes[2].fields.some(field=>field.attribute==='aors'&&field.value==='salemax-1201-browser-r1'));assert.ok(writes[2].fields.some(field=>field.attribute==='identify_by'&&field.value==='username'));assert.ok(writes[2].fields.some(field=>field.attribute==='webrtc'&&field.value==='yes'));}
   finally{if(oldKey===undefined)delete process.env.SALEMAX_PLATFORM_KEY_BASE64;else process.env.SALEMAX_PLATFORM_KEY_BASE64=oldKey;if(oldHosts===undefined)delete process.env.SALEMAX_ASTERISK_ALLOWED_HOSTS;else process.env.SALEMAX_ASTERISK_ALLOWED_HOSTS=oldHosts;if(oldWs===undefined)delete process.env.SALEMAX_ASTERISK_WS_URL;else process.env.SALEMAX_ASTERISK_WS_URL=oldWs;}
 });
 
@@ -419,11 +430,11 @@ test('mobile endpoint credentials are own-member scoped and require an allowlist
   const tenantId='11111111-1111-4111-8111-111111111111',membershipId='22222222-2222-4222-8222-222222222222';
   const context={audience:'tenant',identity:{id:'identity'},tenant:{id:tenantId,status:'active',categoryKey:'training_center',categoryVersion:1},membership:{id:membershipId,tenantId,role:'agent',status:'active'},category:{key:'training_center',version:1,capabilities:['telephony.call-center']},subscription:{status:'active',capabilities:['telephony.call-center']}};
   const db={async query(sql){if(sql.includes('sx_platform_asterisk_config'))return [[{enabled:1,revision:2}]];if(sql.includes('sx_telephony_extensions'))return [[{extension:'1201',extension_revision:1,mobile_credential_revision:1,membership_status:'active',identity_status:'active',tenant_status:'active',country_code:'QA'}]];if(sql.includes('sx_telephony_endpoint_provisioning'))return [[]];return [{affectedRows:1}];}};const writes=[];const clientFactory=async()=>({async getPjsipObject(){throw Object.assign(new Error('missing'),{code:'ARI_RESOURCE_NOT_FOUND'});},async upsertPjsipObject(type,id,fields){writes.push({type,id,fields});return{attributes:fields.length};},async deletePjsipObject(type,id){writes.push({type,id,deleted:true});return{deleted:true};}});
-  try{const config=await asterisk.ownMobileEndpoint(db,context,clientFactory);assert.equal(config.host,'sip.example.test');assert.equal(config.port,5061);assert.equal(config.transport,'TLS');assert.equal(config.mediaEncryption,'SRTP (SDES)');assert.equal(config.countryCode,'QA');assert.equal(config.username,'salemax-1201-mobile');assert.equal(config.password.length,43);assert.match(config.uri,/^sip:salemax-1201-mobile@sip\.example\.test$/);assert.deepEqual(writes.map(row=>[row.type,row.id]),[['auth','salemax-1201-mobile-r1-auth'],['aor','salemax-1201-mobile'],['endpoint','salemax-1201-mobile']]);assert.ok(writes[2].fields.some(field=>field.attribute==='aors'&&field.value==='salemax-1201-mobile'));assert.ok(writes[2].fields.some(field=>field.attribute==='identify_by'&&field.value==='username'));assert.ok(writes[2].fields.some(field=>field.attribute==='transport'&&field.value==='transport-salemax-tls'));assert.ok(writes[2].fields.some(field=>field.attribute==='media_encryption'&&field.value==='sdes'));assert.ok(writes[2].fields.some(field=>field.attribute==='context'&&field.value==='from-salemax-mobile-outbound'));}
+  try{const config=await asterisk.ownMobileEndpoint(db,context,clientFactory);assert.equal(config.host,'sip.example.test');assert.equal(config.port,5061);assert.equal(config.transport,'TLS');assert.equal(config.mediaEncryption,'SRTP (SDES)');assert.equal(config.countryCode,'QA');assert.equal(config.username,'salemax-1201-mobile-r1');assert.equal(config.password.length,43);assert.match(config.uri,/^sip:salemax-1201-mobile-r1@sip\.example\.test$/);assert.deepEqual(writes.map(row=>[row.type,row.id]),[['auth','salemax-1201-mobile-r1-auth'],['aor','salemax-1201-mobile-r1'],['endpoint','salemax-1201-mobile-r1']]);assert.ok(writes[2].fields.some(field=>field.attribute==='aors'&&field.value==='salemax-1201-mobile-r1'));assert.ok(writes[2].fields.some(field=>field.attribute==='identify_by'&&field.value==='username'));assert.ok(writes[2].fields.some(field=>field.attribute==='transport'&&field.value==='transport-salemax-tls'));assert.ok(writes[2].fields.some(field=>field.attribute==='media_encryption'&&field.value==='sdes'));assert.ok(writes[2].fields.some(field=>field.attribute==='context'&&field.value==='from-salemax-mobile-outbound'));}
   finally{if(oldKey===undefined)delete process.env.SALEMAX_PLATFORM_KEY_BASE64;else process.env.SALEMAX_PLATFORM_KEY_BASE64=oldKey;if(oldHosts===undefined)delete process.env.SALEMAX_ASTERISK_ALLOWED_HOSTS;else process.env.SALEMAX_ASTERISK_ALLOWED_HOSTS=oldHosts;if(oldHost===undefined)delete process.env.SALEMAX_ASTERISK_MOBILE_SIP_HOST;else process.env.SALEMAX_ASTERISK_MOBILE_SIP_HOST=oldHost;}
 });
 
-test('legacy revisioned SIP identities are repaired to the endpoint username before provisioning is reused',async()=>{
+test('the deployed stable SIP identity is migrated to a revisioned endpoint and AoR before reuse',async()=>{
   const oldKey=process.env.SALEMAX_PLATFORM_KEY_BASE64,oldHosts=process.env.SALEMAX_ASTERISK_ALLOWED_HOSTS,oldHost=process.env.SALEMAX_ASTERISK_MOBILE_SIP_HOST;
   process.env.SALEMAX_PLATFORM_KEY_BASE64=Buffer.alloc(32,41).toString('base64');process.env.SALEMAX_ASTERISK_ALLOWED_HOSTS='sip.example.test';process.env.SALEMAX_ASTERISK_MOBILE_SIP_HOST='sip.example.test';
   const tenantId='11111111-1111-4111-8111-111111111111',membershipId='22222222-2222-4222-8222-222222222222';
@@ -439,10 +450,9 @@ test('legacy revisioned SIP identities are repaired to the endpoint username bef
     async getPjsipObject(type,id){
       if(type==='endpoint'&&id==='salemax-1201-mobile')return [
         {attribute:'auth',value:'salemax-1201-mobile-r1-auth'},
-        {attribute:'aors',value:'salemax-1201-mobile-r1-aor'},
-        {attribute:'from_user',value:'1201-mobile-r1'},
+        {attribute:'aors',value:'salemax-1201-mobile'},
+        {attribute:'from_user',value:'salemax-1201-mobile'},
       ];
-      if(type==='auth'&&id==='salemax-1201-mobile-r1-auth')return [{attribute:'username',value:'1201-mobile-r1'}];
       throw Object.assign(new Error('missing'),{code:'ARI_RESOURCE_NOT_FOUND'});
     },
     async upsertPjsipObject(type,id,fields){writes.push({type,id,fields});return{attributes:fields.length};},
@@ -450,13 +460,16 @@ test('legacy revisioned SIP identities are repaired to the endpoint username bef
   });
   try{
     const config=await asterisk.ownMobileEndpoint(db,context,clientFactory);
-    assert.equal(config.username,'salemax-1201-mobile');
-    assert.ok(writes.some(write=>write.type==='auth'&&write.fields.some(field=>field.attribute==='username'&&field.value==='salemax-1201-mobile')));
-    assert.ok(writes.some(write=>write.type==='endpoint'&&write.fields.some(field=>field.attribute==='from_user'&&field.value==='salemax-1201-mobile')
+    assert.equal(config.username,'salemax-1201-mobile-r1');
+    assert.ok(writes.some(write=>write.type==='auth'&&write.fields.some(field=>field.attribute==='username'&&field.value==='salemax-1201-mobile-r1')));
+    assert.ok(writes.some(write=>write.type==='endpoint'&&write.fields.some(field=>field.attribute==='from_user'&&field.value==='salemax-1201-mobile-r1')
       &&write.fields.some(field=>field.attribute==='identify_by'&&field.value==='username')
-      &&write.fields.some(field=>field.attribute==='aors'&&field.value==='salemax-1201-mobile')));
-    assert.ok(writes.some(write=>write.type==='aor'&&write.id==='salemax-1201-mobile'));
-    assert.ok(writes.some(write=>write.type==='aor'&&write.id==='salemax-1201-mobile-r1-aor'&&write.deleted));
+      &&write.fields.some(field=>field.attribute==='aors'&&field.value==='salemax-1201-mobile-r1')));
+    assert.ok(writes.some(write=>write.type==='aor'&&write.id==='salemax-1201-mobile-r1'));
+    assert.ok(writes.some(write=>write.type==='endpoint'&&write.id==='salemax-1201-mobile'&&write.deleted));
+    assert.ok(writes.some(write=>write.type==='aor'&&write.id==='salemax-1201-mobile'&&write.deleted));
+    assert.equal(writes.some(write=>write.type==='auth'&&write.id==='salemax-1201-mobile-r1-auth'&&write.deleted),false,
+      'the current revision auth object must survive legacy endpoint cleanup');
   }finally{
     if(oldKey===undefined)delete process.env.SALEMAX_PLATFORM_KEY_BASE64;else process.env.SALEMAX_PLATFORM_KEY_BASE64=oldKey;
     if(oldHosts===undefined)delete process.env.SALEMAX_ASTERISK_ALLOWED_HOSTS;else process.env.SALEMAX_ASTERISK_ALLOWED_HOSTS=oldHosts;
@@ -469,7 +482,7 @@ test('credential rotation hangs up current member legs before switching and dele
   process.env.SALEMAX_PLATFORM_KEY_BASE64=Buffer.alloc(32,37).toString('base64');
   const tenantId='11111111-1111-4111-8111-111111111111',membershipId='22222222-2222-4222-8222-222222222222';
   const context={audience:'tenant',identity:{id:'owner-identity'},tenant:{id:tenantId},membership:{id:membershipId}};
-  const oldProfile={auth:'salemax-1201-mobile-r1-auth',aors:'salemax-1201-mobile-r1-aor'};
+  const oldProfile={endpoint:'salemax-1201-mobile-r1',auth:'salemax-1201-mobile-r1-auth',aor:'salemax-1201-mobile-r1'};
   const operations=[];
   const db={async query(sql){
     if(sql.includes('FROM sx_platform_asterisk_config'))return [[{enabled:1,revision:9}]];
@@ -482,8 +495,11 @@ test('credential rotation hangs up current member legs before switching and dele
   }};
   const client={
     async hangup(channelId){operations.push(['hangup',channelId]);},
-    async getPjsipObject(type,id){assert.equal(type,'endpoint');assert.equal(id,'salemax-1201-mobile');return [
-      {attribute:'auth',value:oldProfile.auth},{attribute:'aors',value:oldProfile.aors}];},
+    async getPjsipObject(type,id){
+      assert.equal(type,'endpoint');
+      if(id===oldProfile.endpoint)return [{attribute:'auth',value:oldProfile.auth},{attribute:'aors',value:oldProfile.aor}];
+      throw Object.assign(new Error('missing'),{code:'ARI_RESOURCE_NOT_FOUND'});
+    },
     async upsertPjsipObject(type,id,fields){operations.push(['upsert',type,id]);return{attributes:fields.length};},
     async deletePjsipObject(type,id){operations.push(['delete',type,id]);return{deleted:true};},
   };
@@ -493,9 +509,15 @@ test('credential rotation hangs up current member legs before switching and dele
     assert.deepEqual(operations,[
       ['hangup','channel-1201-mobile-0000002a'],
       ['upsert','auth','salemax-1201-mobile-r2-auth'],
-      ['upsert','aor','salemax-1201-mobile'],
-      ['upsert','endpoint','salemax-1201-mobile'],
-      ['delete','aor',oldProfile.aors],
+      ['upsert','aor','salemax-1201-mobile-r2'],
+      ['upsert','endpoint','salemax-1201-mobile-r2'],
+      ['delete','endpoint','salemax-1201-mobile'],
+      ['delete','endpoint',oldProfile.endpoint],
+      ['delete','aor','salemax-1201-mobile'],
+      ['delete','aor','salemax-1201-mobile-aor'],
+      ['delete','aor',oldProfile.aor],
+      ['delete','aor','salemax-1201-mobile-r1-aor'],
+      ['delete','auth','salemax-1201-mobile-auth'],
       ['delete','auth',oldProfile.auth],
     ]);
   }finally{if(oldKey===undefined)delete process.env.SALEMAX_PLATFORM_KEY_BASE64;else process.env.SALEMAX_PLATFORM_KEY_BASE64=oldKey;}
@@ -517,11 +539,11 @@ test('an authorized owner can provision and reveal mobile SIP settings for a sam
   const writes=[];const clientFactory=async()=>({async getPjsipObject(){throw Object.assign(new Error('missing'),{code:'ARI_RESOURCE_NOT_FOUND'});},async upsertPjsipObject(type,id,fields){writes.push({type,id,fields});return{attributes:fields.length};},async deletePjsipObject(type,id){writes.push({type,id,deleted:true});return{deleted:true};}});
   try{
     const config=await asterisk.memberMobileEndpoint(db,context,agentId,clientFactory);
-    assert.equal(config.membershipId,agentId);assert.equal(config.displayName,'Team Leader One');assert.equal(config.username,'salemax-1202-mobile');
+    assert.equal(config.membershipId,agentId);assert.equal(config.displayName,'Team Leader One');assert.equal(config.username,'salemax-1202-mobile-r2');
     assert.equal(config.host,'sip.example.test');assert.equal(config.transport,'TLS');assert.equal(config.mediaEncryption,'SRTP (SDES)');assert.equal(config.countryCode,'QA');
     const mobileUi=require('node:fs').readFileSync(require('node:path').join(__dirname,'../client/public/call-center/call-center.js'),'utf8');
     assert.match(mobileUi,/config\.countryCode==='QA'/);assert.match(mobileUi,/Dial 8-digit Qatar local numbers directly/);
-    assert.equal(config.password.length,43);assert.ok(writes.some(item=>item.type==='endpoint'&&item.id==='salemax-1202-mobile'));
+    assert.equal(config.password.length,43);assert.ok(writes.some(item=>item.type==='endpoint'&&item.id==='salemax-1202-mobile-r2'));
     const targetRead=statements.find(item=>item.sql.includes('FROM sx_telephony_extensions x'));
     assert.deepEqual(targetRead.params,[tenantId,agentId]);assert.match(targetRead.sql,/m\.role IN \('owner','manager','team_leader','agent'\)/);
     const accessAudit=statements.find(item=>item.sql.includes('telephony.endpoint-credential-accessed'));
