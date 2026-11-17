@@ -285,6 +285,24 @@ async function main(){
     await callControl.handle({type:'ChannelDestroyed',application:'salemax-call-center',channel:{id:outboundGatewayChannel}});
     const [[outboundEnded]]=await db.query('SELECT status,leased_channel_no FROM sx_telephony_calls WHERE tenant_id=? AND id=?',[tenantId,outbound.callId]);
     assert.equal(outboundEnded.status,'ended');assert.equal(outboundEnded.leased_channel_no,null);
+    const failedGatewayCallId=crypto.randomUUID(),failedGatewayBridgeId=crypto.randomUUID();
+    const failedGatewayAgentChannel='synthetic-outbound-agent-gateway-timeout',failedGatewayChannel='synthetic-outbound-gateway-timeout';
+    await db.query(`INSERT INTO sx_telephony_calls(tenant_id,id,direction,status,gateway_id,gateway_lease_scope,gateway_channel_no,leased_channel_no,
+        started_by_membership_id,bridge_id,remote_number) VALUES(?,?,'outbound','starting',?,?,1,1,?,?,?)`,
+    [tenantId,failedGatewayCallId,tenantGatewayId,tenantGatewayId,ownerMembership,failedGatewayBridgeId,'+97455550001']);
+    await db.query(`INSERT INTO sx_telephony_call_legs(tenant_id,id,call_id,asterisk_channel_id,leg_role,device_kind,membership_id,status)
+      VALUES(?,?,?,?,'agent','mobile',?,'connected')`,[tenantId,crypto.randomUUID(),failedGatewayCallId,failedGatewayAgentChannel,ownerMembership]);
+    await db.query(`INSERT INTO sx_telephony_call_legs(tenant_id,id,call_id,asterisk_channel_id,leg_role,device_kind,status)
+      VALUES(?,?,?,?,'gateway','gateway','originating')`,[tenantId,crypto.randomUUID(),failedGatewayCallId,failedGatewayChannel]);
+    await callControl.handle({type:'ChannelDestroyed',application:'salemax-call-center',channel:{id:failedGatewayChannel},cause_txt:'BUSY'});
+    const [[failedGatewayCall]]=await db.query('SELECT status,leased_channel_no,end_reason FROM sx_telephony_calls WHERE tenant_id=? AND id=?',[tenantId,failedGatewayCallId]);
+    assert.equal(failedGatewayCall.status,'failed','a busy/no-answer GSM leg fails its outbound call');
+    assert.equal(failedGatewayCall.leased_channel_no,null,'an unanswered GSM leg releases its SIM lease');
+    assert.equal(failedGatewayCall.end_reason,'OUTBOUND_GATEWAY_FAILED');
+    const [failedGatewayLegs]=await db.query('SELECT asterisk_channel_id,status FROM sx_telephony_call_legs WHERE tenant_id=? AND call_id=?',[tenantId,failedGatewayCallId]);
+    assert.ok(failedGatewayLegs.every(leg=>leg.status==='ended'),'a failed GSM leg ends the waiting agent leg');
+    assert.ok(ariActions.some(action=>action[0]==='hangup'&&action[1]===failedGatewayAgentChannel),'a failed GSM leg hangs up the waiting Zoiper call');
+    assert.ok(ariActions.some(action=>action[0]==='bridge-destroy'&&action[1]===failedGatewayBridgeId),'a failed GSM leg destroys its unused bridge');
     await assert.rejects(callControl.originateOutbound(tenantContext,{destination:'+97455550000',clientType:'mobile'}),{code:'OUTBOUND_CALL_RATE_LIMITED'});
     const controlledCallId=crypto.randomUUID(),controlledBridgeId=crypto.randomUUID(),controlledInbound='synthetic-controlled-inbound';
     await db.query(`INSERT INTO sx_telephony_calls(tenant_id,id,direction,status,gateway_channel_no,leased_channel_no,inbound_channel_id,bridge_id,answered_by_membership_id,answered_at)

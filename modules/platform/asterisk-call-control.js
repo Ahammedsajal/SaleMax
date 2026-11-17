@@ -736,7 +736,8 @@ class AsteriskCallControl {
       if (!call || ['ended','failed'].includes(call.status)) { await db.commit(); return true; }
       const winningAgentEnded = leg.leg_role === 'agent' && call.status === 'connected'
         && leg.membership_id === call.answered_by_membership_id;
-      const callerEnded = leg.leg_role === 'caller' || (leg.leg_role === 'gateway' && call.direction === 'outbound');
+      const callerEnded = leg.leg_role === 'caller'
+        || (leg.leg_role === 'gateway' && call.direction === 'outbound' && call.status !== 'starting');
       if (callerEnded || winningAgentEnded) {
         const [others] = await db.query(`SELECT asterisk_channel_id FROM sx_telephony_call_legs
           WHERE tenant_id=? AND call_id=? AND asterisk_channel_id<>? AND status IN ('originating','ringing','connected')`,
@@ -770,6 +771,16 @@ class AsteriskCallControl {
         await db.query(`UPDATE sx_telephony_call_legs SET status='ended',ended_at=COALESCE(ended_at,UTC_TIMESTAMP(3)),end_reason='OUTBOUND_AGENT_CHANNEL_LOST'
           WHERE tenant_id=? AND call_id=? AND status IN ('originating','ringing','connected')`, [leg.tenant_id,leg.call_id]);
         await db.query(`UPDATE sx_telephony_calls SET status='failed',leased_channel_no=NULL,ended_at=UTC_TIMESTAMP(3),end_reason='OUTBOUND_AGENT_CHANNEL_LOST',revision=revision+1
+          WHERE tenant_id=? AND id=? AND status='starting'`, [leg.tenant_id,leg.call_id]);
+        cleanup = { ...leg, bridgeId: call.bridge_id, inbound_channel_id: call.inbound_channel_id,
+          channels: others.map(row => row.asterisk_channel_id) };
+      } else if (call.status === 'starting' && call.direction === 'outbound' && leg.leg_role === 'gateway') {
+        const [others] = await db.query(`SELECT asterisk_channel_id FROM sx_telephony_call_legs
+          WHERE tenant_id=? AND call_id=? AND asterisk_channel_id<>? AND status IN ('originating','ringing','connected')`,
+        [leg.tenant_id,leg.call_id,channelId]);
+        await db.query(`UPDATE sx_telephony_call_legs SET status='ended',ended_at=COALESCE(ended_at,UTC_TIMESTAMP(3)),end_reason='OUTBOUND_GATEWAY_FAILED'
+          WHERE tenant_id=? AND call_id=? AND status IN ('originating','ringing','connected')`, [leg.tenant_id,leg.call_id]);
+        await db.query(`UPDATE sx_telephony_calls SET status='failed',leased_channel_no=NULL,ended_at=UTC_TIMESTAMP(3),end_reason='OUTBOUND_GATEWAY_FAILED',revision=revision+1
           WHERE tenant_id=? AND id=? AND status='starting'`, [leg.tenant_id,leg.call_id]);
         cleanup = { ...leg, bridgeId: call.bridge_id, inbound_channel_id: call.inbound_channel_id,
           channels: others.map(row => row.asterisk_channel_id) };
