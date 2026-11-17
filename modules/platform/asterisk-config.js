@@ -196,6 +196,10 @@ async function applyMemberEndpoint(db, context, extension, clientType, extension
       { attribute: 'max_contacts', value: '1' },
       { attribute: 'remove_existing', value: 'yes' },
       { attribute: 'qualify_frequency', value: '30' },
+      ...(clientType === 'mobile' ? [
+        { attribute: 'maximum_expiration', value: '2600000' },
+        { attribute: 'support_path', value: 'yes' },
+      ] : []),
     ]);
     objectsApplied++;
     const fields = [
@@ -598,7 +602,9 @@ async function previewAgentEndpoints(db, context) {
         revision});
       lines.push(`[${authId}]`, 'type=auth', 'auth_type=userpass', `username=${username}`,
         `password=${password}`, '',
-        `[${aorId}]`, 'type=aor', 'max_contacts=1', 'remove_existing=yes', 'qualify_frequency=30', '',
+        `[${aorId}]`, 'type=aor', 'max_contacts=1', 'remove_existing=yes', 'qualify_frequency=30');
+      if (client === 'mobile') lines.push('maximum_expiration=2600000', 'support_path=yes');
+      lines.push('',
         `[${endpointId}]`, 'type=endpoint', `context=${client === 'mobile' ? 'from-salemax-mobile-outbound' : 'from-salemax-agents-unrouted'}`, 'disallow=all', 'allow=alaw,ulaw',
         `auth=${authId}`, `aors=${aorId}`, 'identify_by=username', `from_user=${username}`, 'direct_media=no', 'rtp_symmetric=yes', 'force_rport=yes',
         'rewrite_contact=yes');
