@@ -59,6 +59,7 @@ test('Woo products, variations and order breakdowns retain source IDs, SKUs, qua
   assert.equal(variation.purchasable, true);
   assert.equal(variation.price, '20.100000');
   assert.equal(variation.sourceStock.quantity, '2.500000');
+  assert.equal(connector.safeStockQuantity('-1.25'), '-1.250000');
 
   const order = connector.normalizeOrder('woocommerce', {id: 900, status: 'processing', currency: 'QAR', total: '115.50',
     subtotal: '100.00', discount_total: '5.00', shipping_total: '10.00', total_tax: '10.50', fee_lines: [{name: 'Gift wrap', total: '1.25'}],
@@ -134,6 +135,9 @@ test('Woo sync paginates source resources and imports variations through GET-onl
     assert.ok(requests.filter(request => /\/products(?:\/\d+\/variations)?$/.test(new URL(request.url).pathname) || /\/orders$/.test(new URL(request.url).pathname))
       .every(request => new URL(request.url).searchParams.get('status') === 'any'));
     assert.ok(writes.some(write => write.sql.includes('external_variant_id')));
+    const variationStockWrite=writes.find(write=>write.sql.includes('source_stock_quantity')&&write.sql.includes('external_variant_id'));
+    assert.equal(variationStockWrite.params[11],1);
+    assert.equal(variationStockWrite.params[12],'3.000000');
     assert.ok(writes.some(write => write.sql.includes('subtotal_amount')));
     const cursor = JSON.parse(pool.cursor).woocommerce;
     assert.equal(cursor.lastCompleteScan.sourceCounts.orders.total, 2);
@@ -270,25 +274,43 @@ test('Woo product mapping migration is additive and tenant scoped', () => {
   assert.doesNotMatch(migration, /\bDROP\s+(TABLE|COLUMN)\b/i);
 });
 
-function mappingHarness({productType='simple', parentStatus='publish', variationStatus='publish', existingMapping=null}={}) {
+test('Woo stock mapping migration stores source stock and requires explicit location/unit scope', () => {
+  const migration = fs.readFileSync(path.resolve(__dirname, '../database/migrations/20270208_retail_woocommerce_stock_mapping.sql'), 'utf8');
+  const statements = splitSql(migration);
+  assert.equal(statements.length, 3);
+  assert.match(statements[0], /^ALTER TABLE sx_retail_external_products/i);
+  assert.match(statements[1], /^ALTER TABLE sx_retail_external_product_variants/i);
+  assert.match(statements[2], /^ALTER TABLE sx_retail_external_product_mappings/i);
+  assert.match(migration, /source_stock_quantity DECIMAL\(20,6\)/);
+  assert.match(migration, /stock_scope ENUM\('unverified','single_location','aggregate'\)/);
+  assert.match(migration, /FOREIGN KEY \(tenant_id,target_location_id\)\s+REFERENCES sx_retail_locations\(tenant_id,id\)/);
+  assert.match(migration, /source_unit_confirmed=1 AND target_unit_revision IS NOT NULL/);
+  assert.doesNotMatch(migration, /\bDROP\s+(TABLE|COLUMN)\b/i);
+});
+
+function mappingHarness({productType='simple', parentStatus='publish', variationStatus='publish', existingMapping=null, stockManaged=false, sourceStockQuantity='2.5', unitProfile=null}={}) {
   const tenantId='aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
   const connectionId='bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb';
   const identityId='dddddddd-dddd-4ddd-8ddd-dddddddddddd';
   const targetId='eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee';
-  const product=connector.seal({productType},tenantId,connectionId,'product:100');
-  const variation=connector.seal({purchasable:true},tenantId,connectionId,'product-variant:101');
+  const product=connector.seal({productType,sourceStock:{managed:stockManaged,quantity:stockManaged?sourceStockQuantity:null,status:'instock'}},tenantId,connectionId,'product:100');
+  const variation=connector.seal({purchasable:true,sourceStock:{managed:false,quantity:null,status:'instock'}},tenantId,connectionId,'product-variant:101');
   const connection={id:connectionId,tenant_id:tenantId,provider:'woocommerce',status:'active',default_currency:'QAR'};
   const queries=[];
   let mapping=existingMapping,commits=0,rollbacks=0;
   const db={beginTransaction:async()=>{},commit:async()=>{commits++;},rollback:async()=>{rollbacks++;},release:()=>{},query:async(sql,params)=>{
     queries.push({sql,params});
     if(sql.startsWith('SELECT id,status,provider FROM sx_retail_store_connections'))return [[{id:connectionId,status:'active',provider:'woocommerce'}],[]];
-    if(sql.startsWith('SELECT product_status AS status,sku,product_ciphertext'))return [[{status:parentStatus,sku:'WOO-100',ciphertext:product.ciphertext,iv:product.iv,authTag:product.authTag}],[]];
-    if(sql.startsWith('SELECT variant_status AS status,sku,variant_ciphertext'))return [[{status:variationStatus,sku:'WOO-101',ciphertext:variation.ciphertext,iv:variation.iv,authTag:variation.authTag}],[]];
-    if(sql.startsWith('SELECT id,mapping_status AS mappingStatus,target_product_id AS targetProductId,revision'))return [mapping?[mapping]:[],[]];
+    if(sql.startsWith('SELECT product_status AS status,sku,product_ciphertext'))return [[{status:parentStatus,sku:'WOO-100',ciphertext:product.ciphertext,iv:product.iv,authTag:product.authTag,
+      sourceStockManaged:stockManaged?1:0,sourceStockQuantity:stockManaged?sourceStockQuantity:null,sourceStockStatus:'instock'}],[]];
+    if(sql.startsWith('SELECT variant_status AS status,sku,variant_ciphertext'))return [[{status:variationStatus,sku:'WOO-101',ciphertext:variation.ciphertext,iv:variation.iv,authTag:variation.authTag,
+      sourceStockManaged:0,sourceStockQuantity:null,sourceStockStatus:'instock'}],[]];
+    if(sql.startsWith('SELECT id,mapping_status AS mappingStatus,target_product_id AS targetProductId,stock_scope'))return [mapping?[mapping]:[],[]];
     if(sql.startsWith('SELECT id,code FROM sx_product_catalog'))return [[{id:targetId,code:'LOCAL-100'}],[]];
+    if(sql.startsWith('SELECT base_unit_code AS baseUnitCode'))return unitProfile?[[{...unitProfile}],[]]:[[],[]];
+    if(sql.startsWith('SELECT id FROM sx_retail_locations'))return [[{id:'ffffffff-ffff-4fff-8fff-ffffffffffff'}],[]];
     if(sql.startsWith('INSERT INTO sx_retail_external_product_mappings')){
-      mapping={id:params[0],mappingStatus:params[5],targetProductId:params[6],revision:params[7]};
+      mapping={id:params[0],mappingStatus:params[5],targetProductId:params[6],stockScope:params[7],targetLocationId:params[8],sourceUnitConfirmed:params[9],targetUnitRevision:params[10],revision:params[11]};
       return [{affectedRows:1},[]];
     }
     if(sql.startsWith('INSERT INTO sx_audit_events'))return [{affectedRows:1},[]];
@@ -331,6 +353,54 @@ test('Woo mapping writes are audited and an identical retry is idempotent', asyn
     assert.ok(audit);
     assert.equal(audit.params[1],fixture.tenantId);
     assert.equal(audit.params[2],fixture.identityId);
+  } finally {
+    if(originalKey===undefined)delete process.env.SALEMAX_PLATFORM_KEY_BASE64;
+    else process.env.SALEMAX_PLATFORM_KEY_BASE64=originalKey;
+  }
+});
+
+test('Woo stock mapping requires location, exact unit compatibility, and owner unit confirmation', async () => {
+  const originalKey=process.env.SALEMAX_PLATFORM_KEY_BASE64;
+  process.env.SALEMAX_PLATFORM_KEY_BASE64=Buffer.alloc(32,22).toString('base64');
+  const locationId='ffffffff-ffff-4fff-8fff-ffffffffffff';
+  const unit={baseUnitCode:'yard',baseUnitLabel:'',baseUnitLabelAr:'',quantityPrecision:2,quantityIncrement:'0.250000',revision:3};
+  try {
+    const fixture=mappingHarness({stockManaged:true,unitProfile:unit});
+    const invoke=async body=>{
+      let response=null,error=null;
+      await fixture.handler({businessContext:fixture.context,params:{id:fixture.connectionId},query:{},body},
+        {json(value){response={status:200,value};return this;},sendStatus(status){response={status};return this;}},value=>{error=value;});
+      return {response,error};
+    };
+    const missingConfirmation=await invoke({externalProductId:'100',externalVariationId:null,targetProductId:fixture.targetId,action:'map',expectedRevision:0,
+      expectedSku:'WOO-100',stockScope:'single_location',targetLocationId:locationId,expectedUnitRevision:3});
+    assert.equal(missingConfirmation.error?.code,'INVALID_PRODUCT_MAPPING');
+    assert.equal(fixture.queries.some(query=>query.sql.startsWith('INSERT INTO sx_retail_external_product_mappings')),false);
+
+    const incompatible=mappingHarness({stockManaged:true,unitProfile:{...unit,quantityPrecision:0,quantityIncrement:'1.000000'}});
+    const invalid=await (async()=>{
+      let error=null;
+      await incompatible.handler({businessContext:incompatible.context,params:{id:incompatible.connectionId},query:{},body:{externalProductId:'100',externalVariationId:null,
+        targetProductId:incompatible.targetId,action:'map',expectedRevision:0,expectedSku:'WOO-100',stockScope:'single_location',targetLocationId:locationId,
+        sourceUnitConfirmed:true,expectedUnitRevision:3}},
+      {json(){return this;},sendStatus(){return this;}},value=>{error=value;});
+      return error;
+    })();
+    assert.equal(invalid?.code,'WOOCOMMERCE_STOCK_UNIT_MISMATCH');
+    assert.equal(incompatible.queries.some(query=>query.sql.startsWith('INSERT INTO sx_retail_external_product_mappings')),false);
+
+    const valid=mappingHarness({stockManaged:true,unitProfile:unit});
+    let saved=null;
+    await valid.handler({businessContext:valid.context,params:{id:valid.connectionId},query:{},body:{externalProductId:'100',externalVariationId:null,
+      targetProductId:valid.targetId,action:'map',expectedRevision:0,expectedSku:'WOO-100',stockScope:'single_location',targetLocationId:locationId,
+      sourceUnitConfirmed:true,expectedUnitRevision:3}},
+    {json(value){saved=value;return this;},sendStatus(){return this;}},error=>{throw error;});
+    const mappingInsert=valid.queries.find(query=>query.sql.startsWith('INSERT INTO sx_retail_external_product_mappings'));
+    assert.equal(saved.data.stockScope,'single_location');
+    assert.equal(mappingInsert.params[7],'single_location');
+    assert.equal(mappingInsert.params[8],locationId);
+    assert.equal(mappingInsert.params[9],1);
+    assert.equal(mappingInsert.params[10],3);
   } finally {
     if(originalKey===undefined)delete process.env.SALEMAX_PLATFORM_KEY_BASE64;
     else process.env.SALEMAX_PLATFORM_KEY_BASE64=originalKey;

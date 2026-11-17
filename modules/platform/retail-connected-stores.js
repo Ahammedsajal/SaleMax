@@ -78,6 +78,7 @@ function decimalAdd(values) {
 function decimalAbs(value) { const amount = safeAmount(value); return amount.startsWith('-') ? amount.slice(1) : amount; }
 function decimalNegate(value) { const amount = safeAmount(value); return amount.startsWith('-') ? amount.slice(1) : `-${amount}`; }
 function safeQuantity(value) { const amount = safeAmount(value); if (amount.startsWith('-')) fail('INVALID_PROVIDER_QUANTITY', 422); return amount; }
+function safeStockQuantity(value) { return safeAmount(value); }
 function currency(value) {
   const c = String(value || '').toUpperCase();
   if (!CURRENCY.test(c)) fail('INVALID_PROVIDER_CURRENCY', 422);
@@ -177,7 +178,7 @@ function normalizeProduct(provider, row) {
     status: String(row.status || 'unknown').toLowerCase().slice(0, 32), currency: currency(cur), price: safeAmount(price),
     imageUrl, variants, variationCount: provider === 'woocommerce' && Array.isArray(row.variations) ? row.variations.length : variants.length,
     priceUnavailable: provider === 'woocommerce' && sourcePrice == null && Array.isArray(row.variations) && row.variations.length > 0,
-    sourceStock: provider === 'woocommerce' ? { managed: Boolean(row.manage_stock), quantity: row.stock_quantity == null ? null : safeQuantity(row.stock_quantity),
+    sourceStock: provider === 'woocommerce' ? { managed: Boolean(row.manage_stock), quantity: row.stock_quantity == null ? null : safeStockQuantity(row.stock_quantity),
       status: String(row.stock_status || 'unknown').toLowerCase().slice(0,32) } : null,
     variantsTruncated: Boolean(row.variants?.pageInfo?.hasNextPage || provider === 'woocommerce' && (row.variations || []).length > 0 && !variants.length),
     updatedAt: row.date_modified_gmt || row.updatedAt || row.updated_at || null, source: provider };
@@ -194,7 +195,7 @@ function normalizeProductVariation(provider, productId, row, defaultCurrency = '
   return { id, productId: parentId, title, sku: String(row.sku || '').trim().slice(0, 100) || null,
     status: String(row.status || 'unknown').toLowerCase().slice(0, 32), purchasable: row.purchasable == null ? null : Boolean(row.purchasable),
     currency: currency(row.currency || defaultCurrency), price: safeAmount(String(row.price ?? '').trim() ? row.price : '0'), attributes,
-    sourceStock: { managed: Boolean(row.manage_stock), quantity: row.stock_quantity == null ? null : safeQuantity(row.stock_quantity),
+    sourceStock: { managed: Boolean(row.manage_stock), quantity: row.stock_quantity == null ? null : safeStockQuantity(row.stock_quantity),
       status: String(row.stock_status || 'unknown').toLowerCase().slice(0,32) },
     updatedAt: row.date_modified_gmt || row.date_modified || row.updatedAt || null, source: provider };
 }
@@ -391,14 +392,18 @@ async function upsertProduct(db, connection, row) {
   const encrypted = seal(product, connection.tenant_id, connection.id, `product:${product.id}`);
   const updateGuard = newerSourceUpdate;
   await db.query(`INSERT INTO sx_retail_external_products
-    (tenant_id,connection_id,external_product_id,product_status,sku,currency,price,product_ciphertext,product_iv,product_auth_tag,source_updated_at)
-    VALUES (?,?,?,?,?,?,?,?,?,?,?) ON DUPLICATE KEY UPDATE product_status=IF(${updateGuard},VALUES(product_status),product_status),
+    (tenant_id,connection_id,external_product_id,product_status,sku,currency,price,product_ciphertext,product_iv,product_auth_tag,
+      source_stock_managed,source_stock_quantity,source_stock_status,source_updated_at)
+    VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?) ON DUPLICATE KEY UPDATE product_status=IF(${updateGuard},VALUES(product_status),product_status),
     sku=IF(${updateGuard},VALUES(sku),sku),currency=IF(${updateGuard},VALUES(currency),currency),price=IF(${updateGuard},VALUES(price),price),
     product_ciphertext=IF(${updateGuard},VALUES(product_ciphertext),product_ciphertext),product_iv=IF(${updateGuard},VALUES(product_iv),product_iv),
     product_auth_tag=IF(${updateGuard},VALUES(product_auth_tag),product_auth_tag),imported_at=IF(${updateGuard},UTC_TIMESTAMP(3),imported_at),
+    source_stock_managed=IF(${updateGuard},VALUES(source_stock_managed),source_stock_managed),
+    source_stock_quantity=IF(${updateGuard},VALUES(source_stock_quantity),source_stock_quantity),
+    source_stock_status=IF(${updateGuard},VALUES(source_stock_status),source_stock_status),
     source_updated_at=IF(${updateGuard},VALUES(source_updated_at),source_updated_at)`,
   [connection.tenant_id, connection.id, product.id, product.status, product.sku, product.currency, product.price, encrypted.ciphertext, encrypted.iv,
-    encrypted.authTag, dateOrNull(product.updatedAt)]);
+    encrypted.authTag, product.sourceStock?.managed ? 1 : 0, product.sourceStock?.quantity ?? null, product.sourceStock?.status || 'unknown', dateOrNull(product.updatedAt)]);
   return product;
 }
 async function upsertProductVariation(db, connection, productId, row) {
@@ -411,15 +416,19 @@ async function upsertProductVariation(db, connection, productId, row) {
   const updateGuard = newerSourceUpdate;
   await db.query(`INSERT INTO sx_retail_external_product_variants
     (tenant_id,connection_id,external_product_id,external_variant_id,sku,variant_status,currency,price,
-      variant_ciphertext,variant_iv,variant_auth_tag,source_updated_at)
-    VALUES (?,?,?,?,?,?,?,?,?,?,?,?) ON DUPLICATE KEY UPDATE external_product_id=IF(${updateGuard},VALUES(external_product_id),external_product_id),
+      variant_ciphertext,variant_iv,variant_auth_tag,source_stock_managed,source_stock_quantity,source_stock_status,source_updated_at)
+    VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?) ON DUPLICATE KEY UPDATE external_product_id=IF(${updateGuard},VALUES(external_product_id),external_product_id),
     sku=IF(${updateGuard},VALUES(sku),sku),variant_status=IF(${updateGuard},VALUES(variant_status),variant_status),
     currency=IF(${updateGuard},VALUES(currency),currency),price=IF(${updateGuard},VALUES(price),price),
     variant_ciphertext=IF(${updateGuard},VALUES(variant_ciphertext),variant_ciphertext),variant_iv=IF(${updateGuard},VALUES(variant_iv),variant_iv),
     variant_auth_tag=IF(${updateGuard},VALUES(variant_auth_tag),variant_auth_tag),imported_at=IF(${updateGuard},UTC_TIMESTAMP(3),imported_at),
+    source_stock_managed=IF(${updateGuard},VALUES(source_stock_managed),source_stock_managed),
+    source_stock_quantity=IF(${updateGuard},VALUES(source_stock_quantity),source_stock_quantity),
+    source_stock_status=IF(${updateGuard},VALUES(source_stock_status),source_stock_status),
     source_updated_at=IF(${updateGuard},VALUES(source_updated_at),source_updated_at)`,
   [connection.tenant_id, connection.id, normalized.productId, normalized.id, normalized.sku, normalized.status, normalized.currency,
-    normalized.price, encrypted.ciphertext, encrypted.iv, encrypted.authTag, dateOrNull(normalized.updatedAt)]);
+    normalized.price, encrypted.ciphertext, encrypted.iv, encrypted.authTag, normalized.sourceStock.managed ? 1 : 0,
+    normalized.sourceStock.quantity, normalized.sourceStock.status, dateOrNull(normalized.updatedAt)]);
   return normalized;
 }
 async function markProductVariationDeleted(db, connection, productId, variationId, updatedAt = null) {
@@ -612,7 +621,7 @@ module.exports = {
   UUID, fail, encryptionKey, aad, seal, open, openJson, normalizeShop, normalizeWooUrl, safeAmount, decimalAdd, decimalAbs, decimalNegate, safeQuantity,
   currency, canonicalShopifyId, sourceTimestampIsStale,
   customerOf, normalizeCustomer, normalizeProduct, normalizeProductVariation, normalizeOrder, normalizeCheckout, shopifySignature, shopifyQuerySignature,
-  wooSignature, randomSecret, validateId, dateOrNull, publicIpv4, requestHttps, upsertCustomer, upsertProduct, upsertOrder,
+  wooSignature, randomSecret, validateId, dateOrNull, publicIpv4, requestHttps, safeStockQuantity, upsertCustomer, upsertProduct, upsertOrder,
   upsertProductVariation, markProductVariationDeleted, markProductVariationsDeleted,
   upsertCheckout, upsertTransaction, redactCustomer, eraseConnectionData,
 };

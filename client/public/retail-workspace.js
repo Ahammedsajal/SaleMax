@@ -450,6 +450,20 @@
                     (target.isVariant?' · '+(target.variantGroupTitleEn||'')+' '+(target.variantValueEn||''):'');
                   if(target.status!=='active')add(line,'p',t('Mapped target is not active. Review it before accepting reconciliation.','المنتج المرتبط غير نشط. راجعه قبل اعتماد المطابقة.'));
                   if(target.skuMatches===false)add(line,'p',t('The mapped SKU differs from Woo. Review this explicit mapping before accepting reconciliation.','يختلف SKU المرتبط عن Woo. راجع الربط قبل اعتماد المطابقة.'));
+                  const stockStateLabels={ready_read_only_comparison:t('Location and unit scope verified. Stock remains read-only; this is not a balance reconciliation.','تم التحقق من الموقع والوحدة. يظل المخزون للقراءة فقط؛ وهذه ليست مطابقة للأرصدة.'),
+                    needs_review:t('Stock location or unit scope still needs owner review.','لا يزال نطاق الموقع أو الوحدة بحاجة إلى مراجعة المالك.'),
+                    parent_shared:t('Woo stock is shared at the parent product level and cannot be allocated per variation.','مخزون Woo مشترك على مستوى المنتج الرئيسي ولا يمكن توزيعه على المتغيرات.'),
+                    unit_profile_changed:t('The 7Network SKU unit profile changed. Review and confirm the mapping again.','تغير إعداد وحدة SKU في 7Network. راجع الربط وأكده مجدداً.'),
+                    unit_incompatible:t('Woo quantity does not match the current 7Network unit precision or increment.','كمية Woo لا تتوافق مع دقة أو زيادة وحدة 7Network الحالية.'),
+                    location_unavailable:t('The mapped 7Network location is inactive or unavailable.','موقع 7Network المرتبط غير نشط أو غير متاح.'),
+                    quantity_unavailable:t('Woo manages stock but has no numeric quantity in this snapshot.','يدير Woo المخزون لكن لا توجد كمية رقمية في هذه اللقطة.'),
+                    unmapped:t('Map this product before reviewing its stock scope.','اربط هذا المنتج قبل مراجعة نطاق مخزونه.'),
+                    not_managed:t('Woo does not manage numeric stock for this item.','لا يدير Woo مخزوناً رقمياً لهذا العنصر.')};
+                  if(target.stockMapping?.state)add(line,'p',stockStateLabels[target.stockMapping.state]||t('Stock mapping needs review.','يحتاج ربط المخزون إلى مراجعة.'));
+                  if(target.stockMapping?.state==='ready_read_only_comparison'&&target.stockMapping.stockScope==='single_location')
+                    add(line,'p',t('Woo stock scope: ','نطاق مخزون Woo: ')+(t(target.stockMapping.targetLocationNameEn,target.stockMapping.targetLocationNameAr)||target.stockMapping.targetLocationNameEn));
+                  if(target.stockMapping?.state==='ready_read_only_comparison'&&target.stockMapping.stockScope==='aggregate')
+                    add(line,'p',t('Woo stock scope: aggregate across all locations','نطاق مخزون Woo: إجمالي عبر جميع المواقع'));
                 }else if(source.mappingStatus==='ignored')mappingState.textContent=t('Explicitly ignored for inventory mapping','تم استثناؤه صراحةً من ربط المخزون');
                 else mappingState.textContent=t('Not mapped','غير مرتبط');
                 if(!source.mappable){add(line,'p',t('Only published simple products and purchasable variations under a published parent can be mapped.','يمكن ربط المنتجات البسيطة المنشورة والمتغيرات القابلة للشراء ضمن منتج رئيسي منشور فقط.'));return;}
@@ -458,8 +472,70 @@
                 const selectLabel=add(line,'label',t('Target product or variant','المنتج أو المتغير المستهدف')+' ');
                 const select=add(selectLabel,'select');select.setAttribute('aria-label',t('Target product or variant','المنتج أو المتغير المستهدف'));select.disabled=true;
                 const optionsById=new Map();
+                let locations=[];
                 const selectStatus=add(line,'p');
                 const placeholder=add(select,'option',t('Choose a 7Network product','اختر منتج 7Network'));placeholder.value='';
+                const hasIndependentStock=Boolean(source.sourceStock?.managed&&source.sourceStock.quantity!=null&&!source.parentStock?.managed);
+                const stockControls=add(line,'div');stockControls.className='sx-retail-stock-mapping-controls';
+                let stockScopeSelect=null,stockLocationSelect=null,unitConfirmed=null,save=null;
+                let lastTargetId=source.targetProduct?.id||'',lastUnitRevision=Number(source.targetProduct?.unitProfile?.revision||0);
+                if(source.parentStock?.managed){
+                  add(stockControls,'p',t('Woo stock is managed by the parent product and shared across variations. This quantity cannot be reconciled separately per variation.','يدير منتج Woo الرئيسي المخزون المشترك بين المتغيرات. لا يمكن مطابقة هذه الكمية لكل متغير على حدة.'));
+                }else if(source.sourceStock?.managed&&source.sourceStock.quantity==null){
+                  add(stockControls,'p',t('Woo manages stock for this item but did not provide a numeric quantity. Map product identity only until a quantity is available.','يدير Woo المخزون لهذا العنصر لكنه لم يرسل كمية رقمية. اربط هوية المنتج فقط إلى حين توفر الكمية.'));
+                }else if(hasIndependentStock){
+                  add(stockControls,'p',t('Woo quantity: ','كمية Woo: ')+source.sourceStock.quantity+' · '+t('read only','للقراءة فقط'));
+                  const scopeLabel=add(stockControls,'label',t('What does this Woo quantity represent?','ماذا تمثل كمية Woo هذه؟')+' ');
+                  stockScopeSelect=add(scopeLabel,'select');
+                  for(const [value,label] of [['unverified',t('Not verified: identity mapping only','غير متحقق: ربط الهوية فقط')],
+                    ['single_location',t('Stock for one 7Network location','مخزون موقع 7Network واحد')],
+                    ['aggregate',t('Woo total across all locations; no per-location assignment','إجمالي Woo لكل المواقع؛ دون تخصيص لموقع')]]){
+                    const option=add(stockScopeSelect,'option',label);option.value=value;
+                  }
+                  stockScopeSelect.value=source.targetProduct?.stockMapping?.stockScope||'unverified';
+                  const locationLabel=add(stockControls,'label',t('7Network location','موقع 7Network')+' ');
+                  stockLocationSelect=add(locationLabel,'select');
+                  add(stockLocationSelect,'option',t('Choose a location','اختر موقعاً')).value='';
+                  stockLocationSelect.value=source.targetProduct?.stockMapping?.targetLocationId||'';
+                  const unitProfileLine=add(stockControls,'p');
+                  const unitConfirmLabel=add(stockControls,'label');unitConfirmLabel.className='sx-retail-unit-confirm';
+                  unitConfirmed=add(unitConfirmLabel,'input');unitConfirmed.type='checkbox';
+                  add(unitConfirmLabel,'span',' '+t('I confirm Woo quantity uses the selected SKU’s 7Network base unit. No unit conversion will be applied.','أؤكد أن كمية Woo تستخدم وحدة SKU الأساسية في 7Network. لن يتم تحويل الوحدات.'));
+                  unitConfirmed.checked=Boolean(source.targetProduct?.stockMapping?.sourceUnitConfirmed&&
+                    Number(source.targetProduct.stockMapping.targetUnitRevision)===Number(source.targetProduct.stockMapping.currentUnitRevision));
+                  add(stockControls,'p',t('This records a read-only comparison scope. It does not change stock in WooCommerce or 7Network. Choose aggregate only when Woo reports the total across all locations; leave the location blank.','يسجل هذا نطاق مقارنة للقراءة فقط. لا يغيّر المخزون في WooCommerce أو 7Network. اختر الإجمالي فقط عندما تعرض Woo مخزون جميع المواقع؛ واترك الموقع فارغاً.'));
+                  stockScopeSelect.addEventListener('change',()=>updateMappingControls());
+                  stockLocationSelect.addEventListener('change',()=>updateMappingControls());
+                  unitConfirmed.addEventListener('change',()=>updateMappingControls());
+                  unitProfileLine.dataset.unitProfile='true';
+                }
+                function updateMappingControls(){
+                  const target=optionsById.get(select.value);
+                  const hasTarget=Boolean(target);
+                  const currentRevision=Number(target?.unitProfile?.revision??source.targetProduct?.unitProfile?.revision??0);
+                  if(hasTarget&&select.value===lastTargetId&&currentRevision!==lastUnitRevision){
+                    if(unitConfirmed)unitConfirmed.checked=false;
+                    lastUnitRevision=currentRevision;
+                  }
+                  selectStatus.dataset.skuReady=hasTarget?'true':'false';
+                  if(stockScopeSelect){
+                    stockScopeSelect.disabled=!hasTarget;stockLocationSelect.disabled=!hasTarget||stockScopeSelect.value!=='single_location';
+                    unitConfirmed.disabled=!hasTarget||stockScopeSelect.value==='unverified';
+                    const profile=target?.unitProfile||source.targetProduct?.unitProfile||{};
+                    const unitNames={unit:t('unit','وحدة'),yard:t('yard','ياردة'),piece:t('piece','قطعة'),panel:t('panel','لوح')};
+                    const base=profile.baseUnitCode==='custom'?(t(profile.baseUnitLabel,profile.baseUnitLabelAr)||t('custom unit','وحدة مخصصة')):
+                      (unitNames[profile.baseUnitCode]||profile.baseUnitCode||unitNames.unit);
+                    const unitProfileLine=stockControls.querySelector('[data-unit-profile="true"]');
+                    if(unitProfileLine)unitProfileLine.textContent=t('Target SKU base unit: ','وحدة SKU المستهدفة: ')+base+' · '+
+                      t('precision','الدقة')+' '+Number(profile.quantityPrecision||0)+' · '+t('increment','الزيادة')+' '+String(profile.quantityIncrement||'1');
+                  }
+                  if(save){
+                    const scope=stockScopeSelect?.value||'unverified';
+                    const scopeReady=!hasIndependentStock||scope==='unverified'||Boolean(unitConfirmed?.checked&&
+                      (scope!=='single_location'||stockLocationSelect?.value));
+                    save.disabled=!hasTarget||!scopeReady;
+                  }
+                }
                 async function searchTargets(){
                   const query=(search.value.trim()||source.sku||'').trim();
                   if(query.length<2){selectStatus.textContent=t('Enter at least two characters to search.','أدخل حرفين على الأقل للبحث.');return;}
@@ -467,6 +543,18 @@
                   add(select,'option',t('Searching…','جارٍ البحث…')).value='';
                   try{
                     const result=await api('/connectors/'+encodeURIComponent(connection.id)+'/mapping-options?search='+encodeURIComponent(query));
+                    locations=result.locations||[];
+                    if(stockLocationSelect){
+                      const selectedLocation=stockLocationSelect.value;stockLocationSelect.replaceChildren();
+                      add(stockLocationSelect,'option',t('Choose a location','اختر موقعاً')).value='';
+                      for(const location of locations){const option=add(stockLocationSelect,'option',(location.code||'')+' · '+(t(location.nameEn,location.nameAr)||location.nameEn));option.value=location.id;}
+                      const current=source.targetProduct?.stockMapping;
+                      if(current?.targetLocationId&&!locations.some(location=>location.id===current.targetLocationId)){
+                        const option=add(stockLocationSelect,'option',(current.targetLocationNameEn||current.targetLocationId)+' · '+t('inactive or unavailable','غير نشط أو غير متاح'));
+                        option.value=current.targetLocationId;option.disabled=true;
+                      }
+                      stockLocationSelect.value=selectedLocation||current?.targetLocationId||'';
+                    }
                     select.replaceChildren();add(select,'option',t('Choose a 7Network product','اختر منتج 7Network')).value='';
                     for(const target of result.items||[]){optionsById.set(target.id,target);const label=(target.sku||'—')+' · '+(t(target.nameEn,target.nameAr)||target.nameEn||target.id)+
                       (target.isVariant?' · '+(target.variantGroupTitleEn||'')+' '+(target.variantValueEn||''):'');const option=add(select,'option',label);option.value=target.id;}
@@ -477,6 +565,7 @@
                     selectStatus.textContent=result.items?.length?t('Choose a target, then review the SKU comparison. Matches are suggestions only.','اختر هدفاً ثم راجع مقارنة SKU. المطابقات اقتراحات فقط.'):
                       t('No matching 7Network products. Search by another SKU or name.','لا توجد منتجات 7Network مطابقة. ابحث باستخدام SKU أو اسم آخر.');
                     showSkuComparison();
+                    updateMappingControls();
                   }catch(error){select.replaceChildren();add(select,'option',t('Search failed','فشل البحث')).value='';selectStatus.textContent=t('Could not search the 7Network catalogue.','تعذر البحث في كتالوج 7Network.');showCode(status,error);}
                 }
                 function showSkuComparison(){
@@ -486,17 +575,32 @@
                   else if(source.sku.trim().toUpperCase()===target.sku.trim().toUpperCase())selectStatus.textContent=t('SKU matches. Confirm the product and variation before saving.','SKU متطابق. تحقق من المنتج والمتغير قبل الحفظ.');
                   else selectStatus.textContent=t('SKU differs. Confirm this mapping manually before saving.','SKU مختلف. تحقق من الربط يدوياً قبل الحفظ.');
                 }
-                select.addEventListener('change',showSkuComparison);
+                select.addEventListener('change',()=>{
+                  const target=optionsById.get(select.value),revision=Number(target?.unitProfile?.revision||0);
+                  if(select.value!==lastTargetId||revision!==lastUnitRevision){
+                    if(stockScopeSelect)stockScopeSelect.value='unverified';
+                    if(stockLocationSelect)stockLocationSelect.value='';
+                    if(unitConfirmed)unitConfirmed.checked=false;
+                    lastTargetId=select.value;lastUnitRevision=revision;
+                  }
+                  showSkuComparison();
+                });
                 const findButton=add(line,'button',t('Search catalogue','ابحث في الكتالوج'));findButton.type='button';findButton.onclick=searchTargets;
                 if(source.sku&&source.sku.length>=2)searchTargets();
-                const save=add(line,'button',t('Save mapping','حفظ الربط'));save.type='button';save.disabled=true;
-                select.addEventListener('change',()=>{save.disabled=!select.value;});
+                save=add(line,'button',t('Save mapping','حفظ الربط'));save.type='button';save.disabled=true;
+                select.addEventListener('change',updateMappingControls);
+                updateMappingControls();
                 async function saveMapping(actionName,targetProductId=null){
                   const button=actionName==='map'?save:actionName==='ignore'?ignore:clear;
                   button.disabled=true;
                   try{
+                    const selected=optionsById.get(select.value);
+                    const scope=actionName==='map'&&hasIndependentStock?stockScopeSelect?.value||'unverified':'unverified';
+                    const stockMapping=scope==='unverified'?{}:{stockScope:scope,targetLocationId:scope==='single_location'?stockLocationSelect.value:null,
+                      sourceUnitConfirmed:Boolean(unitConfirmed.checked),expectedUnitRevision:Number(selected?.unitProfile?.revision||0)};
                     await api('/connectors/'+encodeURIComponent(connection.id)+'/mappings','PUT',{externalProductId:source.productId,
-                      externalVariationId:source.variationId||null,targetProductId,action:actionName,expectedRevision:source.mappingRevision,expectedSku:source.sku??null});
+                      externalVariationId:source.variationId||null,targetProductId,action:actionName,expectedRevision:source.mappingRevision,expectedSku:source.sku??null,
+                      ...stockMapping});
                     await loadMappings(pageNumber,false);
                   }catch(error){await loadMappings(pageNumber,false);showCode(status,error);}
                 }
@@ -601,6 +705,16 @@
                 const mapping=report.productMappings||{};
                 add(reportBody,'p',t('7Network inventory mappings','روابط مخزون 7Network')+': '+(mapping.mapped||0)+' '+t('mapped','مرتبط')+' · '+
                   (mapping.ignored||0)+' '+t('ignored','متجاهل')+' · '+(mapping.invalidTargets||0)+' '+t('invalid target','هدف غير صالح'));
+                if(mapping.stock){
+                  const stock=mapping.stock;
+                  add(reportBody,'p',t('Read-only stock scope','نطاق المخزون للقراءة فقط')+': '+(stock.readyForReadOnlyComparison||0)+' '+
+                    t('ready for location/unit comparison','جاهز لمقارنة الموقع والوحدة')+' · '+(stock.needsReview||0)+' '+t('need review','بحاجة إلى مراجعة'));
+                  if(Number(stock.parentShared||0)>0)add(reportBody,'p',t('Some variable products share Woo stock at the parent level. They cannot be reconciled separately by variation.','تشترك بعض المنتجات ذات المتغيرات في مخزون Woo على مستوى المنتج الرئيسي ولا يمكن مطابقتها لكل متغير على حدة.')+' '+stock.parentShared);
+                  if(Number(stock.managedQuantityUnavailable||0)>0||Number(stock.sourceStockSnapshotUnknown||0)>0)
+                    add(reportBody,'p',t('Some mapped products need a fresh Woo product sync before stock review.','تحتاج بعض المنتجات المرتبطة إلى مزامنة Woo حديثة قبل مراجعة المخزون.')+
+                      ' · '+Number(stock.managedQuantityUnavailable||0)+' '+t('managed quantity unavailable','كمية مُدارة غير متاحة')+' · '+Number(stock.sourceStockSnapshotUnknown||0)+' '+t('stock snapshot not captured','لقطة المخزون غير محفوظة'));
+                  add(reportBody,'p',t('A verified scope only identifies the unit and location relationship. It does not prove the balances match or authorize stock write-back.','يحدد النطاق المتحقق منه علاقة الوحدة والموقع فقط. ولا يثبت تطابق الأرصدة أو يسمح بالكتابة إلى المخزون.'));
+                }
                 if(Number(mapping.invalidTargets||0)>0)add(reportBody,'p',t('One or more mappings point to a missing inventory product. Review these before accepting reconciliation.','يشير رابط واحد أو أكثر إلى منتج مخزون غير موجود. راجع الروابط قبل اعتماد المطابقة.'));
                 add(reportBody,'p',t('SKU review','مراجعة SKU')+': '+report.skuAudit.missingProductSku+' '+t('products without SKU','منتجات بلا SKU')+' · '+
                   report.skuAudit.missingVariationSku+' '+t('variations without SKU','متغيرات بلا SKU')+' · '+report.skuAudit.duplicateSkuCount+' '+t('duplicate SKU values','قيم SKU مكررة'));
@@ -723,7 +837,7 @@
     root.className='sx-retail-workspace';
     root.dir=t('ltr','rtl');
     syncTheme();
-    if(!document.querySelector('[data-retail-workspace-css]')){const css=document.createElement('link');css.rel='stylesheet';css.href='/retail-workspace.css?v=20261108-cash-ui1';css.dataset.retailWorkspaceCss='';document.head.append(css);}
+    if(!document.querySelector('[data-retail-workspace-css]')){const css=document.createElement('link');css.rel='stylesheet';css.href='/retail-workspace.css?v=20261117-woo-stock-scope1';css.dataset.retailWorkspaceCss='';document.head.append(css);}
     new MutationObserver(syncTheme).observe(document.documentElement,{attributes:true,attributeFilter:['data-sx-theme']});
     window.addEventListener('storage',syncTheme);
     add(root,'h1',page[2]);

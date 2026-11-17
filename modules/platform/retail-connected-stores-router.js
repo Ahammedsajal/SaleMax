@@ -6,6 +6,7 @@ const {buildConnectorArchive} = require('./woocommerce-connector-package');
 const connector = require('./retail-connected-stores');
 const { decision } = require('./policy');
 const originCheck = require('./request-origin');
+const quantity = require('./retail-quantity');
 
 const handle = fn => (req, res, next) => Promise.resolve(fn(req, res)).catch(next);
 const reply = (res, data) => res.json({ success: true, data });
@@ -381,12 +382,14 @@ async function connectionData(pool, connection, kind, pageValue, parentProductId
     const parentId = String(parentProductId || '');
     if (connection.provider !== 'woocommerce' || !/^\d{1,191}$/.test(parentId)) fail('INVALID_STORE_RESOURCE', 400);
     const [rows] = await pool.query(`SELECT external_variant_id AS id,external_product_id AS productId,sku,variant_status AS status,
-      currency,price,variant_ciphertext AS ciphertext,variant_iv AS iv,variant_auth_tag AS authTag
+      currency,price,variant_ciphertext AS ciphertext,variant_iv AS iv,variant_auth_tag AS authTag,
+      source_stock_managed AS sourceStockManaged,CAST(source_stock_quantity AS CHAR) AS sourceStockQuantity,source_stock_status AS sourceStockStatus
       FROM sx_retail_external_product_variants WHERE tenant_id=? AND connection_id=? AND external_product_id=? AND variant_status<>'deleted'
       ORDER BY external_variant_id LIMIT ? OFFSET ?`, [tenantId,id,parentId,limit+1,offset]);
     return rows.map(row => { const variation = jsonFromEncrypted(row, tenantId, id, `product-variant:${row.id}`); return {
       id: row.id, productId: row.productId, title: variation.title, sku: row.sku, status: row.status,
-      purchasable: variation.purchasable, currency: row.currency, price: String(row.price), attributes: variation.attributes || [], sourceStock: variation.sourceStock || null,
+      purchasable: variation.purchasable, currency: row.currency, price: String(row.price), attributes: variation.attributes || [],
+      sourceStock: sourceStockFromRow(row,variation.sourceStock),
       updatedAt: variation.updatedAt || null,
     }; });
   }
@@ -462,26 +465,71 @@ async function connectionData(pool, connection, kind, pageValue, parentProductId
 }
 function validWooProductId(value) { return typeof value === 'string' && /^\d{1,191}$/.test(value); }
 function normalizeMappingWrite(body) {
-  const allowed = ['externalProductId','externalVariationId','targetProductId','action','expectedRevision','expectedSku'];
+  const allowed = ['externalProductId','externalVariationId','targetProductId','action','expectedRevision','expectedSku',
+    'stockScope','targetLocationId','sourceUnitConfirmed','expectedUnitRevision'];
   if (!body || typeof body !== 'object' || Array.isArray(body) || Object.keys(body).some(key => !allowed.includes(key))) fail('INVALID_PRODUCT_MAPPING', 400);
   const externalProductId = String(body.externalProductId || '');
   const externalVariationId = body.externalVariationId == null ? '' : String(body.externalVariationId);
   const action = body.action;
   const expectedRevision = body.expectedRevision;
   const expectedSku = body.expectedSku == null ? null : String(body.expectedSku);
+  const stockScope = body.stockScope == null ? 'unverified' : body.stockScope;
+  const targetLocationId = body.targetLocationId == null ? null : String(body.targetLocationId).toLowerCase();
+  const sourceUnitConfirmed = body.sourceUnitConfirmed === true;
+  const expectedUnitRevision = body.expectedUnitRevision == null ? null : body.expectedUnitRevision;
   if (!validWooProductId(externalProductId) || externalVariationId && !validWooProductId(externalVariationId) ||
       !['map','ignore','clear'].includes(action) || !Number.isSafeInteger(expectedRevision) || expectedRevision < 0 ||
-      expectedSku != null && expectedSku.length > 100) fail('INVALID_PRODUCT_MAPPING', 400);
+      expectedSku != null && expectedSku.length > 100 || !['unverified','single_location','aggregate'].includes(stockScope) ||
+      targetLocationId != null && !connector.validateId(targetLocationId) ||
+      expectedUnitRevision != null && (!Number.isSafeInteger(expectedUnitRevision) || expectedUnitRevision < 0) ||
+      stockScope === 'single_location' && (!targetLocationId || !sourceUnitConfirmed || expectedUnitRevision == null) ||
+      stockScope === 'aggregate' && (targetLocationId || !sourceUnitConfirmed || expectedUnitRevision == null) ||
+      stockScope === 'unverified' && (targetLocationId || sourceUnitConfirmed || expectedUnitRevision != null)) fail('INVALID_PRODUCT_MAPPING', 400);
   const targetProductId = body.targetProductId == null ? null : String(body.targetProductId).toLowerCase();
   if (action === 'map' && !connector.validateId(targetProductId) || action !== 'map' && targetProductId != null) fail('INVALID_PRODUCT_MAPPING', 400);
-  return { externalProductId, externalVariationId, targetProductId, action, expectedRevision, expectedSku };
+  if (action !== 'map' && stockScope !== 'unverified') fail('INVALID_PRODUCT_MAPPING', 400);
+  return { externalProductId, externalVariationId, targetProductId, action, expectedRevision, expectedSku,
+    stockScope, targetLocationId, sourceUnitConfirmed, expectedUnitRevision };
 }
-function mappingTarget(row, sourceSku) {
+function sourceStockFromRow(row, fallback = null) {
+  if (row?.sourceStockManaged == null) return fallback;
+  return { managed: Boolean(Number(row.sourceStockManaged)), quantity: row.sourceStockQuantity == null ? null : String(row.sourceStockQuantity),
+    status: String(row.sourceStockStatus || 'unknown').toLowerCase().slice(0,32) };
+}
+function stockQuantityFitsUnit(value, unit) {
+  const amount = quantity.signed(value == null ? '' : String(value));
+  const increment = quantity.scaled(String(unit?.quantityIncrement ?? '1'));
+  return amount !== null && increment !== null && quantity.atPrecision(amount, Number(unit?.quantityPrecision ?? 0)) &&
+    quantity.isMultiple(amount, increment);
+}
+function stockMappingState(sourceStock, parentStock, mapping) {
+  if (parentStock?.managed && !sourceStock?.managed) return 'parent_shared';
+  if (!sourceStock?.managed) return 'not_managed';
+  if (sourceStock.quantity == null) return 'quantity_unavailable';
+  if (!mapping?.targetProductId || mapping.mappingStatus !== 'mapped') return 'unmapped';
+  if (!['single_location','aggregate'].includes(mapping.stockScope) || !Number(mapping.sourceUnitConfirmed)) return 'needs_review';
+  if (Number(mapping.targetUnitRevision) !== Number(mapping.currentUnitRevision)) return 'unit_profile_changed';
+  if (!stockQuantityFitsUnit(sourceStock.quantity, mapping.unitProfile)) return 'unit_incompatible';
+  if (mapping.stockScope === 'single_location' && (!mapping.targetLocationId || mapping.targetLocationStatus !== 'active')) return 'location_unavailable';
+  return 'ready_read_only_comparison';
+}
+function mappingTarget(row, sourceSku, sourceStock = null, parentStock = null) {
   if (!row?.targetProductId) return null;
   const targetSku = row.targetSku == null ? null : String(row.targetSku);
+  const unitProfile = { baseUnitCode: row.baseUnitCode || 'unit', baseUnitLabel: row.baseUnitLabel || '',
+    baseUnitLabelAr: row.baseUnitLabelAr || '', quantityPrecision: Number(row.quantityPrecision || 0),
+    quantityIncrement: String(row.quantityIncrement || '1.000000') };
+  const stockMapping = { mappingStatus: row.mappingStatus, stockScope: row.stockScope || 'unverified',
+    targetLocationId: row.targetLocationId || null, targetLocationStatus: row.targetLocationStatus || null,
+    targetLocationNameEn: row.targetLocationNameEn || null, targetLocationNameAr: row.targetLocationNameAr || null,
+    sourceUnitConfirmed: Boolean(Number(row.sourceUnitConfirmed)), targetUnitRevision: row.targetUnitRevision == null ? null : Number(row.targetUnitRevision),
+    currentUnitRevision: Number(row.currentUnitRevision || 0), unitProfile };
+  stockMapping.state = stockMappingState(sourceStock, parentStock, stockMapping);
+  unitProfile.revision = Number(row.currentUnitRevision || 0);
   return { id: row.targetProductId, sku: targetSku, nameEn: row.targetNameEn, nameAr: row.targetNameAr,
     status: row.targetStatus, isVariant: Boolean(row.targetVariantGroupId), variantGroupTitleEn: row.targetVariantGroupTitleEn || null,
     variantValueEn: row.targetVariantValueEn || null,
+    unitProfile, stockMapping,
     skuMatches: sourceSku && targetSku ? sourceSku.trim().toUpperCase() === targetSku.trim().toUpperCase() : null };
 }
 async function productMappingDetails(pool, connection, externalProductId, pageValue) {
@@ -490,41 +538,51 @@ async function productMappingDetails(pool, connection, externalProductId, pageVa
   if (!Number.isSafeInteger(page) || page < 1 || page > 200) fail('INVALID_PAGE', 400);
   const tenantId = connection.tenant_id, connectionId = connection.id;
   const [[row]] = await pool.query(`SELECT product_status AS status,sku,currency,price,product_ciphertext AS ciphertext,
-    product_iv AS iv,product_auth_tag AS authTag,source_updated_at AS updatedAt FROM sx_retail_external_products
+    product_iv AS iv,product_auth_tag AS authTag,source_stock_managed AS sourceStockManaged,
+    CAST(source_stock_quantity AS CHAR) AS sourceStockQuantity,source_stock_status AS sourceStockStatus,source_updated_at AS updatedAt
+    FROM sx_retail_external_products
     WHERE tenant_id=? AND connection_id=? AND external_product_id=? AND product_status<>'deleted'`, [tenantId,connectionId,externalProductId]);
   if (!row) fail('STORE_PRODUCT_NOT_FOUND', 404);
   const product = jsonFromEncrypted(row,tenantId,connectionId,`product:${externalProductId}`);
+  const parentStock = sourceStockFromRow(row,product.sourceStock || null);
   const productType = String(product.productType || 'unknown');
   let sourceItems = [], hasMore = false;
   if (productType === 'simple') {
     if (page !== 1) fail('INVALID_PAGE', 400);
     sourceItems = [{ productId: externalProductId, variationId: null, sourceType: 'product', title: product.title,
-      sku: row.sku, status: row.status, currency: row.currency, price: String(row.price), sourceStock: product.sourceStock || null,
+      sku: row.sku, status: row.status, currency: row.currency, price: String(row.price), sourceStock: parentStock,
       updatedAt: row.updatedAt, mappable: row.status === 'publish' }];
   } else if (productType === 'variable') {
     const variants = await connectionData(pool,connection,'variations',page,externalProductId);
     hasMore = variants.length > 50;
     sourceItems = variants.slice(0,50).map(variant => ({ productId: externalProductId, variationId: variant.id, sourceType: 'variation',
       title: variant.title, sku: variant.sku, status: variant.status, purchasable: variant.purchasable, currency: variant.currency,
-      price: variant.price, sourceStock: variant.sourceStock, updatedAt: variant.updatedAt,
+      price: variant.price, sourceStock: variant.sourceStock, parentStock: parentStock?.managed ? parentStock : null, updatedAt: variant.updatedAt,
       mappable: row.status === 'publish' && variant.status === 'publish' && variant.purchasable !== false }));
   }
   const variantIds = sourceItems.map(item => item.variationId || '');
   const [mappingRows] = variantIds.length ? await pool.query(`SELECT m.id,m.external_variant_id AS externalVariationId,
-      m.mapping_status AS mappingStatus,m.target_product_id AS targetProductId,m.revision,
+      m.mapping_status AS mappingStatus,m.target_product_id AS targetProductId,m.revision,m.stock_scope AS stockScope,
+      m.target_location_id AS targetLocationId,m.source_unit_confirmed AS sourceUnitConfirmed,m.target_unit_revision AS targetUnitRevision,
       p.code AS targetSku,p.name_en AS targetNameEn,p.name_ar AS targetNameAr,p.status AS targetStatus,
-      vp.group_id AS targetVariantGroupId,vg.title_en AS targetVariantGroupTitleEn,vp.value_en AS targetVariantValueEn
+      vp.group_id AS targetVariantGroupId,vg.title_en AS targetVariantGroupTitleEn,vp.value_en AS targetVariantValueEn,
+      COALESCE(iu.base_unit_code,'unit') AS baseUnitCode,COALESCE(iu.base_unit_label,'') AS baseUnitLabel,
+      COALESCE(iu.base_unit_label_ar,'') AS baseUnitLabelAr,COALESCE(iu.quantity_precision,0) AS quantityPrecision,
+      CAST(COALESCE(iu.quantity_increment,1.000000) AS CHAR) AS quantityIncrement,COALESCE(iu.revision,0) AS currentUnitRevision,
+      loc.status AS targetLocationStatus,loc.name_en AS targetLocationNameEn,loc.name_ar AS targetLocationNameAr
     FROM sx_retail_external_product_mappings m
     LEFT JOIN sx_product_catalog p ON p.tenant_id=m.tenant_id AND p.id=m.target_product_id
     LEFT JOIN sx_retail_variant_products vp ON vp.tenant_id=p.tenant_id AND vp.product_id=p.id
     LEFT JOIN sx_retail_variant_groups vg ON vg.tenant_id=vp.tenant_id AND vg.id=vp.group_id
+    LEFT JOIN sx_retail_product_inventory_units iu ON iu.tenant_id=p.tenant_id AND iu.product_id=p.id
+    LEFT JOIN sx_retail_locations loc ON loc.tenant_id=m.tenant_id AND loc.id=m.target_location_id
     WHERE m.tenant_id=? AND m.connection_id=? AND m.external_product_id=? AND m.external_variant_id IN (${variantIds.map(() => '?').join(',')})`,
     [tenantId,connectionId,externalProductId,...variantIds]) : [[]];
   const byVariation = new Map(mappingRows.map(mapping => [mapping.externalVariationId,mapping]));
   const items = sourceItems.map(item => {
     const mapping = byVariation.get(item.variationId || '');
     return { ...item, mappingStatus: mapping?.mappingStatus || 'unmapped', mappingId: mapping?.id || null,
-      mappingRevision: Number(mapping?.revision || 0), targetProduct: mappingTarget(mapping,item.sku) };
+      mappingRevision: Number(mapping?.revision || 0), targetProduct: mappingTarget(mapping,item.sku,item.sourceStock,item.parentStock) };
   });
   return { product: { id: externalProductId, title: product.title, sku: row.sku, type: productType, status: row.status,
       variationCount: Number(product.variationCount) || 0 }, page, hasMore, items };
@@ -534,15 +592,24 @@ async function mappingTargets(pool, tenantId, queryValue) {
   if (search.length < 2 || search.length > 100 || /[\u0000-\u001f\u007f]/.test(search)) fail('INVALID_MAPPING_SEARCH', 400);
   const normalized = search.toLowerCase();
   const [rows] = await pool.query(`SELECT p.id,p.code AS sku,p.name_en AS nameEn,p.name_ar AS nameAr,p.status,
-      vp.group_id AS variantGroupId,vg.title_en AS variantGroupTitleEn,vp.value_en AS variantValueEn
+      vp.group_id AS variantGroupId,vg.title_en AS variantGroupTitleEn,vp.value_en AS variantValueEn,
+      COALESCE(iu.base_unit_code,'unit') AS baseUnitCode,COALESCE(iu.base_unit_label,'') AS baseUnitLabel,
+      COALESCE(iu.base_unit_label_ar,'') AS baseUnitLabelAr,COALESCE(iu.quantity_precision,0) AS quantityPrecision,
+      CAST(COALESCE(iu.quantity_increment,1.000000) AS CHAR) AS quantityIncrement,COALESCE(iu.revision,0) AS unitRevision
     FROM sx_product_catalog p
     LEFT JOIN sx_retail_variant_products vp ON vp.tenant_id=p.tenant_id AND vp.product_id=p.id
     LEFT JOIN sx_retail_variant_groups vg ON vg.tenant_id=vp.tenant_id AND vg.id=vp.group_id
+    LEFT JOIN sx_retail_product_inventory_units iu ON iu.tenant_id=p.tenant_id AND iu.product_id=p.id
     WHERE p.tenant_id=? AND p.status='active' AND p.deleted_at IS NULL
       AND (LOCATE(?,LOWER(p.code))>0 OR LOCATE(?,LOWER(p.name_en))>0 OR LOCATE(?,LOWER(p.name_ar))>0)
     ORDER BY (LOWER(p.code)=?) DESC,p.code,p.id LIMIT 50`,[tenantId,normalized,normalized,normalized,normalized]);
-  return rows.map(row => ({ id: row.id, sku: row.sku, nameEn: row.nameEn, nameAr: row.nameAr,
-    isVariant: Boolean(row.variantGroupId), variantGroupTitleEn: row.variantGroupTitleEn || null, variantValueEn: row.variantValueEn || null }));
+  const [locations] = await pool.query(`SELECT id,code,name_en AS nameEn,name_ar AS nameAr FROM sx_retail_locations
+    WHERE tenant_id=? AND status='active' ORDER BY is_default DESC,name_en,id`,[tenantId]);
+  return { items: rows.map(row => ({ id: row.id, sku: row.sku, nameEn: row.nameEn, nameAr: row.nameAr,
+    isVariant: Boolean(row.variantGroupId), variantGroupTitleEn: row.variantGroupTitleEn || null, variantValueEn: row.variantValueEn || null,
+    unitProfile: { baseUnitCode: row.baseUnitCode || 'unit', baseUnitLabel: row.baseUnitLabel || '', baseUnitLabelAr: row.baseUnitLabelAr || '',
+      quantityPrecision: Number(row.quantityPrecision || 0), quantityIncrement: String(row.quantityIncrement || '1.000000'), revision: Number(row.unitRevision || 0) } })),
+    locations: locations.map(row => ({id:row.id,code:row.code,nameEn:row.nameEn,nameAr:row.nameAr})) };
 }
 async function connectionReconciliation(pool, connection) {
   const tenantId = connection.tenant_id, id = connection.id;
@@ -569,6 +636,34 @@ async function connectionReconciliation(pool, connection) {
     FROM sx_retail_external_product_mappings m
     LEFT JOIN sx_product_catalog p ON p.tenant_id=m.tenant_id AND p.id=m.target_product_id
     WHERE m.tenant_id=? AND m.connection_id=?`,[tenantId,id]);
+  const [[stockMappings]] = await pool.query(`SELECT
+    COUNT(*) AS mapped,
+    SUM(sourceStockManaged=1 AND sourceStockQuantity IS NOT NULL) AS quantityManaged,
+    SUM(sourceStockManaged=1 AND sourceStockQuantity IS NULL) AS managedQuantityUnavailable,
+    SUM(sourceStockManaged IS NULL) AS sourceStockSnapshotUnknown,
+    SUM(externalVariantId<>'' AND parentStockManaged=1 AND COALESCE(sourceStockManaged,0)=0) AS parentShared,
+    SUM(sourceStockManaged=1 AND sourceStockQuantity IS NOT NULL AND
+      sourceUnitConfirmed=1 AND stockScope IN ('single_location','aggregate') AND
+      targetUnitRevision=currentUnitRevision AND ROUND(sourceStockQuantity,quantityPrecision)=sourceStockQuantity AND
+      MOD(ABS(sourceStockQuantity),quantityIncrement)=0 AND
+      (stockScope<>'single_location' OR targetLocationStatus='active')) AS readyForReadOnlyComparison
+    FROM (
+      SELECT m.external_variant_id AS externalVariantId,m.stock_scope AS stockScope,
+        m.source_unit_confirmed AS sourceUnitConfirmed,m.target_unit_revision AS targetUnitRevision,
+        COALESCE(iu.revision,0) AS currentUnitRevision,COALESCE(iu.quantity_precision,0) AS quantityPrecision,
+        COALESCE(iu.quantity_increment,1.000000) AS quantityIncrement,loc.status AS targetLocationStatus,
+        CASE WHEN m.external_variant_id='' THEN p.source_stock_managed ELSE v.source_stock_managed END AS sourceStockManaged,
+        CASE WHEN m.external_variant_id='' THEN p.source_stock_quantity ELSE v.source_stock_quantity END AS sourceStockQuantity,
+        p.source_stock_managed AS parentStockManaged
+      FROM sx_retail_external_product_mappings m
+      LEFT JOIN sx_retail_external_products p ON p.tenant_id=m.tenant_id AND p.connection_id=m.connection_id AND p.external_product_id=m.external_product_id
+      LEFT JOIN sx_retail_external_product_variants v ON v.tenant_id=m.tenant_id AND v.connection_id=m.connection_id AND
+        v.external_product_id=m.external_product_id AND v.external_variant_id=m.external_variant_id
+      LEFT JOIN sx_product_catalog target ON target.tenant_id=m.tenant_id AND target.id=m.target_product_id
+      LEFT JOIN sx_retail_product_inventory_units iu ON iu.tenant_id=target.tenant_id AND iu.product_id=target.id
+      LEFT JOIN sx_retail_locations loc ON loc.tenant_id=m.tenant_id AND loc.id=m.target_location_id
+      WHERE m.tenant_id=? AND m.connection_id=? AND m.mapping_status='mapped'
+    ) source_mappings`,[tenantId,id]);
   const skuSourceSql = `SELECT UPPER(TRIM(sku)) AS normalizedSku FROM sx_retail_external_products
     WHERE tenant_id=? AND connection_id=? AND product_status<>'deleted' AND NULLIF(TRIM(sku),'') IS NOT NULL
     UNION ALL SELECT UPPER(TRIM(sku)) AS normalizedSku FROM sx_retail_external_product_variants
@@ -580,7 +675,12 @@ async function connectionReconciliation(pool, connection) {
   const woo = connection.provider === 'woocommerce' ? parseJson(connection.sync_cursor, {}).woocommerce || {} : null;
   const scan = woo?.lastCompleteScan || null;
   return { provider: connection.provider, importedCounts: Object.fromEntries(Object.entries(counts).map(([key,value]) => [key, Number(value)])),
-    productMappings: { mapped: Number(mappingCounts?.mapped||0), ignored: Number(mappingCounts?.ignored||0), invalidTargets: Number(mappingCounts?.invalidTargets||0) },
+    productMappings: { mapped: Number(mappingCounts?.mapped||0), ignored: Number(mappingCounts?.ignored||0), invalidTargets: Number(mappingCounts?.invalidTargets||0),
+      stock: { mapped: Number(stockMappings?.mapped||0), quantityManaged: Number(stockMappings?.quantityManaged||0),
+        managedQuantityUnavailable: Number(stockMappings?.managedQuantityUnavailable||0),
+        sourceStockSnapshotUnknown: Number(stockMappings?.sourceStockSnapshotUnknown||0),parentShared: Number(stockMappings?.parentShared||0),
+        readyForReadOnlyComparison: Number(stockMappings?.readyForReadOnlyComparison||0),
+        needsReview: Math.max(0,Number(stockMappings?.quantityManaged||0)-Number(stockMappings?.readyForReadOnlyComparison||0)) } },
     lastSyncAt: connection.last_sync_at, lastErrorCode: connection.last_error_code,
     scan: scan ? { startedAt: scan.startedAt, completedAt: scan.completedAt, queryScope: scan.queryScope || null, sourceCounts: scan.sourceCounts || {},
       sourceVariationCount: scan.sourceVariationCount ?? null, sourceOrderAmounts: Object.values(scan.orderAmounts || {}),
@@ -841,7 +941,7 @@ function workspaceRouter({ pool, authenticate, origin }) {
     const connection=await loadConnection(pool,context.tenant.id,req.params.id);
     if(connection.status==='pending')fail('STORE_CONNECTION_NOT_READY',409);
     if(connection.provider!=='woocommerce')fail('INVALID_PRODUCT_MAPPING_SOURCE',400);
-    reply(res,{items:await mappingTargets(pool,context.tenant.id,req.query.search)});
+    reply(res,await mappingTargets(pool,context.tenant.id,req.query.search));
   }));
 
   router.put('/:id/mappings', owner(async (req,res,context) => {
@@ -854,53 +954,84 @@ function workspaceRouter({ pool, authenticate, origin }) {
         WHERE tenant_id=? AND id=? FOR UPDATE`,[context.tenant.id,connection.id]);
       if(!lockedConnection||lockedConnection.provider!=='woocommerce')fail('STORE_CONNECTION_NOT_FOUND',404);
       if(!['active','paused'].includes(lockedConnection.status))fail('STORE_CONNECTION_NOT_ACTIVE',409);
-      const [[productRow]]=await db.query(`SELECT product_status AS status,sku,product_ciphertext AS ciphertext,product_iv AS iv,product_auth_tag AS authTag
+      const [[productRow]]=await db.query(`SELECT product_status AS status,sku,product_ciphertext AS ciphertext,product_iv AS iv,product_auth_tag AS authTag,
+        source_stock_managed AS sourceStockManaged,CAST(source_stock_quantity AS CHAR) AS sourceStockQuantity,source_stock_status AS sourceStockStatus
         FROM sx_retail_external_products WHERE tenant_id=? AND connection_id=? AND external_product_id=? AND product_status<>'deleted' FOR UPDATE`,
       [context.tenant.id,connection.id,input.externalProductId]);
       if(!productRow)fail('STORE_PRODUCT_NOT_FOUND',404);
       const product=jsonFromEncrypted(productRow,context.tenant.id,connection.id,`product:${input.externalProductId}`);
+      let sourceStock=sourceStockFromRow(productRow,product.sourceStock||null),parentStock=null;
       let sourceStatus=productRow.status,sourceSku=productRow.sku,purchasable=true,sourceType=product.productType;
       if(input.externalVariationId){
         if(sourceType!=='variable'||productRow.status!=='publish')fail('INVALID_PRODUCT_MAPPING_SOURCE',409);
-        const [[variantRow]]=await db.query(`SELECT variant_status AS status,sku,variant_ciphertext AS ciphertext,variant_iv AS iv,variant_auth_tag AS authTag
+        const [[variantRow]]=await db.query(`SELECT variant_status AS status,sku,variant_ciphertext AS ciphertext,variant_iv AS iv,variant_auth_tag AS authTag,
+          source_stock_managed AS sourceStockManaged,CAST(source_stock_quantity AS CHAR) AS sourceStockQuantity,source_stock_status AS sourceStockStatus
           FROM sx_retail_external_product_variants WHERE tenant_id=? AND connection_id=? AND external_product_id=? AND external_variant_id=?
             AND variant_status<>'deleted' FOR UPDATE`,[context.tenant.id,connection.id,input.externalProductId,input.externalVariationId]);
         if(!variantRow)fail('STORE_VARIATION_NOT_FOUND',404);
         const variant=jsonFromEncrypted(variantRow,context.tenant.id,connection.id,`product-variant:${input.externalVariationId}`);
+        sourceStock=sourceStockFromRow(variantRow,variant.sourceStock||null);
+        parentStock=sourceStock?.managed?null:sourceStockFromRow(productRow,product.sourceStock||null);
         sourceStatus=variantRow.status;sourceSku=variantRow.sku;purchasable=variant.purchasable!==false;
       }else if(sourceType!=='simple')fail('INVALID_PRODUCT_MAPPING_SOURCE',409);
       if(sourceStatus!=='publish'||!purchasable)fail('STORE_PRODUCT_NOT_MAPPABLE',409);
       if(input.expectedSku!==sourceSku)fail('STORE_PRODUCT_SOURCE_CHANGED',409);
 
-      const [[existing]]=await db.query(`SELECT id,mapping_status AS mappingStatus,target_product_id AS targetProductId,revision
+      const [[existing]]=await db.query(`SELECT id,mapping_status AS mappingStatus,target_product_id AS targetProductId,stock_scope AS stockScope,
+        target_location_id AS targetLocationId,source_unit_confirmed AS sourceUnitConfirmed,target_unit_revision AS targetUnitRevision,revision
         FROM sx_retail_external_product_mappings WHERE tenant_id=? AND connection_id=? AND external_product_id=? AND external_variant_id=? FOR UPDATE`,
       [context.tenant.id,connection.id,input.externalProductId,input.externalVariationId]);
       const nextStatus=input.action==='map'?'mapped':input.action==='ignore'?'ignored':'unmapped';
-      const same= input.action==='clear' ? !existing : Boolean(existing&&existing.mappingStatus===nextStatus&&existing.targetProductId===input.targetProductId);
+      const same= input.action==='clear' ? !existing : Boolean(existing&&existing.mappingStatus===nextStatus&&existing.targetProductId===input.targetProductId&&
+        (existing.stockScope||'unverified')===input.stockScope&&(existing.targetLocationId||null)===input.targetLocationId&&
+        Boolean(Number(existing.sourceUnitConfirmed))===input.sourceUnitConfirmed&&
+        (existing.targetUnitRevision==null?null:Number(existing.targetUnitRevision))===input.expectedUnitRevision);
       if(same){await db.commit();return reply(res,{id:existing?.id||null,status:nextStatus,revision:Number(existing?.revision||0),replayed:true});}
       if(Number(existing?.revision||0)!==input.expectedRevision)fail('STORE_PRODUCT_MAPPING_CONFLICT',409);
 
       let targetSku=null;
+      let targetUnitRevision=null;
       if(input.action==='map'){
         const [[target]]=await db.query(`SELECT id,code FROM sx_product_catalog WHERE tenant_id=? AND id=? AND status='active' AND deleted_at IS NULL FOR UPDATE`,
         [context.tenant.id,input.targetProductId]);
         if(!target)fail('MAPPING_TARGET_NOT_FOUND',404);
         targetSku=target.code;
+        const hasIndependentStock=Boolean(sourceStock?.managed&&sourceStock.quantity!=null&&!parentStock?.managed);
+        if(input.stockScope!=='unverified'&&!hasIndependentStock)fail('PRODUCT_STOCK_SCOPE_UNAVAILABLE',409);
+        if(input.stockScope!=='unverified'){
+          const [[unit]]=await db.query(`SELECT base_unit_code AS baseUnitCode,base_unit_label AS baseUnitLabel,base_unit_label_ar AS baseUnitLabelAr,
+            quantity_precision AS quantityPrecision,CAST(quantity_increment AS CHAR) AS quantityIncrement,revision
+            FROM sx_retail_product_inventory_units WHERE tenant_id=? AND product_id=? FOR UPDATE`,[context.tenant.id,target.id]);
+          targetUnitRevision=Number(unit?.revision||0);
+          if(targetUnitRevision!==input.expectedUnitRevision)fail('PRODUCT_INVENTORY_UNIT_CHANGED',409);
+          if(!stockQuantityFitsUnit(sourceStock.quantity,unit))fail('WOOCOMMERCE_STOCK_UNIT_MISMATCH',409);
+          if(input.stockScope==='single_location'){
+            const [[location]]=await db.query(`SELECT id FROM sx_retail_locations WHERE tenant_id=? AND id=? AND status='active' FOR UPDATE`,
+              [context.tenant.id,input.targetLocationId]);
+            if(!location)fail('RETAIL_LOCATION_NOT_ACTIVE',409);
+          }
+        }
       }
       const mappingId=existing?.id||crypto.randomUUID(),revision=Number(existing?.revision||0)+1;
+      const savedStockScope=input.action==='map'?input.stockScope:'unverified';
+      const savedLocationId=input.action==='map'?input.targetLocationId:null;
+      const savedUnitConfirmed=input.action==='map'&&input.sourceUnitConfirmed?1:0;
+      const savedUnitRevision=input.action==='map'?targetUnitRevision:null;
       if(input.action==='clear'){
         await db.query(`DELETE FROM sx_retail_external_product_mappings WHERE tenant_id=? AND connection_id=? AND id=?`,
         [context.tenant.id,connection.id,mappingId]);
       }else if(existing){
-        const [updated]=await db.query(`UPDATE sx_retail_external_product_mappings SET mapping_status=?,target_product_id=?,revision=revision+1,
+        const [updated]=await db.query(`UPDATE sx_retail_external_product_mappings SET mapping_status=?,target_product_id=?,stock_scope=?,target_location_id=?,
+          source_unit_confirmed=?,target_unit_revision=?,revision=revision+1,
           updated_by_identity_id=? WHERE tenant_id=? AND connection_id=? AND id=? AND revision=?`,
-        [nextStatus,input.targetProductId,context.identity.id,context.tenant.id,connection.id,mappingId,input.expectedRevision]);
+        [nextStatus,input.targetProductId,savedStockScope,savedLocationId,savedUnitConfirmed,savedUnitRevision,
+          context.identity.id,context.tenant.id,connection.id,mappingId,input.expectedRevision]);
         if(!updated.affectedRows)fail('STORE_PRODUCT_MAPPING_CONFLICT',409);
       }else{
         await db.query(`INSERT INTO sx_retail_external_product_mappings(id,tenant_id,connection_id,external_product_id,external_variant_id,
-          mapping_status,target_product_id,revision,created_by_identity_id,updated_by_identity_id)
-          VALUES (?,?,?,?,?,?,?,?,?,?)`,[mappingId,context.tenant.id,connection.id,input.externalProductId,input.externalVariationId,
-          nextStatus,input.targetProductId,revision,context.identity.id,context.identity.id]);
+          mapping_status,target_product_id,stock_scope,target_location_id,source_unit_confirmed,target_unit_revision,revision,created_by_identity_id,updated_by_identity_id)
+          VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,[mappingId,context.tenant.id,connection.id,input.externalProductId,input.externalVariationId,
+          nextStatus,input.targetProductId,savedStockScope,savedLocationId,savedUnitConfirmed,savedUnitRevision,revision,context.identity.id,context.identity.id]);
       }
       await db.query(`INSERT INTO sx_audit_events(id,tenant_id,actor_identity_id,actor_kind,action,resource_type,resource_id,changes,correlation_id)
         VALUES (?, ?, ?, 'identity', ?, 'retail-store-product-mapping', ?, ?, ?)`,
@@ -908,9 +1039,11 @@ function workspaceRouter({ pool, authenticate, origin }) {
         input.action==='map'?'retail.store-product-mapped':input.action==='ignore'?'retail.store-product-ignored':'retail.store-product-mapping-cleared',
         mappingId,JSON.stringify({connectionId:connection.id,externalProductId:input.externalProductId,
           externalVariationId:input.externalVariationId||null,mappingStatus:nextStatus,targetProductId:input.targetProductId,
-          sourceSku,targetSku,revision}),crypto.randomUUID()]);
+          sourceSku,targetSku,stockScope:savedStockScope,targetLocationId:savedLocationId,sourceUnitConfirmed:Boolean(savedUnitConfirmed),
+          targetUnitRevision:savedUnitRevision,revision}),crypto.randomUUID()]);
       await db.commit();
-      reply(res,{id:mappingId,status:nextStatus,revision,replayed:false});
+      reply(res,{id:mappingId,status:nextStatus,revision,replayed:false,stockScope:savedStockScope,
+        targetLocationId:savedLocationId,targetUnitRevision:savedUnitRevision});
     }catch(error){
       try{await db.rollback();}catch{}
       if(error.code==='ER_DUP_ENTRY')fail('STORE_PRODUCT_MAPPING_CONFLICT',409);
