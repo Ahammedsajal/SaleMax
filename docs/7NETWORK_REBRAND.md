@@ -34,7 +34,7 @@ Before every production update, follow [`skills/7network-production-change/SKILL
 
 ## Mobile SIP Call Center — 17 November 2026
 
-The existing Call Center, browser SIP identity and mobile SIP display name use **7Network**. Staff sign in only to their SIP app; the app provides direct number dialing and inbound answering without CRM login or lead browsing. The 17 November credential-revocation release keeps that product label while versioning SIP auth/AOR identities. Asterisk PJSIP object names, `SALEMAX_*` environment variables, the existing hostname, and historical category/plan keys remain operational compatibility identifiers and are not new customer-facing labels. The `salemax_sales` category alias resolves symmetrically with `7network_sales` for existing plan entitlements until the separately reviewed data migration is ready.
+The existing Call Center, browser SIP identity and mobile SIP display name use **7Network**. Staff sign in only to their SIP app; the app provides direct number dialing and inbound answering without CRM login or lead browsing. SIP auth IDs and passwords remain revisioned for rotation; the AoR stays stable and matches the SIP URI username for Asterisk REGISTER compatibility. Legacy Asterisk object names, `SALEMAX_*` environment variables, the existing hostname, and historical category/plan keys remain operational compatibility identifiers and are not new customer-facing labels. The `salemax_sales` category alias resolves symmetrically with `7network_sales` for existing plan entitlements until the separately reviewed data migration is ready.
 
 ## Recruitment copy approved 28 October 2026
 
