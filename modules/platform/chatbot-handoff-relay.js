@@ -37,9 +37,9 @@ function messageBodyOf(message) {
 }
 function parseCommand(value, { allowEmptyReply = false } = {}) {
   const text = String(value || '').normalize('NFKC').trim();
-  const close = text.match(/^CLOSE\s+([A-Z0-9]{6})[.!؟]?$/iu);
+  const close = text.match(/^CLOSE\s+([A-Z][0-9]|[A-Z0-9]{6})[.!؟]?$/iu);
   if (close) return { action: 'close', code: close[1].toUpperCase() };
-  const reply = text.match(/^([A-Z0-9]{6})\s*:\s*([\s\S]{0,4000})$/iu);
+  const reply = text.match(/^([A-Z][0-9]|[A-Z0-9]{6})\s*:\s*([\s\S]{0,4000})$/iu);
   if (reply && (reply[2].trim() || allowEmptyReply)) return { action: 'reply', code: reply[1].toUpperCase(), body: reply[2].trim() };
   return null;
 }
@@ -48,9 +48,9 @@ function resolveStaffReply(value, activeClaims = [], { allowEmptyReply = false }
   if (command) return { command, mode: 'explicit' };
   const body = String(value || '').normalize('NFKC').trim();
   const activeCodes = [...new Set((activeClaims || []).map(item => String(item?.claimCode || '').toUpperCase())
-    .filter(code => /^[A-Z0-9]{6}$/.test(code)))];
+    .filter(code => /^(?:[A-Z][0-9]|[A-Z0-9]{6})$/.test(code)))];
   if (!body && !allowEmptyReply) return { command: null, mode: 'empty' };
-  if (/^CLOSE(?:\s|$)/iu.test(body) || /^[A-Z0-9]{6}\s*:/iu.test(body)) return { command: null, mode: 'invalid_format' };
+  if (/^CLOSE(?:\s|$)/iu.test(body) || /^(?:[A-Z][0-9]|[A-Z0-9]{6})\s*:/iu.test(body)) return { command: null, mode: 'invalid_format' };
   if (body.length > 4000) return { command: null, mode: 'too_long' };
   if (activeCodes.length === 1) return { command: { action: 'reply', code: activeCodes[0], body }, mode: 'single_active' };
   if (activeCodes.length > 1) return { command: null, mode: 'choose_code' };
@@ -615,7 +615,7 @@ async function handleInbound({ pool, ctx, profile, uid, message, sessionId, orig
       } else if (resolution.mode === 'invalid_format' || resolution.mode === 'too_long') {
         const example = activeClaims[0]?.claimCode || 'CODE';
         await sendStaffNotice(uid, sessionId, staff,
-          `Reply with ${example}: your message. Spaces around : are okay. To finish, send CLOSE ${example}.`);
+          `Reply with ${example}: your message. To finish, send CLOSE ${example}.`);
       } else if (resolution.mode === 'empty' && activeClaims.length) {
         await sendStaffNotice(uid, sessionId, staff,
           'Send a text, photo or video here. Use Inbox for audio, documents, or other media.');
