@@ -1,3 +1,23 @@
+# 2026-11-17 — Email Marketing test recipient and inbound Inbox status
+
+Source commit `e6dc92135195b29d0ceb68ba1c0e7e183bcb2d9b` is pushed to `Ahammedsajal/SaleMax` `main` and deployed as app-only overlay `/opt/salemax/releases/email-marketing-test-recipient-e6dc92135195-20261117T130902Z` on base `/opt/salemax/releases/training-pipeline-correction-v3-9867ca72-20261104`. The active image remains `sha256:753d77d421b3160872df0812e7b38505a1db7104cdb9d6c8b17415b2420de667`. The release retained 279 Compose inputs, 11 environment-file inputs and 259 app mounts; all seven non-app containers were unchanged. No migration ran. Protected rollback snapshot: `/opt/salemax/shared/rollback-email-marketing-test-recipient-e6dc92135195-20261117T130902Z`.
+
+The Setup screen's **Send test email** action now requests one recipient address and sends a standalone message to that address, without starting a campaign. The API validates and normalizes the recipient, keeps the sender identity path-scoped, and masks the recipient in its audit event. The live signed-in 7Network Sales workspace was opened after deployment and the form was visually verified. The form was not submitted; no test email was sent. SES acceptance alone does not guarantee inbox delivery.
+
+The **Email Inbox** remains a view of outbound campaign messages accepted by SES. Its **Not connected** badge is expected because inbound-reply routing and ingestion are not implemented. The live Setup page showed SES production access enabled in `eu-north-1`, verified domain `7network.live` and verified sender `info@7network.live`; no credentials or DNS values were read or changed. Inbound replies require a dedicated reply-to subdomain, an MX record on that subdomain, SES receipt rules and a secure message-ingestion service that associates replies with tenant threads. This does not require changing the main domain's MX records. Bounce/complaint SNS publishing and end-to-end delivered-email acceptance remain open.
+
+Runtime SHA-256: `client/public/email-marketing-workspace.js` `8b563d90acd4f1c4144b17404124fadb08ac92c8836ac0157516a678bf59be0a`; `modules/platform/email-marketing.js` `e3505b5dc0448713e9b9aa8799406b7957a487347e295e495bfba42c95414f2d`; `modules/platform/email-marketing-router.js` `7155fca3b4dfd241f409ecbc85d96f1851debe2f096ef77fa3a76a76ec235cdf`; live-derived `client/public/index.html` `4d7c9afa7d3e7b653d6175fc3afc434052bb56d14baed06b0dbcad07deb64863`. The deployed index preserves the live sidebar and script references while advancing the email workspace cache key. The failed first deployment attempt aborted before mutation because its helper expected an outdated production cache key; the helper was corrected to match the verified live key and the guarded deployment then succeeded.
+
+Verification on `carsqatar-prod-01`: `/healthz` HTTP 200, `/user?page=campaign-dashboard&channel=email` HTTP 200, anonymous `/api/workspace/email-marketing/setup` HTTP 401, and the new versioned JavaScript asset HTTP 200 with the expected hash. The authenticated browser displayed the email recipient input. Static checks passed: `node --check` for the three changed JavaScript files, Python AST parsing for the release helper, and `git diff --check`. No test suite was run for this change.
+
+Rollback only if this remains the latest app overlay; restore any later overlays in reverse order first:
+
+```sh
+sudo -n /opt/salemax/shared/with-production-lock.sh python3 /opt/salemax/releases/email-marketing-test-recipient-e6dc92135195-20261117T130902Z/deploy/email-marketing-test-recipient-release.py restore /opt/salemax/shared/rollback-email-marketing-test-recipient-e6dc92135195-20261117T130902Z
+```
+
+No database rollback applies.
+
 # 2026-11-17 — Zoiper REGISTER AoR identity correction — production
 
 Source commit `e384d0525b388b84db012810915c52601d7ba693` is pushed to `Ahammedsajal/SaleMax` `main` and deployed in the app-only overlay `/opt/salemax/releases/call-center-zoiper-aor-identity-e384d0525b38-20261117/compose.call-center-inbound-lead-link.json`, appended after the Zoiper endpoint-identity overlay. The base remains `/opt/salemax/releases/training-pipeline-correction-v3-9867ca72-20261104`; the app image remains `sha256:753d77d421b3160872df0812e7b38505a1db7104cdb9d6c8b17415b2420de667`. The release retained 277 prior Compose inputs and added one (278 total), all 11 environment-file inputs, 259 app mounts and all seven non-app container identities; only the app service was recreated. Protected rollback snapshot: `/opt/salemax/shared/rollback-call-center-zoiper-aor-identity-e384d0525b38-20261117`.
