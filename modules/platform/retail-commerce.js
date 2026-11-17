@@ -3,6 +3,7 @@
 const {randomUUID, createHash} = require('node:crypto');
 const deliveryProof = require('./retail-delivery-proof');
 const customerConsent = require('./retail-notice-consent');
+const quantityMath = require('./retail-quantity');
 const uuid = /^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i;
 const slugPattern = /^[a-z0-9](?:[a-z0-9-]{0,78}[a-z0-9])?$/;
 const fail = (code, status = 400) => { throw Object.assign(new Error(code), {code, status}); };
@@ -12,15 +13,18 @@ const string = (value, max, required = true) => {
 };
 const productQuery = `SELECT p.id, p.name_en AS nameEn, p.name_ar AS nameAr, l.category, l.photo_id AS photoId,
   p.description_en AS descriptionEn, p.description_ar AS descriptionAr, o.price_minor AS priceMinor,
+  COALESCE(iu.base_unit_code,'unit') AS baseUnitCode,COALESCE(iu.base_unit_label,'') AS baseUnitLabel,COALESCE(iu.base_unit_label_ar,'') AS baseUnitLabelAr,
+  COALESCE(iu.quantity_precision,0) AS quantityPrecision,CAST(COALESCE(iu.quantity_increment,1.000000) AS CHAR) AS quantityIncrement,
   vg.id AS variantGroupId,vg.title_en AS variantTitleEn,vg.title_ar AS variantTitleAr,
   vg.option_label_en AS optionLabelEn,vg.option_label_ar AS optionLabelAr,
   vp.value_en AS variantValueEn,vp.value_ar AS variantValueAr,vp.sort_order AS variantSortOrder,
-  COALESCE((SELECT quantity FROM sx_business_stock_movements m
+  CAST(COALESCE((SELECT quantity FROM sx_business_stock_movements m
     WHERE m.tenant_id=p.tenant_id AND m.product_id=p.id AND m.location_id=? ORDER BY m.id DESC LIMIT 1),0) - COALESCE((SELECT SUM(r.quantity) FROM sx_retail_stock_reservations r
-    WHERE r.tenant_id=p.tenant_id AND r.product_id=p.id AND r.location_id=?),0) AS quantity
+    WHERE r.tenant_id=p.tenant_id AND r.product_id=p.id AND r.location_id=?),0) AS CHAR) AS quantity
   FROM sx_retail_listings l JOIN sx_product_catalog p ON p.tenant_id=l.tenant_id AND p.id=l.product_id
   LEFT JOIN sx_retail_variant_products vp ON vp.tenant_id=l.tenant_id AND vp.product_id=l.product_id
   LEFT JOIN sx_retail_variant_groups vg ON vg.tenant_id=vp.tenant_id AND vg.id=vp.group_id
+  LEFT JOIN sx_retail_product_inventory_units iu ON iu.tenant_id=p.tenant_id AND iu.product_id=p.id
   JOIN sx_product_offers o ON o.id=(
     SELECT id FROM sx_product_offers WHERE tenant_id=p.tenant_id AND course_id=p.id AND status='active'
     AND currency='QAR' AND (valid_from IS NULL OR valid_from<=CURRENT_DATE)
@@ -95,7 +99,7 @@ async function browseTenant(pool,tenantId,store,requestedLocationId=null){
   if(!location||requestedLocationId&&!locations.some(row=>row.id===requestedLocationId))fail('LOCATION_NOT_FOUND',404);
   const [items] = await pool.query(productQuery + ' ORDER BY l.category,p.name_en,vp.sort_order,p.id LIMIT 500', [location.id,location.id,tenantId]);
   return {store,locations,selectedLocationId:location.id,
-    items: items.map(({quantity, ...item}) => ({...item, available: Number(quantity) > 0}))};
+    items: items.map(({quantity, ...item}) => ({...item, available: (quantityMath.scaled(quantity)||0n) >= (quantityMath.scaled(item.quantityIncrement)||quantityMath.UNIT)}))};
 }
 function checkoutInput(input) {
   if (!input || !uuid.test(input.requestId || '') || !Array.isArray(input.lines) || !input.lines.length || input.lines.length > 30 ||
@@ -117,8 +121,9 @@ function checkoutInput(input) {
     pin=Number(match[1])+','+Number(match[2]);
   }
   const lines = input.lines.map(line => {
-    if (!line || !uuid.test(line.id || '') || !Number.isInteger(line.quantity) || line.quantity < 1 || line.quantity > 100) fail('INVALID_ORDER');
-    return {id: line.id.toLowerCase(), quantity: line.quantity};
+    const amount=line&&quantityMath.scaled(line.quantity);
+    if (!line || !uuid.test(line.id || '') || amount===null || amount<=0n || amount>100n*quantityMath.UNIT) fail('INVALID_ORDER');
+    return {id: line.id.toLowerCase(), quantity:quantityMath.json(amount)};
   }).sort((a,b) => a.id.localeCompare(b.id));
   if (new Set(lines.map(line => line.id)).size !== lines.length) fail('INVALID_ORDER');
   const order={name, phone, address, pin, zone, fulfillment: input.fulfillment, locationId:input.locationId?.toLowerCase()||null,
@@ -139,20 +144,21 @@ async function move(db, tenant, locationId, product, request, actor, delta, reas
   const [[location]]=await db.query(`SELECT id,status FROM sx_retail_locations WHERE tenant_id=? AND id=?${allowArchived?'':" AND status='active'"} FOR UPDATE`,[tenant,locationId]);
   if(!location)fail('LOCATION_UNAVAILABLE',409);
   const [[last]] = await db.query(
-    'SELECT CAST(id AS CHAR) AS revision,quantity FROM sx_business_stock_movements WHERE tenant_id=? AND product_id=? AND location_id=? ORDER BY id DESC LIMIT 1 FOR UPDATE',
+    'SELECT CAST(id AS CHAR) AS revision,CAST(quantity AS CHAR) AS quantity FROM sx_business_stock_movements WHERE tenant_id=? AND product_id=? AND location_id=? ORDER BY id DESC LIMIT 1 FOR UPDATE',
     [tenant, product,locationId]);
-  const previous = Number(last?.quantity || 0), next = previous + delta;
-  if (next < 0 || next > 1000000000) fail('STOCK_CHANGED', 409);
+  const previous = quantityMath.scaled(last?.quantity || '0')||0n,deltaAmount=quantityMath.signed(delta),next=deltaAmount===null?null:previous+deltaAmount;
+  if (next===null||next<0n||next>quantityMath.MAX) fail('STOCK_CHANGED', 409);
   await db.query(`INSERT INTO sx_business_stock_movements
     (tenant_id,product_id,location_id,request_id,actor_id,previous_revision,previous_quantity,quantity,reason) VALUES (?,?,?,?,?,?,?,?,?)`,
-    [tenant, product,locationId,request, actor, last?.revision || '0', previous, next, reason]);
+    [tenant, product,locationId,request, actor, last?.revision || '0', quantityMath.fixed(previous), quantityMath.fixed(next), reason]);
 }
 function returnInput(input) {
   if(!input||!uuid.test(input.requestId||'')||typeof input.restock!=='boolean'||!Array.isArray(input.lines)||!input.lines.length||input.lines.length>30)fail('INVALID_RETURN');
   const reason=string(input.reason,200);
   const lines=input.lines.map(line=>{
-    if(!line||!uuid.test(line.id||'')||!Number.isInteger(line.quantity)||line.quantity<1||line.quantity>100)fail('INVALID_RETURN');
-    return {id:line.id.toLowerCase(),quantity:line.quantity};
+    const amount=line&&quantityMath.scaled(line.quantity);
+    if(!line||!uuid.test(line.id||'')||amount===null||amount<=0n||amount>100n*quantityMath.UNIT)fail('INVALID_RETURN');
+    return {id:line.id.toLowerCase(),quantity:quantityMath.json(amount)};
   }).sort((a,b)=>a.id.localeCompare(b.id));
   if(new Set(lines.map(line=>line.id)).size!==lines.length)fail('INVALID_RETURN');
   return {requestId:input.requestId.toLowerCase(),reason,restock:input.restock,lines};
@@ -169,25 +175,27 @@ async function returnItems(pool,tenant,actor,orderId,input) {
     const [[order]]=await db.query('SELECT status,location_id AS locationId,order_lines AS orderLines FROM sx_retail_orders WHERE tenant_id=? AND id=? FOR UPDATE',[tenant,orderId]);
     if(!order||!['completed','partially_returned'].includes(order.status))fail('RETURN_UNAVAILABLE',409);
     const purchased=typeof order.orderLines==='string'?JSON.parse(order.orderLines):order.orderLines;
-    const purchasedById=new Map(purchased.map(line=>[line.id,{quantity:Number(line.quantity),priceMinor:Number(line.priceMinor)}]));
+    const purchasedById=new Map(purchased.map(line=>[line.id,{quantity:quantityMath.scaled(line.quantity),priceMinor:Number(line.priceMinor),
+      quantityPrecision:Number(line.quantityPrecision||0),quantityIncrement:line.quantityIncrement||'1'}]));
     const [priorLines]=await db.query('SELECT product_id AS productId,SUM(quantity) AS quantity FROM sx_retail_return_lines WHERE tenant_id=? AND order_id=? GROUP BY product_id',[tenant,orderId]);
-    const alreadyReturned=new Map(priorLines.map(line=>[line.productId,Number(line.quantity)]));
+    const alreadyReturned=new Map(priorLines.map(line=>[line.productId,quantityMath.scaled(line.quantity)||0n]));
     for(const line of request.lines){
       const original=purchasedById.get(line.id);
-      if(!original||line.quantity>original.quantity-(alreadyReturned.get(line.id)||0))fail('RETURN_QUANTITY_EXCEEDED',409);
+      const amount=quantityMath.scaled(line.quantity),returned=alreadyReturned.get(line.id)||0n,remaining=original?.quantity===null?null:original?.quantity-returned;
+      if(!original||!quantityMath.atPrecision(amount,original.quantityPrecision)||!quantityMath.isMultiple(amount,quantityMath.scaled(original.quantityIncrement))||remaining===null||amount>remaining)fail('RETURN_QUANTITY_EXCEEDED',409);
     }
     const id=randomUUID();
     await db.query('INSERT INTO sx_retail_returns (id,tenant_id,order_id,request_id,request_hash,reason,restocked,created_by_identity_id) VALUES (?,?,?,?,?,?,?,?)',
       [id,tenant,orderId,request.requestId,hash,request.reason,request.restock,actor.identityId]);
     for(const line of request.lines){
-      await db.query('INSERT INTO sx_retail_return_lines (tenant_id,return_id,order_id,product_id,quantity) VALUES (?,?,?,?,?)',[tenant,id,orderId,line.id,line.quantity]);
+      await db.query('INSERT INTO sx_retail_return_lines (tenant_id,return_id,order_id,product_id,quantity) VALUES (?,?,?,?,?)',[tenant,id,orderId,line.id,quantityMath.fixed(quantityMath.scaled(line.quantity))]);
       if(request.restock){
         await lockProduct(db,tenant,line.id,false);
         await move(db,tenant,order.locationId,line.id,id,actor.identityId,line.quantity,'Retail return: '+request.reason,true);
       }
     }
-    const returnedTotal=[...alreadyReturned.values()].reduce((sum,value)=>sum+value,0)+request.lines.reduce((sum,line)=>sum+line.quantity,0);
-    const purchasedTotal=purchased.reduce((sum,line)=>sum+Number(line.quantity),0);
+    const returnedTotal=[...alreadyReturned.values()].reduce((sum,value)=>sum+value,0n)+request.lines.reduce((sum,line)=>sum+(quantityMath.scaled(line.quantity)||0n),0n);
+    const purchasedTotal=purchased.reduce((sum,line)=>sum+(quantityMath.scaled(line.quantity)||0n),0n);
     const status=returnedTotal===purchasedTotal?'returned':'partially_returned';
     await db.query('UPDATE sx_retail_orders SET status=? WHERE tenant_id=? AND id=?',[status,tenant,orderId]);
     await notifyRetail(db,tenant,orderId,`return:${request.requestId}`,'items_returned');
@@ -287,19 +295,25 @@ async function checkout(pool, slug, input) {
     const lines = order.lines.map(line => {
       const item = index.get(line.id);
       if (!item) fail('PRODUCT_UNAVAILABLE', 409);
-      return {...line, nameEn: item.nameEn, nameAr: item.nameAr, priceMinor: Number(item.priceMinor),
+      const amount=quantityMath.scaled(line.quantity),precision=Number(item.quantityPrecision||0),increment=quantityMath.scaled(item.quantityIncrement||'1.000000');
+      if(!quantityMath.atPrecision(amount,precision)||!quantityMath.isMultiple(amount,increment))fail('INVALID_ORDER_QUANTITY');
+      return {...line, quantity:quantityMath.json(amount,precision), nameEn: item.nameEn, nameAr: item.nameAr, priceMinor: Number(item.priceMinor),
+        baseUnitCode:item.baseUnitCode||'unit',baseUnitLabel:item.baseUnitLabel||'',baseUnitLabelAr:item.baseUnitLabelAr||'',quantityPrecision:precision,
+        quantityIncrement:quantityMath.format(increment,precision),
         variantGroupId:item.variantGroupId||null,variantTitleEn:item.variantTitleEn||null,variantTitleAr:item.variantTitleAr||null,
         optionLabelEn:item.optionLabelEn||null,optionLabelAr:item.optionLabelAr||null,
         variantValueEn:item.variantValueEn||null,variantValueAr:item.variantValueAr||null};
     });
     const fee = order.fulfillment === 'delivery' ? Number(zone?.feeMinor??store.deliveryFee) : 0;
-    const total = lines.reduce((sum, line) => sum + line.priceMinor * line.quantity, fee);
+    const lineAmounts=lines.map(line=>quantityMath.minorTotal(line.priceMinor,line.quantity));
+    if(lineAmounts.some(value=>value===null))fail('PRICE_CHANGED',409);
+    const total = lineAmounts.reduce((sum, amount) => sum + amount, fee);
     if (!Number.isSafeInteger(total) || total !== order.expectedTotal) fail('PRICE_CHANGED', 409);
     const id = randomUUID();
     for (const line of lines) {
-      if (Number(index.get(line.id).quantity) < line.quantity) fail('STOCK_CHANGED',409);
+      if ((quantityMath.scaled(index.get(line.id).quantity)||0n) < quantityMath.scaled(line.quantity)) fail('STOCK_CHANGED',409);
       await db.query('INSERT INTO sx_retail_stock_reservations (tenant_id,product_id,location_id,order_id,quantity) VALUES (?,?,?,?,?)',
-        [store.tenantId,line.id,location.id,id,line.quantity]);
+        [store.tenantId,line.id,location.id,id,quantityMath.fixed(quantityMath.scaled(line.quantity))]);
     }
     const proof=order.fulfillment==='delivery'?deliveryProof.create(store.tenantId,id):null;
     await db.query(`INSERT INTO sx_retail_orders
@@ -412,12 +426,13 @@ async function accountingSourceCsv(pool,tenant,from,to){
       if(!grouped.has(r.recordId))grouped.set(r.recordId,{...r,quantity:0,returnedValue:0});
       const row=grouped.get(r.recordId),lines=typeof r.orderLines==='string'?JSON.parse(r.orderLines):r.orderLines;
       const original=Array.isArray(lines)?lines.find(line=>line.id===r.productId):null;
-      const quantity=Number(r.quantity);row.quantity+=quantity;
-      const lineValue=quantity*Number(original?.priceMinor);
-      if(original&&Number.isSafeInteger(lineValue)&&Number.isSafeInteger(row.returnedValue+lineValue))row.returnedValue+=lineValue;
+      const amount=quantityMath.scaled(r.quantity)||0n;
+      row.quantity=quantityMath.add(quantityMath.scaled(row.quantity)||0n,amount);
+      const lineValue=original?quantityMath.minorTotal(Number(original.priceMinor),amount):null;
+      if(original&&lineValue!==null&&Number.isSafeInteger(row.returnedValue+lineValue))row.returnedValue+=lineValue;
       else if(original)fail('ACCOUNTING_EXPORT_AMOUNT_UNSAFE',413);
     }
-    for(const r of grouped.values())rows.push(['return_items',r.recordId,r.occurredAt,'QAR',r.orderId,r.fulfillment,r.locationCode,r.status,Number(r.totalMinor),'',Number(r.deliveryFee),'',r.quantity,r.returnedValue,'']);
+    for(const r of grouped.values())rows.push(['return_items',r.recordId,r.occurredAt,'QAR',r.orderId,r.fulfillment,r.locationCode,r.status,Number(r.totalMinor),'',Number(r.deliveryFee),'',quantityMath.format(r.quantity),r.returnedValue,'']);
     rows.sort((a,b)=>String(a[2]).localeCompare(String(b[2]))||String(a[1]).localeCompare(String(b[1])));
     await db.commit();
     return {csv:[header,...rows].map(row=>row.map(csvCell).join(',')).join('\r\n')+'\r\n',rowCount:rows.length,from,to};
@@ -545,7 +560,11 @@ async function transition(pool, tenant, actor, id, next, driver) {
       const lines = typeof order.orderLines === 'string' ? JSON.parse(order.orderLines) : order.orderLines;
       for (const line of lines) {
         await lockProduct(db, tenant, line.id, false);
-        if (next === 'completed') await move(db, tenant, order.locationId, line.id, id, actor.identityId, -line.quantity, 'Retail order fulfilled');
+        if (next === 'completed') {
+          const amount=quantityMath.scaled(line.quantity);
+          if(amount===null)fail('INVALID_ORDER_QUANTITY',409);
+          await move(db, tenant, order.locationId, line.id, id, actor.identityId, '-'+quantityMath.format(amount), 'Retail order fulfilled');
+        }
         const [deleted] = await db.query('DELETE FROM sx_retail_stock_reservations WHERE tenant_id=? AND product_id=? AND location_id=? AND order_id=?',
           [tenant,line.id,order.locationId,id]);
         if (deleted.affectedRows!==1) fail('RESERVATION_MISSING',409);
@@ -554,15 +573,18 @@ async function transition(pool, tenant, actor, id, next, driver) {
     if(next==='returned'){
       const lines=typeof order.orderLines==='string'?JSON.parse(order.orderLines):order.orderLines;
       const [priorLines]=await db.query('SELECT product_id AS productId,SUM(quantity) AS quantity FROM sx_retail_return_lines WHERE tenant_id=? AND order_id=? GROUP BY product_id',[tenant,id]);
-      const alreadyReturned=new Map(priorLines.map(line=>[line.productId,Number(line.quantity)]));
-      const remaining=lines.map(line=>({id:line.id,quantity:Number(line.quantity)-(alreadyReturned.get(line.id)||0)})).filter(line=>line.quantity>0);
+      const alreadyReturned=new Map(priorLines.map(line=>[line.productId,quantityMath.scaled(line.quantity)||0n]));
+      const remaining=lines.map(line=>{
+        const amount=quantityMath.scaled(line.quantity)||0n,returnAmount=amount-(alreadyReturned.get(line.id)||0n);
+        return {id:line.id,quantity:quantityMath.format(returnAmount,Number(line.quantityPrecision||0))};
+      }).filter(line=>quantityMath.scaled(line.quantity)>0n);
       if(remaining.length){
         const request=randomUUID(),returnId=randomUUID(),requestHash=createHash('sha256').update(JSON.stringify({orderId:id,returnId,remaining,restock:true})).digest('hex');
         await db.query('INSERT INTO sx_retail_returns (id,tenant_id,order_id,request_id,request_hash,reason,restocked,created_by_identity_id) VALUES (?,?,?,?,?,?,?,?)',
           [returnId,tenant,id,request,requestHash,'Full return',1,actor.identityId]);
         for(const line of remaining){
           await lockProduct(db,tenant,line.id,false);
-          await db.query('INSERT INTO sx_retail_return_lines (tenant_id,return_id,order_id,product_id,quantity) VALUES (?,?,?,?,?)',[tenant,returnId,id,line.id,line.quantity]);
+          await db.query('INSERT INTO sx_retail_return_lines (tenant_id,return_id,order_id,product_id,quantity) VALUES (?,?,?,?,?)',[tenant,returnId,id,line.id,quantityMath.fixed(quantityMath.scaled(line.quantity))]);
           await move(db,tenant,order.locationId,line.id,returnId,actor.identityId,line.quantity,'Retail order returned',true);
         }
       }
@@ -574,4 +596,4 @@ async function transition(pool, tenant, actor, id, next, driver) {
     return {status: next};
   });
 }
-module.exports = {getStore, getStoreForTenant, browse, browseTenant, checkout, recoverCheckout, revokeCustomerNotificationConsent, accountingSourceCsv, transition, returnItems, recordCashReceipt, recordSettlement, reportDeliveryFailure, retryDelivery, verifyDeliveryProof, assignDriver, transaction, lockProduct, fail, string, uuid, slugPattern, notifyRetail};
+module.exports = {getStore, getStoreForTenant, browse, browseTenant, checkout, checkoutInput, returnInput, recoverCheckout, revokeCustomerNotificationConsent, accountingSourceCsv, transition, returnItems, recordCashReceipt, recordSettlement, reportDeliveryFailure, retryDelivery, verifyDeliveryProof, assignDriver, transaction, lockProduct, fail, string, uuid, slugPattern, notifyRetail};

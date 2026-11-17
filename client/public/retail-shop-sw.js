@@ -5,11 +5,12 @@ const scope=new URL(self.registration.scope);
 // merchant's shell cache separate so activating one tenant's worker cannot
 // evict another tenant's offline shell.
 const CACHE_PREFIX='7network-storefront-shell-'+encodeURIComponent(scope.pathname)+'-';
-const CACHE=CACHE_PREFIX+'20261107-orders-email1';
+const CACHE=CACHE_PREFIX+'20261117-exact-qty1';
+const staticAssets={'/retail-shop.css':'ec07-consented-notices1','/retail-shop.js':'20261117-exact-qty1'};
 const shell=[
   scope.href,
   new URL('/retail-shop.css?v=ec07-consented-notices1',scope.origin).href,
-  new URL('/retail-shop.js?v=20261107-orders-email1',scope.origin).href
+  new URL('/retail-shop.js?v=20261117-exact-qty1',scope.origin).href
 ];
 
 self.addEventListener('install',event=>event.waitUntil((async()=>{
@@ -31,8 +32,7 @@ self.addEventListener('fetch',event=>{
   if(url.origin!==scope.origin)return;
   const inScope=url.pathname.startsWith(scope.pathname);
   const isShellPage=inScope&&request.mode==='navigate'&&url.pathname===scope.pathname;
-  const isStaticAsset=['/retail-shop.css','/retail-shop.js'].includes(url.pathname)&&
-    url.searchParams.get('v')==='20261107-orders-email1';
+  const isStaticAsset=staticAssets[url.pathname]===url.searchParams.get('v');
   if(!isShellPage&&!isStaticAsset)return;
   event.respondWith((async()=>{
     const cache=await caches.open(CACHE);

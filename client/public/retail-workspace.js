@@ -111,11 +111,11 @@
       const qtyFields=[];
       for(const line of order.lines.filter(item=>item.returnableQuantity>0)){
         const quantity=input(returns,(t(line.nameEn,line.nameAr)||line.nameEn)+' · '+t('Return quantity (up to ','الكمية المرتجعة (بحد أقصى ')+line.returnableQuantity+')','','number');
-        quantity.min=0;quantity.max=line.returnableQuantity;quantity.step=1;quantity.value=0;
+        quantity.min=0;quantity.max=line.returnableQuantity;quantity.step=line.quantityIncrement||'1';quantity.value=0;
         qtyFields.push({id:line.id,quantity});
       }
       action(returns,t('Save return','حفظ الإرجاع'),()=>{
-        const lines=qtyFields.filter(item=>item.quantity.valueAsNumber>0).map(item=>({id:item.id,quantity:item.quantity.valueAsNumber}));
+        const lines=qtyFields.filter(item=>Number(item.quantity.value)>0).map(item=>({id:item.id,quantity:item.quantity.value}));
         if(!lines.length||!reason.value.trim())throw Error('INVALID_RETURN');
         return api('/orders/'+order.id+'/returns','POST',{requestId:crypto.randomUUID(),reason:reason.value,restock:restock.checked,lines});
       },status,refresh);

@@ -5,6 +5,18 @@
   const storageKey='7network-cart:'+base;
   const checkoutStorageKey='7network-checkout-request:'+base;
   const state={cart:new Map(),page:'home',request:null,selectedLocationId:null,selected:null};
+  const quantityScale=1000000n;
+  const quantityToMicro=value=>{
+    if(typeof value==='number'&&!Number.isSafeInteger(value))return null;
+    const text=String(value??'').trim(),match=/^(0|[1-9]\d{0,9})(?:\.(\d{1,6}))?$/.exec(text);
+    return match?BigInt(match[1])*quantityScale+BigInt((match[2]||'').padEnd(6,'0')||'0'):null;
+  };
+  const quantityFromMicro=value=>{
+    const whole=value/quantityScale,fraction=(value%quantityScale).toString().padStart(6,'0').replace(/0+$/,'');
+    const text=fraction?`${whole}.${fraction}`:whole.toString();return fraction?text:Number(text);
+  };
+  const incrementOf=item=>quantityToMicro(item.quantityIncrement||'1')||quantityScale;
+  const lineMinor=(price,amount)=>Number((BigInt(Number(price))*amount+quantityScale/2n)/quantityScale);
   function saveCart(){
     try {sessionStorage.setItem(storageKey,JSON.stringify([...state.cart]));}catch{}
   }
@@ -15,7 +27,8 @@
       for(const line of saved.slice(0,30)){
         if(!Array.isArray(line))continue;
         const [id,quantity]=line;
-        if(Number.isInteger(quantity)&&quantity>0&&quantity<=100&&state.items.some(item=>item.id===id&&item.available))state.cart.set(id,quantity);
+        const item=state.items.find(row=>row.id===id),amount=quantityToMicro(quantity),increment=item&&incrementOf(item);
+        if(item?.available&&amount!==null&&amount>0n&&amount<=100n*quantityScale&&amount%increment===0n)state.cart.set(id,quantityFromMicro(amount));
       }
     }catch{}
   }
@@ -49,7 +62,7 @@
     return json.data;
   }
   function lines() {return [...state.cart].map(([id,quantity])=>({id,quantity}));}
-  function amount() {return lines().reduce((sum,line)=>sum+Number(state.items.find(p=>p.id===line.id).priceMinor)*line.quantity,0);}
+  function amount() {return lines().reduce((sum,line)=>sum+lineMinor(state.items.find(p=>p.id===line.id).priceMinor,quantityToMicro(line.quantity)),0);}
   function checkoutRequestState(){
     if(state.request&&Number(state.request.expiresAt)>Date.now()&&/^[0-9a-f-]{36}$/i.test(state.request.id))return state.request;
     try{
@@ -64,10 +77,16 @@
     try{sessionStorage.setItem(checkoutStorageKey,JSON.stringify(requestState));}catch{}
   }
   function change(item,count) {
-    if(count>0) state.cart.set(item.id,Math.min(count,100));
+    const step=incrementOf(item),maximum=(100n*quantityScale/step)*step;
+    if(count>0n) state.cart.set(item.id,quantityFromMicro(count>maximum?maximum:count));
     else state.cart.delete(item.id);
     saveCart();render();
   }
+  const quantityUnit=item=>{
+    const code=item.baseUnitCode||'unit';
+    if(code==='yard')return t('yards','ياردة');if(code==='piece')return t('pieces','قطعة');if(code==='panel')return t('panels','لوحة');
+    if(code==='custom')return (arabic?item.baseUnitLabelAr:item.baseUnitLabel)||item.baseUnitLabel||t('units','وحدة');return t('units','وحدة');
+  };
   function field(form,title,type='text') {
     const input=add(add(form,'label',title),'input');
     input.type=type;input.required=true;
@@ -112,16 +131,16 @@
           choice.value=current.id;
           choice.onchange=()=>{state.selected=variants.find(row=>row.id===choice.value)||item;fill();};
         }
-        add(card,'p',selected?money(current.priceMinor):variants.length>1?
+        add(card,'p',selected?money(current.priceMinor)+' / '+quantityUnit(current):variants.length>1?
           t('From ','ابتداءً من ')+money(Math.min(...variants.map(row=>Number(row.priceMinor)))):money(current.priceMinor));
         if(selected){
           add(card,'p',(arabic?current.descriptionAr:current.descriptionEn)||'');
-          if(current.available)button(card,t('Add to cart','إضافة إلى السلة'),()=>change(current,(state.cart.get(current.id)||0)+1));
+          if(current.available)button(card,t('Add to cart','إضافة إلى السلة'),()=>change(current,(quantityToMicro(state.cart.get(current.id)||0)||0n)+incrementOf(current)));
           else add(card,'p',t('Sold out','نفد المخزون'));
         }else{
           button(card,t('View item','عرض المنتج'),()=>{state.selected=item;show('item');});
           if(variants.length===1){
-            if(item.available)button(card,t('Add to cart','إضافة إلى السلة'),()=>change(item,(state.cart.get(item.id)||0)+1));
+            if(item.available)button(card,t('Add to cart','إضافة إلى السلة'),()=>change(item,(quantityToMicro(state.cart.get(item.id)||0)||0n)+incrementOf(item)));
             else add(card,'p',t('Sold out','نفد المخزون'));
           }else add(card,'p',t('Choose a variant','اختر خياراً'));
         }
@@ -231,12 +250,13 @@
     if(state.page==='cart') {
       for(const line of lines()) {
         const item=state.items.find(p=>p.id===line.id);
+        const lineQuantity=quantityToMicro(line.quantity)||0n;
         const row=add(body,'article');
         add(row,'p',name(item)+(item.variantGroupId?' · '+((arabic?item.optionLabelAr:item.optionLabelEn)||item.optionLabelEn)+' '+variantValue(item):'')+
-          ' × '+line.quantity+' · '+money(line.quantity*Number(item.priceMinor)));
+          ' · '+line.quantity+' '+quantityUnit(item)+' · '+money(lineMinor(item.priceMinor,lineQuantity)));
         if(!item.available)add(row,'p',t('This item is unavailable at the selected location. Remove it or choose another location.','هذا المنتج غير متوفر في الموقع المحدد. أزله أو اختر موقعاً آخر.'));
-        button(row,t('Remove one','إزالة وحدة'),()=>change(item,line.quantity-1));
-        button(row,t('Add one','إضافة وحدة'),()=>change(item,line.quantity+1));
+        button(row,t('Remove one increment','إزالة أصغر زيادة'),()=>change(item,lineQuantity-incrementOf(item)));
+        button(row,t('Add one increment','إضافة أصغر زيادة'),()=>change(item,lineQuantity+incrementOf(item)));
       }
       add(body,'p',lines().length?money(amount()):t('Your cart is empty.','سلتك فارغة.'));
       if(lines().length&&lines().every(line=>state.items.find(item=>item.id===line.id)?.available)) button(body,t('Checkout','إتمام الطلب'),()=>show('checkout'));

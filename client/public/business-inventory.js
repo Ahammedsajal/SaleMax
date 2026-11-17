@@ -8,6 +8,26 @@
     return language.startsWith('ar') || language.includes('arabic');
   };
   const tr = (en, arabic) => ar() ? arabic : en;
+  const quantityScale = 1000000n;
+  const quantityToMicro = value => {
+    const text = String(value ?? '').trim();
+    const match = /^(0|[1-9]\d{0,9})(?:\.(\d{1,6}))?$/.exec(text);
+    return match ? BigInt(match[1]) * quantityScale + BigInt((match[2] || '').padEnd(6, '0') || '0') : null;
+  };
+  const quantityFromMicro = value => {
+    const whole = value / quantityScale;
+    const fraction = (value % quantityScale).toString().padStart(6, '0').replace(/0+$/, '');
+    return fraction ? `${whole}.${fraction}` : whole.toString();
+  };
+  const quantityUnitNames = item => {
+    const code = item.baseUnitCode || 'unit';
+    if (code === 'yard') return ['yards','ياردة'];
+    if (code === 'piece') return ['pieces','قطع'];
+    if (code === 'panel') return ['panels','ألواح'];
+    if (code === 'custom') return [item.baseUnitLabel||'units',item.baseUnitLabelAr||item.baseUnitLabel||'وحدة'];
+    return ['units','وحدات'];
+  };
+  const quantityUnit = item => quantityUnitNames(item)[ar()?1:0];
   const make = (tag, value, parent) => {
     const node = document.createElement(tag);
     if (value) node.textContent = value;
@@ -187,8 +207,9 @@
           const row = make('section', '', list);
           row.style.borderBlockEnd = '1px solid GrayText';
           make('h2', (ar() ? item.nameAr : item.nameEn) || item.nameEn || item.code, row);
-          make('p', item.code + ' · ' + tr('On hand', 'المتوفر') + ' ' + item.quantity, row);
-          make('p', tr('Reserved', 'محجوز')+' '+Number(item.reserved||0)+' · '+tr('Available','متاح')+' '+(item.quantity-Number(item.reserved||0)),row);
+          make('p', item.code + ' · ' + tr('On hand', 'المتوفر') + ' ' + item.quantity + ' ' + quantityUnit(item), row);
+          make('p', tr('Reserved', 'محجوز')+' '+item.reserved+' · '+tr('Available','متاح')+' '+item.availableQuantity+' '+quantityUnit(item),row);
+          if(item.lowStock)make('p',tr('Low stock at this location','مخزون منخفض في هذا الموقع'),row);
           const details = make('details', '', row);
           make('summary', tr('Movement history', 'سجل الحركات'), details);
           details.addEventListener('toggle', async () => {
@@ -237,28 +258,78 @@
             };
           }
           if (!canManage) continue;
+          const inventoryConfig=make('details','',row);inventoryConfig.className='sx-inventory-store-panel';
+          make('summary',tr('Unit and low-stock settings','إعدادات الوحدة والمخزون المنخفض'),inventoryConfig);
+          make('p',tr('Set a base unit and the smallest allowed increment for this SKU. Unit conversions are not automatic. Keep whole units until the store confirms how each SKU is sold.',
+            'حدد وحدة أساسية وأصغر زيادة مسموحة لهذا المنتج. لا يتم تحويل الوحدات تلقائياً. استخدم الوحدات الكاملة إلى أن يؤكد المتجر طريقة بيع كل منتج.'),inventoryConfig);
+          const configFields=make('div','',inventoryConfig);configFields.className='sx-inventory-listing-fields';
+          const unitSelect=make('select','',make('label',tr('Base unit','الوحدة الأساسية')+' ',configFields));
+          for(const [value,labelEn,labelAr] of [['unit','Unit','وحدة'],['yard','Yard','ياردة'],['piece','Piece','قطعة'],['panel','Panel','لوحة'],['custom','Custom','مخصص']]){
+            const option=make('option',tr(labelEn,labelAr),unitSelect);option.value=value;
+          }
+          unitSelect.value=item.baseUnitCode||'unit';
+          const customLabel=make('input','',make('label',tr('Custom unit label','اسم الوحدة المخصصة')+' ',configFields));customLabel.maxLength=24;customLabel.value=item.baseUnitLabel||'';customLabel.hidden=unitSelect.value!=='custom';
+          const customLabelAr=make('input','',make('label',tr('Custom unit label in Arabic','اسم الوحدة المخصصة بالعربية')+' ',configFields));customLabelAr.maxLength=24;customLabelAr.value=item.baseUnitLabelAr||'';customLabelAr.dir='auto';customLabelAr.hidden=unitSelect.value!=='custom';
+          unitSelect.onchange=()=>{customLabel.hidden=customLabelAr.hidden=unitSelect.value!=='custom';};
+          const precisionSelect=make('select','',make('label',tr('Maximum decimal places','أقصى عدد للمنازل العشرية')+' ',configFields));
+          for(let precision=0;precision<=6;precision++){const option=make('option',String(precision),precisionSelect);option.value=String(precision);}
+          precisionSelect.value=String(item.quantityPrecision||0);
+          const incrementInput=make('input','',make('label',tr('Smallest allowed increment','أصغر زيادة مسموحة')+' ',configFields));
+          incrementInput.type='text';incrementInput.inputMode='decimal';incrementInput.maxLength=12;incrementInput.value=item.quantityIncrement||'1';
+          const saveUnit=make('button',tr('Save unit settings','حفظ إعدادات الوحدة'),inventoryConfig);saveUnit.type='button';
+          saveUnit.onclick=async()=>{
+            saveUnit.disabled=true;
+            try{
+              await request('/products/'+item.id+'/unit',{method:'PUT',body:{baseUnitCode:unitSelect.value,baseUnitLabel:customLabel.value.trim(),baseUnitLabelAr:customLabelAr.value.trim(),
+                quantityPrecision:Number(precisionSelect.value),quantityIncrement:incrementInput.value.trim(),expectedRevision:String(item.unitRevision||0)}});
+              message.textContent=tr('Unit settings saved.','تم حفظ إعدادات الوحدة.');await load(offset);
+            }catch(error){
+              message.textContent=error.message==='INVENTORY_UNIT_LOCKED'?tr('Unit settings are locked after stock or orders are recorded. Contact an administrator to plan a safe recount.',
+                'تم تثبيت إعدادات الوحدة بعد تسجيل المخزون أو الطلبات. تواصل مع المسؤول لتخطيط إعادة جرد آمنة.'):
+                error.message==='INVENTORY_UNIT_CHANGED'?tr('Unit settings changed. Reload and review the current values.','تغيرت إعدادات الوحدة. أعد التحميل وراجع القيم الحالية.'):
+                tr('Unit settings could not be saved. Check the precision and increment.','تعذر حفظ إعدادات الوحدة. تحقق من الدقة والزيادة.');
+            }finally{saveUnit.disabled=false;}
+          };
+          const units=quantityUnitNames(item);
+          const thresholdInput=make('input','',make('label',tr('Low-stock threshold at this location','حد المخزون المنخفض في هذا الموقع')+' · '+quantityUnit(item)+' ',configFields));
+          thresholdInput.type='text';thresholdInput.inputMode='decimal';thresholdInput.maxLength=12;thresholdInput.value=item.lowStockThreshold||'';thresholdInput.placeholder=tr('Disabled','معطل');
+          const saveThreshold=make('button',tr('Save threshold','حفظ الحد'),inventoryConfig);saveThreshold.type='button';
+          saveThreshold.onclick=async()=>{
+            saveThreshold.disabled=true;
+            try{
+              await request('/products/'+item.id+'/threshold',{method:'PUT',body:{locationId:selectedLocationId,lowStockThreshold:thresholdInput.value.trim()||null,
+                expectedRevision:String(item.thresholdRevision||0)}});
+              message.textContent=tr('Low-stock threshold saved.','تم حفظ حد المخزون المنخفض.');await load(offset);
+            }catch{message.textContent=tr('Threshold could not be saved. Use a value that matches this SKU’s increment.','تعذر حفظ الحد. استخدم قيمة توافق زيادة هذا المنتج.');}
+            finally{saveThreshold.disabled=false;}
+          };
+          const unitNotice=tr('Stock settings are per SKU and location. This pilot does not convert between yards, pieces, panels or other units.',
+            'إعدادات المخزون لكل منتج وموقع. لا يحول هذا الإصدار بين الياردات والقطع والألواح أو الوحدات الأخرى.');make('p',unitNotice,inventoryConfig);
           const form = make('form', '', row);
           const mode = make('select', '', make('label', tr('Stock action', 'إجراء المخزون'), form));
           make('option', tr('Adjust count', 'تصحيح الكمية'), mode).value = 'adjust';
           make('option', tr('Receive stock', 'استلام مخزون'), mode).value = 'receive';
           const quantityLabel = make('label', '', form);
-          const quantityTitle = make('span', tr('New count', 'الكمية الجديدة'), quantityLabel);
+          const quantityTitle = make('span', tr('New count ('+units[0]+')', 'الكمية الجديدة ('+units[1]+')'), quantityLabel);
           const quantity = make('input', '', quantityLabel);
           mode.onchange = () => {
             const receiving = mode.value === 'receive';
-            quantityTitle.textContent = receiving ? tr('Units received', 'الوحدات المستلمة') : tr('New count', 'الكمية الجديدة');
-            quantity.min = receiving ? '1' : '0';
-            quantity.max = String(receiving ? 1000000000 - item.quantity : 1000000000);
+            quantityTitle.textContent = receiving ? tr('Receive ('+units[0]+')', 'استلام ('+units[1]+')') : tr('New count ('+units[0]+')', 'الكمية الجديدة ('+units[1]+')');
+            quantity.min = receiving ? item.quantityIncrement : '0';
+            quantity.max = '1000000000';
             quantity.value = receiving ? '' : item.quantity;
           };
-          Object.assign(quantity, {type: 'number', min: '0', max: '1000000000', required: true, value: item.quantity});
+          Object.assign(quantity, {type: 'number', step: item.quantityIncrement||'1', min: '0', max: '1000000000', required: true, value: item.quantity});
           const reason = make('input', '', make('label', tr('Reason', 'السبب') + ' ', form));
           Object.assign(reason, {required: true, maxLength: 200});
           const save = make('button', tr('Save count', 'حفظ الكمية'), form);
           let pending;
           form.onsubmit = async event => {
             event.preventDefault();
-            const values = {locationId:selectedLocationId,expectedRevision: item.revision, quantity: quantity.valueAsNumber + (mode.value === 'receive' ? item.quantity : 0), reason: reason.value.trim()};
+            const entered=quantityToMicro(quantity.value),onHand=quantityToMicro(item.quantity);
+            if(entered===null||onHand===null)return;
+            const total=mode.value==='receive'?entered+onHand:entered;
+            const values = {locationId:selectedLocationId,expectedRevision: item.revision, quantity: quantityFromMicro(total), reason: reason.value.trim()};
             if (!values.reason) return;
             const signature = JSON.stringify(values);
             if (pending?.signature !== signature) pending = {signature, requestId: crypto.randomUUID()};
@@ -283,14 +354,16 @@
             for(const location of activeLocations.filter(value=>value.id!==selectedLocationId)){
               const option=make('option',(ar()?location.nameAr:location.nameEn)||location.nameEn,target);option.value=location.id;
             }
-            const amount=make('input','',make('label',tr('Units to transfer','الوحدات المراد نقلها')+' ',transfer));
-            amount.type='number';amount.min='1';amount.max=String(Math.max(1,item.quantity-Number(item.reserved||0)));amount.required=true;
+            const amount=make('input','',make('label',tr('Quantity to transfer ('+units[0]+')','الكمية المراد نقلها ('+units[1]+')')+' ',transfer));
+            amount.type='number';amount.step=item.quantityIncrement||'1';amount.min=item.quantityIncrement||'1';amount.max=item.availableQuantity;amount.required=true;
             const transferReason=make('input','',make('label',tr('Reason','السبب')+' ',transfer));transferReason.required=true;transferReason.maxLength=200;
             const transferButton=make('button',tr('Transfer','نقل'),transfer);transferButton.type='button';
             let transferPending;
             transferButton.onclick=async()=>{
-              const body={productId:item.id,sourceLocationId:selectedLocationId,targetLocationId:target.value,quantity:amount.valueAsNumber,reason:transferReason.value.trim()};
-              if(!body.targetLocationId||!Number.isInteger(body.quantity)||body.quantity<1||!body.reason)return;
+              const amountMicro=quantityToMicro(amount.value);
+              const stepMicro=quantityToMicro(item.quantityIncrement||'1');
+              const body={productId:item.id,sourceLocationId:selectedLocationId,targetLocationId:target.value,quantity:amount.value,reason:transferReason.value.trim()};
+              if(!body.targetLocationId||amountMicro===null||stepMicro===null||amountMicro<stepMicro||amountMicro%stepMicro!==0n||!body.reason)return;
               const signature=JSON.stringify(body);if(transferPending?.signature!==signature)transferPending={signature,requestId:crypto.randomUUID()};
               transferButton.disabled=true;
               try{await request('/stock/transfers',{method:'POST',body:{...body,requestId:transferPending.requestId}});await load(offset);message.textContent=tr('Stock transferred.','تم نقل المخزون.');}

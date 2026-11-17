@@ -4,6 +4,7 @@ const path = require('node:path');
 const {randomUUID}=require('node:crypto');
 const moment = require('moment-timezone');
 const commerce = require('./retail-commerce');
+const quantityMath = require('./retail-quantity');
 const {decision} = require('./policy');
 const originCheck = require('./request-origin');
 
@@ -339,7 +340,7 @@ function workspaceRouter({pool,authenticate}) {
     const attempts=ids.length?(await pool.query(`SELECT order_id AS orderId,result,reason,attempt_number AS attemptNumber,created_at AS createdAt
       FROM sx_retail_delivery_attempts WHERE tenant_id=? AND order_id IN (?) ORDER BY created_at DESC,id DESC`,[c.tenant.id,ids]))[0]:[];
     const returnedByOrder=new Map();
-    for(const line of returned){if(!returnedByOrder.has(line.orderId))returnedByOrder.set(line.orderId,new Map());returnedByOrder.get(line.orderId).set(line.productId,Number(line.quantity));}
+    for(const line of returned){if(!returnedByOrder.has(line.orderId))returnedByOrder.set(line.orderId,new Map());returnedByOrder.get(line.orderId).set(line.productId,quantityMath.scaled(line.quantity)||0n);}
     const received=new Set(receipts.map(row=>row.orderId));
     const proofByOrder=new Map(proofs.map(row=>[row.orderId,row]));
     const attemptByOrder=new Map(),failureCountByOrder=new Map();
@@ -350,7 +351,8 @@ function workspaceRouter({pool,authenticate}) {
     const orders=rows.map(({orderLines,proofRequired,...row})=>{
       const prior=returnedByOrder.get(row.id)||new Map();
       const lines=(typeof orderLines==='string'?JSON.parse(orderLines):orderLines).map(line=>({
-        ...line,returnedQuantity:prior.get(line.id)||0,returnableQuantity:Number(line.quantity)-(prior.get(line.id)||0)
+        ...line,returnedQuantity:quantityMath.json(prior.get(line.id)||0n,Number(line.quantityPrecision||0)),
+        returnableQuantity:quantityMath.json((quantityMath.scaled(line.quantity)||0n)-(prior.get(line.id)||0n),Number(line.quantityPrecision||0))
       }));
       const proof=proofByOrder.get(row.id),latestAttempt=attemptByOrder.get(row.id);
       return {...row,totalMinor:Number(row.totalMinor),cashReceived:Boolean(row.cashReceivedAt)||received.has(row.id),
