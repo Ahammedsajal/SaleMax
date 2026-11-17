@@ -333,9 +333,10 @@ def deploy(stage_path, commit):
         output.write_bytes(changed[target])
         output.chmod(0o644)
     backup_files = {
-        'app-before.json': {'id': app['Id'], 'image': app['Config']['Image'], 'imageId': app['Image'],
-                            'health': app['State']['Health']['Status'],
-                            'restartCount': app.get('RestartCount', 0)},
+        'app-before.json': json.dumps({'id': app['Id'], 'image': app['Config']['Image'],
+                                       'imageId': app['Image'],
+                                       'health': app['State']['Health']['Status'],
+                                       'restartCount': app.get('RestartCount', 0)}, indent=2) + '\n',
         'compose-files.before.txt': '\n'.join(files) + '\n',
         'compose-env-files.before.txt': '\n'.join(env_files) + '\n',
         'compose-working-dir.txt': workdir + '\n',
