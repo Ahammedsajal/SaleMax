@@ -13,6 +13,7 @@ The Linux deployment directory, Compose project, container names, and some envir
 - The server stores runtime and database credentials under /opt/salemax/shared with restrictive permissions. Do not copy them into Git, logs, tickets or screenshots.
 - The local `7network-Server-Access/` folder is intentionally excluded from Git. Keep operator-specific connection notes there with restrictive local permissions. Track only non-secret deployment facts and reviewed release evidence in this repository.
 - Before changing production, verify the host identity and resolve /opt/salemax/current to the active release. Do not assume a successful Git push changed the running service.
+- The current symlink can point to a base release while the running app uses additional Compose overlays. On the 17 November 2026 verification, the base release did not contain `deploy/compose.yml`; the app overlays were part of the running container's Compose input chain. Use the read-only `docker ps` check in `docs/7network-access.md`, then inspect the container's Compose input label and the task-specific release helper. Never start or replace the app from the base release file alone.
 
 ## Required Git record for every production update
 

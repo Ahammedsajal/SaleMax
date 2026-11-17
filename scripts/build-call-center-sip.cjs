@@ -15,7 +15,7 @@ esbuild.buildSync({
   bundle: true,
   minify: true,
   format: 'iife',
-  globalName: 'SaleMaXSip',
+  globalName: 'SevenNetworkSip',
   target: ['es2020'],
   legalComments: 'none',
 });

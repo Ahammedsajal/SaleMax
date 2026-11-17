@@ -2,6 +2,7 @@
 
 const crypto = require('node:crypto');
 const { decision } = require('./policy');
+const asteriskConfig = require('./asterisk-config');
 
 const fail = code => { throw Object.assign(new Error(code), { code }); };
 const uuid = value => typeof value === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value);
@@ -27,19 +28,20 @@ async function list(db, context) {
       x.browser_credential_revision AS browserCredentialRevision,x.updated_at AS updatedAt
     FROM sx_memberships m JOIN sx_identities i ON i.id=m.identity_id AND i.status='active'
     LEFT JOIN sx_telephony_extensions x ON x.tenant_id=m.tenant_id AND x.membership_id=m.id
-    WHERE m.tenant_id=? AND m.status='active' AND m.role IN ('owner','manager','agent')
-    ORDER BY FIELD(m.role,'owner','manager','agent'),i.display_name,m.id`, [context.tenant.id]);
+    WHERE m.tenant_id=? AND m.status='active' AND m.role IN ('owner','manager','team_leader','agent')
+    ORDER BY FIELD(m.role,'owner','manager','team_leader','agent'),i.display_name,m.id`, [context.tenant.id]);
   return rows.map(row => ({ membershipId: row.membershipId, role: row.role, displayName: row.displayName,
     extension: row.extension || '', revision: Number(row.revision || 0), updatedAt: row.updatedAt || null,
     mobileCredentialRevision:Number(row.mobileCredentialRevision||1),browserCredentialRevision:Number(row.browserCredentialRevision||1),
     assigned: !!row.extension }));
 }
 
-async function rotateEndpointCredential(db,context,input) {
+async function rotateEndpointCredential(db,context,input,clientFactory) {
   authorize(context);
   if(!input||typeof input!=='object'||!uuid(input.membershipId)||!['mobile','browser'].includes(input.clientType)
     ||!Number.isSafeInteger(input.expectedCredentialRevision)||input.expectedCredentialRevision<1)fail('INVALID_ENDPOINT_CREDENTIAL_ROTATION');
   const column=input.clientType==='mobile'?'mobile_credential_revision':'browser_credential_revision';
+  let nextRevision;
   await db.beginTransaction();
   try{
     const [[row]]=await db.query(`SELECT extension,${column} AS credential_revision FROM sx_telephony_extensions
@@ -47,14 +49,22 @@ async function rotateEndpointCredential(db,context,input) {
     if(!row||!row.extension)fail('SIP_ENDPOINT_NOT_PROVISIONED');
     const current=Number(row.credential_revision);
     if(current!==input.expectedCredentialRevision)fail('STALE_ENDPOINT_CREDENTIAL');
-    const next=current+1;
-    await db.query(`UPDATE sx_telephony_extensions SET ${column}=?,updated_at=UTC_TIMESTAMP(3) WHERE tenant_id=? AND membership_id=?`,[next,context.tenant.id,input.membershipId]);
+    nextRevision=current+1;
+    await db.query(`UPDATE sx_telephony_extensions SET ${column}=?,updated_at=UTC_TIMESTAMP(3) WHERE tenant_id=? AND membership_id=?`,[nextRevision,context.tenant.id,input.membershipId]);
     await db.query(`INSERT INTO sx_audit_events(id,tenant_id,actor_identity_id,actor_kind,action,resource_type,resource_id,changes,correlation_id)
       VALUES(?,?,?,'identity','telephony.endpoint-credential-rotated','telephony-endpoint',?,?,?)`,[
-      crypto.randomUUID(),context.tenant.id,context.identity.id,input.membershipId,JSON.stringify({clientType:input.clientType,revision:next}),crypto.randomUUID()]);
+      crypto.randomUUID(),context.tenant.id,context.identity.id,input.membershipId,JSON.stringify({clientType:input.clientType,revision:nextRevision}),crypto.randomUUID()]);
     await db.commit();
-    return {membershipId:input.membershipId,clientType:input.clientType,credentialRevision:next};
   }catch(error){try{await db.rollback();}catch(_){}throw error;}
+  let synchronization={synchronized:false,code:'ASTERISK_CONTROL_NOT_READY'};
+  try {
+    synchronization=await asteriskConfig.synchronizeMemberEndpointCredential(db,context,input.membershipId,input.clientType,
+      clientFactory,{revokeActiveCalls:true});
+  } catch(error) {
+    synchronization={synchronized:false,code:/^[A-Z0-9_]{2,80}$/.test(error.code||'')?error.code:'ASTERISK_SYNC_FAILED'};
+  }
+  return {membershipId:input.membershipId,clientType:input.clientType,credentialRevision:nextRevision,
+    synchronized:!!synchronization.synchronized,synchronizationCode:synchronization.code||null};
 }
 
 async function save(db, context, input) {
@@ -63,7 +73,7 @@ async function save(db, context, input) {
   await db.beginTransaction();
   try {
     const [[member]] = await db.query(`SELECT id,role FROM sx_memberships
-      WHERE tenant_id=? AND id=? AND status='active' AND role IN ('owner','manager','agent') FOR UPDATE`,
+      WHERE tenant_id=? AND id=? AND status='active' AND role IN ('owner','manager','team_leader','agent') FOR UPDATE`,
     [context.tenant.id, value.membershipId]);
     if (!member) fail('TEAM_MEMBER_NOT_FOUND');
     const [[current]] = await db.query(`SELECT extension,revision FROM sx_telephony_extensions

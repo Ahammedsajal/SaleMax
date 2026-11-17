@@ -3,6 +3,7 @@ const test=require('node:test');
 const assert=require('node:assert/strict');
 const express=require('express');
 const http=require('node:http');
+const crypto=require('node:crypto');
 const {createCallCenterRouter}=require('../modules/platform/call-center-router');
 const {AsteriskCallControl}=require('../modules/platform/asterisk-call-control');
 const {getCategory}=require('../modules/platform/categories');
@@ -10,13 +11,18 @@ const {getCategory}=require('../modules/platform/categories');
 test('7Network Sales managers and team leaders receive only calls belonging to current reporting memberships',async t=>{
   for(const role of ['manager','team_leader']){
     const tenantId='11111111-1111-4111-8111-111111111111',selfId=`${role}-membership`,teamIds=[selfId,'agent-membership-1','agent-membership-2'];
+    const leadId='11111111-1111-4111-8111-111111111112',ownerUid='scope-owner',agentUid='scope-agent';
+    const hashUid=uid=>crypto.createHash('sha256').update(uid,'utf8').digest('hex');
     const calls=[];
     const db={release(){},async query(sql,args=[]){calls.push({sql,args});
-      if(sql.includes('FROM sx_sales_org_history h'))return [[...teamIds.map(membershipId=>({membershipId}))],[]];
+      if(sql.includes('SELECT id AS membershipId FROM sx_memberships'))return [[...teamIds.map(membershipId=>({membershipId}))],[]];
       if(sql.includes('SELECT c.id,c.direction,c.status'))return [[{id:'scoped-team-call',direction:'outbound',status:'connected',gatewayChannelNo:1,
         queueName:null,startedAt:'2026-10-13T09:00:00.000Z',answeredAt:'2026-10-13T09:00:05.000Z',endedAt:null,durationSeconds:12,
         answeredByMembershipId:'agent-membership-1',startedByMembershipId:'agent-membership-1',answeredByName:'Agent One',answeredByRole:'agent',
-        startedByName:'Agent One',startedByRole:'agent',callOutcomeDetails:JSON.stringify({outcome:'interested',followUpRequired:true,nextFollowUpAt:'2026-10-16 10:00:00.000',note:'Asked for details'}),hasAssignedActiveLeg:0}],[]];
+        startedByName:'Agent One',startedByRole:'agent',leadId,callOutcomeDetails:JSON.stringify({outcome:'interested',followUpRequired:true,nextFollowUpAt:'2026-10-16 10:00:00.000',note:'Asked for details'}),hasAssignedActiveLeg:0}],[]];
+      if(sql.includes('SELECT u.uid,o.legacy_uid_hash AS legacyUidHash'))return [[{uid:ownerUid,legacyUidHash:hashUid(ownerUid)}],[]];
+      if(sql.includes('SELECT DISTINCT a.id,a.uid,o.legacy_uid_hash AS legacyUidHash'))return [[{id:1,uid:agentUid,legacyUidHash:hashUid(agentUid)}],[]];
+      if(sql.includes('SELECT id,owner_agent_id AS ownerAgentId FROM pipeline_leads'))return [[{id:leadId,ownerAgentId:1}],[]];
       throw new Error(`Unexpected Call Center query: ${sql}`);
     }};
     const context={audience:'tenant',identity:{id:`identity-${role}`},tenant:{id:tenantId,status:'active',categoryKey:'7network_sales',categoryVersion:1},
@@ -75,7 +81,7 @@ test('Call Center identifies the assigned staff member beside each call and reco
   assert.match(ui,/if\(callHistory\.recordingsOnly\)params\.set\('recordedOnly','1'\)/);
   assert.match(ui,/params\.set\('agentMembershipId',callHistory\.agentMembershipId\)/);
   assert.match(ui,/request\('\/calls\/agents'\)/);
-  assert.match(html,/call-center\.js\?v=20261014-call-outcome-review1/);
+  assert.match(html,/call-center\.js\?v=20261116-sip-credential-revision1/);
   assert.match(html,/id="recordingsOnly"/);
   assert.match(html,/id="agentReviewFilter"/);
 });

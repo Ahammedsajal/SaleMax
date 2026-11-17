@@ -89,11 +89,12 @@ function createAriClient(row, { fetchImpl = globalThis.fetch, timeoutMs = 5000, 
         throw error;
       }
     },
-    async originateAgent({ extension, clientType, channelId, appArgs, timeout = 25 }) {
+    async originateAgent({ extension, clientType, channelId, appArgs, callerId, timeout = 25 }) {
       if (!EXTENSION.test(extension || '') || !['mobile', 'browser'].includes(clientType) || !UUID.test(channelId || '')
+        || callerId !== undefined && callerId !== null && !/^\+?[1-9][0-9]{6,14}$/.test(callerId)
         || !Number.isInteger(timeout) || timeout < 5 || timeout > 60) fail('INVALID_ARI_ORIGINATE');
       const channel = await request('POST', 'channels', { endpoint: `PJSIP/salemax-${extension}-${clientType}`, app: APP_NAME,
-        appArgs: safeArgs(appArgs), channelId, timeout: String(timeout) });
+        appArgs: safeArgs(appArgs), channelId, timeout: String(timeout), callerId: callerId || undefined });
       if (typeof channel.id !== 'string' || channel.id !== channelId) fail('ARI_INVALID_RESPONSE');
       return { id: channel.id, name: typeof channel.name === 'string' ? channel.name.slice(0, 160) : '' };
     },
@@ -111,6 +112,10 @@ function createAriClient(row, { fetchImpl = globalThis.fetch, timeoutMs = 5000, 
     async answer(channelId) {
       if (!RESOURCE_ID.test(channelId || '')) fail('INVALID_ARI_CHANNEL_ID');
       await request('POST', `channels/${encodeURIComponent(channelId)}/answer`);
+    },
+    async ring(channelId) {
+      if (!RESOURCE_ID.test(channelId || '')) fail('INVALID_ARI_CHANNEL_ID');
+      await request('POST', `channels/${encodeURIComponent(channelId)}/ring`);
     },
     async hangup(channelId) {
       if (!RESOURCE_ID.test(channelId || '')) fail('INVALID_ARI_CHANNEL_ID');
@@ -168,6 +173,14 @@ function createAriClient(row, { fetchImpl = globalThis.fetch, timeoutMs = 5000, 
       const result = await request('PUT', `asterisk/config/dynamic/res_pjsip/${objectType}/${encodeURIComponent(objectId)}`, {}, { fields });
       if (!Array.isArray(result) || result.length > 64 || result.some(field => !field || typeof field.attribute !== 'string' || typeof field.value !== 'string')) fail('ARI_INVALID_RESPONSE');
       return { attributes: result.length };
+    },
+    async getPjsipObject(objectType, objectId) {
+      if (!['aor', 'auth', 'endpoint', 'identify'].includes(objectType)
+        || !/^salemax[-_][A-Za-z0-9_-]{1,96}$/.test(objectId || '')) fail('INVALID_ARI_PJSIP_OBJECT');
+      const result = await request('GET', `asterisk/config/dynamic/res_pjsip/${objectType}/${encodeURIComponent(objectId)}`);
+      if (!Array.isArray(result) || result.length > 64
+        || result.some(field => !field || typeof field.attribute !== 'string' || typeof field.value !== 'string')) fail('ARI_INVALID_RESPONSE');
+      return result;
     },
     async deletePjsipObject(objectType, objectId) {
       if (!['aor', 'auth', 'endpoint', 'identify'].includes(objectType)

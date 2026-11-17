@@ -70,7 +70,7 @@ async function save(db,context,userId,input){
   const tenant=await tenantForLegacyUser(db,context,userId);
   if(!(await shared.eligible(db,{id:tenant.tenantId,status:tenant.status,category_key:tenant.categoryKey,category_version:tenant.categoryVersion})))fail('TENANT_TELEPHONY_UNAVAILABLE');
   if(!input||typeof input!=='object'||Array.isArray(input)||!Number.isSafeInteger(input.expectedRevision)||input.expectedRevision<0)fail('INVALID_GATEWAY_CONFIG');
-  const gatewayName=input.name===undefined?'Dinstar UC2000-VE':input.name;
+  const gatewayName=input.name===undefined?'Dinstar 4-Port LTE Gateway':input.name;
   if(typeof gatewayName!=='string'||gatewayName.trim()!==gatewayName||gatewayName.length<2||gatewayName.length>120)fail('INVALID_GATEWAY_CONFIG');
   const gatewayHost=host(input.host),port=input.port===undefined?5061:Number(input.port);
   if(!Number.isInteger(port)||port<1||port>65535)fail('INVALID_GATEWAY_PORT');

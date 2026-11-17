@@ -82,6 +82,7 @@ const permissions = {
   'realestate.commissions.read': { owner: 'tenant', manager: 'team', team_leader: 'team', agent: 'own' },
   'realestate.commissions.manage': { owner: 'tenant' },
 };
+const { categoryKeyMatches } = require('./category-aliases');
 const delegationAllowlist = Object.freeze(['team.invite', 'channels.configure', 'automation.manage', 'campaigns.manage', 'templates.manage']);
 const platformStaffAllowlist = Object.freeze(['tenants.read', 'tenants.create', 'tenants.manage', 'plans.read', 'plans.draft', 'plans.assign', 'plans.publish', 'support.request', 'incidents.read', 'telephony.configure']);
 const platformAdminAllowlist = Object.freeze([...platformStaffAllowlist, 'tenants.category-change', 'bots.assign']);
@@ -114,7 +115,6 @@ const capabilities = Object.freeze({
   'reports.schedule': ['reports.schedule'], 'portal.forms': ['forms.manage', 'forms.capture'],
   'tenant.settings': ['tenant.read', 'tenant.manage'],
 });
-const { categoryKeyMatches } = require('./category-aliases');
 function scopeFor(membership, permission) {
   if (!Object.hasOwn(permissions, permission)) return null;
   // These actions change sensitive employment and payout terms. They remain
