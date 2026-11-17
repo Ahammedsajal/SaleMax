@@ -22,6 +22,7 @@ class SevenNetworkZoiperMobileSettingsReleaseHelperTest(unittest.TestCase):
             'client/public/call-center/call-center.js',
             'client/public/call-center/index.html',
         ))
+        self.assertEqual(helper.EXPECTED_IMAGE, RELEASE.EXPECTED_IMAGE)
         self.assertEqual(helper.EXPECTED_PREIMAGES, RELEASE.EXPECTED_PREIMAGES)
         self.assertEqual(helper.HELPER_NAME, RELEASE.HELPER_NAME)
         self.assertEqual(helper.RELEASE_PREFIX, 'call-center-zoiper-mobile-settings')

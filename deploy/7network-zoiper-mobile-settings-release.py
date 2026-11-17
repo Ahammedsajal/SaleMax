@@ -30,6 +30,7 @@ def load_helper(source_root=None):
     wrapper = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(wrapper)
     parent, helper = wrapper.load_helper(source_root)
+    helper.EXPECTED_IMAGE = EXPECTED_IMAGE
     helper.RUNTIME_FILES = SOURCE_RUNTIME_FILES
     helper.EXPECTED_PREIMAGES = EXPECTED_PREIMAGES
     helper.HELPER_NAME = HELPER_NAME
