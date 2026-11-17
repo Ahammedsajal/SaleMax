@@ -56,6 +56,7 @@ function mountExistingUpgrade(app,{pool,key,origin,insecureLoopback=false,legacy
   app.use('/api/workspace/email-marketing',require('./email-marketing-router').createEmailMarketingRouter({pool,authenticate:featureSession.guard,origin,key}));
   app.use('/api/public/email',require('./email-marketing-router').createPublicEmailRouter({pool,key}));
   require('./email-marketing-worker').start(pool,{key,origin});
+  require('./chatbot-handoff-relay').start(pool);
   const courseReplies=require('./course-quick-reply-router')({pool,origin,authenticate:featureSession.guard});
   const inboxGroups=require('./qr-inbox-groups-router')({pool,origin,authenticate:featureSession.guard});
   app.use(['/api/workspace/inbox/groups','/api/inbox/groups','/api/agent/inbox/groups'],inboxGroups);

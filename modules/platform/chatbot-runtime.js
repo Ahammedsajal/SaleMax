@@ -261,7 +261,7 @@ async function processHandoffPriorityForProfile({ ctx, profile, uid, message, us
   const claims = require('./chatbot-handoff-claims');
   const text = textOf(message);
   if (claims.parseYes(text)) {
-    const claimed = await claims.handleStaffClaim(dbPool, { ctx, uid, message, text, channelKind, channelRef: sessionId, chatId });
+    const claimed = await claims.handleStaffClaim(dbPool, { ctx, profileId: profile.id, uid, message, text, channelKind, channelRef: sessionId, chatId });
     if (claimed.handled) {
       if (claimed.outcome === 'none') return { handled: true, handoffClaim: claimed.outcome };
       let staffReply = 'There are no open staff handoffs to claim.';
@@ -305,14 +305,29 @@ async function handleHandoffPriorityMessage({ uid, message, user, sessionId, ori
   const ctx = access.context;
   if (!ctx) return { handled: false };
   const profile = await profileFor(ctx, uid, origin, sessionId);
-  if (mockup.ownsInbox(uid, origin) && !mockup.liveQrMessageAllowed(profile?.config, message)) return { handled: true };
   if (!profile) return { handled: false };
-  const staffPause = await require('./chatbot-conversation-control').readPause(uid, chatId, channelFor(origin), sessionId);
-  if (staffPause?.reason === 'staff-replied' || coordinatorHandoffReasons.has(staffPause?.reason)) return { handled: true, paused: true };
   const claims = require('./chatbot-handoff-claims');
   await claims.expireDue(dbPool, { tenantId: ctx.tenant.id, channelKind: channelFor(origin), channelRef: sessionId, conversationId: chatId }).catch(error => {
     console.warn('[chatbot] handoff expiry sweep failed', error.code || 'HANDOFF_EXPIRY_FAILED');
   });
+  if (origin === 'qr' && profile.config?.staffWhatsAppRelayEnabled === true) {
+    try {
+      const relay = await require('./chatbot-handoff-relay').handleInbound({ pool: dbPool, ctx, profile, uid, message, sessionId, origin, chatId });
+      if (relay.handled) return { ...relay, relayControlled: true };
+    } catch (error) {
+      console.warn('[chatbot] handoff relay unavailable; keeping the customer turn paused', error.code || 'RELAY_UNAVAILABLE');
+      const control = await require('./chatbot-conversation-control').readPause(uid, chatId, channelFor(origin), sessionId).catch(() => null);
+      if (control?.reason?.startsWith('staff-handoff-relay:')) return { handled: true, paused: true, relayControlled: true, relayClassificationFailed: true, code: 'RELAY_UNAVAILABLE' };
+      // Even without a readable pause row, fail closed for an enabled relay
+      // profile; relay state could not be checked safely.
+      return { handled: true, paused: true, relayControlled: true, relayClassificationFailed: true, code: 'RELAY_UNAVAILABLE' };
+    }
+  }
+  if (mockup.ownsInbox(uid, origin) && !mockup.liveQrMessageAllowed(profile.config, message)) {
+    return { handled: true, mockupQueueAllowed: true };
+  }
+  const staffPause = await require('./chatbot-conversation-control').readPause(uid, chatId, channelFor(origin), sessionId);
+  if (staffPause?.reason === 'staff-replied' || coordinatorHandoffReasons.has(staffPause?.reason)) return { handled: true, paused: true };
   if (claims.parseYes(textOf(message))) {
     const result = await processHandoffPriorityForProfile({ ctx, profile, uid, message, user, sessionId, origin, chatId });
     if (result.handled) return result;
@@ -1603,14 +1618,14 @@ async function runConfiguredBot({ uid, message, user, sessionId, origin, chatId 
     return blocked?{handled:true,paused:true,code:access.code||'BUSINESS_ACCESS_INACTIVE'}:{handled:false};
   }
   const profile = await profileFor(ctx, uid, origin, sessionId);
+  if (!profile) return { handled: false };
+  const priority = await handleHandoffPriorityMessage({ uid, message, user, sessionId, origin, chatId });
+  if (priority.handled) return priority;
   if (pilot && !mockup.liveQrMessageAllowed(profile?.config, message)) {
     const identity = mockup.qrRecipientIdentity(message);
     console.info('[chatbot] live QR turn skipped', JSON.stringify({ code: identity ? 'RECIPIENT_NOT_ENABLED' : 'QR_RECIPIENT_IDENTITY_UNVERIFIED' }));
     return { handled: true, paused: true, code: identity ? 'RECIPIENT_NOT_ENABLED' : 'QR_RECIPIENT_IDENTITY_UNVERIFIED' };
   }
-  if (!profile) return { handled: false };
-  const priority = await handleHandoffPriorityMessage({ uid, message, user, sessionId, origin, chatId });
-  if (priority.handled) return priority;
   // A restricted chat is handled silently so it cannot fall through to legacy bots.
   if (!mockup.fullRolloutQrLidAllowed(profile.config, message) && !recipientAllowed(profile.config, message?.senderMobile, profile.id)) return { handled: true, paused: true, code: 'RECIPIENT_NOT_ENABLED' };
   let leadInfo = null;

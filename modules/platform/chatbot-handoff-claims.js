@@ -25,9 +25,9 @@ function oneHourTenant() {
 function holdMinutes(tenantId, profileOrConfig = null) {
   const config = profileOrConfig?.config || profileOrConfig;
   const configured = Number(config?.staffHandoffTimeoutMinutes);
-  if ([15, 30, 60].includes(configured)) return configured;
+  if ([15, 30, 60, 1440].includes(configured)) return configured;
   if (tenantId && tenantId === oneHourTenant()) return 60;
-  return config?.domainPack === 'training_center' || profileOrConfig?.categoryKey === 'training_center' ? 60 : 1440;
+  return 1440;
 }
 
 async function expireDue(pool, { tenantId = null, channelKind = null, channelRef = null, conversationId = null, limit = 100, resetAll = false, beforeReset = null } = {}) {
@@ -44,11 +44,11 @@ async function expireDue(pool, { tenantId = null, channelKind = null, channelRef
   if (conversationId) { clauses.push('conversation_id=?'); args.push(conversationId); }
   limit = Math.max(1, Math.min(500, Math.trunc(Number(limit) || 100)));
   const db = await pool.getConnection();
-  const totals = { expired: 0, controlsReset: 0, guidedSessionsReset: 0, flowSessionsReset: 0, tasksCanceled: 0, deliveriesSuppressed: 0 };
+  const totals = { expired: 0, controlsReset: 0, guidedSessionsReset: 0, flowSessionsReset: 0, tasksCanceled: 0, deliveriesSuppressed: 0, relayDeliveriesSuppressed: 0 };
   try {
     await db.beginTransaction();
     const [rows] = await db.query(`SELECT id,tenant_id AS tenantId,profile_id AS profileId,channel_kind AS channelKind,channel_ref AS channelRef,
-        conversation_id AS conversationId,owner_uid_hash AS ownerUidHash,handoff_task_id AS handoffTaskId,
+      conversation_id AS conversationId,owner_uid_hash AS ownerUidHash,handoff_task_id AS handoffTaskId,
         notification_event_key AS notificationEventKey,status,reason
       FROM sx_chatbot_handoff_claims WHERE ${clauses.join(' AND ')}
       ORDER BY expires_at,id LIMIT ? FOR UPDATE${conversationId || resetAll ? '' : ' SKIP LOCKED'}`, [...args, limit]);
@@ -59,6 +59,10 @@ async function expireDue(pool, { tenantId = null, channelKind = null, channelRef
       await db.query(`UPDATE sx_chatbot_handoff_claims SET status='expired',revision=revision+1
         WHERE tenant_id=? AND id=?`, [claim.tenantId, claim.id]);
       totals.expired++;
+      const [relayDeliveries] = await db.query(`UPDATE sx_chatbot_handoff_relay_deliveries
+        SET status='suppressed',last_error_code='HANDOFF_EXPIRED',payload_ciphertext=NULL,payload_iv=NULL,payload_auth_tag=NULL
+        WHERE tenant_id=? AND claim_id=? AND status='pending'`, [claim.tenantId, claim.id]);
+      totals.relayDeliveriesSuppressed += Number(relayDeliveries.affectedRows || 0);
       const [control] = await db.query(`UPDATE sx_chatbot_conversation_controls c
         JOIN sx_chatbot_handoff_claims h ON h.id=? AND h.tenant_id=c.tenant_id
         SET c.mode='inherit',c.pause_until=NULL,c.reason=NULL,
@@ -67,7 +71,8 @@ async function expireDue(pool, { tenantId = null, channelKind = null, channelRef
           AND ((c.updated_by_kind='system' AND IF(?, BINARY c.reason=BINARY h.reason,
                 c.pause_until IS NULL OR c.pause_until<=UTC_TIMESTAMP(3)))
             OR (? AND c.updated_by_kind='identity' AND c.updated_by_identity_id=h.claimed_identity_id
-                AND (BINARY c.reason=BINARY h.reason OR BINARY c.reason=BINARY CONCAT('staff-handoff:',h.id))
+                AND (BINARY c.reason=BINARY h.reason OR BINARY c.reason=BINARY CONCAT('staff-handoff:',h.id)
+                  OR (h.relay_enabled=1 AND BINARY c.reason=BINARY CONCAT('staff-handoff-relay:',h.id)))
                 AND (c.updated_at=h.claimed_at OR (? AND c.pause_until IS NULL
                   AND ABS(TIMESTAMPDIFF(MICROSECOND,c.updated_at,h.claimed_at))<1000000))))`,
       [claim.id, claim.tenantId, claim.channelKind, claim.channelRef, claim.conversationId,
@@ -219,7 +224,7 @@ async function resetForCustomerGreeting(pool, { tenantId, uid, channelKind, chan
 async function open(db, { ctx, profile, uid, chatId, channelKind, channelRef, reason, brief = {} }) {
   if (!ctx?.tenant?.id || !profile?.id || !uid || !chatId || !['whatsapp_qr', 'whatsapp_meta'].includes(channelKind) || !channelRef) fail('HANDOFF_INVALID_CONTEXT');
   const ownerHash = crypto.createHash('sha256').update(uid).digest('hex');
-  const claimWindowMinutes = 24 * 60;
+  const claimWindowMinutes = holdMinutes(ctx.tenant.id, profile);
   const [[existing]] = await db.query(`SELECT id,claim_code AS claimCode,status,revision,reason,notification_event_key AS notificationEventKey,
       (COALESCE(expires_at,DATE_ADD(created_at,INTERVAL 24 HOUR))>UTC_TIMESTAMP(3)) AS isActive
     FROM sx_chatbot_handoff_claims WHERE tenant_id=? AND channel_kind=? AND channel_ref=? AND conversation_id=? FOR UPDATE`,
@@ -236,7 +241,7 @@ async function open(db, { ctx, profile, uid, chatId, channelKind, channelRef, re
       expires_at=TIMESTAMPADD(MINUTE,?,UTC_TIMESTAMP(3)),
       handoff_task_id=NULL,notification_event_key=?,claimed_identity_id=NULL,claimed_at=NULL,last_customer_ack_at=NULL,
       last_customer_ack_inbound_id=NULL,customer_name=?,customer_phone=?,course_details=?,latest_enquiry=?,summary_context=?,ai_summary=NULL,
-      ai_summary_status='pending',ai_summary_lease_until=NULL,ai_summary_attempts=0,revision=? WHERE tenant_id=? AND id=?`,
+      ai_summary_status='pending',ai_summary_lease_until=NULL,ai_summary_attempts=0,relay_enabled=0,closed_at=NULL,closed_identity_id=NULL,revision=? WHERE tenant_id=? AND id=?`,
     [profile.id, ownerHash, claimCode, String(reason || 'human-review').slice(0, 120), claimWindowMinutes, eventKey,
       brief.customerName || null, brief.customerPhone || null, JSON.stringify(brief.courseDetails || []), brief.latestEnquiry || null,
       brief.summaryContext ? JSON.stringify(brief.summaryContext) : null, revision, ctx.tenant.id, id]);
@@ -283,7 +288,7 @@ async function releaseCustomerAcknowledgement(pool, { tenantId, claimId, inbound
     WHERE tenant_id=? AND id=? AND status='open' AND last_customer_ack_inbound_id=?`, [tenantId, claimId, inboundId]);
 }
 
-async function handleStaffClaim(pool, { ctx, uid, message, text, channelKind, channelRef, chatId }) {
+async function handleStaffClaim(pool, { ctx, profileId = null, relayEnabled = false, uid, message, text, channelKind, channelRef, chatId }) {
   const parsed = parseYes(text);
   if (!parsed) return { handled: false };
   const db = await pool.getConnection();
@@ -292,19 +297,23 @@ async function handleStaffClaim(pool, { ctx, uid, message, text, channelKind, ch
     await db.beginTransaction();
     const qr = require('./business-whatsapp');
     const assignment = require('./team-conversation-assignment');
+    const [[tenant]] = await db.query('SELECT timezone FROM sx_tenants WHERE id=? LIMIT 1', [ctx.tenant.id]);
+    const countryCode = tenant?.timezone === 'Asia/Qatar' ? '974' : undefined;
     const allPhones = await qr.staff(db, ctx.tenant.id, { roles: staffRoles });
     const permitted = await assignment.eligibleStaff(db, ctx.tenant.id);
     const eligibleIds = new Set(permitted.map(member => member.identityId));
-    const from = phone(message?.senderMobile, qr.phone);
-    const matches = allPhones.filter(member => member.phone && phone(member.phone, qr.phone) === from && eligibleIds.has(member.id));
+    const from = qr.phone(message?.senderMobile, { countryCode });
+    const matches = allPhones.filter(member => member.phone && qr.phone(member.phone, { countryCode }) === from && eligibleIds.has(member.id));
+    if (matches.length > 1) { await db.commit(); return { handled: true, outcome: 'ambiguous_staff' }; }
     if (!matches.length) { await db.commit(); return { handled: false }; }
     matches.sort((a, b) => (roleOrder.get(a.role) ?? 9) - (roleOrder.get(b.role) ?? 9) || a.id.localeCompare(b.id));
     const staffIdentity = matches[0];
     const ownerHash = crypto.createHash('sha256').update(uid).digest('hex');
-    const [openClaims] = await db.query(`SELECT id,claim_code AS claimCode,conversation_id AS conversationId,notification_event_key AS notificationEventKey
+    const [openClaims] = await db.query(`SELECT id,claim_code AS claimCode,conversation_id AS conversationId,profile_id AS profileId,reason,notification_event_key AS notificationEventKey
       FROM sx_chatbot_handoff_claims WHERE tenant_id=? AND owner_uid_hash=? AND channel_kind=? AND channel_ref=? AND status='open'
+        AND (? IS NULL OR profile_id=?)
         AND COALESCE(expires_at,DATE_ADD(created_at,INTERVAL 24 HOUR))>UTC_TIMESTAMP(3)
-      ORDER BY created_at,id FOR UPDATE`, [ctx.tenant.id, ownerHash, channelKind, channelRef]);
+      ORDER BY created_at,id FOR UPDATE`, [ctx.tenant.id, ownerHash, channelKind, channelRef, profileId, profileId]);
     if (!openClaims.length) { await db.commit(); return { handled: true, outcome: 'none' }; }
     let claim;
     if (parsed.code) claim = openClaims.find(item => item.claimCode === parsed.code) || null;
@@ -317,30 +326,55 @@ async function handleStaffClaim(pool, { ctx, uid, message, text, channelKind, ch
       FROM beta_chats WHERE uid=? AND chat_id=? FOR UPDATE`, [uid, claim.conversationId]);
     if (!customerChat?.senderMobile) { await db.rollback(); return { handled: true, outcome: 'chat_missing' }; }
     await assignment.assignConversation(db, { ctx, uid, chatId: claim.conversationId, identityId: staffIdentity.id, reason: 'bot-handoff-claimed' });
+    const useRelay = relayEnabled === true && channelKind === 'whatsapp_qr' && claim.profileId === profileId;
     const [updated] = await db.query(`UPDATE sx_chatbot_handoff_claims SET status='claimed',claimed_identity_id=?,claimed_at=UTC_TIMESTAMP(3),
-        expires_at=DATE_ADD(UTC_TIMESTAMP(3),INTERVAL 24 HOUR)
-      WHERE tenant_id=? AND id=? AND status='open'`, [staffIdentity.id, ctx.tenant.id, claim.id]);
+        expires_at=DATE_ADD(UTC_TIMESTAMP(3),INTERVAL 24 HOUR),relay_enabled=?,closed_at=NULL,closed_identity_id=NULL
+      WHERE tenant_id=? AND id=? AND status='open'`, [staffIdentity.id, useRelay ? 1 : 0, ctx.tenant.id, claim.id]);
     if (updated.affectedRows !== 1) { await db.rollback(); return { handled: true, outcome: 'already_claimed' }; }
-    // A code claim only assigns the chat. Keep the assistant available until
-    // staff actually send a customer-facing reply from Inbox.
-    await db.query(`UPDATE sx_chatbot_conversation_controls c
-      JOIN sx_chatbot_handoff_claims h ON h.tenant_id=c.tenant_id AND h.id=?
-      SET c.mode='inherit',c.pause_until=NULL,c.reason=NULL,c.revision=c.revision+1,
-        c.updated_by_kind='system',c.updated_by_identity_id=NULL
-      WHERE c.tenant_id=? AND c.channel_kind=? AND c.channel_ref=? AND c.conversation_id=?
-        AND c.mode='paused' AND c.updated_by_kind='system' AND BINARY c.reason=BINARY h.reason`,
-    [claim.id, ctx.tenant.id, channelKind, channelRef, claim.conversationId]);
+    if (useRelay) {
+      const reason = `staff-handoff-relay:${claim.id}`;
+      const [[control]] = await db.query(`SELECT mode,reason,updated_by_kind AS updatedByKind,updated_by_identity_id AS updatedByIdentityId
+        FROM sx_chatbot_conversation_controls WHERE tenant_id=? AND channel_kind=? AND channel_ref=? AND conversation_id=? FOR UPDATE`,
+      [ctx.tenant.id, channelKind, channelRef, claim.conversationId]);
+      const canReplace = !control || control.mode !== 'paused'
+        || (control.updatedByKind === 'system' && control.reason === claim.reason)
+        || (control.updatedByKind === 'identity' && control.updatedByIdentityId === staffIdentity.id && control.reason === reason);
+      if (canReplace) {
+        if (!control) {
+          await db.query(`INSERT INTO sx_chatbot_conversation_controls
+            (id,tenant_id,channel_kind,channel_ref,conversation_id,mode,pause_until,reason,revision,updated_by_kind,updated_by_identity_id)
+            SELECT ?,tenant_id,channel_kind,channel_ref,conversation_id,'paused',expires_at,?,1,'identity',?
+            FROM sx_chatbot_handoff_claims WHERE tenant_id=? AND id=?`,
+          [crypto.randomUUID(), reason, staffIdentity.id, ctx.tenant.id, claim.id]);
+        } else {
+          await db.query(`UPDATE sx_chatbot_conversation_controls c JOIN sx_chatbot_handoff_claims h
+            ON h.tenant_id=c.tenant_id AND h.id=?
+            SET c.mode='paused',c.pause_until=h.expires_at,c.reason=?,c.revision=c.revision+1,
+              c.updated_by_kind='identity',c.updated_by_identity_id=?,c.updated_at=h.claimed_at
+            WHERE c.tenant_id=? AND c.channel_kind=? AND c.channel_ref=? AND c.conversation_id=?`,
+          [claim.id, reason, staffIdentity.id, ctx.tenant.id, channelKind, channelRef, claim.conversationId]);
+        }
+      }
+    } else {
+      await db.query(`UPDATE sx_chatbot_conversation_controls c
+        JOIN sx_chatbot_handoff_claims h ON h.tenant_id=c.tenant_id AND h.id=?
+        SET c.mode='inherit',c.pause_until=NULL,c.reason=NULL,c.revision=c.revision+1,
+          c.updated_by_kind='system',c.updated_by_identity_id=NULL
+        WHERE c.tenant_id=? AND c.channel_kind=? AND c.channel_ref=? AND c.conversation_id=?
+          AND c.mode='paused' AND c.updated_by_kind='system' AND BINARY c.reason=BINARY h.reason`,
+      [claim.id, ctx.tenant.id, channelKind, channelRef, claim.conversationId]);
+    }
     if (claim.notificationEventKey) await db.query(`UPDATE sx_business_notification_deliveries d
       JOIN sx_business_notification_events e ON e.tenant_id=d.tenant_id AND e.id=d.event_id
       SET d.status='suppressed',d.error_code='HANDOFF_ALREADY_CLAIMED'
       WHERE e.tenant_id=? AND e.event_key=? AND d.status IN ('queued','blocked')`, [ctx.tenant.id, claim.notificationEventKey]);
     await db.query(`INSERT INTO sx_audit_events(id,tenant_id,actor_identity_id,actor_kind,action,resource_type,resource_id,changes,correlation_id)
       VALUES (?,?,?,'identity','chatbot.handoff-claimed','chatbot-conversation',?,?,?)`,
-    [crypto.randomUUID(), ctx.tenant.id, staffIdentity.id, claim.conversationId, JSON.stringify({ claimId: claim.id, channelKind, claimedIdentityId: staffIdentity.id }), crypto.randomUUID()]);
+    [crypto.randomUUID(), ctx.tenant.id, staffIdentity.id, claim.conversationId, JSON.stringify({ claimId: claim.id, channelKind, claimedIdentityId: staffIdentity.id, relayEnabled: useRelay }), crypto.randomUUID()]);
     await db.commit();
     outcome = {
-      handled: true, outcome: 'claimed', claimCode: claim.claimCode, identityId: staffIdentity.id,
-      identityName: staffIdentity.name, conversationId: claim.conversationId, customerChat,
+      handled: true, outcome: 'claimed', claimId: claim.id, claimCode: claim.claimCode, identityId: staffIdentity.id,
+      identityName: staffIdentity.name, conversationId: claim.conversationId, customerChat, profileId: claim.profileId, relayEnabled: useRelay,
     };
     return outcome;
   } catch (error) {

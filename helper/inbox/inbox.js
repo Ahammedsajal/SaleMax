@@ -340,9 +340,44 @@ async function processMessage({
         sessionId: latestConversation?.channelExternalId || sessionId,
       };
 
+      // A QR message can be a staff relay command. Classify it before lead
+      // capture, CRM sync, phonebook routing, or any customer-facing bot path.
+      // This prevents staff text such as "YES CODE" or "CODE: reply" from
+      // being stored or processed as a customer enquiry.
+      if (origin === "qr" && body?.key?.fromMe) return;
+      if (origin === "telegram" && msg?.route === "OUTGOING") return;
+
+      const [user] = await query("SELECT * FROM user WHERE uid = ?", [uid]);
+      if (!user) return console.log("User not found");
+
+      let handoffPriority = { handled: false };
+      if (origin === 'qr' && msg?.route === 'INCOMING' && latestConversation?.chatId) {
+        try {
+          handoffPriority = await require('../../modules/platform/chatbot-runtime').handleHandoffPriorityMessage({
+            ...inboundContext, user,
+          });
+        } catch (error) {
+          // The relay runtime fails closed for an enabled relay profile. Keep
+          // the outer handler closed too if that guard itself cannot run.
+          console.warn('Chatbot QR handoff priority unavailable; suppressing bot dispatch.', error.code || 'CHATBOT_HANDOFF_PRIORITY_ERROR');
+          handoffPriority = { handled: true, paused: true, relayControlled: true, relayClassificationFailed: true, code: 'QR_HANDOFF_PRIORITY_UNAVAILABLE' };
+        }
+        if (handoffPriority?.staffMessage) return;
+      }
+
       // Meta messages are captured by the webhook path. QR messages enter the
       // same lead pipeline here after the Inbox has persisted the message.
-      if (origin === 'qr' && msg?.route === 'INCOMING' && latestConversation?.chatId) {
+      if (origin === 'qr' && msg?.route === 'INCOMING' && latestConversation?.chatId
+        && !handoffPriority?.relayClassificationFailed) {
+        try {
+          // Keep QR referral/CRM capture after authorized staff classification;
+          // processThings has already persisted the message and chat row.
+          await require('../pipeline/leadPipeline').captureQrMessage({
+            uid, chatId: latestConversation.chatId, message: body, normalizedMessage: msg,
+          });
+        } catch (error) {
+          console.warn('Lead pipeline QR capture failed.', error.code || error.name || 'QR_PIPELINE_CAPTURE_ERROR');
+        }
         try {
           await require('../pipeline/leadPipeline').captureInbound({
             uid,
@@ -360,13 +395,15 @@ async function processMessage({
         }
       }
 
-      if (mockupOnly && msg.route === 'INCOMING') {
+      if (mockupOnly && msg.route === 'INCOMING'
+        && (!handoffPriority?.handled || handoffPriority?.mockupQueueAllowed)) {
         // Private draft generation is independent of the approved live test audience.
         try { await mockup.enqueue(require('../../database/config').promise(), inboundContext); }
         catch (error) { console.warn('Chatbot mockup could not queue inbound message.', error.code || 'MOCKUP_QUEUE_ERROR'); }
       }
 
-      if (["qr", "meta"].includes(origin) && ["INCOMING", "OUTGOING"].includes(msg?.route)) {
+      if (["qr", "meta"].includes(origin) && ["INCOMING", "OUTGOING"].includes(msg?.route)
+        && !handoffPriority?.relayClassificationFailed) {
         const crmPush = await sendIncomingToCrm({
           user: userData,
           message: msg,
@@ -388,36 +425,22 @@ async function processMessage({
         });
       }
 
-      // Skip if message is from me (for QR/Telegram)
-      if (origin === "qr" && body?.key?.fromMe) {
-        return;
-      }
-
-      if (
-        origin === "telegram" &&
-        latestConversation?.newMessage?.route === "OUTGOING"
-      ) {
-        return;
-      }
-
-      // Get user details
-      const [user] = await query("SELECT * FROM user WHERE uid = ?", [uid]);
-      if (!user) {
-        return console.log("User not found");
-      }
-
       try {
-        await require('../../modules/platform/phonebook-workspace').routeOpening({
-          uid, message: msg, chatId: latestConversation?.chatId, origin,
-          sessionId: latestConversation?.channelExternalId || sessionId,
-          pool: require('../../database/config').promise(),
-        });
+        if (!handoffPriority?.relayControlled) {
+          await require('../../modules/platform/phonebook-workspace').routeOpening({
+            uid, message: msg, chatId: latestConversation?.chatId, origin,
+            sessionId: latestConversation?.channelExternalId || sessionId,
+            pool: require('../../database/config').promise(),
+          });
+        }
       } catch (error) {
         console.warn('Phonebook opening routing unavailable', error.code || 'PHONEBOOK_ROUTING_ERROR');
       }
 
       let configuredBot = { handled: false };
-      if (mockupOnly && origin === 'qr' && msg.route === 'INCOMING') {
+      if (handoffPriority?.handled) {
+        configuredBot = handoffPriority;
+      } else if (mockupOnly && origin === 'qr' && msg.route === 'INCOMING') {
         // The configured runtime verifies the saved audience and direct-chat
         // identity. LID chats are sent back to their original JID only for a
         // profile with an explicit 100% rollout.
@@ -425,12 +448,6 @@ async function processMessage({
         catch (error) { console.warn('Chatbot test reply unavailable.', error.code || 'CHATBOT_RUNTIME_ERROR'); }
       } else if (!mockupOnly) {
         const botInput = { ...inboundContext, user };
-        // Handoff claims and paused-chat acknowledgements take priority.
-        let handoffPriority = { handled: false };
-        try { handoffPriority = await require('../../modules/platform/chatbot-runtime').handleHandoffPriorityMessage(botInput); }
-        catch (error) {
-          console.warn('Chatbot handoff priority unavailable; preserving legacy flow dispatch.', error.code || 'CHATBOT_HANDOFF_PRIORITY_ERROR');
-        }
         if (!handoffPriority?.handled) {
           await processWebhook(latestConversation?.newMessage, user);
           try { configuredBot = await runConfiguredBot(botInput); }

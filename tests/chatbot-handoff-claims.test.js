@@ -38,6 +38,7 @@ test('concurrent eligible YES replies assign an open conversation exactly once',
       rollback: async () => { if (holdsLock) releaseLock(); },
       release: () => {},
       query: async sql => {
+        if (sql.includes('SELECT timezone FROM sx_tenants')) return [[{ timezone: 'Asia/Qatar' }]];
         if (sql.includes('FROM sx_chatbot_handoff_claims') && sql.includes("status='open'")) {
           const previous = state.lockTail;
           let unlock;

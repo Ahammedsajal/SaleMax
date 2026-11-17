@@ -1,0 +1,35 @@
+ALTER TABLE sx_chatbot_handoff_claims
+  MODIFY COLUMN status ENUM('open','claimed','expired','closed') NOT NULL DEFAULT 'open',
+  ADD COLUMN relay_enabled TINYINT(1) NOT NULL DEFAULT 0 AFTER expires_at,
+  ADD COLUMN closed_at DATETIME(3) NULL AFTER claimed_at,
+  ADD COLUMN closed_identity_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NULL AFTER closed_at,
+  ADD KEY idx_sx_chatbot_handoff_relay (tenant_id,channel_kind,channel_ref,status,relay_enabled,expires_at),
+  ADD CONSTRAINT fk_sx_chatbot_handoff_closed_identity FOREIGN KEY (closed_identity_id) REFERENCES sx_identities(id);
+
+CREATE TABLE sx_chatbot_handoff_relay_deliveries (
+  id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+  tenant_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+  claim_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+  direction ENUM('customer_to_staff','staff_to_customer','assignment_ack') NOT NULL,
+  source_message_id VARCHAR(191) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+  actor_identity_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NULL,
+  status ENUM('pending','processing','sent','failed','unknown','suppressed') NOT NULL DEFAULT 'pending',
+  attempts TINYINT UNSIGNED NOT NULL DEFAULT 0,
+  available_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+  lease_owner VARCHAR(100) CHARACTER SET ascii COLLATE ascii_bin NULL,
+  lease_until DATETIME(3) NULL,
+  payload_ciphertext MEDIUMBLOB NULL,
+  payload_iv BINARY(12) NULL,
+  payload_auth_tag BINARY(16) NULL,
+  provider_message_id VARCHAR(191) CHARACTER SET ascii COLLATE ascii_bin NULL,
+  last_error_code VARCHAR(64) CHARACTER SET ascii COLLATE ascii_bin NULL,
+  accepted_at DATETIME(3) NULL,
+  created_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+  updated_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3),
+  PRIMARY KEY (id),
+  UNIQUE KEY uq_sx_handoff_relay_source (tenant_id,claim_id,direction,source_message_id),
+  KEY idx_sx_handoff_relay_retry (status,available_at,lease_until,created_at),
+  CONSTRAINT fk_sx_handoff_relay_tenant FOREIGN KEY (tenant_id) REFERENCES sx_tenants(id),
+  CONSTRAINT fk_sx_handoff_relay_claim FOREIGN KEY (claim_id) REFERENCES sx_chatbot_handoff_claims(id),
+  CONSTRAINT fk_sx_handoff_relay_actor FOREIGN KEY (actor_identity_id) REFERENCES sx_identities(id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;

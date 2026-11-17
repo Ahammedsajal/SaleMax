@@ -4,7 +4,6 @@ const { query } = require("../../../database/dbpromise");
 const mime = require("mime-types");
 const { fetchProfileUrl } = require("./control");
 const fs = require("fs");
-const { captureQrMessage } = require("../../pipeline/leadPipeline.js");
 const groups = require('../../../modules/platform/qr-inbox-groups');
 
 // Import downloadMediaMessage directly from baileys
@@ -603,10 +602,6 @@ async function processMessageQr({
         await groups.service().record({ uid, instanceId: sessionId, jid: message.key.remoteJid, message: data.newMessage });
         return { ...data, isGroup: true };
       }
-      // Persist the CRM event independently so a contact-list write cannot skip it.
-      await captureQrMessage({ uid, chatId, message, normalizedMessage: data.newMessage })
-        .catch((error) => console.error("Lead pipeline QR capture failed:", error?.code || error?.name || "unknown"));
-
       await updateChatInMysql({
         chatId,
         uid: uid,

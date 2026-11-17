@@ -660,14 +660,22 @@ async function sendWaMessage({
   variablesObj,
   content = null,
   bypassBotPause = false,
+  allowPauseReason = null,
   senderKind = "bot",
+  deliveryResult = false,
+  providerMessageId = null,
 }) {
   try {
     if (chatId) {
       const pause = await require('../modules/platform/chatbot-conversation-control').readPause(uid, chatId, channelFor(origin), sessionId);
-      if (pause && (!bypassBotPause || pause.reason === 'staff-replied' || pause.failClosed || pause.ambiguous)) return null;
+      if (pause && (!bypassBotPause || pause.reason === 'staff-replied' || pause.failClosed || pause.ambiguous
+        || (allowPauseReason && pause.reason !== allowPauseReason))) {
+        return deliveryResult ? { status: 'suppressed', providerMessageId: null, errorCode: 'CHAT_PAUSED' } : null;
+      }
     }
     let sendMsgId = null;
+    let deliveryState = "unknown";
+    let deliveryErrorCode = null;
     const messageContent = content || node?.data?.content;
     const messageType = messageContent?.type;
 
@@ -711,20 +719,30 @@ async function sendWaMessage({
       } = require("../helper/addon/qr/index");
 
       const convertMsgToQR = setQrMsgObj(messageContent);
-      const session = await timeoutPromise(getSession(sessionId || "a"), 60000);
+      let session;
+      try {
+        session = await timeoutPromise(getSession(sessionId || "a"), 60000);
+      } catch (error) {
+        if (deliveryResult) return { status: 'retry', providerMessageId: null, errorCode: 'QR_SESSION_UNAVAILABLE' };
+        throw error;
+      }
       if (!session) {
         sendMsgId = null;
+        deliveryState = "retry";
+        deliveryErrorCode = "QR_SESSION_UNAVAILABLE";
       } else {
         const jid = isGroup
           ? formatGroup(message.senderMobile)
           : require('../modules/platform/chatbot-mockup').qrSendTarget(message) || formatPhone(message.senderMobile);
 
         const send = await timeoutPromise(
-          require("../modules/platform/chatbot-conversation-control").sendAutomatedQr(session, jid, convertMsgToQR, senderKind),
+          require("../modules/platform/chatbot-conversation-control").sendAutomatedQr(session, jid, convertMsgToQR, senderKind, providerMessageId),
           60000,
         );
 
         sendMsgId = send?.key?.id || null;
+        deliveryState = sendMsgId ? "sent" : "unknown";
+        deliveryErrorCode = sendMsgId ? null : "QR_ACCEPTANCE_UNCONFIRMED";
       }
     }
     // Webhook with QR origin
@@ -831,8 +849,12 @@ async function sendWaMessage({
       }
     }
 
-    return sendMsgId;
+    return deliveryResult ? { status: sendMsgId ? "sent" : deliveryState, providerMessageId: sendMsgId, errorCode: deliveryErrorCode } : sendMsgId;
   } catch (err) {
+    if (deliveryResult) {
+      console.warn("QR delivery outcome unknown", err?.code || "QR_SEND_OUTCOME_UNKNOWN");
+      return { status: "unknown", providerMessageId: null, errorCode: "QR_SEND_OUTCOME_UNKNOWN" };
+    }
     console.log(err);
     return null;
   }

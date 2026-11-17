@@ -47,8 +47,9 @@ async function pauseForStaffReply(uid, conversationId, channelKind, channelRef, 
 }
 
 const automatedQrIds = new Map();
-async function sendAutomatedQr(session, jid, content, senderKind = 'bot') {
-  const messageId = '3EB0' + crypto.randomBytes(9).toString('hex').toUpperCase();
+async function sendAutomatedQr(session, jid, content, senderKind = 'bot', stableMessageId = null) {
+  const messageId = typeof stableMessageId === 'string' && /^3EB0[A-F0-9]{18}$/.test(stableMessageId)
+    ? stableMessageId : '3EB0' + crypto.randomBytes(9).toString('hex').toUpperCase();
   const now = Date.now();
   for (const [id, item] of automatedQrIds) {
     if (item.expiry > now && automatedQrIds.size < 10000) break;
