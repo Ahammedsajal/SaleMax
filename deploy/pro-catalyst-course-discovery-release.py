@@ -1,4 +1,4 @@
-"""Guarded app-only overlay for Pro Catalyst generic course discovery replies."""
+"""Guarded app-only overlay for Pro Catalyst course clarification replies."""
 import copy
 import hashlib
 import json
@@ -20,8 +20,8 @@ ASSETS = {
     'modules/platform/chatbot-runtime.js': 'modules/platform/chatbot-runtime.js',
 }
 HASHES = {
-    'modules/platform/chatbot-business-context.js': ('a9381b7bddd6ff7d382bc40ae7c72daa9400fae64ef455feaeee78a19385caca', 'aa44c1b764d3088fd8b0f730168ef5cffcd2e5bcaa58a667b4433dce489461fe'),
-    'modules/platform/chatbot-runtime.js': ('ddbaf6cbef0b772409b3dec61e63f200bdb7677c2cf6060c1405790d9c211682', '92ed4e0b5e6775d2cbb2b31394060a294cfc66642f20cee3558e4bb1800a78a1'),
+    'modules/platform/chatbot-business-context.js': ('aa44c1b764d3088fd8b0f730168ef5cffcd2e5bcaa58a667b4433dce489461fe', '09a0fef0fd1e76139cd14f3fa0929a0bf3d3f62cfdcb87e7060ffba8b0ddb147'),
+    'modules/platform/chatbot-runtime.js': ('92ed4e0b5e6775d2cbb2b31394060a294cfc66642f20cee3558e4bb1800a78a1', 'bb0da42264f75dd49b6550eca6c4ad6cd99a5641da2a7f05a258d716ca66e8e2'),
 }
 
 
@@ -83,8 +83,8 @@ def deploy(stage, commit):
     if not all((stage / source).is_file() for source in ASSETS.values()):
         raise RuntimeError('Staging directory is missing reviewed assets')
 
-    release = ROOT / 'releases' / f'pro-catalyst-course-discovery-{commit[:12]}-20261116'
-    backup = ROOT / 'shared' / f'rollback-pro-catalyst-course-discovery-{commit[:12]}-20261116'
+    release = ROOT / 'releases' / f'pro-catalyst-course-clarification-{commit[:12]}-20261117'
+    backup = ROOT / 'shared' / f'rollback-pro-catalyst-course-clarification-{commit[:12]}-20261117'
     if release.exists() or backup.exists():
         raise RuntimeError('Release or rollback path already exists')
     os.umask(0o077)
@@ -142,7 +142,7 @@ def deploy(stage, commit):
     (backup / 'preimage-hashes.json').write_text(json.dumps({p: sha((preimages / p).read_bytes()) for p in ASSETS}))
     mounts = [{'type': 'bind', 'source': str(runtime / name), 'target': '/app/' + name,
                'read_only': True, 'bind': {'create_host_path': False}} for name in changed]
-    overlay = release / 'compose.pro-catalyst-course-discovery.json'
+    overlay = release / 'compose.pro-catalyst-course-clarification.json'
     overlay.write_text(json.dumps({'services': {'app': {'image': app['Config']['Image'], 'volumes': mounts}}}))
     overlay.chmod(0o644)
     common = compose_args(files, env_files, workdir)
@@ -204,7 +204,7 @@ def restore(backup):
     files = (backup / 'compose-files.before.txt').read_text().splitlines()
     env_files = (backup / 'compose-env-files.before.txt').read_text().splitlines()
     release = Path((backup / 'release-path.txt').read_text().strip())
-    overlay = release / 'compose.pro-catalyst-course-discovery.json'
+    overlay = release / 'compose.pro-catalyst-course-clarification.json'
     if inspect(APP)['Config']['Labels']['com.docker.compose.project.config_files'] != ','.join(files + [str(overlay)]):
         raise RuntimeError('A later release is active; roll it back first')
     for name, digest in json.loads((backup / 'compose-input-hashes.json').read_text()).items():

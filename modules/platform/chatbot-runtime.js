@@ -1086,6 +1086,11 @@ function acceptsRegistrationForm(session, incoming) {
 
 function courseClarification(state, message, selection = null, facts = [], guidedConfig = {}, defaults = {}) {
   const language = businessContext.languageFor(message, state);
+  if (selection?.family === 'diploma' && Array.isArray(selection.candidates) && selection.candidates.length > 1) {
+    const nextState = { ...(state || {}), greeted: true, language, waitingForCourse: true };
+    delete nextState.unlistedCourseTopic;
+    return { reply: businessContext.diplomaClarificationReply({ message, candidates: selection.candidates, language }), state: nextState, route: 'clarification' };
+  }
   if (selection?.unlisted && selection.topic) {
     const topic = selection.topic;
     let reply = language === 'ar'
@@ -1142,6 +1147,8 @@ async function identifyCourse({ ctx, profile, facts, message, state, referral, r
   };
   if (known) return select(known);
   if (exact.length > 1 || (businessContext.isGenericAdInterest(message) && !state.selectedCourseCode)) return { clarify: true };
+  const diplomaCandidates = businessContext.ambiguousDiplomaCandidates(message, facts, state);
+  if (diplomaCandidates.length > 1) return { clarify: true, family: 'diploma', candidates: diplomaCandidates };
   const normalizedMessage = businessContext.normalized(message);
   if (!normalizedMessage || admissions.acknowledgement(message, context.language)) return null;
   const topicWords = normalizedMessage.split(' ').filter(word => word.length >= 4 && !/^(?:what|when|more|about|this|that|please|want|need|does|would|could|training|course|learn)$/.test(word));
