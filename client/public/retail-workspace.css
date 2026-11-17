@@ -143,6 +143,18 @@ html[data-sx-theme=dark] #sx-retail-workspace .sx-retail-status-cancelled,html[d
 }
 #sx-retail-workspace .sx-retail-finance-badge[data-matched=false] { color: var(--retail-brand); }
 html[data-sx-theme=dark] #sx-retail-workspace.sx-retail-finance button { color: #201320; }
+#sx-retail-workspace .sx-retail-mapping-row {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  align-items: end;
+  gap: 8px 12px;
+}
+#sx-retail-workspace .sx-retail-mapping-row > strong,
+#sx-retail-workspace .sx-retail-mapping-row > p { grid-column: 1 / -1; }
+#sx-retail-workspace .sx-retail-mapping-row > label { width: 100%; max-width: none; margin: 0; }
+#sx-retail-workspace .sx-retail-mapping-row input,
+#sx-retail-workspace .sx-retail-mapping-row select { width: 100%; }
+#sx-retail-workspace .sx-retail-mapping-row > button { justify-self: start; margin: 0; }
 @media(max-width: 1050px) {
   #sx-retail-workspace .sx-retail-finance-layout { grid-template-columns: minmax(0,1fr); }
 }
@@ -151,4 +163,9 @@ html[data-sx-theme=dark] #sx-retail-workspace.sx-retail-finance button { color: 
 }
 @media(max-width: 767px) {
   #sx-retail-workspace.sx-retail-finance > .sx-retail-page-subtitle { margin-inline: 0; }
+}
+@media(max-width: 560px) {
+  #sx-retail-workspace .sx-retail-mapping-row { grid-template-columns: minmax(0,1fr); }
+  #sx-retail-workspace .sx-retail-mapping-row > strong,
+  #sx-retail-workspace .sx-retail-mapping-row > p { grid-column: 1; }
 }

@@ -41,9 +41,10 @@ test('Retail connector preserves decimal amounts and quantities without binary f
 });
 
 test('Woo products, variations and order breakdowns retain source IDs, SKUs, quantities and stock evidence', () => {
-  const product = connector.normalizeProduct('woocommerce', {id: 100, name: 'Linen', sku: 'LINEN', price: '', status: 'publish',
+  const product = connector.normalizeProduct('woocommerce', {id: 100, name: 'Linen', sku: 'LINEN', type: 'variable', price: '', status: 'publish',
     variations: [101, 102], manage_stock: false, stock_quantity: null, stock_status: 'instock', date_modified_gmt: '2026-11-15T10:00:00'});
   assert.equal(product.id, '100');
+  assert.equal(product.productType, 'variable');
   assert.equal(product.sku, 'LINEN');
   assert.equal(product.variationCount, 2);
   assert.equal(product.priceUnavailable, true);
@@ -192,6 +193,7 @@ test('WooCommerce connection persists a verified read-only store without startin
     assert.equal(response.value.data.connection.provider, 'woocommerce');
     assert.equal(response.value.data.connection.status, 'active');
     assert.equal(response.value.data.connection.storeDomain, 'https://store.example.com');
+    assert.equal(Object.hasOwn(response.value.data, 'webhookSecret'), false);
     assert.equal(requests.length, 1);
     assert.equal(requests[0].method, 'GET');
     assert.match(new URL(requests[0].url).pathname, /\/wp-json\/wc\/v3\/orders$/);
@@ -255,6 +257,124 @@ test('Woo variation and reconciliation migration parses as additive SQL', () => 
   assert.match(statements[1], /^ALTER TABLE sx_retail_external_products/i);
   assert.match(statements[2], /^CREATE TABLE sx_retail_external_product_variants/i);
   assert.doesNotMatch(migration, /\bDROP\s+(TABLE|COLUMN)\b/i);
+});
+
+test('Woo product mapping migration is additive and tenant scoped', () => {
+  const migration = fs.readFileSync(path.resolve(__dirname, '../database/migrations/20270206_retail_external_product_mappings.sql'), 'utf8');
+  const statements = splitSql(migration);
+  assert.equal(statements.length, 1);
+  assert.match(statements[0], /^CREATE TABLE sx_retail_external_product_mappings/i);
+  assert.match(migration, /UNIQUE KEY uq_retail_external_mapping_source \(tenant_id,connection_id,external_product_id,external_variant_id\)/);
+  assert.match(migration, /FOREIGN KEY \(tenant_id,connection_id\)\s+REFERENCES sx_retail_store_connections\(tenant_id,id\)/);
+  assert.match(migration, /FOREIGN KEY \(tenant_id,target_product_id\)\s+REFERENCES sx_product_catalog\(tenant_id,id\)/);
+  assert.doesNotMatch(migration, /\bDROP\s+(TABLE|COLUMN)\b/i);
+});
+
+function mappingHarness({productType='simple', parentStatus='publish', variationStatus='publish', existingMapping=null}={}) {
+  const tenantId='aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
+  const connectionId='bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb';
+  const identityId='dddddddd-dddd-4ddd-8ddd-dddddddddddd';
+  const targetId='eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee';
+  const product=connector.seal({productType},tenantId,connectionId,'product:100');
+  const variation=connector.seal({purchasable:true},tenantId,connectionId,'product-variant:101');
+  const connection={id:connectionId,tenant_id:tenantId,provider:'woocommerce',status:'active',default_currency:'QAR'};
+  const queries=[];
+  let mapping=existingMapping,commits=0,rollbacks=0;
+  const db={beginTransaction:async()=>{},commit:async()=>{commits++;},rollback:async()=>{rollbacks++;},release:()=>{},query:async(sql,params)=>{
+    queries.push({sql,params});
+    if(sql.startsWith('SELECT id,status,provider FROM sx_retail_store_connections'))return [[{id:connectionId,status:'active',provider:'woocommerce'}],[]];
+    if(sql.startsWith('SELECT product_status AS status,sku,product_ciphertext'))return [[{status:parentStatus,sku:'WOO-100',ciphertext:product.ciphertext,iv:product.iv,authTag:product.authTag}],[]];
+    if(sql.startsWith('SELECT variant_status AS status,sku,variant_ciphertext'))return [[{status:variationStatus,sku:'WOO-101',ciphertext:variation.ciphertext,iv:variation.iv,authTag:variation.authTag}],[]];
+    if(sql.startsWith('SELECT id,mapping_status AS mappingStatus,target_product_id AS targetProductId,revision'))return [mapping?[mapping]:[],[]];
+    if(sql.startsWith('SELECT id,code FROM sx_product_catalog'))return [[{id:targetId,code:'LOCAL-100'}],[]];
+    if(sql.startsWith('INSERT INTO sx_retail_external_product_mappings')){
+      mapping={id:params[0],mappingStatus:params[5],targetProductId:params[6],revision:params[7]};
+      return [{affectedRows:1},[]];
+    }
+    if(sql.startsWith('INSERT INTO sx_audit_events'))return [{affectedRows:1},[]];
+    throw new Error('Unexpected mapping query: '+sql);
+  }};
+  const pool={query:async(sql,params)=>{
+    if(sql.startsWith('SELECT * FROM sx_retail_store_connections'))return [[connection],[]];
+    throw new Error('Unexpected mapping pool query: '+sql);
+  },getConnection:async()=>db};
+  const authenticate=(_req,_res,next)=>next();
+  const router=workspaceRouter({pool,authenticate,origin:'https://workspace.example.invalid'});
+  const handler=router.routes.get('PUT /:id/mappings');
+  const context={audience:'tenant',tenant:{id:tenantId,status:'active',categoryKey:'retail_boutique',categoryVersion:1,currency:'QAR'},
+    membership:{tenantId,status:'active',role:'owner'},subscription:{status:'active',capabilities:['retail.commerce']},
+    category:{key:'retail_boutique',version:1,capabilities:['retail.commerce']},identity:{id:identityId}};
+  return {tenantId,connectionId,targetId,identityId,handler,context,queries,commits,rollbacks,get mapping(){return mapping;},db};
+}
+
+test('Woo mapping writes are audited and an identical retry is idempotent', async () => {
+  const originalKey=process.env.SALEMAX_PLATFORM_KEY_BASE64;
+  process.env.SALEMAX_PLATFORM_KEY_BASE64=Buffer.alloc(32,13).toString('base64');
+  try {
+    const fixture=mappingHarness();
+    const invoke=async()=>{
+      let response=null,error=null;
+      const req={businessContext:fixture.context,params:{id:fixture.connectionId},query:{},body:{externalProductId:'100',externalVariationId:null,
+        targetProductId:fixture.targetId,action:'map',expectedRevision:0,expectedSku:'WOO-100'}};
+      const res={json(value){response={status:200,value};return this;},sendStatus(status){response={status};return this;}};
+      await fixture.handler(req,res,value=>{error=value;});
+      return {response,error};
+    };
+    const first=await invoke(),retry=await invoke();
+    assert.equal(first.error,null);
+    assert.equal(first.response.value.data.status,'mapped');
+    assert.equal(first.response.value.data.replayed,false);
+    assert.equal(retry.error,null);
+    assert.equal(retry.response.value.data.replayed,true);
+    assert.equal(fixture.queries.filter(query=>query.sql.startsWith('INSERT INTO sx_retail_external_product_mappings')).length,1);
+    const audit=fixture.queries.find(query=>query.sql.startsWith('INSERT INTO sx_audit_events'));
+    assert.ok(audit);
+    assert.equal(audit.params[1],fixture.tenantId);
+    assert.equal(audit.params[2],fixture.identityId);
+  } finally {
+    if(originalKey===undefined)delete process.env.SALEMAX_PLATFORM_KEY_BASE64;
+    else process.env.SALEMAX_PLATFORM_KEY_BASE64=originalKey;
+  }
+});
+
+test('Woo variation mapping rejects a published child under a non-published parent', async () => {
+  const originalKey=process.env.SALEMAX_PLATFORM_KEY_BASE64;
+  process.env.SALEMAX_PLATFORM_KEY_BASE64=Buffer.alloc(32,14).toString('base64');
+  try {
+    const fixture=mappingHarness({productType:'variable',parentStatus:'draft'});
+    let error=null;
+    const req={businessContext:fixture.context,params:{id:fixture.connectionId},query:{},body:{externalProductId:'100',externalVariationId:'101',
+      targetProductId:fixture.targetId,action:'map',expectedRevision:0,expectedSku:'WOO-101'}};
+    const res={json(){return this;},sendStatus(status){return this;}};
+    await fixture.handler(req,res,value=>{error=value;});
+    assert.equal(error?.code,'INVALID_PRODUCT_MAPPING_SOURCE');
+    assert.equal(fixture.queries.some(query=>query.sql.startsWith('SELECT variant_status AS status,sku,variant_ciphertext')) ,false);
+    assert.equal(fixture.queries.some(query=>query.sql.startsWith('INSERT INTO sx_retail_external_product_mappings')),false);
+  } finally {
+    if(originalKey===undefined)delete process.env.SALEMAX_PLATFORM_KEY_BASE64;
+    else process.env.SALEMAX_PLATFORM_KEY_BASE64=originalKey;
+  }
+});
+
+test('Woo mapping rejects stale edits before updating the target catalogue', async () => {
+  const originalKey=process.env.SALEMAX_PLATFORM_KEY_BASE64;
+  process.env.SALEMAX_PLATFORM_KEY_BASE64=Buffer.alloc(32,15).toString('base64');
+  try {
+    const fixture=mappingHarness({existingMapping:{id:'11111111-1111-4111-8111-111111111111',mappingStatus:'mapped',
+      targetProductId:'cccccccc-cccc-4ccc-8ccc-cccccccccccc',revision:2}});
+    let error=null;
+    const req={businessContext:fixture.context,params:{id:fixture.connectionId},query:{},body:{externalProductId:'100',externalVariationId:null,
+      targetProductId:fixture.targetId,action:'map',expectedRevision:1,expectedSku:'WOO-100'}};
+    const res={json(){return this;},sendStatus(status){return this;}};
+    await fixture.handler(req,res,value=>{error=value;});
+    assert.equal(error?.code,'STORE_PRODUCT_MAPPING_CONFLICT');
+    assert.equal(fixture.queries.some(query=>query.sql.startsWith('SELECT id,code FROM sx_product_catalog')),false);
+    assert.equal(fixture.queries.some(query=>query.sql.startsWith('INSERT INTO sx_retail_external_product_mappings')),false);
+    assert.equal(fixture.queries.some(query=>query.sql.startsWith('INSERT INTO sx_audit_events')),false);
+  } finally {
+    if(originalKey===undefined)delete process.env.SALEMAX_PLATFORM_KEY_BASE64;
+    else process.env.SALEMAX_PLATFORM_KEY_BASE64=originalKey;
+  }
 });
 
 test('redacted customers are not restored by later order or checkout imports', async () => {

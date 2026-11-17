@@ -173,6 +173,7 @@ function normalizeProduct(provider, row) {
         host.split('.').length >= 2) imageUrl = image.toString();
   } catch { /* Image previews are optional; malformed or private URLs are omitted. */ }
   return { id, title: String(row.name || row.title || row.handle || id).slice(0, 255), sku: String(row.sku || first.sku || '').slice(0, 100) || null,
+    productType: provider === 'woocommerce' ? String(row.type || 'unknown').toLowerCase().slice(0, 32) : null,
     status: String(row.status || 'unknown').toLowerCase().slice(0, 32), currency: currency(cur), price: safeAmount(price),
     imageUrl, variants, variationCount: provider === 'woocommerce' && Array.isArray(row.variations) ? row.variations.length : variants.length,
     priceUnavailable: provider === 'woocommerce' && sourcePrice == null && Array.isArray(row.variations) && row.variations.length > 0,

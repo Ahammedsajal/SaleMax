@@ -16,7 +16,7 @@ const safeConnection = row => {
   const woo = row.provider === 'woocommerce' ? parseJson(row.sync_cursor, {}).woocommerce || {} : null;
   return { id: row.id, provider: row.provider, storeDomain: row.store_domain, displayName: row.display_name,
     currency: row.default_currency, status: row.status, scopes: parseJson(row.scopes, []), lastSyncAt: row.last_sync_at,
-    lastErrorCode: row.last_error_code, counts: row.counts || { orders: 0, customers: 0, products: 0, variations: 0, checkouts: 0 },
+    lastErrorCode: row.last_error_code, counts: row.counts || { orders: 0, customers: 0, products: 0, variations: 0, checkouts: 0, mappings: 0 },
     syncProgress: woo ? { scanStartedAt: woo.scanStartedAt || null, lastCompleteScanAt: woo.lastCompleteScan?.completedAt || null,
       resources: Object.fromEntries(['products','orders','customers'].map(resource => [resource, {
         complete: Boolean(woo[resource]?.complete), page: Number(woo[resource]?.page) || 1,
@@ -344,10 +344,11 @@ async function listConnections(pool, tenantId) {
     (SELECT COUNT(*) FROM sx_retail_external_customers u WHERE u.tenant_id=c.tenant_id AND u.connection_id=c.id AND u.customer_status='active') AS customerCount,
     (SELECT COUNT(*) FROM sx_retail_external_products p WHERE p.tenant_id=c.tenant_id AND p.connection_id=c.id AND p.product_status<>'deleted') AS productCount,
     (SELECT COUNT(*) FROM sx_retail_external_product_variants v WHERE v.tenant_id=c.tenant_id AND v.connection_id=c.id AND v.variant_status<>'deleted') AS variationCount,
-    (SELECT COUNT(*) FROM sx_retail_external_checkouts x WHERE x.tenant_id=c.tenant_id AND x.connection_id=c.id) AS checkoutCount
+    (SELECT COUNT(*) FROM sx_retail_external_checkouts x WHERE x.tenant_id=c.tenant_id AND x.connection_id=c.id) AS checkoutCount,
+    (SELECT COUNT(*) FROM sx_retail_external_product_mappings m WHERE m.tenant_id=c.tenant_id AND m.connection_id=c.id AND m.mapping_status='mapped') AS mappingCount
     FROM sx_retail_store_connections c WHERE c.tenant_id=? ORDER BY c.created_at DESC,c.id LIMIT 100`, [tenantId]);
   return rows.map(row => safeConnection({ ...row, counts: { orders: Number(row.orderCount), customers: Number(row.customerCount),
-    products: Number(row.productCount), variations: Number(row.variationCount), checkouts: Number(row.checkoutCount) } }));
+    products: Number(row.productCount), variations: Number(row.variationCount), checkouts: Number(row.checkoutCount), mappings: Number(row.mappingCount) } }));
 }
 
 function normalizeRecoveryUrl(connection, value) {
@@ -435,7 +436,7 @@ async function connectionData(pool, connection, kind, pageValue, parentProductId
         AND variant_status<>'deleted' GROUP BY external_product_id`, [tenantId, id, ...productIds]) : [[]];
     const counts = new Map(variationCounts.map(row => [row.productId, Number(row.count)]));
     return rows.map(row => { const product = jsonFromEncrypted(row, tenantId, id, `product:${row.id}`), importedVariants = counts.get(row.id) || 0; return {
-      id: row.id, title: product.title, sku: product.sku, status: row.status, currency: row.currency, price: String(row.price),
+      id: row.id, title: product.title, sku: product.sku, status: row.status, productType: product.productType || 'unknown', currency: row.currency, price: String(row.price),
       priceUnavailable: Boolean(product.priceUnavailable), imageUrl: product.imageUrl || null,
       variants: connection.provider === 'woocommerce' ? [] : (product.variants || []).slice(0,20).map(variant => ({
         title: String(variant.title || variant.name || 'Default').slice(0,100), sku: String(variant.sku || '').slice(0,100),
@@ -459,6 +460,90 @@ async function connectionData(pool, connection, kind, pageValue, parentProductId
       lineItemsTruncated: Boolean(checkout.lineItemsTruncated), canRevealRecoveryLink: Boolean(row.status === 'abandoned'), updatedAt: row.updatedAt };
   });
 }
+function validWooProductId(value) { return typeof value === 'string' && /^\d{1,191}$/.test(value); }
+function normalizeMappingWrite(body) {
+  const allowed = ['externalProductId','externalVariationId','targetProductId','action','expectedRevision','expectedSku'];
+  if (!body || typeof body !== 'object' || Array.isArray(body) || Object.keys(body).some(key => !allowed.includes(key))) fail('INVALID_PRODUCT_MAPPING', 400);
+  const externalProductId = String(body.externalProductId || '');
+  const externalVariationId = body.externalVariationId == null ? '' : String(body.externalVariationId);
+  const action = body.action;
+  const expectedRevision = body.expectedRevision;
+  const expectedSku = body.expectedSku == null ? null : String(body.expectedSku);
+  if (!validWooProductId(externalProductId) || externalVariationId && !validWooProductId(externalVariationId) ||
+      !['map','ignore','clear'].includes(action) || !Number.isSafeInteger(expectedRevision) || expectedRevision < 0 ||
+      expectedSku != null && expectedSku.length > 100) fail('INVALID_PRODUCT_MAPPING', 400);
+  const targetProductId = body.targetProductId == null ? null : String(body.targetProductId).toLowerCase();
+  if (action === 'map' && !connector.validateId(targetProductId) || action !== 'map' && targetProductId != null) fail('INVALID_PRODUCT_MAPPING', 400);
+  return { externalProductId, externalVariationId, targetProductId, action, expectedRevision, expectedSku };
+}
+function mappingTarget(row, sourceSku) {
+  if (!row?.targetProductId) return null;
+  const targetSku = row.targetSku == null ? null : String(row.targetSku);
+  return { id: row.targetProductId, sku: targetSku, nameEn: row.targetNameEn, nameAr: row.targetNameAr,
+    status: row.targetStatus, isVariant: Boolean(row.targetVariantGroupId), variantGroupTitleEn: row.targetVariantGroupTitleEn || null,
+    variantValueEn: row.targetVariantValueEn || null,
+    skuMatches: sourceSku && targetSku ? sourceSku.trim().toUpperCase() === targetSku.trim().toUpperCase() : null };
+}
+async function productMappingDetails(pool, connection, externalProductId, pageValue) {
+  if (connection.provider !== 'woocommerce' || !validWooProductId(externalProductId)) fail('INVALID_PRODUCT_MAPPING_SOURCE', 400);
+  const page = Number(pageValue || 1);
+  if (!Number.isSafeInteger(page) || page < 1 || page > 200) fail('INVALID_PAGE', 400);
+  const tenantId = connection.tenant_id, connectionId = connection.id;
+  const [[row]] = await pool.query(`SELECT product_status AS status,sku,currency,price,product_ciphertext AS ciphertext,
+    product_iv AS iv,product_auth_tag AS authTag,source_updated_at AS updatedAt FROM sx_retail_external_products
+    WHERE tenant_id=? AND connection_id=? AND external_product_id=? AND product_status<>'deleted'`, [tenantId,connectionId,externalProductId]);
+  if (!row) fail('STORE_PRODUCT_NOT_FOUND', 404);
+  const product = jsonFromEncrypted(row,tenantId,connectionId,`product:${externalProductId}`);
+  const productType = String(product.productType || 'unknown');
+  let sourceItems = [], hasMore = false;
+  if (productType === 'simple') {
+    if (page !== 1) fail('INVALID_PAGE', 400);
+    sourceItems = [{ productId: externalProductId, variationId: null, sourceType: 'product', title: product.title,
+      sku: row.sku, status: row.status, currency: row.currency, price: String(row.price), sourceStock: product.sourceStock || null,
+      updatedAt: row.updatedAt, mappable: row.status === 'publish' }];
+  } else if (productType === 'variable') {
+    const variants = await connectionData(pool,connection,'variations',page,externalProductId);
+    hasMore = variants.length > 50;
+    sourceItems = variants.slice(0,50).map(variant => ({ productId: externalProductId, variationId: variant.id, sourceType: 'variation',
+      title: variant.title, sku: variant.sku, status: variant.status, purchasable: variant.purchasable, currency: variant.currency,
+      price: variant.price, sourceStock: variant.sourceStock, updatedAt: variant.updatedAt,
+      mappable: row.status === 'publish' && variant.status === 'publish' && variant.purchasable !== false }));
+  }
+  const variantIds = sourceItems.map(item => item.variationId || '');
+  const [mappingRows] = variantIds.length ? await pool.query(`SELECT m.id,m.external_variant_id AS externalVariationId,
+      m.mapping_status AS mappingStatus,m.target_product_id AS targetProductId,m.revision,
+      p.code AS targetSku,p.name_en AS targetNameEn,p.name_ar AS targetNameAr,p.status AS targetStatus,
+      vp.group_id AS targetVariantGroupId,vg.title_en AS targetVariantGroupTitleEn,vp.value_en AS targetVariantValueEn
+    FROM sx_retail_external_product_mappings m
+    LEFT JOIN sx_product_catalog p ON p.tenant_id=m.tenant_id AND p.id=m.target_product_id
+    LEFT JOIN sx_retail_variant_products vp ON vp.tenant_id=p.tenant_id AND vp.product_id=p.id
+    LEFT JOIN sx_retail_variant_groups vg ON vg.tenant_id=vp.tenant_id AND vg.id=vp.group_id
+    WHERE m.tenant_id=? AND m.connection_id=? AND m.external_product_id=? AND m.external_variant_id IN (${variantIds.map(() => '?').join(',')})`,
+    [tenantId,connectionId,externalProductId,...variantIds]) : [[]];
+  const byVariation = new Map(mappingRows.map(mapping => [mapping.externalVariationId,mapping]));
+  const items = sourceItems.map(item => {
+    const mapping = byVariation.get(item.variationId || '');
+    return { ...item, mappingStatus: mapping?.mappingStatus || 'unmapped', mappingId: mapping?.id || null,
+      mappingRevision: Number(mapping?.revision || 0), targetProduct: mappingTarget(mapping,item.sku) };
+  });
+  return { product: { id: externalProductId, title: product.title, sku: row.sku, type: productType, status: row.status,
+      variationCount: Number(product.variationCount) || 0 }, page, hasMore, items };
+}
+async function mappingTargets(pool, tenantId, queryValue) {
+  const search = typeof queryValue === 'string' ? queryValue.trim().replace(/\s+/g,' ') : '';
+  if (search.length < 2 || search.length > 100 || /[\u0000-\u001f\u007f]/.test(search)) fail('INVALID_MAPPING_SEARCH', 400);
+  const normalized = search.toLowerCase();
+  const [rows] = await pool.query(`SELECT p.id,p.code AS sku,p.name_en AS nameEn,p.name_ar AS nameAr,p.status,
+      vp.group_id AS variantGroupId,vg.title_en AS variantGroupTitleEn,vp.value_en AS variantValueEn
+    FROM sx_product_catalog p
+    LEFT JOIN sx_retail_variant_products vp ON vp.tenant_id=p.tenant_id AND vp.product_id=p.id
+    LEFT JOIN sx_retail_variant_groups vg ON vg.tenant_id=vp.tenant_id AND vg.id=vp.group_id
+    WHERE p.tenant_id=? AND p.status='active' AND p.deleted_at IS NULL
+      AND (LOCATE(?,LOWER(p.code))>0 OR LOCATE(?,LOWER(p.name_en))>0 OR LOCATE(?,LOWER(p.name_ar))>0)
+    ORDER BY (LOWER(p.code)=?) DESC,p.code,p.id LIMIT 50`,[tenantId,normalized,normalized,normalized,normalized]);
+  return rows.map(row => ({ id: row.id, sku: row.sku, nameEn: row.nameEn, nameAr: row.nameAr,
+    isVariant: Boolean(row.variantGroupId), variantGroupTitleEn: row.variantGroupTitleEn || null, variantValueEn: row.variantValueEn || null }));
+}
 async function connectionReconciliation(pool, connection) {
   const tenantId = connection.tenant_id, id = connection.id;
   const [[counts]] = await pool.query(`SELECT
@@ -478,6 +563,12 @@ async function connectionReconciliation(pool, connection) {
     (SELECT COUNT(*) FROM sx_retail_external_products WHERE tenant_id=? AND connection_id=? AND product_status<>'deleted' AND NULLIF(TRIM(sku),'') IS NULL) AS products,
     (SELECT COUNT(*) FROM sx_retail_external_product_variants WHERE tenant_id=? AND connection_id=? AND variant_status<>'deleted' AND NULLIF(TRIM(sku),'') IS NULL) AS variations`,
   [tenantId,id,tenantId,id]);
+  const [[mappingCounts]] = await pool.query(`SELECT
+    SUM(mapping_status='mapped') AS mapped,SUM(mapping_status='ignored') AS ignored,
+    SUM(m.mapping_status='mapped' AND (p.id IS NULL OR p.status<>'active' OR p.deleted_at IS NOT NULL)) AS invalidTargets
+    FROM sx_retail_external_product_mappings m
+    LEFT JOIN sx_product_catalog p ON p.tenant_id=m.tenant_id AND p.id=m.target_product_id
+    WHERE m.tenant_id=? AND m.connection_id=?`,[tenantId,id]);
   const skuSourceSql = `SELECT UPPER(TRIM(sku)) AS normalizedSku FROM sx_retail_external_products
     WHERE tenant_id=? AND connection_id=? AND product_status<>'deleted' AND NULLIF(TRIM(sku),'') IS NOT NULL
     UNION ALL SELECT UPPER(TRIM(sku)) AS normalizedSku FROM sx_retail_external_product_variants
@@ -489,6 +580,7 @@ async function connectionReconciliation(pool, connection) {
   const woo = connection.provider === 'woocommerce' ? parseJson(connection.sync_cursor, {}).woocommerce || {} : null;
   const scan = woo?.lastCompleteScan || null;
   return { provider: connection.provider, importedCounts: Object.fromEntries(Object.entries(counts).map(([key,value]) => [key, Number(value)])),
+    productMappings: { mapped: Number(mappingCounts?.mapped||0), ignored: Number(mappingCounts?.ignored||0), invalidTargets: Number(mappingCounts?.invalidTargets||0) },
     lastSyncAt: connection.last_sync_at, lastErrorCode: connection.last_error_code,
     scan: scan ? { startedAt: scan.startedAt, completedAt: scan.completedAt, queryScope: scan.queryScope || null, sourceCounts: scan.sourceCounts || {},
       sourceVariationCount: scan.sourceVariationCount ?? null, sourceOrderAmounts: Object.values(scan.orderAmounts || {}),
@@ -702,8 +794,7 @@ function workspaceRouter({ pool, authenticate, origin }) {
         JSON.stringify({ provider: 'woocommerce' }), crypto.randomUUID()]);
       await db.commit();
     } catch (error) { try { await db.rollback(); } catch {} throw error; } finally { db.release(); }
-    reply(res, { connection: { id, provider: 'woocommerce', storeDomain: storeUrl, displayName, currency, status: 'active' },
-      webhookSecret, webhookUrl: webhookUrl(publicOrigin(origin), 'woocommerce', id) });
+    reply(res, { connection: { id, provider: 'woocommerce', storeDomain: storeUrl, displayName, currency, status: 'active' } });
   }));
 
   router.get('/:id/webhook-setup', owner(async (req, res, context) => {
@@ -738,6 +829,93 @@ function workspaceRouter({ pool, authenticate, origin }) {
     if (connection.status === 'pending') fail('STORE_CONNECTION_NOT_READY', 409);
     const page = Number(req.query.page || 1), rows = await connectionData(pool, connection, req.params.kind, page, req.query.productId);
     reply(res, { items: rows.slice(0, 50), page, hasMore: rows.length > 50 });
+  }));
+
+  router.get('/:id/mappings', owner(async (req,res,context) => {
+    const connection=await loadConnection(pool,context.tenant.id,req.params.id);
+    if(connection.status==='pending')fail('STORE_CONNECTION_NOT_READY',409);
+    reply(res,await productMappingDetails(pool,connection,String(req.query.productId||''),req.query.page));
+  }));
+
+  router.get('/:id/mapping-options', owner(async (req,res,context) => {
+    const connection=await loadConnection(pool,context.tenant.id,req.params.id);
+    if(connection.status==='pending')fail('STORE_CONNECTION_NOT_READY',409);
+    if(connection.provider!=='woocommerce')fail('INVALID_PRODUCT_MAPPING_SOURCE',400);
+    reply(res,{items:await mappingTargets(pool,context.tenant.id,req.query.search)});
+  }));
+
+  router.put('/:id/mappings', owner(async (req,res,context) => {
+    const connection=await loadConnection(pool,context.tenant.id,req.params.id),input=normalizeMappingWrite(req.body);
+    if(connection.provider!=='woocommerce')fail('INVALID_PRODUCT_MAPPING_SOURCE',400);
+    const db=await pool.getConnection();
+    try{
+      await db.beginTransaction();
+      const [[lockedConnection]]=await db.query(`SELECT id,status,provider FROM sx_retail_store_connections
+        WHERE tenant_id=? AND id=? FOR UPDATE`,[context.tenant.id,connection.id]);
+      if(!lockedConnection||lockedConnection.provider!=='woocommerce')fail('STORE_CONNECTION_NOT_FOUND',404);
+      if(!['active','paused'].includes(lockedConnection.status))fail('STORE_CONNECTION_NOT_ACTIVE',409);
+      const [[productRow]]=await db.query(`SELECT product_status AS status,sku,product_ciphertext AS ciphertext,product_iv AS iv,product_auth_tag AS authTag
+        FROM sx_retail_external_products WHERE tenant_id=? AND connection_id=? AND external_product_id=? AND product_status<>'deleted' FOR UPDATE`,
+      [context.tenant.id,connection.id,input.externalProductId]);
+      if(!productRow)fail('STORE_PRODUCT_NOT_FOUND',404);
+      const product=jsonFromEncrypted(productRow,context.tenant.id,connection.id,`product:${input.externalProductId}`);
+      let sourceStatus=productRow.status,sourceSku=productRow.sku,purchasable=true,sourceType=product.productType;
+      if(input.externalVariationId){
+        if(sourceType!=='variable'||productRow.status!=='publish')fail('INVALID_PRODUCT_MAPPING_SOURCE',409);
+        const [[variantRow]]=await db.query(`SELECT variant_status AS status,sku,variant_ciphertext AS ciphertext,variant_iv AS iv,variant_auth_tag AS authTag
+          FROM sx_retail_external_product_variants WHERE tenant_id=? AND connection_id=? AND external_product_id=? AND external_variant_id=?
+            AND variant_status<>'deleted' FOR UPDATE`,[context.tenant.id,connection.id,input.externalProductId,input.externalVariationId]);
+        if(!variantRow)fail('STORE_VARIATION_NOT_FOUND',404);
+        const variant=jsonFromEncrypted(variantRow,context.tenant.id,connection.id,`product-variant:${input.externalVariationId}`);
+        sourceStatus=variantRow.status;sourceSku=variantRow.sku;purchasable=variant.purchasable!==false;
+      }else if(sourceType!=='simple')fail('INVALID_PRODUCT_MAPPING_SOURCE',409);
+      if(sourceStatus!=='publish'||!purchasable)fail('STORE_PRODUCT_NOT_MAPPABLE',409);
+      if(input.expectedSku!==sourceSku)fail('STORE_PRODUCT_SOURCE_CHANGED',409);
+
+      const [[existing]]=await db.query(`SELECT id,mapping_status AS mappingStatus,target_product_id AS targetProductId,revision
+        FROM sx_retail_external_product_mappings WHERE tenant_id=? AND connection_id=? AND external_product_id=? AND external_variant_id=? FOR UPDATE`,
+      [context.tenant.id,connection.id,input.externalProductId,input.externalVariationId]);
+      const nextStatus=input.action==='map'?'mapped':input.action==='ignore'?'ignored':'unmapped';
+      const same= input.action==='clear' ? !existing : Boolean(existing&&existing.mappingStatus===nextStatus&&existing.targetProductId===input.targetProductId);
+      if(same){await db.commit();return reply(res,{id:existing?.id||null,status:nextStatus,revision:Number(existing?.revision||0),replayed:true});}
+      if(Number(existing?.revision||0)!==input.expectedRevision)fail('STORE_PRODUCT_MAPPING_CONFLICT',409);
+
+      let targetSku=null;
+      if(input.action==='map'){
+        const [[target]]=await db.query(`SELECT id,code FROM sx_product_catalog WHERE tenant_id=? AND id=? AND status='active' AND deleted_at IS NULL FOR UPDATE`,
+        [context.tenant.id,input.targetProductId]);
+        if(!target)fail('MAPPING_TARGET_NOT_FOUND',404);
+        targetSku=target.code;
+      }
+      const mappingId=existing?.id||crypto.randomUUID(),revision=Number(existing?.revision||0)+1;
+      if(input.action==='clear'){
+        await db.query(`DELETE FROM sx_retail_external_product_mappings WHERE tenant_id=? AND connection_id=? AND id=?`,
+        [context.tenant.id,connection.id,mappingId]);
+      }else if(existing){
+        const [updated]=await db.query(`UPDATE sx_retail_external_product_mappings SET mapping_status=?,target_product_id=?,revision=revision+1,
+          updated_by_identity_id=? WHERE tenant_id=? AND connection_id=? AND id=? AND revision=?`,
+        [nextStatus,input.targetProductId,context.identity.id,context.tenant.id,connection.id,mappingId,input.expectedRevision]);
+        if(!updated.affectedRows)fail('STORE_PRODUCT_MAPPING_CONFLICT',409);
+      }else{
+        await db.query(`INSERT INTO sx_retail_external_product_mappings(id,tenant_id,connection_id,external_product_id,external_variant_id,
+          mapping_status,target_product_id,revision,created_by_identity_id,updated_by_identity_id)
+          VALUES (?,?,?,?,?,?,?,?,?,?)`,[mappingId,context.tenant.id,connection.id,input.externalProductId,input.externalVariationId,
+          nextStatus,input.targetProductId,revision,context.identity.id,context.identity.id]);
+      }
+      await db.query(`INSERT INTO sx_audit_events(id,tenant_id,actor_identity_id,actor_kind,action,resource_type,resource_id,changes,correlation_id)
+        VALUES (?, ?, ?, 'identity', ?, 'retail-store-product-mapping', ?, ?, ?)`,
+      [crypto.randomUUID(),context.tenant.id,context.identity.id,
+        input.action==='map'?'retail.store-product-mapped':input.action==='ignore'?'retail.store-product-ignored':'retail.store-product-mapping-cleared',
+        mappingId,JSON.stringify({connectionId:connection.id,externalProductId:input.externalProductId,
+          externalVariationId:input.externalVariationId||null,mappingStatus:nextStatus,targetProductId:input.targetProductId,
+          sourceSku,targetSku,revision}),crypto.randomUUID()]);
+      await db.commit();
+      reply(res,{id:mappingId,status:nextStatus,revision,replayed:false});
+    }catch(error){
+      try{await db.rollback();}catch{}
+      if(error.code==='ER_DUP_ENTRY')fail('STORE_PRODUCT_MAPPING_CONFLICT',409);
+      throw error;
+    }finally{db.release();}
   }));
 
   router.get('/:id/reconciliation', owner(async (req, res, context) => {
@@ -847,7 +1025,7 @@ function workspaceRouter({ pool, authenticate, origin }) {
     const db = await pool.getConnection();
     try {
       await db.beginTransaction();
-      for (const table of ['sx_retail_external_transactions','sx_retail_external_orders','sx_retail_external_checkouts',
+      for (const table of ['sx_retail_external_product_mappings','sx_retail_external_transactions','sx_retail_external_orders','sx_retail_external_checkouts',
         'sx_retail_external_customers','sx_retail_external_product_variants','sx_retail_external_products','sx_retail_external_events','sx_retail_store_privacy_requests']) {
         await db.query(`DELETE FROM ${table} WHERE tenant_id=? AND connection_id=?`, [context.tenant.id, connection.id]);
       }

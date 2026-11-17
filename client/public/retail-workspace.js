@@ -381,13 +381,9 @@
     const wooKey=input(woo,t('Consumer key (read only)','مفتاح المستهلك (قراءة فقط)'),'','password');wooKey.autocomplete='new-password';
     const wooSecret=input(woo,t('Consumer secret','السر الخاص بالمستهلك'),'','password');wooSecret.autocomplete='new-password';
     const connectWoo=add(woo,'button',t('Connect WooCommerce','ربط WooCommerce'));connectWoo.type='button';
-    const oneTime=add(woo,'div');oneTime.className='sx-retail-one-time-secret';oneTime.hidden=true;
     connectWoo.onclick=async()=>{connectWoo.disabled=true;try{
-      const result=await api('/connectors/woocommerce','POST',{storeUrl:wooUrl.value,displayName:wooDisplay.value,currency:wooCurrency.value.toUpperCase(),consumerKey:wooKey.value,consumerSecret:wooSecret.value});
-      wooKey.value='';wooSecret.value='';oneTime.replaceChildren();add(oneTime,'h3',t('Save the webhook signing secret securely','احفظ سر توقيع Webhook بأمان'));
-      add(oneTime,'p',t('This is separate from the WooCommerce API key and is only for signing incoming events. It is not needed for read-only sync. Configure product, order and customer webhooks only after the first full sync reconciles. Keep the optional checkout-event plugin endpoint blank; the plugin does not send customer messages.','هذا السر منفصل عن مفتاح WooCommerce ويُستخدم لتوقيع الأحداث الواردة فقط. لا يلزم للمزامنة للقراءة فقط. أعدّ Webhooks المنتجات والطلبات والعملاء بعد مطابقة أول مزامنة كاملة فقط. اترك نقطة اتصال إضافة أحداث الدفع الاختيارية فارغة؛ فالإضافة لا ترسل رسائل للعملاء.'));
-      const secretArea=add(add(oneTime,'label',t('Webhook secret','سر Webhook')+' '),'textarea');secretArea.readOnly=true;secretArea.value=result.webhookSecret;secretArea.rows=3;
-      oneTime.hidden=false;status.textContent=t('WooCommerce connected. API credentials were cleared from the form and stored encrypted. Read-only sync has not started.','تم ربط WooCommerce. مُسحت بيانات API من النموذج وخُزنت مشفرة. لم تبدأ المزامنة للقراءة فقط بعد.');await refreshConnections();
+      await api('/connectors/woocommerce','POST',{storeUrl:wooUrl.value,displayName:wooDisplay.value,currency:wooCurrency.value.toUpperCase(),consumerKey:wooKey.value,consumerSecret:wooSecret.value});
+      wooKey.value='';wooSecret.value='';status.textContent=t('WooCommerce connected. API credentials were cleared from the form and stored encrypted. Read-only sync has not started. Configure signed webhooks only after reconciliation.','تم ربط WooCommerce. مُسحت بيانات API من النموذج وخُزنت مشفرة. لم تبدأ المزامنة للقراءة فقط بعد. أعدّ Webhooks الموقّعة بعد المطابقة فقط.');await refreshConnections();
     }catch(error){showCode(status,error);}finally{connectWoo.disabled=false;}};
 
     const connectionsRoot=add(root,'div');connectionsRoot.setAttribute('aria-live','polite');
@@ -438,6 +434,89 @@
             }else for(const variant of item.variants||[])add(card,'p',(variant.title||t('Variation','متغير'))+' · '+(variant.sku||'—')+
               (variant.price?' · '+item.currency+' '+variant.price:''));
             if(item.variantsTruncated&&connection.provider!=='woocommerce')add(card,'p',t('Some product variants need a full-detail import.','تحتاج بعض متغيرات المنتج إلى استيراد التفاصيل الكاملة.'));
+            if(connection.provider==='woocommerce'){
+              const mappingSection=add(card,'details');mappingSection.className='sx-retail-mapping';
+              add(mappingSection,'summary',t('Map Woo product or variation to 7Network inventory','ربط منتج أو متغير Woo بمخزون 7Network'));
+              const mappingHolder=add(mappingSection,'div');let mappingLoaded=false;
+              const renderMappingRow=(source,pageNumber)=>{
+                const line=add(mappingHolder,'article');line.className='sx-retail-mapping-row';
+                const sourceLabel=source.sourceType==='variation'?t('Woo variation','متغير Woo'):t('Woo product','منتج Woo');
+                add(line,'strong',sourceLabel+' · '+source.title);
+                add(line,'p','ID '+source.productId+(source.variationId?' / '+source.variationId:'')+' · SKU '+(source.sku||'—')+' · '+source.status);
+                const mappingState=add(line,'p');
+                if(source.mappingStatus==='mapped'&&source.targetProduct){
+                  const target=source.targetProduct;
+                  mappingState.textContent=t('Mapped to 7Network','مرتبط بمنتج 7Network')+': '+(target.sku||'—')+' · '+(t(target.nameEn,target.nameAr)||target.nameEn||target.id)+
+                    (target.isVariant?' · '+(target.variantGroupTitleEn||'')+' '+(target.variantValueEn||''):'');
+                  if(target.status!=='active')add(line,'p',t('Mapped target is not active. Review it before accepting reconciliation.','المنتج المرتبط غير نشط. راجعه قبل اعتماد المطابقة.'));
+                  if(target.skuMatches===false)add(line,'p',t('The mapped SKU differs from Woo. Review this explicit mapping before accepting reconciliation.','يختلف SKU المرتبط عن Woo. راجع الربط قبل اعتماد المطابقة.'));
+                }else if(source.mappingStatus==='ignored')mappingState.textContent=t('Explicitly ignored for inventory mapping','تم استثناؤه صراحةً من ربط المخزون');
+                else mappingState.textContent=t('Not mapped','غير مرتبط');
+                if(!source.mappable){add(line,'p',t('Only published simple products and purchasable variations under a published parent can be mapped.','يمكن ربط المنتجات البسيطة المنشورة والمتغيرات القابلة للشراء ضمن منتج رئيسي منشور فقط.'));return;}
+                const search=input(line,t('Find 7Network SKU or product','ابحث عن SKU أو منتج 7Network'),source.sku||'','search');
+                search.maxLength=100;search.autocomplete='off';
+                const selectLabel=add(line,'label',t('Target product or variant','المنتج أو المتغير المستهدف')+' ');
+                const select=add(selectLabel,'select');select.setAttribute('aria-label',t('Target product or variant','المنتج أو المتغير المستهدف'));select.disabled=true;
+                const optionsById=new Map();
+                const selectStatus=add(line,'p');
+                const placeholder=add(select,'option',t('Choose a 7Network product','اختر منتج 7Network'));placeholder.value='';
+                async function searchTargets(){
+                  const query=(search.value.trim()||source.sku||'').trim();
+                  if(query.length<2){selectStatus.textContent=t('Enter at least two characters to search.','أدخل حرفين على الأقل للبحث.');return;}
+                  select.disabled=true;select.replaceChildren();optionsById.clear();
+                  add(select,'option',t('Searching…','جارٍ البحث…')).value='';
+                  try{
+                    const result=await api('/connectors/'+encodeURIComponent(connection.id)+'/mapping-options?search='+encodeURIComponent(query));
+                    select.replaceChildren();add(select,'option',t('Choose a 7Network product','اختر منتج 7Network')).value='';
+                    for(const target of result.items||[]){optionsById.set(target.id,target);const label=(target.sku||'—')+' · '+(t(target.nameEn,target.nameAr)||target.nameEn||target.id)+
+                      (target.isVariant?' · '+(target.variantGroupTitleEn||'')+' '+(target.variantValueEn||''):'');const option=add(select,'option',label);option.value=target.id;}
+                    if(source.targetProduct&&!optionsById.has(source.targetProduct.id)){
+                      const target=source.targetProduct;optionsById.set(target.id,target);const option=add(select,'option',(target.sku||'—')+' · '+(target.nameEn||target.id)+' · '+t('current mapping','الربط الحالي'));option.value=target.id;
+                    }
+                    select.disabled=false;select.value=source.targetProduct?.id||'';
+                    selectStatus.textContent=result.items?.length?t('Choose a target, then review the SKU comparison. Matches are suggestions only.','اختر هدفاً ثم راجع مقارنة SKU. المطابقات اقتراحات فقط.'):
+                      t('No matching 7Network products. Search by another SKU or name.','لا توجد منتجات 7Network مطابقة. ابحث باستخدام SKU أو اسم آخر.');
+                    showSkuComparison();
+                  }catch(error){select.replaceChildren();add(select,'option',t('Search failed','فشل البحث')).value='';selectStatus.textContent=t('Could not search the 7Network catalogue.','تعذر البحث في كتالوج 7Network.');showCode(status,error);}
+                }
+                function showSkuComparison(){
+                  const target=optionsById.get(select.value);
+                  if(!target){selectStatus.textContent=t('Select a target product to compare SKUs.','اختر منتجاً مستهدفاً لمقارنة SKU.');return;}
+                  if(!source.sku||!target.sku)selectStatus.textContent=t('At least one SKU is missing. Confirm the product identity manually.','SKU مفقود في أحد الطرفين. تحقق من هوية المنتج يدوياً.');
+                  else if(source.sku.trim().toUpperCase()===target.sku.trim().toUpperCase())selectStatus.textContent=t('SKU matches. Confirm the product and variation before saving.','SKU متطابق. تحقق من المنتج والمتغير قبل الحفظ.');
+                  else selectStatus.textContent=t('SKU differs. Confirm this mapping manually before saving.','SKU مختلف. تحقق من الربط يدوياً قبل الحفظ.');
+                }
+                select.addEventListener('change',showSkuComparison);
+                const findButton=add(line,'button',t('Search catalogue','ابحث في الكتالوج'));findButton.type='button';findButton.onclick=searchTargets;
+                if(source.sku&&source.sku.length>=2)searchTargets();
+                const save=add(line,'button',t('Save mapping','حفظ الربط'));save.type='button';save.disabled=true;
+                select.addEventListener('change',()=>{save.disabled=!select.value;});
+                async function saveMapping(actionName,targetProductId=null){
+                  const button=actionName==='map'?save:actionName==='ignore'?ignore:clear;
+                  button.disabled=true;
+                  try{
+                    await api('/connectors/'+encodeURIComponent(connection.id)+'/mappings','PUT',{externalProductId:source.productId,
+                      externalVariationId:source.variationId||null,targetProductId,action:actionName,expectedRevision:source.mappingRevision,expectedSku:source.sku??null});
+                    await loadMappings(pageNumber,false);
+                  }catch(error){await loadMappings(pageNumber,false);showCode(status,error);}
+                }
+                save.onclick=()=>{if(select.value)saveMapping('map',select.value);};
+                const ignore=add(line,'button',t('Ignore this Woo item','تجاهل عنصر Woo'));ignore.type='button';ignore.onclick=()=>saveMapping('ignore');
+                const clear=add(line,'button',t('Clear mapping','إزالة الربط'));clear.type='button';clear.disabled=source.mappingStatus==='unmapped';clear.onclick=()=>saveMapping('clear');
+              };
+              const loadMappings=async(pageNumber=1,append=false)=>{
+                if(!append){mappingHolder.replaceChildren();add(mappingHolder,'p',t('Loading product mappings…','جارٍ تحميل روابط المنتجات…'));}
+                try{
+                  const result=await api('/connectors/'+encodeURIComponent(connection.id)+'/mappings?productId='+encodeURIComponent(item.id)+'&page='+pageNumber);
+                  if(!append)mappingHolder.replaceChildren();
+                  if(result.product.type==='unknown')add(mappingHolder,'p',t('Woo product type was not captured. Refresh the read-only product sync before mapping.','لم يُحفظ نوع منتج Woo. حدّث مزامنة المنتجات للقراءة فقط قبل الربط.'));
+                  else if(!result.items.length&&pageNumber===1)add(mappingHolder,'p',t('No variation records were imported for this product yet.','لم تُستورد متغيرات لهذا المنتج بعد.'));
+                  for(const source of result.items)renderMappingRow(source,pageNumber);
+                  if(result.hasMore)action(mappingHolder,t('Load more mapping rows','تحميل مزيد من روابط المنتجات'),()=>loadMappings(pageNumber+1,true).then(()=>({message:t('More mapping rows loaded.','تم تحميل مزيد من روابط المنتجات.'),refresh:false})),status);
+                }catch(error){if(!append)mappingHolder.replaceChildren();add(mappingHolder,'p',t('Unable to load product mappings.','تعذر تحميل روابط المنتجات.'));showCode(status,error);}
+              };
+              mappingSection.addEventListener('toggle',()=>{if(mappingSection.open&&!mappingLoaded){mappingLoaded=true;loadMappings(1);}});
+            }
           }else{
             add(card,'strong',t(item.status==='abandoned'?'Abandoned checkout':item.status==='recovered'?'Recovered checkout':'Checkout',item.status==='abandoned'?'سلة متروكة':item.status==='recovered'?'سلة مستعادة':'سلة'));
             add(card,'p',item.currency+' '+item.total+' · '+t('Follow-up permission','إذن المتابعة')+': '+item.contactConsent);
@@ -497,7 +576,7 @@
         for(const connection of connections){
           const card=add(connectionsRoot,'section');add(card,'h2',connection.displayName+' · '+connection.provider);add(card,'p',connection.storeDomain+' · '+connection.status+' · '+connection.currency);
           add(card,'p',t('Imported','مستورد')+': '+connection.counts.orders+' '+t('orders','طلبات')+' · '+connection.counts.customers+' '+t('customers','عملاء')+' · '+connection.counts.products+' '+t('products','منتجات')+
-            (connection.provider==='woocommerce'?' · '+connection.counts.variations+' '+t('variations','متغيرات'):'')+' · '+connection.counts.checkouts+' '+t('checkouts','سلات'));
+            (connection.provider==='woocommerce'?' · '+connection.counts.variations+' '+t('variations','متغيرات')+' · '+(connection.counts.mappings||0)+' '+t('inventory mappings','روابط المخزون'):'')+' · '+connection.counts.checkouts+' '+t('checkouts','سلات'));
           if(connection.lastSyncAt)add(card,'p',t('Last sync attempt','آخر محاولة مزامنة')+': '+connection.lastSyncAt);
           if(connection.syncProgress?.lastCompleteScanAt)add(card,'p',t('Last complete read-only scan','آخر فحص كامل للقراءة فقط')+': '+connection.syncProgress.lastCompleteScanAt);
           if(connection.lastErrorCode)add(card,'p',t('Provider status','حالة المزوّد')+': '+connection.lastErrorCode);
@@ -519,6 +598,10 @@
                 const counts=report.scan?.sourceCounts||{};
                 add(reportBody,'p',t('Imported records','السجلات المستوردة')+': '+report.importedCounts.products+' '+t('products','منتجات')+' · '+report.importedCounts.variations+' '+t('variations','متغيرات')+
                   ' · '+report.importedCounts.orders+' '+t('orders','طلبات')+' · '+report.importedCounts.customers+' '+t('customers','عملاء'));
+                const mapping=report.productMappings||{};
+                add(reportBody,'p',t('7Network inventory mappings','روابط مخزون 7Network')+': '+(mapping.mapped||0)+' '+t('mapped','مرتبط')+' · '+
+                  (mapping.ignored||0)+' '+t('ignored','متجاهل')+' · '+(mapping.invalidTargets||0)+' '+t('invalid target','هدف غير صالح'));
+                if(Number(mapping.invalidTargets||0)>0)add(reportBody,'p',t('One or more mappings point to a missing inventory product. Review these before accepting reconciliation.','يشير رابط واحد أو أكثر إلى منتج مخزون غير موجود. راجع الروابط قبل اعتماد المطابقة.'));
                 add(reportBody,'p',t('SKU review','مراجعة SKU')+': '+report.skuAudit.missingProductSku+' '+t('products without SKU','منتجات بلا SKU')+' · '+
                   report.skuAudit.missingVariationSku+' '+t('variations without SKU','متغيرات بلا SKU')+' · '+report.skuAudit.duplicateSkuCount+' '+t('duplicate SKU values','قيم SKU مكررة'));
                 for(const duplicate of report.skuAudit.duplicateSkus)add(reportBody,'p',t('Duplicate SKU','SKU مكرر')+': '+duplicate.sku+' · '+duplicate.count+' '+t('records','سجلات'));
