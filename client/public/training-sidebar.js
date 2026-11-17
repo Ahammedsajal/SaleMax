@@ -36,7 +36,7 @@
     ['Leads & Reports', 'العملاء المحتملون والتقارير', ['Lead Pipeline', 'Lead Reports']],
     ['Contacts & Conversations', 'جهات الاتصال والمحادثات', ['Phonebook', 'Call Center']],
     ['Finance', 'المالية', ['Invoices & Payments', 'Finance Reports', 'Sales Finance']],
-    ['WhatsApp & Campaigns', 'واتساب والحملات', ['Add WhatsApp by QR', 'Link Meta WhatsApp', 'Create Meta Template', 'Send Campaign', 'Campaign Dashboard', 'Web Notification']],
+    ['WhatsApp & Campaigns', 'واتساب والحملات', ['Add WhatsApp by QR', 'Link Meta WhatsApp', 'Create Meta Template', 'Send Campaign', 'Campaign Dashboard', 'Email Marketing', 'Web Notification']],
     ['Automation & Bots', 'الأتمتة والروبوتات', ['Automation Flows', 'WA Chatbot', 'FAQs', 'AI Integrations']],
     ['Team & Tasks', 'الفريق والمهام', ['Team access', 'Tasks', 'Team Login', 'Agent Task']],
     ['API & Integrations', 'واجهات البرمجة والتكامل', ['Chat Widget', 'REST API', 'Conversational API', 'Template API', 'API Dashboard']],
@@ -52,14 +52,14 @@
     'الفواتير والمدفوعات': 'Invoices & Payments', 'تقارير المالية': 'Finance Reports',
     'إدارة وصول الفريق': 'Team access', 'تسجيل دخول الوكيل': 'Team Login',
     'دخول الوكيل': 'Team Login', 'Rest API': 'REST API', 'Web Notificaion': 'Web Notification',
-    'Web Notifications': 'Web Notification', 'إشعارات الويب': 'Web Notification', 'لوحة التحكم': 'Dashboard', 'المهام': 'Tasks', 'مركز الاتصال': 'Call Center',
+    'Web Notifications': 'Web Notification', 'إشعارات الويب': 'Web Notification', 'Email': 'Email Marketing', 'التسويق عبر البريد الإلكتروني': 'Email Marketing', 'لوحة التحكم': 'Dashboard', 'المهام': 'Tasks', 'مركز الاتصال': 'Call Center',
     'Calls & Recordings': 'Call Center', 'المكالمات والتسجيلات': 'Call Center',
     'سياسة العمولات':'Commission Policy','صفقات المبيعات':'Sales Deals','أهداف المبيعات':'Sales Targets','عمولاتي':'My Commissions','مدفوعات العمولات':'Commission Payouts','مالية المبيعات':'Sales Finance','الهيكل التنظيمي':'Organization','سجل التدقيق':'Audit Trail','ملف العميل المثالي':'ICP'
   };
   const navigationKeys = {
     Dashboard:'dashboard', Inbox:'inbox', 'Add WhatsApp by QR':'whatsapp-qr', 'Link Meta WhatsApp':'whatsapp-meta',
     'Automation Flows':'flows', 'WA Chatbot':'chatbot', 'FAQs':'faqs', 'Create Meta Template':'templates', 'Send Campaign':'campaigns',
-    'Campaign Dashboard':'campaign-dashboard', 'Lead Pipeline':'leads', 'Lead Reports':'reports', Phonebook:'contacts', 'Team Login':'agent-login','Agent Login':'agent-login','CRM appearance':'settings','Web Notification':'notifications','Web Notifications':'notifications',
+    'Campaign Dashboard':'campaign-dashboard', 'Email Marketing':'email', 'Lead Pipeline':'leads', 'Lead Reports':'reports', Phonebook:'contacts', 'Team Login':'agent-login','Agent Login':'agent-login','CRM appearance':'settings','Web Notification':'notifications','Web Notifications':'notifications',
     'Agent Task':'tasks', Tasks:'tasks', 'Call Center':'call-center', 'Products & services':'products-services', Courses:'courses', Students:'students', 'Center profile':'training-profile', 'Candidate Applications':'forms', 'Applications & CVs':'recruitment', 'طلبات التوظيف والسير الذاتية':'recruitment', 'Invoices & Payments':'invoices',
     'Finance Reports':'finance-reports', 'Team access':'team', 'People & Roles':'team', 'الأشخاص والأدوار':'team', 'Team and Roles':'team', 'Commission Policy':'commission-policy', 'Sales Deals':'sales-deals','Sales Targets':'sales-targets','Sales Reports':'sales-targets', 'My Commissions':'sales-commissions','Commission Payouts':'sales-commissions','Sales Finance':'sales-finance','Sales Overview':'sales-workspace',
     'AI Integrations':'ai-integrations','Business Settings':'settings','Business Profile':'settings', Settings:'settings', Organization:'sales-organization', 'Sales Overview':'sales-targets','Audit Trail':'sales-audit','ICP':'icp',Properties:'properties','العقارات':'properties'
@@ -224,6 +224,7 @@
       'Create Meta Template':['M5 3h10l4 4v14H5z','M14 3v5h5','M8 12h8','M8 16h8'],
       'Send Campaign':['M22 2 11 13','M22 2l-7 20-4-9-9-4z'],
       'Campaign Dashboard':['M3 11v3h4l9 5V6l-9 5z','M7 14l2 7h4l-3-8','M19 9a5 5 0 0 1 0 7'],
+      'Email Marketing':['M4 6h16v12H4z','m4 7 8 6 8-6'],
       'Web Notification':['M18 9a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9','M10 21h4'],
       'Web Notifications':['M18 9a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9','M10 21h4'],
       'Automation Flows':['M6 4v5','M6 15v5','M18 4v5','M18 15v5','M6 9h12v6H6z','M9 12h.01','M12 12h.01','M15 12h.01'],
@@ -399,6 +400,7 @@
       ['whatsapp-meta','Link Meta WhatsApp','ربط واتساب ميتا','wa-meta-manual'],['flows','Automation Flows','مسارات الأتمتة','automation-flows'],
       ['chatbot','WA Chatbot','روبوت محادثة واتساب','wa-chatbot'],['templates','Create Meta Template','إنشاء قالب ميتا','create-meta-template'],
       ['campaigns','Send Campaign','إرسال حملة','send-campaign'],['campaign-dashboard','Campaign Dashboard','لوحة الحملات','campaign-dashboard'],
+      ['email','Email Marketing','التسويق عبر البريد الإلكتروني','campaign-dashboard&channel=email'],
       ['leads','Lead Pipeline','مسار العملاء المحتملين','lead-pipeline'],['contacts','Phonebook','دليل الهاتف','phonebook'],
       ['products-services','Products & services','المنتجات والخدمات','products-services'],
       ['tasks','Tasks','المهام','tasks'],
@@ -647,17 +649,17 @@
       }
       const query = (drawer.querySelector('input')?.value || '').trim().toLowerCase();
       const active = new URLSearchParams(location.search).get('page');
-      const routes = {'AI Integrations':'ai-integrations','Products & services':'products-services', Courses:'courses', 'Candidate Applications':'forms', 'Applications & CVs':'recruitment', 'Invoices & Payments':'finance-settings', 'Finance Reports':'finance-settings', 'Team access':'team-invitations', 'People & Roles':'team-invitations', 'Business Settings':'crm-appearance', 'Business Profile':'crm-appearance', 'Lead Pipeline':'lead-pipeline', 'Lead Reports':'lead-reports', Tasks:'tasks', 'Call Center':'call-center', 'WA Chatbot':'wa-chatbot', FAQs:'faqs','Commission Policy':'commission-policy','Organization':'sales-organization','Sales Overview':'sales-workspace','Sales Deals':'sales-workspace','Sales Targets':'sales-workspace','Sales Reports':'sales-workspace','My Commissions':'sales-workspace','Commission Payouts':'sales-workspace','Sales Finance':'sales-finance'};
+      const routes = {'AI Integrations':'ai-integrations','Products & services':'products-services', Courses:'courses', 'Candidate Applications':'forms', 'Applications & CVs':'recruitment', 'Invoices & Payments':'finance-settings', 'Finance Reports':'finance-settings', 'Team access':'team-invitations', 'People & Roles':'team-invitations', 'Business Settings':'crm-appearance', 'Business Profile':'crm-appearance', 'Lead Pipeline':'lead-pipeline', 'Lead Reports':'lead-reports', Tasks:'tasks', 'Call Center':'call-center', 'WA Chatbot':'wa-chatbot', FAQs:'faqs','Commission Policy':'commission-policy','Organization':'sales-organization','Sales Overview':'sales-workspace','Sales Deals':'sales-workspace','Sales Targets':'sales-workspace','Sales Reports':'sales-workspace','My Commissions':'sales-workspace','Commission Payouts':'sales-workspace','Sales Finance':'sales-finance','Campaign Dashboard':'campaign-dashboard','Email Marketing':'campaign-dashboard'};
       const present = new Set();
       [...list.children].filter(row => row.tagName === 'LI' && !row.hasAttribute('data-sx-nav-section')).forEach((row, index) => {
         const text = label(row), name = aliases[text] || text;
         const navButton = row.querySelector('.MuiListItemButton-root,[role="button"],button,a');
-        let tooltip = name === 'Web Notification' ? tr('Web Notifications', 'إشعارات الويب') : text;
+        let tooltip = name === 'Web Notification' ? tr('Web Notifications', 'إشعارات الويب') : name === 'Email Marketing' ? tr('Email Marketing', 'التسويق عبر البريد الإلكتروني') : text;
         if (Object.values(routes).includes(active)) {
           const button = row.querySelector('.MuiListItemButton-root');
-          if (button) { const selected = row.dataset.sxSalesSection ? active==='sales-workspace'&&(new URLSearchParams(location.search).get('section')||'overview')===row.dataset.sxSalesSection : name==='Finance Reports' ? active==='finance-settings'&&new URLSearchParams(location.search).get('section')==='reports' : name==='Invoices & Payments' ? active==='finance-settings'&&new URLSearchParams(location.search).get('section')!=='reports' : name==='Sales Reports' ? active==='sales-workspace'&&new URLSearchParams(location.search).get('section')==='reports' : name==='Sales Deals' ? active==='sales-workspace'&&new URLSearchParams(location.search).get('section')==='deals' : name==='Sales Targets' ? active==='sales-workspace'&&new URLSearchParams(location.search).get('section')==='targets' : ['My Commissions','Commission Payouts'].includes(name) ? active==='sales-workspace'&&new URLSearchParams(location.search).get('section')==='commissions' : routes[name] === active; button.classList.toggle('Mui-selected', selected); if (selected) button.setAttribute('aria-current', 'page'); else button.removeAttribute('aria-current'); }
+          if (button) { const channel=new URLSearchParams(location.search).get('channel'); const selected = name==='Email Marketing' ? active==='campaign-dashboard'&&channel==='email' : name==='Campaign Dashboard' ? active==='campaign-dashboard'&&channel!=='email' : row.dataset.sxSalesSection ? active==='sales-workspace'&&(new URLSearchParams(location.search).get('section')||'overview')===row.dataset.sxSalesSection : name==='Finance Reports' ? active==='finance-settings'&&new URLSearchParams(location.search).get('section')==='reports' : name==='Invoices & Payments' ? active==='finance-settings'&&new URLSearchParams(location.search).get('section')!=='reports' : name==='Sales Reports' ? active==='sales-workspace'&&new URLSearchParams(location.search).get('section')==='reports' : name==='Sales Deals' ? active==='sales-workspace'&&new URLSearchParams(location.search).get('section')==='deals' : name==='Sales Targets' ? active==='sales-workspace'&&new URLSearchParams(location.search).get('section')==='targets' : ['My Commissions','Commission Payouts'].includes(name) ? active==='sales-workspace'&&new URLSearchParams(location.search).get('section')==='commissions' : routes[name] === active; button.classList.toggle('Mui-selected', selected); if (selected) button.setAttribute('aria-current', 'page'); else button.removeAttribute('aria-current'); }
         }
-        const captions = {Dashboard:['Dashboard','لوحة التحكم'], 'Web Notification':['Web Notifications','إشعارات الويب'], 'Create Meta Template':['Create Meta Template','إنشاء قالب Meta']};
+        const captions = {Dashboard:['Dashboard','لوحة التحكم'], 'Web Notification':['Web Notifications','إشعارات الويب'], 'Email Marketing':['Email Marketing','التسويق عبر البريد الإلكتروني'], 'Create Meta Template':['Create Meta Template','إنشاء قالب Meta']};
         const leaf = [...row.querySelectorAll('.MuiListItemText-primary span')].at(-1);
         if (leaf && captions[name]) { const next = tr(...captions[name]); if (leaf.textContent !== next) leaf.textContent = next; }
         let group = groups.findIndex(g => g[2].includes(name));
@@ -729,7 +731,7 @@
     document.documentElement.style.setProperty('--sx-sidebar-inline-offset', `${sidebarOffset}px`);
     const page=new URLSearchParams(location.search).get('page');
     const salesSection=new URLSearchParams(location.search).get('section')||'overview';const salesRouteKey=({overview:'sales-targets',targets:'sales-targets',reports:'sales-targets',deals:'sales-deals',commissions:'sales-commissions'})[salesSection]||'sales-targets';
-    const routeKeys={'ai-integrations':'ai-integrations',properties:'properties',students:'students','training-profile':'training-profile','crm-appearance':'settings','products-services':'products-services',courses:'courses',forms:'forms',recruitment:'recruitment','lead-pipeline':'leads','lead-reports':'reports',tasks:'tasks','call-center':'call-center','finance-settings':new URLSearchParams(location.search).get('section')==='reports'?'finance-reports':'invoices','team-invitations':'team','wa-chatbot':'chatbot',faqs:'faqs','commission-policy':'commission-policy','sales-workspace':salesRouteKey,'sales-finance':'sales-finance','sales-organization':'sales-organization',icp:'icp'};
+    const routeKeys={'ai-integrations':'ai-integrations',properties:'properties',students:'students','training-profile':'training-profile','crm-appearance':'settings','products-services':'products-services',courses:'courses',forms:'forms',recruitment:'recruitment','lead-pipeline':'leads','lead-reports':'reports',tasks:'tasks','call-center':'call-center','campaign-dashboard':new URLSearchParams(location.search).get('channel')==='email'?'email':'campaign-dashboard','finance-settings':new URLSearchParams(location.search).get('section')==='reports'?'finance-reports':'invoices','team-invitations':'team','wa-chatbot':'chatbot',faqs:'faqs','commission-policy':'commission-policy','sales-workspace':salesRouteKey,'sales-finance':'sales-finance','sales-organization':'sales-organization',icp:'icp'};
     const required=routeKeys[page];
     // Team access is available to any membership whose role/navigation grants
     // it. The API still enforces team.invite (including owner-approved manager
