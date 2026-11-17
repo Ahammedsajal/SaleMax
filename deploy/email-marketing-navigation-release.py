@@ -286,7 +286,7 @@ def deploy(stage_path, commit):
     stage_path, manifest = validate_stage(stage_path, commit)
     app = inspect(APP)
     db = inspect(DB)
-    if app['State'].get('Health', {}).get('Status') != 'healthy' or app['Config']['Image'] != EXPECTED_IMAGE:
+    if app['State'].get('Health', {}).get('Status') != 'healthy' or app['Image'] != EXPECTED_IMAGE:
         raise RuntimeError('Active app health or image differs from reviewed baseline')
     if db['State'].get('Health', {}).get('Status') != 'healthy':
         raise RuntimeError('Database is not healthy')
@@ -333,7 +333,7 @@ def deploy(stage_path, commit):
         output.write_bytes(changed[target])
         output.chmod(0o644)
     backup_files = {
-        'app-before.json': {'id': app['Id'], 'image': app['Config']['Image'],
+        'app-before.json': {'id': app['Id'], 'image': app['Config']['Image'], 'imageId': app['Image'],
                             'health': app['State']['Health']['Status'],
                             'restartCount': app.get('RestartCount', 0)},
         'compose-files.before.txt': '\n'.join(files) + '\n',
@@ -375,7 +375,7 @@ def deploy(stage_path, commit):
         expected_chain = ','.join(files + [str(overlay)])
         if current['Config']['Labels']['com.docker.compose.project.config_files'] != expected_chain:
             raise RuntimeError('Unexpected active Compose chain')
-        if current['Config']['Image'] != app['Config']['Image']:
+        if current['Image'] != app['Image']:
             raise RuntimeError('App image changed unexpectedly')
         after_inventory = inventory()
         if {name: identity for name, identity in after_inventory.items() if name != APP} != {
@@ -387,7 +387,8 @@ def deploy(stage_path, commit):
                 raise RuntimeError('Runtime file hash mismatch: ' + target)
         public_check()
         result = {'sourceCommit': commit, 'release': str(release), 'rollback': str(backup),
-                  'image': current['Config']['Image'], 'composeInputs': len(files) + 1,
+                  'image': current['Image'], 'imageReference': current['Config']['Image'],
+                  'composeInputs': len(files) + 1,
                   'envInputs': len(env_files), 'appMounts': len(current['Mounts']),
                   'migrations': 'none', 'runtimeHashes': DEPLOYED_HASHES,
                   'preimageHashes': preimage_hashes,
@@ -432,7 +433,7 @@ def restore(backup_path):
         env=env, timeout=900)
     current = wait_healthy()
     prior = json.loads((backup / 'app-before.json').read_text())
-    if current['Config']['Image'] != prior['image'] or current['Config']['Labels']['com.docker.compose.project.config_files'] != ','.join(files):
+    if current['Image'] != prior['imageId'] or current['Config']['Image'] != prior['image'] or current['Config']['Labels']['com.docker.compose.project.config_files'] != ','.join(files):
         raise RuntimeError('Prior app Compose chain did not restore')
     for target, digest in json.loads((backup / 'preimage-hashes.json').read_text()).items():
         if run('docker', 'exec', APP, 'sha256sum', '/app/' + target).stdout.split()[0] != digest:
