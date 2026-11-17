@@ -11,9 +11,10 @@ function status(state, detail = '') {
 }
 
 export async function connectBrowserSip(config, remoteAudio, onState = () => {}) {
+  const sipIdentity = typeof config?.uri === 'string'
+    ? /^sip:(salemax-[0-9]{3,8}-browser)@[!-~]+$/.exec(config.uri)?.[1] || '' : '';
   if (!config || typeof config.server !== 'string' || !config.server.startsWith('wss://')
-    || typeof config.uri !== 'string' || !/^sip:[0-9]{3,8}-browser-r[1-9][0-9]{0,15}@[!-~]+$/.test(config.uri)
-    || typeof config.authorizationUsername !== 'string' || !/^[0-9]{3,8}-browser-r[1-9][0-9]{0,15}$/.test(config.authorizationUsername)
+    || !sipIdentity || typeof config.authorizationUsername !== 'string' || config.authorizationUsername !== sipIdentity
     || typeof config.authorizationPassword !== 'string' || config.authorizationPassword.length < 40
     || !remoteAudio || typeof remoteAudio.play !== 'function') throw new Error('INVALID_BROWSER_SIP_CONFIG');
   stateListener = onState;

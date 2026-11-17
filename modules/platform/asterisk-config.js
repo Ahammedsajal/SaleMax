@@ -8,19 +8,24 @@ const { platformDecision } = require('./policy');
 const fail = code => { throw Object.assign(new Error(code), { code }); };
 
 const REQUIRED_MODULES = Object.freeze({
-  callControl: ['chan_pjsip', 'res_pjsip', 'res_pjsip_endpoint_identifier_ip', 'res_pjsip_transport_tls',
-    'res_ari', 'res_ari_channels', 'res_ari_bridges', 'app_stasis', 'res_stasis'],
-  gatewayProvisioning: ['res_sorcery_astdb'],
+  callControl: ['chan_pjsip', 'res_pjsip', 'res_pjsip_endpoint_identifier_ip', 'res_pjsip_endpoint_identifier_user',
+    'res_pjsip_registrar', 'res_pjsip_authenticator_digest', 'res_pjsip_transport_tls', 'res_sorcery_astdb',
+    'res_ari', 'res_ari_asterisk', 'res_ari_channels', 'res_ari_bridges', 'res_ari_endpoints', 'res_ari_events',
+    'res_http_websocket', 'app_stasis', 'res_stasis'],
+  gatewayProvisioning: ['res_sorcery_astdb', 'res_ari_asterisk', 'res_ari_endpoints', 'res_pjsip_endpoint_identifier_ip',
+    'res_pjsip_transport_tls'],
   browserWebrtc: ['res_http_websocket', 'res_pjsip_transport_websocket', 'codec_opus_open_source', 'res_format_attr_opus'],
   sipSecurityLogging: ['res_security_log'],
 });
 function memberEndpointProfile(extension, clientType, credentialRevision) {
-  const username = `${extension}-${clientType}-r${credentialRevision}`;
+  const endpointId = `salemax-${extension}-${clientType}`;
+  // Asterisk's username identifier resolves the SIP From user to the endpoint object ID.
+  const username = endpointId;
   return {
     username,
-    authId: `salemax-${username}-auth`,
-    aorId: `salemax-${username}-aor`,
-    endpointId: `salemax-${extension}-${clientType}`,
+    authId: `${endpointId}-r${credentialRevision}-auth`,
+    aorId: `${endpointId}-r${credentialRevision}-aor`,
+    endpointId,
   };
 }
 
@@ -101,6 +106,7 @@ async function applyMemberEndpoint(db, context, extension, clientType, extension
   const profile = memberEndpointProfile(extension, clientType, credentialRevision);
   const { username, authId, aorId, endpointId } = profile;
   let previousEndpointFields = null;
+  let previousAuthFields = null;
   if (typeof client.getPjsipObject === 'function') {
     try { previousEndpointFields = await client.getPjsipObject('endpoint', endpointId); }
     catch (error) { if (error.code !== 'ARI_RESOURCE_NOT_FOUND') throw error; }
@@ -109,8 +115,15 @@ async function applyMemberEndpoint(db, context, extension, clientType, extension
     && Number(applied.extension_revision) === extensionRevision
     && Number(applied.credential_revision) === credentialRevision
     && Number(applied.asterisk_config_revision) === Number(asteriskConfig.revision);
-  const profileMatches = endpointField(previousEndpointFields, 'auth') === authId
-    && endpointField(previousEndpointFields, 'aors') === aorId;
+  const endpointMatches = endpointField(previousEndpointFields, 'auth') === authId
+    && endpointField(previousEndpointFields, 'aors') === aorId
+    && endpointField(previousEndpointFields, 'from_user') === username
+    && endpointField(previousEndpointFields, 'identify_by') === 'username';
+  if (endpointMatches && typeof client.getPjsipObject === 'function') {
+    try { previousAuthFields = await client.getPjsipObject('auth', authId); }
+    catch (error) { if (error.code !== 'ARI_RESOURCE_NOT_FOUND') throw error; }
+  }
+  const profileMatches = endpointMatches && endpointField(previousAuthFields, 'username') === username;
   if (provisioningMatches && profileMatches) return { changed: false };
   const correlationId = crypto.randomUUID();
   let objectsApplied = 0;
@@ -160,6 +173,7 @@ async function applyMemberEndpoint(db, context, extension, clientType, extension
       { attribute: 'allow', value: clientType === 'browser' ? 'opus,alaw,ulaw' : 'alaw,ulaw' },
       { attribute: 'auth', value: authId },
       { attribute: 'aors', value: aorId },
+      { attribute: 'identify_by', value: 'username' },
       { attribute: 'from_user', value: username },
       { attribute: 'direct_media', value: 'no' },
       { attribute: 'rtp_symmetric', value: 'yes' },
@@ -365,6 +379,7 @@ function gatewayPjsipPreview(row) {
       'context=from-dinstar-unrouted',
       'disallow=all',
       'allow=alaw,ulaw',
+      'identify_by=ip',
       'transport=transport-salemax-tls',
       'media_encryption=sdes',
       'media_encryption_optimistic=no',
@@ -479,6 +494,7 @@ async function applyGatewayPeer(db, context, clientFactory) {
       { attribute: 'context', value: 'from-dinstar-unrouted' },
       { attribute: 'disallow', value: 'all' },
       { attribute: 'allow', value: 'alaw,ulaw' },
+      { attribute: 'identify_by', value: 'ip' },
       { attribute: 'transport', value: 'transport-salemax-tls' },
       { attribute: 'media_encryption', value: 'sdes' },
       { attribute: 'media_encryption_optimistic', value: 'no' },
@@ -552,7 +568,7 @@ async function previewAgentEndpoints(db, context) {
         `password=${password}`, '',
         `[${aorId}]`, 'type=aor', 'max_contacts=1', 'remove_existing=yes', 'qualify_frequency=30', '',
         `[${endpointId}]`, 'type=endpoint', `context=${client === 'mobile' ? 'from-salemax-mobile-outbound' : 'from-salemax-agents-unrouted'}`, 'disallow=all', 'allow=alaw,ulaw',
-        `auth=${authId}`, `aors=${aorId}`, `from_user=${username}`, 'direct_media=no', 'rtp_symmetric=yes', 'force_rport=yes',
+        `auth=${authId}`, `aors=${aorId}`, 'identify_by=username', `from_user=${username}`, 'direct_media=no', 'rtp_symmetric=yes', 'force_rport=yes',
         'rewrite_contact=yes');
       if (client === 'mobile') lines.push('transport=transport-salemax-tls', 'media_encryption=sdes', 'media_encryption_optimistic=no');
       else lines.push('transport=transport-salemax-browser-wss', 'webrtc=yes', 'use_avpf=yes', 'media_encryption=dtls',
@@ -593,6 +609,7 @@ function previewHostSetup(context) {
       path: '/etc/asterisk/pjsip.conf',
       purpose: 'One shared TLS transport for Dinstar and mobile apps, plus the WebRTC WSS transport.',
       content: [
+        '[global]', 'type=global', 'endpoint_identifier_order=ip,username,anonymous', '',
         '[transport-salemax-tls]', 'type=transport', 'protocol=tls', 'bind=0.0.0.0:5061', 'method=tlsv1_2',
         'cert_file=/etc/asterisk/keys/pbx.crt', 'priv_key_file=/etc/asterisk/keys/pbx.key', 'verify_client=no', 'allow_reload=yes', '',
         '[transport-salemax-browser-wss]', 'type=transport', 'protocol=wss', 'bind=0.0.0.0', 'allow_reload=yes',

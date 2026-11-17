@@ -187,7 +187,7 @@ async function main(){
         async deletePjsipObject(type,id){agentEndpointWrites.push({operation:'delete',type,id});return{deleted:true};},
       });
       const browserCredentials=await asteriskConfig.ownBrowserEndpoint(db,tenantContext,endpointClientFactory),mobileCredentials=await asteriskConfig.ownMobileEndpoint(db,tenantContext,endpointClientFactory);
-      assert.equal(browserCredentials.authorizationUsername,'7401-browser-r2');assert.equal(mobileCredentials.username,'7401-mobile-r1');
+      assert.equal(browserCredentials.authorizationUsername,'salemax-7401-browser');assert.equal(mobileCredentials.username,'salemax-7401-mobile');
       assert.notEqual(browserCredentials.authorizationPassword,mobileCredentials.password);
       assert.equal(browserCredentials.authorizationPassword,asteriskSecrets.endpointCredential({tenantId,membershipId:ownerMembership,extension:'7401',clientType:'browser',revision:2}));
       assert.equal(agentEndpointWrites.filter(write=>write.operation==='upsert').length,6,'opening SIP settings applies auth, AOR and endpoint objects for mobile and browser');

@@ -10,6 +10,12 @@ The 12 November audit found all 16 telephony migration records applied. A lock-p
 
 The quotation photo only confirms a Dinstar four-port LTE gateway. It does not identify the model/SKU, bands, firmware, TLS/SRTP support, web UI route syntax, or physical port labels. UC2000-VE references below are conditional candidate documentation, not confirmed hardware. The PJSIP peer and 9901–9904 / Port-0–Port-3 route previews now label these assumptions and must not be applied until the delivered label/manual and carrier profile are verified.
 
+## Zoiper SIP identity matching — source correction pending deployment, 17 November 2026
+
+The earlier generated Zoiper/browser SIP URI used a credential-revision username, while the provisioned PJSIP endpoint had a stable endpoint ID. Asterisk's `username` endpoint identifier matches the SIP `From` user to the endpoint name; a mismatch can reject registration/calls. The source correction aligns the SIP identity and digest username with the existing endpoint ID, keeps password/auth/AOR revisions for rotation, marks each agent endpoint `identify_by=username`, and includes the username identifier in the host setup preview. Gateway peers explicitly use `identify_by=ip`. The provisioning path detects the previous revision-suffixed profile and rewrites it when settings are next requested. See the [Asterisk PJSIP troubleshooting guide](https://github.com/asterisk/documentation/blob/main/docs/Configuration/Channel-Drivers/SIP/Configuring-res_pjsip/Asterisk-PJSIP-Troubleshooting-Guide.md) for endpoint matching behavior.
+
+The ARI readiness probe also now checks `res_ari_events` for the worker's WebSocket, `res_ari_asterisk` for system/dynamic-configuration access, `res_ari_channels`, `res_ari_bridges`, and `res_ari_endpoints`, plus PJSIP registrar, digest authentication, and username endpoint identification. The [Asterisk ARI event resource](https://github.com/asterisk/asterisk/blob/master/res/res_ari_events.c) is implemented as its own module. The app remains deployed with Asterisk stopped; the source correction does not enable Asterisk or configure SIP/media firewall rules. A live Zoiper registration and call test remains pending device delivery and PBX setup.
+
 
 ## Product scope
 
