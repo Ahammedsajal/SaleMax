@@ -16,6 +16,8 @@ business feature. Add future changes to that implementation once.
 | Finance, invoices, payments and receipts | `/api/workspace/finance` | `/api/user/training/finance-policies`; its `/accountant` and `/canonical` prefixes are stripped before routing |
 | Course catalogue | `/api/workspace/courses` | `/api/user/training/courses` |
 | Products & services catalogue (SaleMaX Sales) | `/api/workspace/products-services` | None |
+| Retail orders, store configuration, and notification settings | `/api/workspace/retail` | None. Shared Retail commerce handlers; Connected Stores are mounted at `/api/workspace/retail/connectors`. |
+| Retail stock, locations, units, and thresholds | `/api/workspace/business-inventory` | None. Shared inventory handlers and permissions. |
 | Students | `/api/workspace/students` | `/api/user/training/students` |
 | Business profile | `/api/workspace/profile` | `/api/user/training/profile` |
 | Shared tenant AI settings | `/api/workspace/ai/settings` | `/api/user/chatbots/settings/provider` |

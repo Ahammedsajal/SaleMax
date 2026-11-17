@@ -4,6 +4,7 @@ const express = require('express');
 const { decision } = require('./policy');
 const { randomUUID } = require('node:crypto');
 const quantity = require('./retail-quantity');
+const inventoryAlerts = require('./retail-inventory-alerts');
 const uuid = /^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i;
 const unitCodes = new Set(['unit','yard','piece','panel','custom']);
 const quantityAmountSafe = value => {
@@ -159,6 +160,7 @@ module.exports = function createInventoryRouter({pool, authenticate}) {
         (tenant_id,product_id,location_id,low_stock_threshold,revision,updated_by_identity_id) VALUES (?,?,?,?,?,?)
         ON DUPLICATE KEY UPDATE low_stock_threshold=VALUES(low_stock_threshold),revision=VALUES(revision),updated_by_identity_id=VALUES(updated_by_identity_id)`,
       [tenant,req.params.id,locationId,threshold===null?null:quantity.fixed(threshold),revision,req.businessContext.identity.id]);
+      await inventoryAlerts.evaluate(db,tenant,req.params.id,locationId);
       await db.commit();res.json({success:true,data:{locationId,lowStockThreshold:quantity.format(threshold,precisionValue),revision}});
     }catch(error){await db.rollback();throw error;}finally{db.release();}
   }));
@@ -296,6 +298,8 @@ module.exports = function createInventoryRouter({pool, authenticate}) {
       await db.query(`INSERT INTO sx_retail_stock_transfers
         (id,tenant_id,request_id,product_id,source_location_id,target_location_id,quantity,reason,actor_identity_id)
         VALUES (?,?,?,?,?,?,?,?,?)`,[outId,tenant,requestId,productId,sourceId,targetId,quantity.fixed(quantityAmount),reason,actor]);
+      await inventoryAlerts.evaluate(db,tenant,productId,sourceId);
+      await inventoryAlerts.evaluate(db,tenant,productId,targetId);
       await db.commit();res.json({success:true,data:{id:outId,replayed:false}});
     }catch(error){await db.rollback();if(error.code==='ER_DUP_ENTRY')return res.sendStatus(409);throw error;}finally{db.release();}
   }));
@@ -347,6 +351,7 @@ module.exports = function createInventoryRouter({pool, authenticate}) {
       await db.query(
         'INSERT INTO sx_business_stock_movements (tenant_id,product_id,location_id,request_id,actor_id,previous_revision,previous_quantity,quantity,reason) VALUES (?,?,?,?,?,?,?,?,?)',
         [...key, requestId.toLowerCase(), req.businessContext.identity.id, expectedRevision, latest?.quantity ?? '0.000000', quantity.fixed(amount), reason.trim()]);
+      await inventoryAlerts.evaluate(db,tenant,product.id,location.id);
       await db.commit();
       res.json({success: true, data: {quantity:quantity.json(amount,precisionValue)}});
     } catch (error) {

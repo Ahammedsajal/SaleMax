@@ -4,6 +4,7 @@ const {randomUUID, createHash} = require('node:crypto');
 const deliveryProof = require('./retail-delivery-proof');
 const customerConsent = require('./retail-notice-consent');
 const quantityMath = require('./retail-quantity');
+const inventoryAlerts = require('./retail-inventory-alerts');
 const uuid = /^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i;
 const slugPattern = /^[a-z0-9](?:[a-z0-9-]{0,78}[a-z0-9])?$/;
 const fail = (code, status = 400) => { throw Object.assign(new Error(code), {code, status}); };
@@ -69,7 +70,8 @@ async function notifyRetail(db,tenantId,orderId,eventKey,event){
       key:`retail:${orderId}:${eventKey}`,payload:{event}});staffQueued=!result.repeated;
   }
   const [[consent]]=await db.query("SELECT status FROM sx_retail_customer_notification_consents WHERE tenant_id=? AND order_id=? AND channel='whatsapp' AND purpose='transactional_order_updates'",[tenantId,orderId]);
-  if(consent?.status==='granted'&&Number(settings?.customerUpdatesEnabled)===1){
+  const customerEvent=['new_order','status_ready','status_dispatched','status_completed','status_cancelled','status_returned','items_returned'].includes(event);
+  if(customerEvent&&consent?.status==='granted'&&Number(settings?.customerUpdatesEnabled)===1){
     const result=await outbox.enqueue(db,tenantId,{kind:'retail_customer_order_event',sourceType:'retail_order',sourceId:orderId,
       key:`retail-customer:${orderId}:${eventKey}`,payload:{event}});customerQueued=!result.repeated;
   }
@@ -198,6 +200,7 @@ async function returnItems(pool,tenant,actor,orderId,input) {
     const purchasedTotal=purchased.reduce((sum,line)=>sum+(quantityMath.scaled(line.quantity)||0n),0n);
     const status=returnedTotal===purchasedTotal?'returned':'partially_returned';
     await db.query('UPDATE sx_retail_orders SET status=? WHERE tenant_id=? AND id=?',[status,tenant,orderId]);
+    if(request.restock)for(const line of request.lines)await inventoryAlerts.evaluate(db,tenant,line.id,order.locationId);
     await notifyRetail(db,tenant,orderId,`return:${request.requestId}`,'items_returned');
     return {id,status,restocked:request.restock,replayed:false};
   });
@@ -315,6 +318,7 @@ async function checkout(pool, slug, input) {
       await db.query('INSERT INTO sx_retail_stock_reservations (tenant_id,product_id,location_id,order_id,quantity) VALUES (?,?,?,?,?)',
         [store.tenantId,line.id,location.id,id,quantityMath.fixed(quantityMath.scaled(line.quantity))]);
     }
+    for(const line of lines)await inventoryAlerts.evaluate(db,store.tenantId,line.id,location.id);
     const proof=order.fulfillment==='delivery'?deliveryProof.create(store.tenantId,id):null;
     await db.query(`INSERT INTO sx_retail_orders
       (id,tenant_id,request_id,request_hash,buyer_name,buyer_phone,buyer_email,delivery_address,delivery_pin,delivery_zone,fulfillment,order_lines,total_minor,delivery_fee,location_id,delivery_state,delivery_proof_required)
@@ -569,6 +573,7 @@ async function transition(pool, tenant, actor, id, next, driver) {
           [tenant,line.id,order.locationId,id]);
         if (deleted.affectedRows!==1) fail('RESERVATION_MISSING',409);
       }
+      for(const line of lines)await inventoryAlerts.evaluate(db,tenant,line.id,order.locationId);
     }
     if(next==='returned'){
       const lines=typeof order.orderLines==='string'?JSON.parse(order.orderLines):order.orderLines;
@@ -587,6 +592,7 @@ async function transition(pool, tenant, actor, id, next, driver) {
           await db.query('INSERT INTO sx_retail_return_lines (tenant_id,return_id,order_id,product_id,quantity) VALUES (?,?,?,?,?)',[tenant,returnId,id,line.id,quantityMath.fixed(quantityMath.scaled(line.quantity))]);
           await move(db,tenant,order.locationId,line.id,returnId,actor.identityId,line.quantity,'Retail order returned',true);
         }
+        for(const line of remaining)await inventoryAlerts.evaluate(db,tenant,line.id,order.locationId);
       }
     }
     if(order.fulfillment==='delivery'&&next==='dispatched')await db.query("UPDATE sx_retail_orders SET status=?,delivery_state='in_transit' WHERE tenant_id=? AND id=?",[next,tenant,id]);

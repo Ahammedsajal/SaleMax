@@ -5,6 +5,7 @@ const {randomUUID}=require('node:crypto');
 const moment = require('moment-timezone');
 const commerce = require('./retail-commerce');
 const quantityMath = require('./retail-quantity');
+const inventoryAlerts = require('./retail-inventory-alerts');
 const {decision} = require('./policy');
 const originCheck = require('./request-origin');
 
@@ -138,9 +139,9 @@ function workspaceRouter({pool,authenticate}) {
   });
   router.get('/store/settings',allow('retail.configure',async(req,res,c)=>{
     const [[store]]=await pool.query('SELECT slug,title,about,contact,enabled,delivery_fee AS deliveryFee,delivery_zones AS deliveryZones FROM sx_retail_store WHERE tenant_id=?',[c.tenant.id]);
-    const [[notificationSettings]]=await pool.query('SELECT retail_orders_enabled AS retailOrdersEnabled,retail_customer_updates_enabled AS retailCustomerUpdatesEnabled FROM sx_business_notification_settings WHERE tenant_id=?',[c.tenant.id]);
+    const [[notificationSettings]]=await pool.query('SELECT retail_orders_enabled AS retailOrdersEnabled,retail_customer_updates_enabled AS retailCustomerUpdatesEnabled,retail_inventory_enabled AS retailInventoryEnabled FROM sx_business_notification_settings WHERE tenant_id=?',[c.tenant.id]);
     reply(res,{store:store&&{...store,deliveryZones:typeof store.deliveryZones==='string'?JSON.parse(store.deliveryZones):store.deliveryZones||[]},
-      notifications:{retailOrdersEnabled:Boolean(notificationSettings?.retailOrdersEnabled),retailCustomerUpdatesEnabled:Boolean(notificationSettings?.retailCustomerUpdatesEnabled)}});
+      notifications:{retailOrdersEnabled:Boolean(notificationSettings?.retailOrdersEnabled),retailCustomerUpdatesEnabled:Boolean(notificationSettings?.retailCustomerUpdatesEnabled),retailInventoryEnabled:Boolean(notificationSettings?.retailInventoryEnabled)}});
   }));
   router.get('/store/catalogue',allow('retail.configure',async(req,res,c)=>{
     const [products]=await pool.query(`SELECT p.id,p.code,p.name_en AS nameEn,p.name_ar AS nameAr,p.status,l.category,l.published,l.photo_id AS photoId
@@ -158,7 +159,7 @@ function workspaceRouter({pool,authenticate}) {
   }));
   router.get('/store',allow('retail.configure',async(req,res,c)=>{
     const [[store]]=await pool.query('SELECT slug,title,about,contact,enabled,delivery_fee AS deliveryFee,delivery_zones AS deliveryZones FROM sx_retail_store WHERE tenant_id=?',[c.tenant.id]);
-    const [[notificationSettings]]=await pool.query('SELECT retail_orders_enabled AS retailOrdersEnabled,retail_customer_updates_enabled AS retailCustomerUpdatesEnabled FROM sx_business_notification_settings WHERE tenant_id=?',[c.tenant.id]);
+    const [[notificationSettings]]=await pool.query('SELECT retail_orders_enabled AS retailOrdersEnabled,retail_customer_updates_enabled AS retailCustomerUpdatesEnabled,retail_inventory_enabled AS retailInventoryEnabled FROM sx_business_notification_settings WHERE tenant_id=?',[c.tenant.id]);
     const [products]=await pool.query(`SELECT p.id,p.code,p.name_en AS nameEn,p.name_ar AS nameAr,p.status,l.category,l.published,l.photo_id AS photoId
       FROM sx_product_catalog p LEFT JOIN sx_retail_listings l ON l.tenant_id=p.tenant_id AND l.product_id=p.id
       WHERE p.tenant_id=? AND p.deleted_at IS NULL AND p.status<>'retired' ORDER BY p.code LIMIT 500`,[c.tenant.id]);
@@ -174,19 +175,30 @@ function workspaceRouter({pool,authenticate}) {
     const groups=new Map();for(const row of variantRows){if(!groups.has(row.id))groups.set(row.id,{id:row.id,titleEn:row.titleEn,titleAr:row.titleAr,
       optionLabelEn:row.optionLabelEn,optionLabelAr:row.optionLabelAr,products:[]});if(row.productId)groups.get(row.id).products.push({id:row.productId,valueEn:row.valueEn,valueAr:row.valueAr,sortOrder:Number(row.sortOrder)});}
     reply(res,{store:store&&{...store,deliveryZones:typeof store.deliveryZones==='string'?JSON.parse(store.deliveryZones):store.deliveryZones||[]},products,photos,locations,
-      notifications:{retailOrdersEnabled:Boolean(notificationSettings?.retailOrdersEnabled),retailCustomerUpdatesEnabled:Boolean(notificationSettings?.retailCustomerUpdatesEnabled)},variants:[...groups.values()]});
+      notifications:{retailOrdersEnabled:Boolean(notificationSettings?.retailOrdersEnabled),retailCustomerUpdatesEnabled:Boolean(notificationSettings?.retailCustomerUpdatesEnabled),retailInventoryEnabled:Boolean(notificationSettings?.retailInventoryEnabled)},variants:[...groups.values()]});
   }));
   router.put('/notifications',allow('retail.configure',async(req,res,c)=>{
     const input=req.body||{};
-    if(Object.keys(input).some(key=>!['retailOrdersEnabled','retailCustomerUpdatesEnabled'].includes(key))||typeof input.retailOrdersEnabled!=='boolean'||
-      (input.retailCustomerUpdatesEnabled!==undefined&&typeof input.retailCustomerUpdatesEnabled!=='boolean'))commerce.fail('INVALID_NOTIFICATION_SETTINGS');
+    if(Object.keys(input).some(key=>!['retailOrdersEnabled','retailCustomerUpdatesEnabled','retailInventoryEnabled'].includes(key))||typeof input.retailOrdersEnabled!=='boolean'||
+      (input.retailCustomerUpdatesEnabled!==undefined&&typeof input.retailCustomerUpdatesEnabled!=='boolean')||
+      (input.retailInventoryEnabled!==undefined&&typeof input.retailInventoryEnabled!=='boolean'))commerce.fail('INVALID_NOTIFICATION_SETTINGS');
     const customerUpdates=input.retailCustomerUpdatesEnabled===undefined?null:Number(input.retailCustomerUpdatesEnabled);
+    const inventoryUpdates=input.retailInventoryEnabled===undefined?null:Number(input.retailInventoryEnabled);
     const db=await pool.getConnection();
     try{
       await db.beginTransaction();
-      await db.query(`INSERT INTO sx_business_notification_settings(tenant_id,retail_orders_enabled,retail_customer_updates_enabled) VALUES (?,?,COALESCE(?,0))
+      await db.query(`INSERT INTO sx_business_notification_settings(tenant_id,retail_orders_enabled,retail_customer_updates_enabled,retail_inventory_enabled) VALUES (?,?,COALESCE(?,0),COALESCE(?,0))
         ON DUPLICATE KEY UPDATE retail_orders_enabled=VALUES(retail_orders_enabled),
-        retail_customer_updates_enabled=COALESCE(VALUES(retail_customer_updates_enabled),retail_customer_updates_enabled)`,[c.tenant.id,Number(input.retailOrdersEnabled),customerUpdates]);
+        retail_customer_updates_enabled=COALESCE(VALUES(retail_customer_updates_enabled),retail_customer_updates_enabled),
+        retail_inventory_enabled=COALESCE(VALUES(retail_inventory_enabled),retail_inventory_enabled)`,[c.tenant.id,Number(input.retailOrdersEnabled),customerUpdates,inventoryUpdates]);
+      if(input.retailOrdersEnabled===false){
+        await db.query(`UPDATE sx_business_notification_deliveries d JOIN sx_business_notification_events e
+          ON e.tenant_id=d.tenant_id AND e.id=d.event_id
+          SET d.status='suppressed',d.error_code='BUSINESS_RETAIL_ORDER_ALERTS_DISABLED',d.lease_token=NULL,d.lease_expires_at=NULL
+          WHERE d.tenant_id=? AND e.kind='retail_order_event' AND d.status IN ('queued','blocked')`,[c.tenant.id]);
+        await db.query(`UPDATE sx_business_notification_events SET status='failed',last_error_code='BUSINESS_RETAIL_ORDER_ALERTS_DISABLED'
+          WHERE tenant_id=? AND kind='retail_order_event' AND status='queued'`,[c.tenant.id]);
+      }
       if(customerUpdates===0){
         await db.query(`UPDATE sx_business_notification_deliveries d JOIN sx_business_notification_events e
           ON e.tenant_id=d.tenant_id AND e.id=d.event_id
@@ -195,9 +207,18 @@ function workspaceRouter({pool,authenticate}) {
         await db.query(`UPDATE sx_business_notification_events SET status='failed',last_error_code='BUSINESS_CUSTOMER_UPDATES_DISABLED'
           WHERE tenant_id=? AND kind='retail_customer_order_event' AND status='queued'`,[c.tenant.id]);
       }
+      if(inventoryUpdates===0){
+        await db.query(`UPDATE sx_business_notification_deliveries d JOIN sx_business_notification_events e
+          ON e.tenant_id=d.tenant_id AND e.id=d.event_id
+          SET d.status='suppressed',d.error_code='BUSINESS_INVENTORY_ALERTS_DISABLED',d.lease_token=NULL,d.lease_expires_at=NULL
+          WHERE d.tenant_id=? AND e.kind='retail_inventory_event' AND d.status IN ('queued','blocked')`,[c.tenant.id]);
+        await db.query(`UPDATE sx_business_notification_events SET status='failed',last_error_code='BUSINESS_INVENTORY_ALERTS_DISABLED'
+          WHERE tenant_id=? AND kind='retail_inventory_event' AND status='queued'`,[c.tenant.id]);
+      }
+      if(inventoryUpdates===1)await inventoryAlerts.scanTenant(db,c.tenant.id);
       await db.commit();
     }catch(error){await db.rollback();throw error;}finally{db.release();}
-    reply(res,{retailOrdersEnabled:input.retailOrdersEnabled,retailCustomerUpdatesEnabled:customerUpdates===null?undefined:Boolean(customerUpdates)});
+    reply(res,{retailOrdersEnabled:input.retailOrdersEnabled,retailCustomerUpdatesEnabled:customerUpdates===null?undefined:Boolean(customerUpdates),retailInventoryEnabled:inventoryUpdates===null?undefined:Boolean(inventoryUpdates)});
   }));
   router.put('/store',allow('retail.configure',async(req,res,c)=>{
     const {slug,enabled,deliveryFee,deliveryZones=[]}=req.body || {};

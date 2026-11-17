@@ -4,7 +4,9 @@ const moment=require('moment-timezone');
 const qr=require('./business-whatsapp');
 const finance=require('./business-finance-context');
 const reports=require('./business-daily-report');
-const KINDS=new Set(['invoice_issued','payment_due','payment_received','daily_summary','ai_usage_monthly','chatbot_handoff']);
+const KINDS=new Set(['invoice_issued','payment_due','payment_received','daily_summary','ai_usage_monthly','chatbot_handoff','retail_order_event','retail_customer_order_event','retail_inventory_event']);
+const RETAIL_KINDS=new Set(['retail_order_event','retail_customer_order_event','retail_inventory_event']);
+const RETAIL_CUSTOMER_EVENTS=new Set(['new_order','status_ready','status_dispatched','status_completed','status_cancelled','status_returned','items_returned']);
 function dailyReportAllowed(categoryKey,caps){
  const finance=caps.includes('finance.invoices')||caps.includes('sales.finance');
  const defaultOwnerReport=categoryKey==='7network_sales'||categoryKey==='salemax_sales';
@@ -15,6 +17,83 @@ async function enqueue(db,tenantId,{kind,sourceType,sourceId,key,payload=null}){
  if(!KINDS.has(kind)||!/^[-a-z_]{3,32}$/.test(sourceType)||!/^[-0-9a-f]{36}$/i.test(sourceId)||typeof key!=='string'||key.length>191)throw Error('INVALID_BUSINESS_NOTIFICATION');
  const id=crypto.randomUUID();try{await db.query('INSERT INTO sx_business_notification_events(id,tenant_id,event_key,kind,source_type,source_id,payload_json) VALUES (?,?,?,?,?,?,?)',[id,tenantId,key,kind,sourceType,sourceId,payload?JSON.stringify(payload):null]);return {id,repeated:false};}
  catch(e){if(e.code!=='ER_DUP_ENTRY')throw e;return {repeated:true};}
+}
+function notificationPayload(value){return finance.parse(value);}
+function retailEventIsCurrent(eventName,status){
+ if(eventName==='new_order')return status==='placed';
+ if(eventName==='items_returned')return ['partially_returned','returned'].includes(status);
+ return eventName.startsWith('status_')&&eventName.slice(7)===status;
+}
+function retailMoney(minor){
+ try{const value=BigInt(String(minor));return `QAR ${value/100n}.${(value%100n).toString().padStart(2,'0')}`;}catch{return 'QAR —';}
+}
+function retailOrderText(data,{customer=false}={}){
+ const short=String(data.orderId||'').slice(0,8).toUpperCase();
+ const statusLabels={placed:['received','تم الاستلام'],ready:data.fulfillment==='delivery'?['being prepared for delivery','جارٍ التجهيز للتوصيل']:['ready for pickup','جاهز للاستلام'],dispatched:['on the way','في الطريق'],completed:['completed','مكتمل'],cancelled:['cancelled','ملغى'],returned:['returned','مُعاد'],partially_returned:['partially returned','مُعاد جزئياً']};
+ const label=statusLabels[data.status]||[String(data.status||'updated'),'تم التحديث'];
+ if(customer)return `7Network order update · ${short}\nYour order is ${label[0]}.\n\nتحديث طلب 7Network · ${short}\nحالة طلبك: ${label[1]}.`;
+ const action=data.event==='new_order'?'New online order':data.event==='delivery_failed'?'Delivery issue':data.event==='delivery_assigned'?'Delivery assigned':data.event==='delivery_retry_started'?'Delivery retry started':data.event==='items_returned'?'Items returned':'Order updated';
+ const arAction=data.event==='new_order'?'طلب إلكتروني جديد':data.event==='delivery_failed'?'مشكلة في التوصيل':data.event==='delivery_assigned'?'تم تعيين التوصيل':data.event==='delivery_retry_started'?'بدأت إعادة التوصيل':data.event==='items_returned'?'تم إرجاع منتجات':'تم تحديث الطلب';
+ const fulfillment=data.fulfillment==='delivery'?'Delivery':'Pickup',fulfillmentAr=data.fulfillment==='delivery'?'توصيل':'استلام';
+ return `${action} · ${short}\nStatus: ${label[0]} · ${fulfillment}\nTotal: ${retailMoney(data.totalMinor)}\nOpen Retail Orders in 7Network.\n\n${arAction} · ${short}\nالحالة: ${label[1]} · ${fulfillmentAr}\nالإجمالي: ${retailMoney(data.totalMinor)}\nافتح طلبات التجزئة في 7Network.`;
+}
+async function retailOrderSnapshot(db,event){
+ const meta=notificationPayload(event.payload_json),eventName=String(meta.event||'');
+ const [[row]]=await db.query(`SELECT o.id AS orderId,o.status,o.fulfillment,o.total_minor AS totalMinor,o.buyer_phone AS buyerPhone,
+    c.status AS consentStatus,c.destination_hash AS destinationHash,t.timezone
+    FROM sx_retail_orders o JOIN sx_tenants t ON t.id=o.tenant_id
+    LEFT JOIN sx_retail_customer_notification_consents c ON c.tenant_id=o.tenant_id AND c.order_id=o.id
+      AND c.channel='whatsapp' AND c.purpose='transactional_order_updates'
+    WHERE o.tenant_id=? AND o.id=?`,[event.tenant_id,event.source_id]);
+ if(!row)return null;
+ const customerOnly=event.kind==='retail_customer_order_event';
+ const to=customerOnly?qr.phone(row.buyerPhone,{countryCode:row.timezone==='Asia/Qatar'?'974':undefined}):null;
+ if(customerOnly&&(row.consentStatus!=='granted'||!to||qr.hash(to)!==row.destinationHash||!RETAIL_CUSTOMER_EVENTS.has(eventName)||!retailEventIsCurrent(eventName,row.status)))return null;
+ return {...row,event:eventName,customerOnly,phone:to};
+}
+async function retailSettings(db,tenantId){
+ const [[settings]]=await db.query(`SELECT enabled,retail_orders_enabled AS ordersEnabled,retail_customer_updates_enabled AS customerEnabled,
+   retail_inventory_enabled AS inventoryEnabled FROM sx_business_notification_settings WHERE tenant_id=?`,[tenantId]);
+ return settings||null;
+}
+async function retailEventEnabled(db,event){
+ const settings=await retailSettings(db,event.tenant_id);if(Number(settings?.enabled)!==1)return false;
+ if(event.kind==='retail_order_event')return Number(settings.ordersEnabled)===1;
+ if(event.kind==='retail_customer_order_event')return Number(settings.customerEnabled)===1;
+ return Number(settings.inventoryEnabled)===1;
+}
+async function prepareRetail(db,event,tenant){
+ if(!await retailEventEnabled(db,event)){
+  await db.query("UPDATE sx_business_notification_events SET status='failed',last_error_code='RETAIL_NOTIFICATIONS_DISABLED' WHERE tenant_id=? AND id=? AND status='queued'",[event.tenant_id,event.id]);return null;
+ }
+ let data;
+ if(event.kind==='retail_inventory_event'){
+  const meta=notificationPayload(event.payload_json);
+  const [[state]]=await db.query(`SELECT observed_state AS observedState,transition_revision AS transitionRevision FROM sx_retail_inventory_alert_states
+    WHERE tenant_id=? AND product_id=? AND location_id=?`,[event.tenant_id,event.source_id,meta.locationId]);
+  if(!['low','healthy'].includes(meta.state)||state?.observedState!==meta.state||Number(state?.transitionRevision)!==Number(meta.transitionRevision)){
+   await db.query("UPDATE sx_business_notification_events SET status='failed',last_error_code='RETAIL_INVENTORY_STATE_CHANGED' WHERE tenant_id=? AND id=? AND status='queued'",[event.tenant_id,event.id]);return null;
+  }
+  data=meta;
+ }else data=await retailOrderSnapshot(db,event);
+ if(!data){
+  await db.query("UPDATE sx_business_notification_events SET status='failed',last_error_code=? WHERE tenant_id=? AND id=? AND status='queued'",
+   [event.kind==='retail_customer_order_event'?'RETAIL_CUSTOMER_UPDATE_SUPPRESSED':'RETAIL_ORDER_UNAVAILABLE',event.tenant_id,event.id]);return null;
+ }
+ let members;
+ if(event.kind==='retail_customer_order_event')members=[{kind:'customer',id:event.source_id,phone:data.phone}];
+ else members=await qr.staff(db,event.tenant_id);
+ const seen=new Set();
+ for(const member of members){
+  if(!member.phone)continue;
+  const destination=qr.hash(member.phone);if(seen.has(destination))continue;seen.add(destination);
+  await db.query('INSERT INTO sx_business_notification_deliveries(tenant_id,event_id,recipient_kind,recipient_id,destination_hash,part) VALUES (?,?,?,?,?,?) ON DUPLICATE KEY UPDATE id=id',
+   [event.tenant_id,event.id,member.kind,member.id,destination,'text']);
+ }
+ const safeSnapshot={...data};delete safeSnapshot.phone;delete safeSnapshot.buyerPhone;delete safeSnapshot.destinationHash;delete safeSnapshot.consentStatus;delete safeSnapshot.timezone;
+ await db.query("UPDATE sx_business_notification_events SET status='prepared',payload_json=? WHERE id=? AND tenant_id=?",
+  [JSON.stringify({...notificationPayload(event.payload_json),snapshot:safeSnapshot,business:tenant.name||'7Network'}),event.id,event.tenant_id]);
+ return data;
 }
 async function due(db,tenant,today){
  const portfolio=require('./training-finance-dashboard').portfolioSql(),installments=require('./training-finance-dashboard').installmentSql();
@@ -47,6 +126,7 @@ async function scanTenant(db,tenant,{now=new Date()}={}){
 }
 async function prepare(db,event,tenant,{pool}={}){
  const meta=finance.parse(event.payload_json);let data;
+ if(RETAIL_KINDS.has(event.kind))return prepareRetail(db,event,tenant);
  if(event.kind==='daily_summary'){
   data=await reports.build(db,tenant,{day:meta.day});
   if(pool&&tenant.category_key==='training_center'){
@@ -83,16 +163,30 @@ async function claim(db){
   // An interrupted send may already have reached WhatsApp. It requires review,
   // rather than an automatic resend after a lease expires.
   await db.query("UPDATE sx_business_notification_deliveries SET status='unknown',lease_token=NULL,lease_expires_at=NULL,error_code='WORKER_SEND_OUTCOME_UNKNOWN' WHERE status='sending' AND lease_expires_at<=UTC_TIMESTAMP(3)");
-  const [[item]]=await db.query(`SELECT d.*,e.kind,e.source_type,e.source_id,e.payload_json,t.name,t.timezone FROM sx_business_notification_deliveries d JOIN sx_business_notification_events e ON e.tenant_id=d.tenant_id AND e.id=d.event_id JOIN sx_tenants t ON t.id=d.tenant_id AND t.status='active' LEFT JOIN sx_business_notification_settings s ON s.tenant_id=t.id WHERE d.status IN ('queued','blocked') AND (e.kind IN ('ai_usage_monthly','chatbot_handoff') OR s.enabled=1) AND (e.kind<>'chatbot_handoff' OR EXISTS(SELECT 1 FROM sx_chatbot_handoff_claims h WHERE h.tenant_id=e.tenant_id AND h.id=e.source_id AND h.status='open' AND COALESCE(h.expires_at,DATE_ADD(h.created_at,INTERVAL 24 HOUR))>UTC_TIMESTAMP(3))) AND d.available_at<=UTC_TIMESTAMP(3) AND (d.part='text' OR EXISTS(SELECT 1 FROM sx_business_notification_deliveries x WHERE x.event_id=d.event_id AND x.destination_hash=d.destination_hash AND x.part='text' AND x.status='accepted')) ORDER BY d.id LIMIT 1 FOR UPDATE SKIP LOCKED`);
+  const [[item]]=await db.query(`SELECT d.*,e.kind,e.source_type,e.source_id,e.payload_json,t.name,t.timezone FROM sx_business_notification_deliveries d JOIN sx_business_notification_events e ON e.tenant_id=d.tenant_id AND e.id=d.event_id JOIN sx_tenants t ON t.id=d.tenant_id AND t.status='active' LEFT JOIN sx_business_notification_settings s ON s.tenant_id=t.id WHERE d.status IN ('queued','blocked') AND (e.kind IN ('ai_usage_monthly','chatbot_handoff') OR (s.enabled=1 AND (e.kind NOT IN ('retail_order_event','retail_customer_order_event','retail_inventory_event') OR (e.kind='retail_order_event' AND s.retail_orders_enabled=1) OR (e.kind='retail_customer_order_event' AND s.retail_customer_updates_enabled=1) OR (e.kind='retail_inventory_event' AND s.retail_inventory_enabled=1)))) AND (e.kind<>'chatbot_handoff' OR EXISTS(SELECT 1 FROM sx_chatbot_handoff_claims h WHERE h.tenant_id=e.tenant_id AND h.id=e.source_id AND h.status='open' AND COALESCE(h.expires_at,DATE_ADD(h.created_at,INTERVAL 24 HOUR))>UTC_TIMESTAMP(3))) AND d.available_at<=UTC_TIMESTAMP(3) AND (d.part='text' OR EXISTS(SELECT 1 FROM sx_business_notification_deliveries x WHERE x.event_id=d.event_id AND x.destination_hash=d.destination_hash AND x.part='text' AND x.status='accepted')) ORDER BY d.id LIMIT 1 FOR UPDATE SKIP LOCKED`);
   if(!item){await db.commit();return null;}const token=crypto.randomUUID();await db.query("UPDATE sx_business_notification_deliveries SET status='sending',attempts=attempts+1,lease_token=?,lease_expires_at=DATE_ADD(UTC_TIMESTAMP(3),INTERVAL 120 SECOND) WHERE id=?",[token,item.id]);await db.commit();return {...item,token,attempts:Number(item.attempts)+1};
  }catch(e){await db.rollback();throw e;}
 }
-async function allowed(db,item){const e=await require('./plans').loadEntitlements(db,item.tenant_id);if(!e||!['active','trial','grace'].includes(e.status))return false;const caps=e.capabilities||[],finance=caps.includes('finance.invoices')||caps.includes('sales.finance');if(['ai_usage_monthly','chatbot_handoff'].includes(item.kind))return caps.includes('automation.chatbot');return item.kind==='daily_summary'?dailyReportAllowed(e.categoryKey,caps):finance;}
+async function allowed(db,item){const e=await require('./plans').loadEntitlements(db,item.tenant_id);if(!e||!['active','trial','grace'].includes(e.status))return false;const caps=e.capabilities||[],finance=caps.includes('finance.invoices')||caps.includes('sales.finance');if(['ai_usage_monthly','chatbot_handoff'].includes(item.kind))return caps.includes('automation.chatbot');if(['retail_order_event','retail_customer_order_event'].includes(item.kind))return caps.includes('retail.commerce');if(item.kind==='retail_inventory_event')return caps.includes('retail.inventory');return item.kind==='daily_summary'?dailyReportAllowed(e.categoryKey,caps):finance;}
 async function dispatch(db,item,{pool,send=qr.send,authorize=allowed,summarizeHandoff=null}={}){
  if(!await authorize(db,item))return {status:'suppressed',errorCode:'BUSINESS_NOTIFICATION_FEATURE_UNAVAILABLE'};
  const meta=finance.parse(item.payload_json);let current=null,handoff=null;
- if(item.kind!=='daily_summary'&&item.kind!=='ai_usage_monthly'&&item.kind!=='chatbot_handoff'){current=await finance.load(db,{...item,tenant_id:item.tenant_id});if(!current)return {status:'suppressed',errorCode:'FINANCE_RESOURCE_CLOSED_OR_UNAVAILABLE'};}
- let to;if(item.recipient_kind==='identity'){let members=await qr.staff(db,item.tenant_id,{ownerOnly:item.kind==='daily_summary'});if(item.kind==='chatbot_handoff'){const eligible=require('./team-conversation-assignment').eligibleStaff;const permitted=new Set((await eligible(db,item.tenant_id)).map(member=>member.identityId));members=(await qr.staff(db,item.tenant_id,{roles:['owner','manager','team_leader','agent']})).filter(member=>permitted.has(member.id)&&member.phone);}to=members.find(r=>r.id===item.recipient_id)?.phone;}else if(item.recipient_kind==='report_recipient'){
+ if(RETAIL_KINDS.has(item.kind)){
+  if(!await retailEventEnabled(db,item))return {status:'suppressed',errorCode:'RETAIL_NOTIFICATIONS_DISABLED'};
+  if(item.kind==='retail_inventory_event'){
+   const [[state]]=await db.query('SELECT observed_state AS observedState,transition_revision AS transitionRevision FROM sx_retail_inventory_alert_states WHERE tenant_id=? AND product_id=? AND location_id=?',[item.tenant_id,item.source_id,meta.locationId]);
+   if(state?.observedState!==meta.state||Number(state?.transitionRevision)!==Number(meta.transitionRevision))return {status:'suppressed',errorCode:'RETAIL_INVENTORY_STATE_CHANGED'};
+   current=meta;
+  }else{
+   current=await retailOrderSnapshot(db,item);
+   if(!current)return {status:'suppressed',errorCode:item.kind==='retail_customer_order_event'?'RETAIL_CUSTOMER_UPDATE_SUPPRESSED':'RETAIL_ORDER_UNAVAILABLE'};
+  }
+ }else if(item.kind!=='daily_summary'&&item.kind!=='ai_usage_monthly'&&item.kind!=='chatbot_handoff'){current=await finance.load(db,{...item,tenant_id:item.tenant_id});if(!current)return {status:'suppressed',errorCode:'FINANCE_RESOURCE_CLOSED_OR_UNAVAILABLE'};}
+ let to;if(item.kind==='retail_customer_order_event'){
+  if(item.recipient_kind!=='customer'||item.recipient_id!==item.source_id)return {status:'suppressed',errorCode:'RETAIL_CUSTOMER_RECIPIENT_INVALID'};
+  to=qr.phone(current.buyerPhone,{countryCode:current.timezone==='Asia/Qatar'?'974':undefined});
+  if(current.consentStatus!=='granted'||!to||qr.hash(to)!==current.destinationHash)return {status:'suppressed',errorCode:'RETAIL_CUSTOMER_CONSENT_REVOKED_OR_CHANGED'};
+ }else if(item.recipient_kind==='identity'){let members=await qr.staff(db,item.tenant_id,{ownerOnly:item.kind==='daily_summary'});if(item.kind==='chatbot_handoff'){const eligible=require('./team-conversation-assignment').eligibleStaff;const permitted=new Set((await eligible(db,item.tenant_id)).map(member=>member.identityId));members=(await qr.staff(db,item.tenant_id,{roles:['owner','manager','team_leader','agent']})).filter(member=>permitted.has(member.id)&&member.phone);}to=members.find(r=>r.id===item.recipient_id)?.phone;}else if(item.recipient_kind==='report_recipient'){
   const [[r]]=await db.query("SELECT destination FROM sx_training_report_recipients WHERE tenant_id=? AND id=? AND channel='whatsapp' AND status='verified'",[item.tenant_id,item.recipient_id]);to=qr.phone(r?.destination);
   if(item.kind==='daily_summary'){const owners=await qr.staff(db,item.tenant_id,{ownerOnly:true});if(!owners.some(owner=>owner.phone&&qr.hash(owner.phone)===qr.hash(to||'')))return {status:'suppressed',errorCode:'DAILY_REPORT_OWNER_ONLY'};}
  }else{
@@ -116,8 +210,10 @@ async function dispatch(db,item,{pool,send=qr.send,authorize=allowed,summarizeHa
  const snapshot=item.kind==='daily_summary'?meta.snapshot:(item.kind==='ai_usage_monthly'?meta:item.kind==='chatbot_handoff'?handoff:current);
  const text=item.kind==='daily_summary'?(meta.reportText||reports.text(snapshot)):item.kind==='ai_usage_monthly'
   ? `7Network AI usage reminder for ${snapshot.month}: estimated spend is $${Number(snapshot.estimatedUsd).toFixed(2)} against the $${Number(snapshot.thresholdUsd).toFixed(2)} monthly reminder threshold. This is a reminder only; AI replies continue without a spending cap.\n\nتذكير باستخدام الذكاء الاصطناعي لشهر ${snapshot.month}: الإنفاق التقديري هو ${Number(snapshot.estimatedUsd).toFixed(2)} دولار من حد التذكير الشهري البالغ ${Number(snapshot.thresholdUsd).toFixed(2)} دولار. هذا تذكير فقط، وتستمر الردود دون حد لإيقافها.`
-  : item.kind==='chatbot_handoff'
+   : item.kind==='chatbot_handoff'
    ? englishHandoffText(snapshot)
+   : item.kind==='retail_inventory_event'?require('./retail-inventory-alerts').inventoryAlertText(snapshot)
+   : ['retail_order_event','retail_customer_order_event'].includes(item.kind)?retailOrderText(snapshot,{customer:item.kind==='retail_customer_order_event'})
    : finance.message(item.kind,snapshot,{business:meta.business});
  let receivableActions=[];if(item.kind==='daily_summary'&&item.part==='pdf'&&pool){try{receivableActions=await require('./training-report-delivery-worker').loadReceivableActions(pool,db,item.tenant_id);}catch{}}
  const pdf=item.part==='pdf'?await require('./business-report-pdf').render(snapshot,{receivableActions}):null;
@@ -176,4 +272,4 @@ function start({env=process.env,pool}={}){
  const loop=async()=>{if(stopped||busy)return;busy=true;try{const scan=Date.now()-scanAt>60000;const result=await tick(pool,{scan});if(scan)scanAt=Date.now();if(result.prepared||result.accepted||result.unknown||result.expired)console.log(JSON.stringify({businessNotifications:result}));}catch(e){console.error(JSON.stringify({event:'business_notifications_failed',code:e.code||'WORKER_FAILED'}));}finally{busy=false;if(!stopped)timer=setTimeout(loop,15000);}};
  timer=setTimeout(loop,20000);return {stop(){stopped=true;clearTimeout(timer);}};
 }
-module.exports={enqueue,due,scanTenant,prepare,claim,dispatch,finish,englishHandoffText,scheduledReport,tick,start};
+module.exports={enqueue,due,scanTenant,prepare,claim,dispatch,finish,englishHandoffText,retailOrderText,retailEventIsCurrent,prepareRetail,scheduledReport,tick,start};

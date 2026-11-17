@@ -4,6 +4,7 @@ const finance=require('../modules/platform/business-finance-context');
 const qr=require('../modules/platform/business-whatsapp');
 const reports=require('../modules/platform/business-daily-report');
 const notifications=require('../modules/platform/business-notifications');
+const inventoryAlerts=require('../modules/platform/retail-inventory-alerts');
 const tenant='11111111-1111-4111-8111-111111111111',id='22222222-2222-4222-8222-222222222222';
 const sample={number:'INV-2026-0123',customer:'Sample learner',phone:'+97455550000',product:'Excel training',currency:'QAR',total:100000,balance:60000,received:40000,dueDate:'2026-10-25',receivedAt:'2026-10-22'};
 test('month-to-date window ends at report cutoff, not at the first day of the month',()=>{
@@ -84,7 +85,7 @@ test('handoff alerts target every active Inbox reader/replier with a phone and d
   {identityId:'owner-id'},{identityId:'agent-id'},{identityId:'manager-id'},
  ];
  const db={query:async(sql,args)=>{
-  if(sql.includes('FROM sx_chatbot_handoff_claims'))return [[{id:claimId,claim_code:'ABC123',status:'open'}]];
+  if(sql.includes('FROM sx_chatbot_handoff_claims'))return [[{id:claimId,claim_code:'ABC123',status:'open',isActive:1}]];
   if(sql.includes('INSERT INTO sx_business_notification_deliveries'))inserted.push(args);
   return [[]];
  }};
@@ -99,7 +100,7 @@ test('handoff dispatch sends the private staff brief and reuses the claim summar
  const staff=qr.staff,eligible=require('../modules/platform/team-conversation-assignment').eligibleStaff,sends=[];
  qr.staff=async(_db,_tenant,options={})=>options.roles?[{id:'manager-id',phone:'97450000002',role:'manager'}]:[];
  require('../modules/platform/team-conversation-assignment').eligibleStaff=async()=>[{identityId:'manager-id'}];
- const db={query:async sql=>sql.includes('FROM sx_chatbot_handoff_claims')?[[{claimCode:'ABC123',status:'open',customerName:'Sample learner',customerPhone:'+97455550000',courseDetails:'[{"code":"EXCEL","nameEn":"Advanced Excel"},{"code":"BASICS","nameAr":"أساسيات"}]',latestEnquiry:'Which certificate will I get?'}]]:[[]]};
+ const db={query:async sql=>sql.includes('FROM sx_chatbot_handoff_claims')?[[{claimCode:'ABC123',status:'open',isActive:1,customerName:'Sample learner',customerPhone:'+97455550000',courseDetails:'[{"code":"EXCEL","nameEn":"Advanced Excel"},{"code":"BASICS","nameAr":"أساسيات"}]',latestEnquiry:'Which certificate will I get?'}]]:[[]]};
  try{
   const result=await notifications.dispatch(db,{id:1,event_id:'event-id',tenant_id:tenant,kind:'chatbot_handoff',source_type:'chatbot_handoff',source_id:id,recipient_kind:'identity',recipient_id:'manager-id',destination_hash:qr.hash('97450000002'),payload_json:{claimCode:'ABC123'}},{authorize:async()=>true,summarizeHandoff:async()=>({text:'Customer asks about certificate details; staff should confirm the course certificate. الملخص باللغة العربية',ai:true}),send:async(_db,payload)=>{sends.push(payload);return {status:'accepted',providerMessageId:'synthetic-handoff-alert'};}});
   assert.equal(result.status,'accepted');assert.equal(sends.length,1);assert.match(sends[0].text,/Reply YES ABC123/);assert.match(sends[0].text,/Sample learner/);assert.match(sends[0].text,/97455550000/);assert.match(sends[0].text,/Advanced Excel/);assert.doesNotMatch(sends[0].text,/أساسيات/);assert.match(sends[0].text,/Which certificate will I get/);assert.match(sends[0].text,/AI summary: Customer asks about certificate details/);assert.doesNotMatch(sends[0].text,/[\u0600-\u06FF]/u);assert.doesNotMatch(sends[0].text,/97450000002/);
@@ -109,15 +110,76 @@ test('handoff recipient matching the customer is suppressed before any staff-onl
  const staff=qr.staff,eligible=require('../modules/platform/team-conversation-assignment').eligibleStaff;
  qr.staff=async(_db,_tenant,options={})=>options.roles?[{id:'manager-id',phone:'97455550000',role:'manager'}]:[];
  require('../modules/platform/team-conversation-assignment').eligibleStaff=async()=>[{identityId:'manager-id'}];
- const inserted=[],db={query:async(sql)=>{if(sql.includes('FROM sx_chatbot_handoff_claims'))return [[{id,claimCode:'ABC123',status:'open',customerName:'Customer',customerPhone:'+97455550000'}]];if(sql.includes('INSERT INTO sx_business_notification_deliveries'))inserted.push(sql);return [[]];}};
+ const inserted=[],db={query:async(sql)=>{if(sql.includes('FROM sx_chatbot_handoff_claims'))return [[{id,claimCode:'ABC123',status:'open',isActive:1,customerName:'Customer',customerPhone:'+97455550000'}]];if(sql.includes('INSERT INTO sx_business_notification_deliveries'))inserted.push(sql);return [[]];}};
  try{await notifications.prepare(db,{id:'event-id',tenant_id:tenant,kind:'chatbot_handoff',source_type:'chatbot_handoff',source_id:id,payload_json:{}},{id:tenant,name:'Center'});assert.equal(inserted.length,0);}finally{qr.staff=staff;require('../modules/platform/team-conversation-assignment').eligibleStaff=eligible;}
 });
 test('handoff send rechecks a changed staff/customer number collision immediately before delivery',async()=>{
  const staff=qr.staff,eligible=require('../modules/platform/team-conversation-assignment').eligibleStaff;
  qr.staff=async(_db,_tenant,options={})=>options.roles?[{id:'manager-id',phone:'97455550000',role:'manager'}]:[];
  require('../modules/platform/team-conversation-assignment').eligibleStaff=async()=>[{identityId:'manager-id'}];
- const db={query:async(sql)=>sql.includes('FROM sx_chatbot_handoff_claims')?[[{claimCode:'ABC123',status:'open',customerPhone:'+97455550000'}]]:[[]]};
+ const db={query:async(sql)=>sql.includes('FROM sx_chatbot_handoff_claims')?[[{claimCode:'ABC123',status:'open',isActive:1,customerPhone:'+97455550000'}]]:[[]]};
  try{const result=await notifications.dispatch(db,{tenant_id:tenant,kind:'chatbot_handoff',source_id:id,recipient_kind:'identity',recipient_id:'manager-id',destination_hash:qr.hash('97455550000'),payload_json:{}},{authorize:async()=>true,summarizeHandoff:async()=>assert.fail('summary must not run for a customer collision'),send:async()=>assert.fail('staff-only content must not reach customer')});assert.equal(result.errorCode,'HANDOFF_CUSTOMER_STAFF_NUMBER_MATCH');}finally{qr.staff=staff;require('../modules/platform/team-conversation-assignment').eligibleStaff=eligible;}
+});
+test('retail order notices are bilingual, status-aware and do not include buyer contact details',()=>{
+ const text=notifications.retailOrderText({orderId:id,status:'ready',fulfillment:'pickup',totalMinor:'163400',buyerPhone:'97455550000'});
+ assert.match(text,/Order updated/);assert.match(text,/QAR 1634\.00/);assert.match(text,/تم تحديث الطلب/);assert.doesNotMatch(text,/97455550000/);
+ assert.equal(notifications.retailEventIsCurrent('status_ready','ready'),true);
+ assert.equal(notifications.retailEventIsCurrent('status_ready','completed'),false);
+ assert.equal(notifications.retailEventIsCurrent('new_order','placed'),true);
+ assert.equal(notifications.retailEventIsCurrent('new_order','ready'),false);
+});
+test('retail order events prepare owner/manager deliveries and omit customer PII from event snapshots',async()=>{
+ const staff=qr.staff,inserted=[],updated=[];
+ qr.staff=async()=>[{kind:'identity',id:'owner-id',role:'owner',phone:'97450000001'},{kind:'identity',id:'manager-id',role:'manager',phone:'97450000001'}];
+ const db={query:async(sql,args)=>{
+  if(sql.includes('SELECT enabled,retail_orders_enabled'))return [[{enabled:1,ordersEnabled:1,customerEnabled:1,inventoryEnabled:0}]];
+  if(sql.includes('FROM sx_retail_orders o JOIN sx_tenants'))return [[{orderId:id,status:'placed',fulfillment:'delivery',totalMinor:'163400',buyerPhone:'97455550000',consentStatus:'granted',destinationHash:qr.hash('97455550000'),timezone:'Asia/Qatar'}]];
+  if(sql.startsWith('INSERT INTO sx_business_notification_deliveries'))inserted.push(args);
+  if(sql.includes('UPDATE sx_business_notification_events SET status=\'prepared\''))updated.push(JSON.parse(args[0]));
+  return [[]];
+ }};
+ try{
+  await notifications.prepare(db,{id:'event-id',tenant_id:tenant,kind:'retail_order_event',source_type:'retail_order',source_id:id,payload_json:{event:'new_order'}},{id:tenant,name:'Essentials'});
+  assert.equal(inserted.length,1);assert.equal(inserted[0][2],'identity');assert.equal(inserted[0][3],'owner-id');
+  assert.equal(updated.length,1);assert.equal(JSON.stringify(updated[0]).includes('97455550000'),false);
+ }finally{qr.staff=staff;}
+});
+test('retail customer updates recheck order consent and suppress stale statuses before sending',async()=>{
+ const phone='97455550000',sends=[];
+ const db={query:async(sql)=>{
+  if(sql.includes('SELECT enabled,retail_orders_enabled'))return [[{enabled:1,ordersEnabled:1,customerEnabled:1,inventoryEnabled:0}]];
+  if(sql.includes('FROM sx_retail_orders o JOIN sx_tenants'))return [[{orderId:id,status:'ready',fulfillment:'pickup',totalMinor:'2500',buyerPhone:phone,consentStatus:'granted',destinationHash:qr.hash(phone),timezone:'Asia/Qatar'}]];
+  return [[]];
+ }};
+ const item={id:1,event_id:'event-id',tenant_id:tenant,kind:'retail_customer_order_event',source_type:'retail_order',source_id:id,
+   recipient_kind:'customer',recipient_id:id,destination_hash:qr.hash(phone),payload_json:JSON.stringify({event:'status_ready'})};
+ const accepted=await notifications.dispatch(db,item,{authorize:async()=>true,send:async(_db,input)=>{sends.push(input);return {status:'accepted',providerMessageId:'retail-test'};}});
+ assert.equal(accepted.status,'accepted');assert.match(sends[0].text,/Your order is ready/);assert.match(sends[0].text,/حالة طلبك: جاهز للاستلام/);
+ const stale=await notifications.dispatch(db,{...item,payload_json:JSON.stringify({event:'status_placed'})},{authorize:async()=>true,send:()=>assert.fail('stale update must not send')});
+ assert.equal(stale.errorCode,'RETAIL_CUSTOMER_UPDATE_SUPPRESSED');
+});
+test('retail stock alert text preserves exact quantities and dispatch rechecks the current state',async()=>{
+ const productId='44444444-4444-4444-8444-444444444444',locationId='55555555-5555-4555-8555-555555555555',staff=qr.staff,sends=[];let observedState='low',transitionRevision=1;
+ const text=inventoryAlerts.inventoryAlertText({state:'low',productId,productCode:'FAB-1',nameEn:'Cotton',nameAr:'قطن',locationCode:'main',locationNameEn:'Main',locationNameAr:'الرئيسي',baseUnitCode:'yard',quantityPrecision:2,availableQuantity:'0.25',threshold:'0.50'});
+ assert.match(text,/Available: 0\.25 yard · Threshold: 0\.5/);assert.match(text,/المتاح: 0\.25 ياردة · الحد: 0\.5/);
+ qr.staff=async()=>[{id:'owner-id',role:'owner',phone:'97450000001'}];
+ const db={query:async(sql)=>{
+  if(sql.includes('SELECT enabled,retail_orders_enabled'))return [[{enabled:1,ordersEnabled:0,customerEnabled:0,inventoryEnabled:1}]];
+  if(sql.includes('SELECT observed_state AS observedState'))return [[{observedState,transitionRevision}]];
+  return [[]];
+ }};
+ const item={tenant_id:tenant,kind:'retail_inventory_event',source_type:'retail_inventory_alert',source_id:productId,recipient_kind:'identity',recipient_id:'owner-id',
+  destination_hash:qr.hash('97450000001'),payload_json:JSON.stringify({state:'low',transitionRevision:1,locationId,productId,productCode:'FAB-1',nameEn:'Cotton',nameAr:'قطن',locationNameEn:'Main',locationNameAr:'الرئيسي',baseUnitCode:'yard',quantityPrecision:2,availableQuantity:'0.25',threshold:'0.50'})};
+ try{
+  const sent=await notifications.dispatch(db,item,{authorize:async()=>true,send:async(_db,input)=>{sends.push(input);return {status:'accepted',providerMessageId:'stock-alert-test'};}});
+  assert.equal(sent.status,'accepted');assert.match(sends[0].text,/Low stock/);
+  observedState='healthy';transitionRevision=2;
+  const stale=await notifications.dispatch(db,{...item,payload_json:JSON.stringify({state:'low',locationId,productId})},{authorize:async()=>true,send:()=>assert.fail('stale stock alerts must not send')});
+  assert.equal(stale.errorCode,'RETAIL_INVENTORY_STATE_CHANGED');
+  observedState='low';transitionRevision=3;
+  const superseded=await notifications.dispatch(db,item,{authorize:async()=>true,send:()=>assert.fail('superseded low transitions must not send')});
+  assert.equal(superseded.errorCode,'RETAIL_INVENTORY_STATE_CHANGED');
+ }finally{qr.staff=staff;}
 });
 test('paid/cancelled resources suppress queued notices',async()=>{
  const load=finance.load;finance.load=async()=>null;try{const result=await notifications.dispatch({}, {tenant_id:tenant,kind:'payment_due',source_type:'training_invoice',source_id:id},{authorize:async()=>true,send:()=>assert.fail('must not send')});assert.equal(result.status,'suppressed');}finally{finance.load=load;}

@@ -128,6 +128,30 @@
       };
     }
     if (canConfigureRetail) {
+      const alertsPanel=make('section','',page);alertsPanel.className='sx-inventory-store-panel';
+      make('h2',tr('Retail WhatsApp alerts','تنبيهات التجزئة عبر واتساب'),alertsPanel);
+      make('p',tr('Order and stock alerts go to active owners and managers through the business WhatsApp connection. They do not message customers. Customer order updates are separate and require recorded consent.','تصل تنبيهات الطلبات والمخزون إلى المالكين والمديرين النشطين عبر اتصال واتساب الخاص بالنشاط، ولا ترسل رسائل للعملاء. تحديثات الطلبات للعملاء منفصلة وتتطلب موافقة مسجلة.'),alertsPanel);
+      const alertStatus=make('p','',alertsPanel);alertStatus.setAttribute('role','status');
+      try{
+        const settings=await retailRequest('/store/settings'),notifications=settings.notifications||{};
+        const ordersLabel=make('label','',alertsPanel),ordersToggle=make('input','',ordersLabel);ordersToggle.type='checkbox';ordersToggle.checked=Boolean(notifications.retailOrdersEnabled);
+        make('span',tr('Enable staff order alerts','تفعيل تنبيهات الطلبات للموظفين'),ordersLabel);
+        const inventoryLabel=make('label','',alertsPanel),inventoryToggle=make('input','',inventoryLabel);inventoryToggle.type='checkbox';inventoryToggle.checked=Boolean(notifications.retailInventoryEnabled);
+        make('span',tr('Enable low-stock and back-in-stock alerts','تفعيل تنبيهات واتساب لانخفاض المخزون وعودته'),inventoryLabel);
+        const saveAlerts=make('button',tr('Save notification settings','حفظ إعدادات الإشعارات'),alertsPanel);saveAlerts.type='button';
+        saveAlerts.onclick=async()=>{
+          saveAlerts.disabled=true;alertStatus.textContent=tr('Saving…','جارٍ الحفظ…');
+          try{
+            await retailRequest('/notifications',{method:'PUT',body:{retailOrdersEnabled:ordersToggle.checked,
+              retailCustomerUpdatesEnabled:Boolean(notifications.retailCustomerUpdatesEnabled),retailInventoryEnabled:inventoryToggle.checked}});
+            notifications.retailOrdersEnabled=ordersToggle.checked;notifications.retailInventoryEnabled=inventoryToggle.checked;
+            alertStatus.textContent=tr('Notification settings saved.','تم حفظ إعدادات الإشعارات.');
+          }catch{alertStatus.textContent=tr('Could not save the alert setting. Refresh and try again.','تعذر حفظ إعداد التنبيهات. حدّث الصفحة وحاول مرة أخرى.');}
+          finally{saveAlerts.disabled=false;}
+        };
+      }catch{alertStatus.textContent=tr('Stock alert settings are unavailable. Reload this page to try again.','إعدادات تنبيهات المخزون غير متاحة. أعد تحميل الصفحة للمحاولة مرة أخرى.');alertStatus.setAttribute('role','alert');}
+    }
+    if (canConfigureRetail) {
       const panel = make('details', '', page); panel.className = 'sx-inventory-store-panel';
       make('summary', tr('Online store product options', 'خيارات منتجات المتجر الإلكتروني'), panel);
       make('p', tr('Choose public product photos and visibility inside each product card above. Group published products here when they share options such as size or colour.', 'اختر صور المنتجات وظهورها للزوار داخل بطاقة كل منتج أعلاه. اجمع المنتجات المنشورة هنا عندما تشترك في خيارات مثل المقاس أو اللون.'), panel);
