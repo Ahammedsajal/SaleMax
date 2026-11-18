@@ -2,6 +2,14 @@
 
 Status as of 18 November 2026. This plan extends the existing 7Network Retail category inside the current business workspace. It does not introduce another application, CRM, login, plan catalogue, or shell. Essentials by D is the only store in the current scope; do not onboard another store under this pilot.
 
+## Latest production metadata recheck — partial sync, 18 November 2026 at 13:05 UTC
+
+Verified host `carsqatar-prod-01`; `/opt/salemax/current` resolves to `/opt/salemax/releases/training-pipeline-correction-v3-9867ca72-20261104`. The app and MariaDB remain healthy; the app is on image `salemax-app:email-marketing-21a07cc41fa9-20261112`, and 20 GB is free on `/`.
+
+The read-only database query found one active Essentials by D WooCommerce connection in QAR. `last_sync_at` and `updated_at` remain `2026-11-17 11:41:08.421 UTC`; snapshots remain 50 products, 50 orders and 50 customers. The variations table is absent, no Retail migration rows exist for `20270205`–`20270212`, and the pilot allowlist is unset. Credentials, customer/order payloads and raw cursor values were not output. This does not determine whether the owner rotated the Woo key; it confirms no new 7Network reconnection or sync is recorded.
+
+No Woo API request/import, migration, webhook, write-back, customer message, WordPress, checkout, payment, or production service change occurred.
+
 ## Latest local source verification — 18 November 2026 at 12:58 UTC
 
 After refreshing the PR branch with current `main` (`51dc183ea1919dc59e6161a0ce19eb2d820ff051`), the focused Retail/Woo, pilot-gate, quantity, online-order, notification, and connector-package Node tests passed 65/65. Retail release-helper Python checks passed 6/6. The synthetic connector PHP harness passed and confirmed no checkout/payment fields, a valid HMAC, denied contact consent, no customer contact payload, bounded retry, and no live WordPress/Woo request. JavaScript syntax and `git diff --check` passed. These are local source checks only; live Woo reconciliation, migrations, production backup/restore, and authenticated browser acceptance remain open.

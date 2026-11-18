@@ -114,6 +114,14 @@ Generic diploma-duration enquiries now prompt the customer to select one of the 
 
 ## Essentials by D WooCommerce connection — partial live sync rechecked, 18 November 2026
 
+### Latest read-only recheck — 13:05 UTC
+
+Verified host `carsqatar-prod-01`; `/opt/salemax/current` resolves to `/opt/salemax/releases/training-pipeline-correction-v3-9867ca72-20261104`. The app and MariaDB remain healthy on the existing production deployment, with 20 GB free on `/`.
+
+The metadata-only transaction found one active Essentials by D Woo connection in QAR. `last_sync_at` and `updated_at` remain `2026-11-17 11:41:08.421 UTC`; snapshots remain 50 products, 50 orders and 50 customers. The variation table is absent, no migrations `20270205`–`20270212` are recorded, and `SALEMAX_RETAIL_CONNECTOR_PILOT_TENANTS` is unset. The query did not output credentials, raw cursors, tenant IDs, or imported customer/order payloads. It does not establish whether the key was rotated in WordPress, but there is no new 7Network reconnect or sync.
+
+No Woo API request/import, migration, webhook, write-back, customer message, WordPress, checkout, payment or production service change occurred.
+
 ### Latest read-only recheck — 12:45 UTC
 
 A fresh read-only host check confirmed `carsqatar-prod-01`, with `/opt/salemax/current` resolving to `/opt/salemax/releases/training-pipeline-correction-v3-9867ca72-20261104`. The app and MariaDB containers reported healthy, `https://7network.live/healthz` returned 200, and 20 GB was free on `/`. Docker labels still include the Retail Connected Stores and Woo connect-fix overlay files. The active base release has no `deploy/compose.yml`, so container status and overlay labels were checked directly. No service or release changed.
