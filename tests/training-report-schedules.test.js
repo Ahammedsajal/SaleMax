@@ -81,3 +81,22 @@ test('the existing bilingual pipeline Reports view exposes schedules with honest
   const fs=require('node:fs'),path=require('node:path'),js=fs.readFileSync(path.join(__dirname,'../client/public/pipeline/reports.js'),'utf8'),html=fs.readFileSync(path.join(__dirname,'../client/public/pipeline/index.html'),'utf8'),css=fs.readFileSync(path.join(__dirname,'../client/public/pipeline/pipeline.css'),'utf8'),routes=fs.readFileSync(path.join(__dirname,'../routes/pipeline.js'),'utf8');
   assert.match(html,/pipeline\.css\?v=14/);assert.match(html,/reports\.js\?v=21/);assert.match(js,/\/api\/pipeline\/reports\/schedules/);assert.match(js,/scheduleEmailUnverified/);assert.match(js,/scheduleWhatsAppUnverified/);assert.match(js,/scheduleRun_generated/);assert.match(js,/Snapshot generated \(not sent\)/);assert.match(js,/تم إنشاء الملخص \(لم يُرسل\)/);assert.match(js,/Create corrected snapshot/);assert.match(js,/إنشاء ملخص مصحح/);assert.match(js,/snapshotHistory/);assert.match(js,/verifications/);assert.match(js,/reportCodeSent/);assert.match(js,/reportDestinationVerified/);assert.match(routes,/reports\/schedules\/\:scheduleId\/verifications/);assert.match(css,/\.report-revision/);assert.match(css,/\.report-run-versions/);assert.match(routes,/reports\/schedules\/\:scheduleId\/runs\/\:runId\/revisions/);
 });
+
+
+test('listLatest reports complete channel acceptance and keeps partial channels open',async()=>{
+  const run={id:71,schedule_id:'schedule-a',period:'monthly',revision:1,revision_reason:null,supersedes_run_id:null,status:'generated',period_start:'2026-11-01 00:00:00.000000',generated_at:'2026-11-01 00:01:00.000000',last_error_code:null,snapshot_json:'{}'};
+  const makeDb=deliveries=>({async query(sql){if(sql.includes('FROM sx_training_report_runs'))return [[{...run}],[]];if(sql.includes('FROM sx_training_report_deliveries'))return [deliveries,[]];throw new Error('Unexpected report summary query');}});
+  const complete=(await runner.listLatest(makeDb([
+    {report_run_id:71,channel:'email',recipient_id:1,status:'accepted',last_error_code:null,accepted_at:'2026-11-01 09:09:00.000000'},
+    {report_run_id:71,channel:'email',recipient_id:2,status:'accepted',last_error_code:null,accepted_at:'2026-11-01 09:10:00.000000'}
+  ]),'tenant-a'))[0].deliveries.email;
+  assert.equal(complete.status,'accepted');
+  assert.equal(complete.acceptedAt,'2026-11-01 09:10:00.000000');
+  const partial=(await runner.listLatest(makeDb([
+    {report_run_id:71,channel:'email',recipient_id:1,status:'accepted',last_error_code:null,accepted_at:'2026-11-01 09:09:00.000000'},
+    {report_run_id:71,channel:'email',recipient_id:2,status:'queued',last_error_code:null,accepted_at:null}
+  ]),'tenant-a'))[0].deliveries.email;
+  assert.equal(partial.status,'partial');
+  assert.equal(partial.acceptedAt,null);
+  assert.equal(partial.items[0].acceptedAt,'2026-11-01 09:09:00.000000');
+});
