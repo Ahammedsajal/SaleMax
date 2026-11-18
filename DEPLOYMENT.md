@@ -1,3 +1,19 @@
+# 2026-11-18 — Allow 7Network Zoiper PJSIP provisioning through ARI — production
+
+Source commit `3bbfc6af2886acc42f8bc750f553d5d1a1025313` is pushed to `Ahammedsajal/SaleMax` `main` and deployed as the app-only overlay `/opt/salemax/releases/call-center-ari-7network-mobile-object-ids-3bbfc6af2886-20261118/compose.call-center-inbound-lead-link.json`, after the Zoiper username overlay. The base remains `/opt/salemax/releases/training-pipeline-correction-v3-9867ca72-20261104`; the app image remains `sha256:753d77d421b3160872df0812e7b38505a1db7104cdb9d6c8b17415b2420de667`. The deployment appended the 286th Compose input, retained all 11 environment-file inputs and 261 app mounts, and left all seven non-app containers unchanged. Protected rollback snapshot: `/opt/salemax/shared/rollback-call-center-ari-7network-mobile-object-ids-3bbfc6af2886-20261118` (app-only; no database backup or migration applies).
+
+The production ARI client previously rejected the revisioned `7network-<extension>-mobile-r<revision>` endpoint, AoR and auth IDs generated for Zoiper, because its dynamic PJSIP object validator accepted only `salemax`-prefixed names. The bounded allowlist now accepts those 7Network mobile IDs and the specific base/AoR/auth forms required to clean up older mobile objects, while retaining existing `salemax` browser/gateway IDs. Runtime SHA-256 for `modules/platform/asterisk-ari-client.js`: `a7f38315136fb9eac905f08e1934c6a9e3f2baf88b8d72a061722e0cf048f5aa`; all 22 telephony runtime files in the app container match source.
+
+Verification on `carsqatar-prod-01`: app healthy with zero restarts on the same image; the new overlay is the Compose tail; all seven non-app containers are unchanged. `/healthz` and `/call-center/` return HTTP 200; anonymous call-history access returns HTTP 401. The focused telephony suite passes 94/94 and all release-helper tests pass 21/21. No migration, PBX/Asterisk setting, gateway/SIM/DID route, endpoint provisioning, customer data or call changed. PBX remains disabled at revision 0 with zero gateways, channels, queues, extensions, provisioned endpoints and queue members; Asterisk remains inactive with no SIP/ARI listeners. No Zoiper account has registered and no live call has been tested.
+
+If this is still the latest app overlay, restore under the production lock with:
+
+```sh
+sudo -n /opt/salemax/shared/with-production-lock.sh python3 /opt/salemax/releases/call-center-ari-7network-mobile-object-ids-3bbfc6af2886-20261118/deploy/asterisk-ari-7network-mobile-object-ids-release.py restore /opt/salemax/shared/rollback-call-center-ari-7network-mobile-object-ids-3bbfc6af2886-20261118
+```
+
+Restore any later app overlays first. No database rollback applies. If a Zoiper profile is provisioned after this release, revoke its 7Network SIP profile and confirm its registration and active call legs are cleared before rolling back; the prior ARI client rejects the new 7Network mobile object IDs.
+
 # 2026-11-18 — WooCommerce parent-managed stock safety — source only
 
 Source commit `1fabc8f2` on the Retail review branch fixes WooCommerce variation stock-mode handling. The connector now records `unknown`, `managed`, `unmanaged`, or `parent`; numeric stock is retained for comparison only when Woo explicitly reports `managed`. Parent-managed variation quantities are not treated as independent stock, and existing boolean snapshots remain `unknown` until refreshed. Migration `20270211_retail_woocommerce_stock_management_modes.sql` adds the mode columns; mapping stock scope is rejected for `parent` and `unknown` sources while identity-only catalog mapping remains available. The existing Retail shell is preserved, with an English/Arabic explanation for unknown and parent-managed modes.

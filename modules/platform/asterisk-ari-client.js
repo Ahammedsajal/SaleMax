@@ -7,6 +7,7 @@ const APP_NAME = 'salemax-call-center';
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const RESOURCE_ID = /^[A-Za-z0-9_.:-]{1,128}$/;
 const EXTENSION = /^[0-9]{3,8}$/;
+const PJSIP_OBJECT_ID = /^(?:salemax[-_][A-Za-z0-9_-]{1,96}|7network-[0-9]{3,8}-mobile(?:-r[1-9][0-9]{0,15})?(?:-(?:auth|aor))?)$/;
 const fail = code => { throw Object.assign(new Error(code), { code }); };
 
 function safeArgs(values) {
@@ -171,7 +172,7 @@ function createAriClient(row, { fetchImpl = globalThis.fetch, timeoutMs = 5000, 
     },
     async upsertPjsipObject(objectType, objectId, fields) {
       if (!['aor', 'auth', 'endpoint', 'identify'].includes(objectType)
-        || !/^salemax[-_][A-Za-z0-9_-]{1,96}$/.test(objectId || '')
+        || !PJSIP_OBJECT_ID.test(objectId || '')
         || !Array.isArray(fields) || !fields.length || fields.length > 32
         || fields.some(field => !field || typeof field.attribute !== 'string'
           || !/^[a-z][a-z0-9_]{0,63}$/.test(field.attribute)
@@ -183,7 +184,7 @@ function createAriClient(row, { fetchImpl = globalThis.fetch, timeoutMs = 5000, 
     },
     async getPjsipObject(objectType, objectId) {
       if (!['aor', 'auth', 'endpoint', 'identify'].includes(objectType)
-        || !/^salemax[-_][A-Za-z0-9_-]{1,96}$/.test(objectId || '')) fail('INVALID_ARI_PJSIP_OBJECT');
+        || !PJSIP_OBJECT_ID.test(objectId || '')) fail('INVALID_ARI_PJSIP_OBJECT');
       const result = await request('GET', `asterisk/config/dynamic/res_pjsip/${objectType}/${encodeURIComponent(objectId)}`);
       if (!Array.isArray(result) || result.length > 64
         || result.some(field => !field || typeof field.attribute !== 'string' || typeof field.value !== 'string')) fail('ARI_INVALID_RESPONSE');
@@ -191,7 +192,7 @@ function createAriClient(row, { fetchImpl = globalThis.fetch, timeoutMs = 5000, 
     },
     async deletePjsipObject(objectType, objectId) {
       if (!['aor', 'auth', 'endpoint', 'identify'].includes(objectType)
-        || !/^salemax[-_][A-Za-z0-9_-]{1,96}$/.test(objectId || '')) fail('INVALID_ARI_PJSIP_OBJECT');
+        || !PJSIP_OBJECT_ID.test(objectId || '')) fail('INVALID_ARI_PJSIP_OBJECT');
       try {
         await request('DELETE', `asterisk/config/dynamic/res_pjsip/${objectType}/${encodeURIComponent(objectId)}`);
         return { deleted: true };

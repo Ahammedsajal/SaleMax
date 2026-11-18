@@ -399,7 +399,26 @@ test('ARI client applies only bounded dynamic PJSIP object types and accepts con
     assert.deepEqual(current,[{attribute:'endpoint',value:'salemax_dinstar_uc2000ve'}]);
     assert.equal(captured.options.method,'GET');
     assert.equal(captured.url.pathname,'/ari/asterisk/config/dynamic/res_pjsip/endpoint/salemax_dinstar_uc2000ve');
+    const mobileObjects=[
+      ['endpoint','7network-7401-mobile-r1'],
+      ['auth','7network-7401-mobile-r1-auth'],
+      ['aor','7network-7401-mobile-r1'],
+      ['endpoint','7network-7401-mobile'],
+      ['auth','7network-7401-mobile-auth'],
+      ['aor','7network-7401-mobile-r1-aor'],
+    ];
+    for(const [type,id] of mobileObjects){
+      await client.upsertPjsipObject(type,id,[{attribute:'allow',value:'alaw,ulaw'}]);
+      assert.equal(captured.url.pathname,`/ari/asterisk/config/dynamic/res_pjsip/${type}/${id}`);
+      await client.getPjsipObject(type,id);
+      assert.equal(captured.url.pathname,`/ari/asterisk/config/dynamic/res_pjsip/${type}/${id}`);
+      await client.deletePjsipObject(type,id);
+      assert.equal(captured.url.pathname,`/ari/asterisk/config/dynamic/res_pjsip/${type}/${id}`);
+    }
     await assert.rejects(client.upsertPjsipObject('global','salemax_bad',[{attribute:'allow',value:'alaw'}]),{code:'INVALID_ARI_PJSIP_OBJECT'});
+    await assert.rejects(client.upsertPjsipObject('endpoint','7network-7401-browser-r1',[{attribute:'allow',value:'alaw'}]),{code:'INVALID_ARI_PJSIP_OBJECT'});
+    await assert.rejects(client.getPjsipObject('endpoint','7network-7401-mobile-r1-auth-extra'),{code:'INVALID_ARI_PJSIP_OBJECT'});
+    await assert.rejects(client.deletePjsipObject('endpoint','7network-admin'),{code:'INVALID_ARI_PJSIP_OBJECT'});
     await assert.rejects(client.upsertPjsipObject('endpoint','../../ari',[{attribute:'allow',value:'alaw'}]),{code:'INVALID_ARI_PJSIP_OBJECT'});
     await assert.rejects(client.upsertPjsipObject('endpoint','salemax_safe',[{attribute:'allow',value:'alaw\ncontext=public'}]),{code:'INVALID_ARI_PJSIP_OBJECT'});
   }finally{if(oldKey===undefined)delete process.env.SALEMAX_PLATFORM_KEY_BASE64;else process.env.SALEMAX_PLATFORM_KEY_BASE64=oldKey;if(oldHosts===undefined)delete process.env.SALEMAX_ASTERISK_ALLOWED_HOSTS;else process.env.SALEMAX_ASTERISK_ALLOWED_HOSTS=oldHosts;}
