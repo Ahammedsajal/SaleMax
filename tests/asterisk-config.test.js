@@ -294,13 +294,16 @@ test('Call Center status reports call readiness only with live Asterisk and endp
   assert.match(client,/Call events \$\{eventReady\?'connected':eventStatus\}/);
   assert.match(client,/7Network is not receiving Asterisk call events/);
   assert.match(client,/لا يستقبل 7Network أحداث المكالمات من أستريسك/);
+  assert.match(client,/const accountName=targetName\?`7Network · \$\{targetName\}`:'7Network'/);
+  assert.match(client,/The account name is only a display label; use the Username field below as the SIP login/);
+  assert.match(client,/اسم الحساب للعرض فقط؛ استخدم حقل اسم المستخدم أدناه لتسجيل SIP/);
   assert.match(client,/calls\/\$\{encodeURIComponent\(call\.callId\)\}\/end/);
   assert.match(client,/text\('End call','إنهاء المكالمة'\)/);
   assert.match(client,/node\('outgoingSection'\)\.hidden=true/);
   assert.match(client,/node\('extensionsSection'\)\.hidden=true/);
   assert.match(client,/node\('queuesSection'\)\.hidden=true/);
   assert.match(router,/categoryKey:canonicalCategoryKey\(context\.tenant\.categoryKey\)/);
-  assert.match(page,/call-center\.js\?v=20261117-zoiper-mobile-settings1/);
+  assert.match(page,/call-center\.js\?v=20261118-zoiper-7network-display-name1/);
   assert.match(page,/call-center\.css\?v=20261112-sip-direct-dial1/);
   assert.match(page,/Call history includes caller or dialed numbers/);
   assert.match(page,/The SIP app does not display CRM leads/);
