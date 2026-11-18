@@ -1,3 +1,21 @@
+# 2026-11-18 — Email Marketing unified domain and reply DNS setup — production
+
+Source commit `a6d437254764edd0acf00a75dc4feefbbc67b008` is pushed to `Ahammedsajal/SaleMax` `main` and deployed as app-only overlay `/opt/salemax/releases/email-marketing-unified-domain-dns-a6d437254764-20261118T121003Z/compose.email-marketing-unified-domain-dns.json` on base `/opt/salemax/releases/training-pipeline-correction-v3-9867ca72-20261104`. The app remains on image `sha256:753d77d421b3160872df0812e7b38505a1db7104cdb9d6c8b17415b2420de667`; the overlay is the 289th Compose input, with 11 environment inputs and 261 app mounts. All seven non-app containers are unchanged. No migration ran.
+
+The separate **Receive replies in Email Inbox** Setup card is removed. Adding a sending domain now prepares its `reply.<domain>` SES identity immediately, so one guided popup displays both the sending DKIM records and reply-inbox TXT/MX records with full hostnames, Namecheap-short hosts, values and copy buttons. Existing domains prepare the reply identity when their DNS setup is opened. The popup checks the sending identity and reply TXT/MX together; receipt routing still activates only after SES/DNS and the configured inbound SNS subscription are ready. Root-domain MX records are never changed. Pending reply metadata is removed with an unused domain association; active reply routing and domains with sender addresses remain protected from deletion. Shared SES identities and DNS records are retained.
+
+No AWS credentials, domain records, campaigns, contacts or messages were changed; no email was sent and no domain was deleted. The user still needs to add the displayed reply TXT and MX records for `7network.space` and wait for SES detection. An authenticated production browser flow and end-to-end reply delivery remain unverified.
+
+Production verification on `carsqatar-prod-01`: app and database healthy; public health and workspace shell return HTTP 200; Email Marketing script and stylesheet return HTTP 200 with the staged hashes; anonymous setup API returns HTTP 401. Runtime hashes: `client/public/email-marketing-workspace.js` `4f983d348aa481f75950b94ee99baa5ffdd9a5c07a983170884731da3c1765fc`; `client/public/email-marketing-workspace.css` `7f9b59b792fdfc04fe7155fea41f921f78cb9be79c5dbaca1d9a8c25276808d4`; `client/public/index.html` `e7fb4a48bdb472c089fb506e0d27ecc723ba7a799ce3b9566874667902f9d`; `modules/platform/email-marketing.js` `44d427a87cea88633fae3ba85065f852ef4c99caf658003b50e5591f4ea2d022`; `modules/platform/email-marketing-router.js` `e677ad587a60f1a41a302da22a501a129f19ec0ee7000595c0d0c66e7aab4cd2`. Local synthetic browser review exercised new-domain submission and all five records at desktop English/light and phone Arabic/dark widths, including no horizontal overflow. JavaScript/Python syntax and `git diff --check` passed.
+
+Protected rollback snapshot: `/opt/salemax/shared/rollback-email-marketing-unified-domain-dns-a6d437254764-20261118T121003Z` (mode `0700`). Restore only if this remains the newest app overlay; restore any later app overlays first:
+
+```sh
+sudo -n /opt/salemax/shared/with-production-lock.sh python3 /opt/salemax/releases/email-marketing-unified-domain-dns-a6d437254764-20261118T121003Z/deploy/email-marketing-unified-domain-dns-release.py restore /opt/salemax/shared/rollback-email-marketing-unified-domain-dns-a6d437254764-20261118T121003Z
+```
+
+The restore is app-only; no database rollback applies. The overall 42-ticket application upgrade and Email Marketing provider, DNS, authenticated-role, browser and end-to-end delivery gates remain in progress.
+
 # 2026-11-18 — Email Marketing template and domain setup UI — production
 
 Source commit `60e266155748e53cb9febaddbb2c0dc619871ba2` is pushed to `Ahammedsajal/SaleMax` `main` and deployed as app-only overlay `/opt/salemax/releases/email-marketing-domain-dns-popup-60e266155748-20261118T093932Z/compose.email-marketing-domain-dns-popup.json` on base `/opt/salemax/releases/training-pipeline-correction-v3-9867ca72-20261104`. The release keeps the existing app image `sha256:753d77d421b3160872df0812e7b38505a1db7104cdb9d6c8b17415b2420de667`, all 11 environment inputs, all seven non-app containers and the 261 app mounts. It appended the 288th Compose input. No migration ran.
