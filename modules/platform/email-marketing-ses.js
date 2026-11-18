@@ -31,9 +31,9 @@ function createClient(value,credentials=null){
 }
 
 function publicCode(error){
-  const code=String(error?.name||error?.code||'');
+  const code=[error?.name,error?.code,error?.awsCode].filter(value=>value&&value!=='Error').join(' ');
   if(/Credentials|credential|UnrecognizedClient|InvalidClientToken|ExpiredToken/i.test(code))return 'AWS_CREDENTIALS_UNAVAILABLE';
-  if(/AccessDenied|UnauthorizedOperation|not authorized/i.test(code))return 'AWS_SES_PERMISSION_DENIED';
+  if(/AccessDenied|UnauthorizedOperation|not authorized|AuthorizationError/i.test(code))return 'AWS_SES_PERMISSION_DENIED';
   if(/Throttl|TooManyRequests|RateExceeded|SendingRateExceeded/i.test(code))return 'SES_THROTTLED';
   if(/AlreadyExists/i.test(code))return 'SES_IDENTITY_EXISTS';
   if(/NotFound/i.test(code))return 'SES_IDENTITY_NOT_FOUND';
