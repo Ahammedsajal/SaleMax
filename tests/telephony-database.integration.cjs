@@ -63,7 +63,7 @@ async function main(){
     assert.equal(Number(peerAudit.total),2,'gateway peer apply attempt and completion are audited');
     const endpointPreview=await asteriskConfig.previewAgentEndpoints(db,platformContext);
     assert.deepEqual(endpointPreview.extensions,['7401','7402']);
-    assert.match(endpointPreview.config,/\[salemax-7401-mobile-r1\]/);
+    assert.match(endpointPreview.config,/\[7network-7401-mobile-r1\]/);
     assert.match(endpointPreview.config,/\[salemax-7401-browser-r1\]/);
     const createdQueue=await queues.save(db,tenantContext,{id:null,expectedRevision:0,name:'support_main',strategy:'ringall',ringTimeoutSeconds:20,enabled:false,membershipIds:[ownerMembership,agentMembership]});
     assert.equal(createdQueue.members.length,2);
@@ -189,7 +189,7 @@ async function main(){
         async deletePjsipObject(type,id){agentEndpointWrites.push({operation:'delete',type,id});return{deleted:true};},
       });
       const browserCredentials=await asteriskConfig.ownBrowserEndpoint(db,tenantContext,endpointClientFactory),mobileCredentials=await asteriskConfig.ownMobileEndpoint(db,tenantContext,endpointClientFactory);
-      assert.equal(browserCredentials.authorizationUsername,'salemax-7401-browser-r1');assert.equal(mobileCredentials.username,'salemax-7401-mobile-r1');
+      assert.equal(browserCredentials.authorizationUsername,'salemax-7401-browser-r1');assert.equal(mobileCredentials.username,'7network-7401-mobile-r1');
       assert.notEqual(browserCredentials.authorizationPassword,mobileCredentials.password);
       assert.equal(browserCredentials.authorizationPassword,asteriskSecrets.endpointCredential({tenantId,membershipId:ownerMembership,extension:'7401',clientType:'browser',revision:2}));
       assert.equal(agentEndpointWrites.filter(write=>write.operation==='upsert').length,6,'opening SIP settings applies auth, AOR and endpoint objects for mobile and browser');
@@ -221,9 +221,9 @@ async function main(){
         assert.equal(options.headers.Authorization,`Basic ${Buffer.from(`salemax-status:${statusPassword}`).toString('base64')}`);
         return{ok:true,async text(){return JSON.stringify([
           {technology:'PJSIP',resource:`salemax_gw_${tenantGatewayId.replace(/-/g,'')}`,state:'online',channel_ids:[]},
-          {technology:'PJSIP',resource:'salemax-7401-mobile-r1',state:'online',channel_ids:[]},
+          {technology:'PJSIP',resource:'7network-7401-mobile-r1',state:'online',channel_ids:[]},
           {technology:'PJSIP',resource:'salemax-7401-browser-r1',state:'offline',channel_ids:[]},
-          {technology:'PJSIP',resource:'salemax-7402-mobile-r1',state:'offline',channel_ids:[]},
+          {technology:'PJSIP',resource:'7network-7402-mobile-r1',state:'offline',channel_ids:[]},
           {technology:'PJSIP',resource:'salemax-7402-browser-r1',state:'offline',channel_ids:[]},
         ]);}};
       }}));
