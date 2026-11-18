@@ -7,7 +7,7 @@ const inbound=require('./email-marketing-inbound');
 const fail=(code,status=400)=>{throw Object.assign(Error(code),{code,status});};
 const uuid=()=>crypto.randomUUID();
 const sha=value=>crypto.createHash('sha256').update(String(value)).digest('hex');
-const MAX_RECIPIENTS=10000,MAX_ATTACHMENT_BYTES=5*1024*1024,MAX_TOTAL_ATTACHMENT_BYTES=10*1024*1024,MAX_ATTACHMENTS=3;
+const MAX_RECIPIENTS=10000,AUDIENCE_PREVIEW_PAGE_SIZE=50,MAX_ATTACHMENT_BYTES=5*1024*1024,MAX_TOTAL_ATTACHMENT_BYTES=10*1024*1024,MAX_ATTACHMENTS=3;
 const attachmentTypes=Object.freeze({'.pdf':'application/pdf','.png':'image/png','.jpg':'image/jpeg','.jpeg':'image/jpeg','.gif':'image/gif','.csv':'text/csv','.txt':'text/plain'});
 const normalizeEmail=value=>String(value||'').trim().toLowerCase();
 const validEmail=value=>typeof value==='string'&&value.length<=254&&/^[^\s@<>]+@[^\s@<>]+\.[^\s@<>]+$/.test(value);
@@ -316,10 +316,10 @@ function summarizeAudience(rows){
     const email=normalizeEmail(row.email);
     if(!email){result.missingEmail++;continue;}
     if(!validEmail(email)){result.invalidEmail++;continue;}
-    if(Number(row.email_marketing_consent)!==1){result.noConsent++;continue;}
     if(row.email_unsubscribed_at){result.unsubscribed++;continue;}
     if(row.suppressed_email){result.suppressed++;continue;}
     if(seen.has(email)){result.duplicate++;continue;}
+    if(Number(row.email_marketing_consent)!==1)result.noConsent++;
     seen.add(email);eligible.push({...row,normalizedEmail:email});
   }
   result.eligible=eligible.length;return {summary:result,eligible};
@@ -340,9 +340,17 @@ function readPreviewToken(key,token,ctx,phonebookId){
 }
 async function previewAudience(db,ctx,input,key){
   emailMarketingAccess(ctx.context);const phonebookId=Number(input?.phonebookId);if(!Number.isSafeInteger(phonebookId)||phonebookId<1)fail('INVALID_PHONEBOOK');
+  const page=input?.page==null?0:Number(input.page);if(!Number.isSafeInteger(page)||page<0||page>Math.floor(MAX_RECIPIENTS/AUDIENCE_PREVIEW_PAGE_SIZE))fail('INVALID_AUDIENCE_PREVIEW_PAGE');
+  const priorToken=input?.previewToken?readPreviewToken(key,input.previewToken,ctx,phonebookId):null;if(page>0&&!priorToken)fail('INVALID_AUDIENCE_PREVIEW');
   const [[book]]=await db.query('SELECT id,name FROM phonebook WHERE uid=? AND id=?',[ctx.ownerUid,phonebookId]);if(!book)fail('PHONEBOOK_NOT_FOUND',404);
   const rows=await audienceRows(db,ctx.tenantId,ctx.ownerUid,phonebookId),audience=summarizeAudience(rows),hashValue=fingerprint(rows);
-  return {phonebook:{id:Number(book.id),name:book.name},...audience.summary,previewToken:makePreviewToken(key,ctx,phonebookId,hashValue),expiresInSeconds:600};
+  if(priorToken&&priorToken.fingerprint!==hashValue)fail('AUDIENCE_CHANGED',409);
+  const pageCount=Math.ceil(audience.eligible.length/AUDIENCE_PREVIEW_PAGE_SIZE);if(pageCount&&page>=pageCount)fail('INVALID_AUDIENCE_PREVIEW_PAGE');
+  const start=page*AUDIENCE_PREVIEW_PAGE_SIZE,recipients=audience.eligible.slice(start,start+AUDIENCE_PREVIEW_PAGE_SIZE).map(row=>({
+    contactId:String(row.id),name:String(row.name||''),email:String(row.email||''),hasRecordedOptIn:Number(row.email_marketing_consent)===1
+  }));
+  return {phonebook:{id:Number(book.id),name:book.name},...audience.summary,recipients,page,pageSize:AUDIENCE_PREVIEW_PAGE_SIZE,pageCount,
+    previewToken:input?.previewToken||makePreviewToken(key,ctx,phonebookId,hashValue),expiresInSeconds:600};
 }
 
 async function campaignAttachments(db,ctx,input,template){
@@ -377,7 +385,7 @@ async function createCampaign(db,ctx,input,key){
     for(const attachment of attachments){await db.query('INSERT INTO sx_email_campaign_attachments(tenant_id,campaign_id,attachment_id) VALUES(?,?,?)',[ctx.tenantId,id,attachment.id]);await db.query('UPDATE sx_email_attachments SET expires_at=NULL WHERE tenant_id=? AND id=?',[ctx.tenantId,attachment.id]);}
     const recipientRows=audience.eligible.map(row=>{const recipientId=uuid(),token=tokenFor(key,ctx.tenantId,id,recipientId);return [recipientId,ctx.tenantId,id,row.id,row.email,normalizeEmail(row.email),String(row.name||'').slice(0,200),sha(token)];});
     for(let start=0;start<recipientRows.length;start+=500){const batch=recipientRows.slice(start,start+500);await db.query('INSERT INTO sx_email_campaign_recipients(id,tenant_id,campaign_id,contact_id,recipient_email,normalized_email,recipient_name,unsubscribe_token_hash) VALUES ?',[batch]);}
-    await audit(db,ctx,'email.campaign.created','email-campaign',id,{name,status,recipientCount:audience.eligible.length,phonebookId});
+    await audit(db,ctx,'email.campaign.created','email-campaign',id,{name,status,recipientCount:audience.eligible.length,withoutRecordedOptInCount:audience.noConsent,phonebookId});
     await db.commit();return {id,name,status,scheduledAt,recipientCount:audience.eligible.length,acceptedCount:0,failedCount:0,suppressedCount:0,createdAt:new Date().toISOString()};
   }catch(error){try{await db.rollback();}catch{}throw error;}
 }
@@ -456,7 +464,7 @@ async function testSend(db,ctx,input,key){
   let account;try{account=await ses.getAccount(sender.region,settings.credentials);}catch(error){fail(safeSesError(error),503);}
   if(!account.sendingEnabled)fail('SES_SENDING_DISABLED',409);
   try{const sent=await ses.sendSimple(sender.region,{FromEmailAddress:sender.email,Destination:{ToAddresses:[recipient]},
-    Content:{Simple:{Subject:{Data:'7Network Email setup test',Charset:'UTF-8'},Body:{Text:{Data:'Your 7Network Sales email sender is connected. Campaigns will only include contacts with explicit email marketing consent.',Charset:'UTF-8'}}}}},settings.credentials);
+    Content:{Simple:{Subject:{Data:'7Network Email setup test',Charset:'UTF-8'},Body:{Text:{Data:'Your 7Network Sales email sender is connected. Campaigns include valid email addresses and exclude unsubscribed or suppressed contacts.',Charset:'UTF-8'}}}}},settings.credentials);
     return {sent:true,recipient,messageId:sent.messageId};
   }catch(error){fail(safeSesError(error),error?.$metadata?.httpStatusCode||503);}
 }
