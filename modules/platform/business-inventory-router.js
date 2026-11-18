@@ -77,7 +77,8 @@ module.exports = function createInventoryRouter({pool, authenticate}) {
     const normalized=items.slice(0,50).map(item=>{
       const onHand=quantity.scaled(item.quantity)||0n,reserved=quantity.scaled(item.reserved)||0n;
       const available=onHand>=reserved?onHand-reserved:0n,threshold=item.lowStockThreshold===null?null:quantity.scaled(item.lowStockThreshold);
-      return {...item,quantity:quantity.json(onHand,Number(item.quantityPrecision)),reserved:quantity.json(reserved,Number(item.quantityPrecision)),
+      return {...item,quantityPrecision:Number(item.quantityPrecision),unitRevision:Number(item.unitRevision),thresholdRevision:Number(item.thresholdRevision),
+        quantity:quantity.json(onHand,Number(item.quantityPrecision)),reserved:quantity.json(reserved,Number(item.quantityPrecision)),
         availableQuantity:quantity.json(available,Number(item.quantityPrecision)),quantityIncrement:quantity.format(quantity.scaled(item.quantityIncrement),Number(item.quantityPrecision)),
         lowStock:threshold!==null&&available<=threshold};
     });

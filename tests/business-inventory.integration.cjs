@@ -163,7 +163,8 @@ async function main() {
     assert.equal((await send('/'+item+'/count','owner',winningBody)).status,200);
     const stock=await (await send('/?locationId='+location,'accountant')).json();
     const row=stock.data.items.find(value=>value.id===item);
-    assert.equal(row.baseUnitCode,'yard');assert.equal(row.quantityPrecision,2);assert.equal(row.quantityIncrement,'0.25');
+    assert.equal(row.baseUnitCode,'yard');assert.equal(row.quantityPrecision,2);assert.equal(typeof row.quantityPrecision,'number');
+    assert.equal(typeof row.unitRevision,'number');assert.equal(typeof row.thresholdRevision,'number');assert.equal(row.quantityIncrement,'0.25');
     assert.ok(['1.25','2.25'].includes(row.quantity));assert.equal(row.reserved,0);
     assert.equal((await send('/'+item+'/count','owner',{...winningBody,requestId:randomUUID(),expectedRevision:row.revision,quantity:'1.10'})).status,400);
     const threshold=await send('/products/'+item+'/threshold','owner',{locationId:location,lowStockThreshold:'0.50',expectedRevision:'0'},'PUT');
