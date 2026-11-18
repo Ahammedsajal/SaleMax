@@ -9,7 +9,7 @@ This is the project entry point for production access from the authorized Mac. I
 - SSH address and port: `145.241.229.168:22`
 - Public application origins: `https://7network.live`, `https://www.7network.live`, and the retained `https://crm.salemax.qa`
 - Authorized Mac identity file: `~/.ssh/salemax-mac-20261003` (mode `0600`)
-- Last verified from this Mac: 17 November 2026; SSH returned `carsqatar-prod-01`; `/opt/salemax/current` resolves to base release `/opt/salemax/releases/training-pipeline-correction-v3-9867ca72-20261104`. The call-center app-only overlays are additional Compose inputs attached to the running container. The app is healthy on image `sha256:753d77d421b3160872df0812e7b38505a1db7104cdb9d6c8b17415b2420de667`; Asterisk is inactive.
+- Last verified from this Mac: 18 November 2026; SSH returned `carsqatar-prod-01`; `/opt/salemax/current` resolves to base release `/opt/salemax/releases/training-pipeline-correction-v3-9867ca72-20261104`. The Call Center and other app-only overlays are additional Compose inputs attached to the running container; the Zoiper display-label overlay is the current tail. The app is healthy on image `sha256:753d77d421b3160872df0812e7b38505a1db7104cdb9d6c8b17415b2420de667`; Asterisk is inactive/disabled with no SIP/ARI listeners.
 
 Resolve the hostname and key from this file before connecting. Use the operator's local private key; never copy the key into this project, a chat, a ticket, or another machine. On another machine, use its separately authorized identity instead of assuming this key is available.
 
