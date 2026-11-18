@@ -69,6 +69,11 @@ html[data-sx-theme=dark] #sx-retail-workspace article{box-shadow:none}
 #sx-retail-workspace .sx-retail-order-contact{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,220px),1fr));gap:0 18px}
 #sx-retail-workspace .sx-retail-order-contact p{min-width:0;overflow-wrap:anywhere}
 #sx-retail-workspace .sx-retail-order-contact bdi{unicode-bidi:isolate}
+#sx-retail-workspace section.sx-retail-online-items{max-width:none;margin:14px 0;padding:12px;border-color:var(--retail-border);background:var(--retail-bg)}
+#sx-retail-workspace .sx-retail-online-item-list{display:grid;gap:8px;margin:0;padding:0;list-style:none}
+#sx-retail-workspace li.sx-retail-online-item{margin:0;padding:12px;border:1px solid var(--retail-border);border-radius:10px;background:var(--retail-card)}
+#sx-retail-workspace .sx-retail-online-item h4{margin:0 0 8px;font-size:14px;line-height:1.45}
+#sx-retail-workspace .sx-retail-online-item p{overflow-wrap:anywhere}
 #sx-retail-workspace button.sx-retail-load-more{display:block;margin:14px auto 0;background:var(--retail-card);border-color:var(--retail-border);color:var(--retail-text)}
 #sx-retail-workspace [hidden]{display:none!important}
 html[data-sx-theme=dark] #sx-retail-workspace .sx-retail-status-placed{color:#fcd34d;background:#3a2b11;border-color:#725414}

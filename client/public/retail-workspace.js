@@ -194,6 +194,47 @@
     const rows=[['Subtotal', 'المجموع الفرعي',order.breakdown?.subtotal],['Discount','الخصم',order.breakdown?.discount],
       ['Shipping','الشحن',order.breakdown?.shipping],['Tax','الضريبة',order.breakdown?.tax],['Refunds reported by store','المبالغ المستردة حسب المتجر',order.breakdown?.refunds]];
     for(const [en,ar,amount] of rows)if(amount!==null&&amount!==undefined&&Number(amount)!==0)add(body,'p',t(en+': ',ar+': ')+sourceMoney(amount,order.currency));
+    const items=add(body,'section');items.className='sx-retail-online-items';
+    add(items,'h3',t('Purchased items','المنتجات المشتراة'));
+    const itemStatus=add(items,'p');itemStatus.setAttribute('role','status');itemStatus.setAttribute('aria-live','polite');
+    const itemList=add(items,'ul');itemList.className='sx-retail-online-item-list';
+    const loadItems=add(items,'button',t('Load item and SKU details','تحميل تفاصيل المنتجات ورموز SKU'));loadItems.type='button';
+    loadItems.onclick=async()=>{
+      loadItems.disabled=true;itemStatus.textContent=t('Loading item details…','جارٍ تحميل تفاصيل المنتجات…');
+      try{
+        const result=await api('/orders/online/detail','POST',{connectionId:order.connectionId,externalOrderId:order.externalOrderId});
+        itemList.replaceChildren();
+        if(!result.lines?.length)itemStatus.textContent=t('No line items were included in this store snapshot.','لا تتضمن لقطة المتجر تفاصيل المنتجات.');
+        else{
+          itemStatus.textContent='';
+          for(const lineData of result.lines){
+            const line=add(itemList,'li');line.className='sx-retail-online-item';
+            add(line,'h4',lineData.name||t('Store item','منتج من المتجر'));
+            const sourceName=order.provider==='woocommerce'?'Woo':'store',sourceNameAr=order.provider==='woocommerce'?'Woo':'المتجر';
+            const sourceIds=add(line,'p');add(sourceIds,'strong',order.provider==='woocommerce'?t('Woo product / variation: ','المنتج / المتغير في Woo: '):t('Store product / variation: ','منتج / متغير المتجر: '));
+            const productId=add(sourceIds,'bdi',lineData.productId||'—');productId.dir='ltr';
+            if(lineData.variationId){add(sourceIds,'span',' / ');const variationId=add(sourceIds,'bdi',lineData.variationId);variationId.dir='ltr';}
+            const sourceSku=add(line,'p');add(sourceSku,'strong',t(sourceName+' SKU: ','رمز SKU في '+sourceNameAr+': '));const skuValue=add(sourceSku,'bdi',lineData.sku||'—');skuValue.dir='ltr';
+            add(line,'p',t('Quantity: ','الكمية: ')+lineData.quantity);
+            if(lineData.unitPrice!==null)add(line,'p',t('Unit price: ','سعر الوحدة: ')+sourceMoney(lineData.unitPrice,order.currency));
+            if(lineData.total!==null)add(line,'p',t('Line total: ','إجمالي السطر: ')+sourceMoney(lineData.total,order.currency));
+            const mappingLabel={mapped:t('Mapped to 7Network inventory','مرتبط بمخزون 7Network'),ignored:t('Explicitly excluded from inventory mapping','مستثنى صراحةً من ربط المخزون'),
+              unmapped:t('Not mapped to 7Network inventory','غير مرتبط بمخزون 7Network'),target_unavailable:t('Mapped inventory product is unavailable','منتج المخزون المرتبط غير متاح'),
+              not_supported:t('Mapping is not supported for this store provider','الربط غير مدعوم لمزود هذا المتجر')};
+            add(line,'p',t('Inventory mapping: ','ربط المخزون: ')+(mappingLabel[lineData.mappingStatus]||mappingLabel.unmapped));
+            if(lineData.target){
+              const target=add(line,'p');add(target,'strong',t('7Network item: ','منتج 7Network: '));
+              const targetName=t(lineData.target.nameEn,lineData.target.nameAr)||lineData.target.nameEn||lineData.target.id;
+              add(target,'span',targetName+(lineData.target.sku?' · ':' '));if(lineData.target.sku){const targetSku=add(target,'bdi',lineData.target.sku);targetSku.dir='ltr';}
+              if(lineData.skuMatches===false)add(line,'p',t('The Woo SKU and mapped 7Network SKU differ. Review the explicit mapping before accepting reconciliation.','يختلف رمز SKU في Woo عن رمز 7Network المرتبط. راجع الربط قبل اعتماد المطابقة.'));
+            }
+          }
+          if(result.lineItemsTruncated)itemStatus.textContent=t('The source snapshot contains more than 100 items; only the first 100 are available here.','تحتوي لقطة المصدر على أكثر من 100 منتج؛ المتاح هنا أول 100 فقط.');
+        }
+        loadItems.textContent=t('Refresh item and SKU details','تحديث تفاصيل المنتجات ورموز SKU');
+      }catch{itemStatus.textContent=t('Unable to load item details. Refresh the order list and try again.','تعذر تحميل تفاصيل المنتجات. حدّث قائمة الطلبات وحاول مرة أخرى.');}
+      finally{loadItems.disabled=false;}
+    };
     if(order.connectionStatus!=='active')add(body,'p',t('This store connection is '+String(order.connectionStatus||'inactive')+'. This snapshot may be out of date.','اتصال هذا المتجر '+String(order.connectionStatus||'غير نشط')+'. قد تكون هذه البيانات قديمة.'));
     add(body,'p',t('Read-only source record. Manage fulfilment and payment in the connected store; this view does not change stock or payment status.','سجل للقراءة فقط. أدر تنفيذ الطلب والدفع في المتجر المتصل؛ ولا يغيّر هذا العرض المخزون أو حالة الدفع.'));
   }

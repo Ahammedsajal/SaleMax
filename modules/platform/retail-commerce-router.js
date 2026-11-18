@@ -4,6 +4,7 @@ const path = require('node:path');
 const {randomUUID}=require('node:crypto');
 const moment = require('moment-timezone');
 const commerce = require('./retail-commerce');
+const retailConnector = require('./retail-connected-stores');
 const quantityMath = require('./retail-quantity');
 const inventoryAlerts = require('./retail-inventory-alerts');
 const {decision} = require('./policy');
@@ -339,6 +340,14 @@ function workspaceRouter({pool,authenticate}) {
     if(!Number.isSafeInteger(page)||page<0||page>1000)commerce.fail('INVALID_ORDER_SEARCH');
     return {from,to,order,status:status.toLowerCase(),page};
   }
+  function onlineOrderDetailInput(input){
+    const allowed=new Set(['connectionId','externalOrderId']);
+    if(!input||typeof input!=='object'||Array.isArray(input)||Object.keys(input).some(key=>!allowed.has(key)))commerce.fail('INVALID_ORDER_DETAIL');
+    const connectionId=typeof input.connectionId==='string'?input.connectionId.trim():'';
+    const externalOrderId=typeof input.externalOrderId==='string'?input.externalOrderId.trim():'';
+    if(!commerce.uuid.test(connectionId)||!externalOrderId||externalOrderId.length>191||/[\u0000-\u001f\u007f]/.test(externalOrderId))commerce.fail('INVALID_ORDER_DETAIL');
+    return {connectionId,externalOrderId};
+  }
   function escapeLike(value){return value.replace(/[!%_]/g,char=>'!'+char);}
   async function list(res,c,driver,search=null) {
     const where=['o.tenant_id=?'],values=[c.tenant.id];
@@ -424,6 +433,47 @@ function workspaceRouter({pool,authenticate}) {
       orderDate:row.orderDate,dateBasis:row.dateBasis,lastSyncAt:row.lastSyncAt,
     }));
     reply(res,{orders,hasMore,page:search.page,pageSize:orderSearchPageSize});
+  }));
+  router.post('/orders/online/detail',allow('retail.orders',async(req,res,c)=>{
+    const input=onlineOrderDetailInput(req.body);
+    const [[row]]=await pool.query(`SELECT o.connection_id AS connectionId,o.external_order_id AS externalOrderId,
+      o.order_ciphertext AS ciphertext,o.order_iv AS iv,o.order_auth_tag AS authTag,s.provider,s.display_name AS storeName
+      FROM sx_retail_external_orders o JOIN sx_retail_store_connections s
+        ON s.tenant_id=o.tenant_id AND s.id=o.connection_id
+      WHERE o.tenant_id=? AND o.connection_id=? AND o.external_order_id=? AND s.status<>'pending'`,
+    [c.tenant.id,input.connectionId,input.externalOrderId]);
+    if(!row)commerce.fail('ONLINE_ORDER_NOT_FOUND',404);
+    const snapshot=retailConnector.openJson(row,c.tenant.id,row.connectionId,`order:${row.externalOrderId}`);
+    const sourceLines=Array.isArray(snapshot.lineItems)?snapshot.lineItems.slice(0,100):[];
+    const mappingSourceKey=(product,variation)=>JSON.stringify([String(product),String(variation||'')]);
+    const pairs=row.provider==='woocommerce'?[...new Map(sourceLines.filter(line=>line.productId).map(line=>{
+      const variationId=String(line.variantId||'');
+      return [mappingSourceKey(line.productId,variationId),{productId:String(line.productId),variationId}];
+    })).values()]:[];
+    const mappings=pairs.length?await pool.query(`SELECT m.external_product_id AS productId,m.external_variant_id AS variationId,
+      m.mapping_status AS mappingStatus,m.target_product_id AS targetProductId,p.code AS targetSku,
+      p.name_en AS targetNameEn,p.name_ar AS targetNameAr,p.status AS targetStatus
+      FROM sx_retail_external_product_mappings m LEFT JOIN sx_product_catalog p
+        ON p.tenant_id=m.tenant_id AND p.id=m.target_product_id AND p.deleted_at IS NULL
+      WHERE m.tenant_id=? AND m.connection_id=? AND (${pairs.map(()=>'(m.external_product_id=? AND m.external_variant_id=?)').join(' OR ')})`,
+    [c.tenant.id,row.connectionId,...pairs.flatMap(pair=>[pair.productId,pair.variationId])]):[[]];
+    const mappingBySource=new Map(mappings[0].map(mapping=>[mappingSourceKey(mapping.productId,mapping.variationId),mapping]));
+    const lines=sourceLines.map(line=>{
+      const productId=line.productId==null?null:String(line.productId),variationId=line.variantId==null?null:String(line.variantId);
+      const mapping=productId?mappingBySource.get(mappingSourceKey(productId,variationId)):null;
+      let unitPrice=null;
+      if(line.unitPrice!==null&&line.unitPrice!==undefined){try{unitPrice=retailConnector.safeAmount(line.unitPrice);}catch{/* Invalid optional source unit price is omitted. */}}
+      const mappedTarget=mapping?.mappingStatus==='mapped'&&mapping.targetProductId?{
+        id:mapping.targetProductId,sku:mapping.targetSku==null?null:String(mapping.targetSku),nameEn:mapping.targetNameEn,nameAr:mapping.targetNameAr,status:mapping.targetStatus,
+      }:null;
+      const mappingStatus=row.provider!=='woocommerce'?'not_supported':!mapping?'unmapped':mapping.mappingStatus==='ignored'?'ignored':mappedTarget?'mapped':'target_unavailable';
+      const sourceSku=String(line.sku||'').slice(0,100)||null;
+      return {id:String(line.id||'').slice(0,191)||null,productId,variationId,name:String(line.title||'').slice(0,200),sku:sourceSku,
+        quantity:String(line.quantity??'0.000000'),unitPrice,subtotal:line.subtotal??null,discount:line.discount??null,total:line.total??null,tax:line.tax??null,
+        mappingStatus,target:mappedTarget,skuMatches:sourceSku&&mappedTarget?.sku?sourceSku.trim().toUpperCase()===mappedTarget.sku.trim().toUpperCase():null};
+    });
+    reply(res,{connectionId:row.connectionId,provider:row.provider,storeName:row.storeName,externalOrderId:row.externalOrderId,
+      lines,lineItemsTruncated:Boolean(snapshot.lineItemsTruncated)});
   }));
   router.get('/orders',allow('retail.orders',(req,res,c)=>list(res,c,false)));
   router.get('/orders/overview',allow('retail.orders',async(req,res,c)=>{
