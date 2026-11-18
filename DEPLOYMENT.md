@@ -1,3 +1,11 @@
+# 2026-11-18 07:57 UTC — Essentials by D Woo connection recheck — read only
+
+Verified the SSH host identity as `carsqatar-prod-01`. `/opt/salemax/current` still resolves to `/opt/salemax/releases/training-pipeline-correction-v3-9867ca72-20261104`; the app is running with zero restarts on `sha256:753d77d421b3160872df0812e7b38505a1db7104cdb9d6c8b17415b2420de667`, and the database container is healthy on `sha256:70cc072b29b4a89ae07abb2d4da2c64678a7f2dfe092751bb51c87d67dc1338b`. Public `/healthz` returns HTTP 200, 20 GB is available on `/`, and Asterisk remains inactive.
+
+A metadata-only production query returned the Essentials by D Woo connection as `active`, with both `last_sync_at` and `updated_at` still `2026-11-17 11:41:08 UTC`. This does not confirm credential rotation. The latest product/order/customer counts remain the earlier 06:56 UTC read: 50 each, with page-2 cursors incomplete. A schema-ledger query returned no entries for Retail migrations `20270205` through `20270211`. The query selected no credentials, imported customer/order payloads, or contact data. No Woo request, import, migration, webhook, message, write-back, WordPress change, or service change occurred.
+
+The owner must revoke the previously exposed key and reconnect with a fresh Read-only key before the next Woo request. Keep the pilot GET-only and do not resume sync until the source/schema review and production backup/restore gates pass. This was read-only, so no rollback applies.
+
 # 2026-11-18 — Exact WooCommerce order reconciliation — source only
 
 Source commit `dfc9f8fa4944c8d32c96e56c14fa6bc85a3066ae` adds exact order reconciliation to the existing Connected Stores report in `/user`. It compares imported and Woo orders by currency, order status and reported financial status, including counts and fixed-point totals for total, subtotal, discount, shipping, tax, fees and refunds. A passing order result requires complete source totals and scanned counts for products, orders and customers, plus grouped Woo order counts covering every scanned order. Missing amount components are marked for review; count/amount mismatches, incomplete scans and changed Woo totals cannot pass.
