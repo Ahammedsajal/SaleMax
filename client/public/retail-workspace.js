@@ -843,6 +843,25 @@
                 add(reportBody,'p',t('SKU review','مراجعة SKU')+': '+report.skuAudit.missingProductSku+' '+t('products without SKU','منتجات بلا SKU')+' · '+
                   report.skuAudit.missingVariationSku+' '+t('variations without SKU','متغيرات بلا SKU')+' · '+report.skuAudit.duplicateSkuCount+' '+t('duplicate SKU values','قيم SKU مكررة'));
                 for(const duplicate of report.skuAudit.duplicateSkus)add(reportBody,'p',t('Duplicate SKU','SKU مكرر')+': '+duplicate.sku+' · '+duplicate.count+' '+t('records','سجلات'));
+                const orderCheck=report.orderReconciliation||{state:report.scan?'needs_review':'scan_incomplete',groups:[]};
+                const orderCheckLabels={matched:t('Observed order counts and available amounts match exactly across Woo currency/status groups.','تتطابق أعداد الطلبات والمبالغ المتاحة المرصودة تماماً حسب العملة والحالة في Woo.'),
+                  mismatch:t('Order counts or amounts differ. Review each group before accepting the sync.','توجد فروق في أعداد الطلبات أو مبالغها. راجع كل مجموعة قبل قبول المزامنة.'),
+                  needs_review:t('Some Woo order amounts are incomplete. Review unavailable components such as fees or refunds.','بعض مبالغ طلبات Woo غير مكتملة. راجع المكونات غير المتاحة مثل الرسوم أو المبالغ المستردة.'),
+                  source_changed:t('Woo source totals changed during the scan. Run another complete sync before accepting reconciliation.','تغيرت إجماليات مصدر Woo أثناء الفحص. نفّذ مزامنة كاملة أخرى قبل اعتماد المطابقة.'),
+                  scan_incomplete:t('Order reconciliation requires a complete source scan.','تتطلب مطابقة الطلبات فحصاً كاملاً للمصدر.')};
+                add(reportBody,'p',t('Order totals check','فحص إجماليات الطلبات')+': '+(orderCheckLabels[orderCheck.state]||orderCheckLabels.needs_review));
+                for(const group of orderCheck.groups||[]){
+                  const panel=add(reportBody,'article');
+                  add(panel,'strong',group.currency+' · '+t(group.status,group.status)+' · '+t(group.financialStatus,group.financialStatus));
+                  add(panel,'p',t('Woo orders','طلبات Woo')+': '+group.sourceCount+' · '+t('7Network orders','طلبات 7Network')+': '+group.localCount+
+                    ' · '+t('Count difference (7Network − Woo)','فرق العدد (7Network − Woo)')+': '+group.countDelta);
+                  for(const field of ['total','subtotal','discount','shipping','tax','fees','refunds']){
+                    const amount=group.amounts?.[field];if(!amount)continue;
+                    if(amount.state==='unavailable')add(panel,'p',t(field,field)+': Woo '+t('unavailable','غير متاح')+' · 7Network '+amount.local);
+                    else add(panel,'p',t(field,field)+': Woo '+amount.source+' · 7Network '+amount.local+' · '+
+                      t('Amount difference (7Network − Woo)','فرق المبلغ (7Network − Woo)')+': '+amount.delta);
+                  }
+                }
                 if(report.scan){
                   add(reportBody,'p',t('Last complete source scan','آخر فحص كامل للمصدر')+': '+report.scan.completedAt);
                   if(report.scan.queryScope)add(reportBody,'p',t('Woo API status scope: products, variations, and orders include all statuses the read key can access; customers include all API-visible records.','نطاق حالة Woo API: تشمل المنتجات والمتغيرات والطلبات كل الحالات التي يتيحها مفتاح القراءة، ويشمل العملاء كل السجلات المتاحة عبر API.'));
@@ -854,16 +873,11 @@
                     t('imported variations','المتغيرات المستوردة')+': '+report.importedCounts.variations);
                   if(report.scan.sourceVariationCount!=null&&report.scan.sourceVariationCount!==report.importedCounts.variations)
                     add(reportBody,'p',t('Woo variation count and imported active count differ. Review missing or deleted variations before accepting reconciliation.','يختلف عدد متغيرات Woo عن عدد المتغيرات النشطة المستوردة. راجع المتغيرات المفقودة أو المحذوفة قبل اعتماد المطابقة.'));
-                  if(!report.scan.stableSourceCounts)add(reportBody,'p',t('Woo counts changed during this scan. Run another complete scan before accepting reconciliation.','تغيرت أعداد Woo أثناء الفحص. أعد فحصاً كاملاً قبل اعتماد المطابقة.'));
-                  const local=new Map(report.localOrderAmounts.map(row=>[row.currency+'|'+row.status+'|'+row.financialStatus,row]));
-                  const source=new Map(report.scan.sourceOrderAmounts.map(row=>[row.currency+'|'+row.status+'|'+row.financialStatus,row]));
-                  const keys=new Set([...local.keys(),...source.keys()]);
-                  for(const key of keys){const l=local.get(key)||{},s=source.get(key)||{};const panel=add(reportBody,'article');
-                    add(panel,'strong',key.replaceAll('|',' · '));add(panel,'p',t('Woo scanned orders','طلبات Woo المفحوصة')+': '+(s.count??0)+' · '+t('Imported locally','المستورد محلياً')+': '+(l.count??0));
-                    for(const [name,sourceValue,localValue] of [['total',s.total,l.total],['subtotal',s.subtotal,l.subtotal],['discount',s.discount,l.discount],['shipping',s.shipping,l.shipping],['tax',s.tax,l.tax],['fees',s.feeComplete===false?null:s.fee,l.fees],['refunds',s.refundComplete===false?null:s.refund,l.refunds]]){
-                      if(sourceValue!=null||localValue!=null)add(panel,t(name,name)+': Woo '+(sourceValue??'—')+' · 7Network '+(localValue??'—'));
-                    }
-                  }
+                  if(!report.scan.sourceCountMetadataAvailable)add(reportBody,'p',t('Woo source totals are incomplete. The order reconciliation cannot pass until products, orders and customers have verified totals and scanned counts.','إجماليات مصدر Woo غير مكتملة. لا يمكن اجتياز مطابقة الطلبات حتى تتوفر إجماليات وأعداد مفحوصة مؤكدة للمنتجات والطلبات والعملاء.'));
+                  else if(!report.scan.countsFullyScanned)add(reportBody,'p',t('The scanned row count differs from Woo’s reported total. Finish a complete scan before accepting reconciliation.','يختلف عدد الصفوف المفحوصة عن الإجمالي الذي أبلغ عنه Woo. أكمل فحصاً كاملاً قبل اعتماد المطابقة.'));
+                  if(!report.scan.orderAmountMetadataAvailable)add(reportBody,'p',t('The grouped Woo order totals do not cover every scanned order. Order reconciliation remains incomplete.','لا تغطي إجماليات طلبات Woo المجمعة كل الطلبات المفحوصة. تظل مطابقة الطلبات غير مكتملة.'));
+                  if(report.scan.sourceCountMetadataAvailable&&!report.scan.stableSourceCounts)add(reportBody,'p',t('Woo source totals changed during this scan. Run another complete scan before accepting reconciliation.','تغيرت إجماليات مصدر Woo أثناء هذا الفحص. أعد فحصاً كاملاً قبل اعتماد المطابقة.'));
+                  add(reportBody,'p',t('Woo pagination is not an atomic snapshot. A matched result compares the rows and totals observed by this scan; rerun after concurrent catalog or order changes.','لا توفر صفحات Woo لقطة ذرية واحدة. تقارن نتيجة المطابقة الصفوف والإجماليات التي رصدها هذا الفحص؛ أعد الفحص بعد أي تغييرات متزامنة في المنتجات أو الطلبات.'));
                 }else add(reportBody,'p',t('A complete source scan is not available yet. Continue Sync now until products, variations, orders and customers finish.','لا يتوفر فحص كامل للمصدر بعد. تابع المزامنة حتى تنتهي المنتجات والمتغيرات والطلبات والعملاء.'));
                 add(reportBody,'p',t('This report is read-only. WooCommerce remains the stock and order authority. No WordPress changes or customer messages are made.','هذا التقرير للقراءة فقط. يبقى WooCommerce المرجع للمخزون والطلبات. لا يتم تعديل WordPress أو إرسال رسائل للعملاء.'));
               }catch(error){reportBody.replaceChildren();add(reportBody,'p',t('Unable to load reconciliation.','تعذر تحميل المطابقة.'));showCode(status,error);}

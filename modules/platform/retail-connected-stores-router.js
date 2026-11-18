@@ -702,6 +702,25 @@ async function connectionReconciliation(pool, connection) {
     GROUP BY normalizedSku HAVING COUNT(*)>1) duplicates`, [tenantId,id,tenantId,id]);
   const woo = connection.provider === 'woocommerce' ? parseJson(connection.sync_cursor, {}).woocommerce || {} : null;
   const scan = woo?.lastCompleteScan || null;
+  const scanResources = ['products','orders','customers'];
+  const sourceCountMetadataAvailable = Boolean(scan && scanResources.every(resource => {
+    const item = scan.sourceCounts?.[resource];
+    return item && item.total != null && item.total !== '' && item.scanned != null && item.scanned !== '' &&
+      Number.isSafeInteger(Number(item.total)) && Number.isSafeInteger(Number(item.scanned)) &&
+      typeof item.sourceChangedDuringScan === 'boolean';
+  }));
+  const stableSourceCounts = Boolean(sourceCountMetadataAvailable && scanResources.every(resource => scan.sourceCounts[resource].sourceChangedDuringScan === false));
+  const countsFullyScanned = Boolean(sourceCountMetadataAvailable && scanResources.every(resource =>
+    Number(scan.sourceCounts[resource].total) === Number(scan.sourceCounts[resource].scanned)));
+  const sourceOrderAmounts = scan?.orderAmounts && typeof scan.orderAmounts === 'object' && !Array.isArray(scan.orderAmounts)
+    ? Object.values(scan.orderAmounts) : null;
+  const sourceOrderAmountCount = sourceOrderAmounts && sourceOrderAmounts.every(row => row && Number.isSafeInteger(Number(row.count)) && Number(row.count) >= 0)
+    ? sourceOrderAmounts.reduce((sum, row) => sum + Number(row.count), 0) : null;
+  const orderAmountMetadataAvailable = Boolean(sourceOrderAmounts && Number.isSafeInteger(sourceOrderAmountCount) &&
+    sourceOrderAmountCount === Number(scan?.sourceCounts?.orders?.scanned));
+  const scanComparable = Boolean(sourceCountMetadataAvailable && countsFullyScanned && orderAmountMetadataAvailable);
+  const orderReconciliation = compareOrderAmountGroups(scan?.orderAmounts ? Object.values(scan.orderAmounts) : [], localOrderAmounts,
+    scanComparable, stableSourceCounts);
   return { provider: connection.provider, importedCounts: Object.fromEntries(Object.entries(counts).map(([key,value]) => [key, Number(value)])),
     productMappings: { mapped: Number(mappingCounts?.mapped||0), ignored: Number(mappingCounts?.ignored||0), invalidTargets: Number(mappingCounts?.invalidTargets||0),
       stock: { mapped: Number(stockMappings?.mapped||0), quantityManaged: Number(stockMappings?.quantityManaged||0),
@@ -712,7 +731,8 @@ async function connectionReconciliation(pool, connection) {
     lastSyncAt: connection.last_sync_at, lastErrorCode: connection.last_error_code,
     scan: scan ? { startedAt: scan.startedAt, completedAt: scan.completedAt, queryScope: scan.queryScope || null, sourceCounts: scan.sourceCounts || {},
       sourceVariationCount: scan.sourceVariationCount ?? null, sourceOrderAmounts: Object.values(scan.orderAmounts || {}),
-      stableSourceCounts: Object.values(scan.sourceCounts || {}).every(item => !item.sourceChangedDuringScan) } : null,
+      sourceCountMetadataAvailable, countsFullyScanned, orderAmountMetadataAvailable, stableSourceCounts } : null,
+    orderReconciliation,
     currentProgress: woo ? { scanStartedAt: woo.scanStartedAt || null, pendingVariationParents: (woo.variationQueue || []).length,
       resources: Object.fromEntries(['products','orders','customers'].map(resource => [resource, {
         complete: Boolean(woo[resource]?.complete), page: Number(woo[resource]?.page) || 1,
@@ -723,6 +743,48 @@ async function connectionReconciliation(pool, connection) {
     localOrderAmounts: localOrderAmounts.map(row => Object.fromEntries(Object.entries(row).map(([key,value]) =>
       [key, value == null ? null : ['total','subtotal','discount','shipping','tax','fees','refunds'].includes(key) ? String(value) : key === 'count' ? Number(value) : value]))),
   };
+}
+function compareOrderAmountGroups(sourceRows, localRows, hasCompleteScan, stableSourceCounts) {
+  if (!hasCompleteScan) return { state: 'scan_incomplete', groups: [] };
+  const keyFor = row => `${row.currency || ''}|${row.status || 'unknown'}|${row.financialStatus || 'unknown'}`;
+  const source = new Map((Array.isArray(sourceRows) ? sourceRows : []).map(row => [keyFor(row), row]));
+  const local = new Map((Array.isArray(localRows) ? localRows : []).map(row => [keyFor(row), row]));
+  const amountFields = [['total','total'],['subtotal','subtotal'],['discount','discount'],['shipping','shipping'],['tax','tax'],['fees','fee'],['refunds','refund']];
+  const groups = [...new Set([...source.keys(), ...local.keys()])].sort().map(key => {
+    const sourceRow = source.get(key) || null, localRow = local.get(key) || null;
+    const sourceCount = Number(sourceRow?.count || 0), localCount = Number(localRow?.count || 0);
+    let state = sourceCount === localCount ? 'matched' : 'mismatch';
+    const amounts = {};
+    for (const [name, sourceField] of amountFields) {
+      const sourceComplete = sourceCount === 0 || sourceRow?.[`${sourceField}Complete`] !== false && sourceRow?.[sourceField] != null;
+      const sourceValue = sourceCount === 0 ? '0.000000' : sourceComplete ? String(sourceRow[sourceField]) : null;
+      const localValue = localRow?.[name] == null ? '0.000000' : String(localRow[name]);
+      if (!sourceComplete) {
+        amounts[name] = { source: null, local: localValue, delta: null, state: 'unavailable' };
+        if (state === 'matched') state = 'needs_review';
+        continue;
+      }
+      let normalizedSource, normalizedLocal;
+      try {
+        normalizedSource = connector.safeAmount(sourceValue);
+        normalizedLocal = connector.safeAmount(localValue);
+      } catch {
+        amounts[name] = { source: sourceValue, local: localValue, delta: null, state: 'unavailable' };
+        if (state === 'matched') state = 'needs_review';
+        continue;
+      }
+      const delta = connector.decimalAdd([normalizedLocal, connector.decimalNegate(normalizedSource)]);
+      const amountState = delta === '0.000000' ? 'matched' : 'mismatch';
+      amounts[name] = { source: normalizedSource, local: normalizedLocal, delta, state: amountState };
+      if (amountState === 'mismatch') state = 'mismatch';
+    }
+    return { currency: sourceRow?.currency || localRow?.currency || '', status: sourceRow?.status || localRow?.status || 'unknown',
+      financialStatus: sourceRow?.financialStatus || localRow?.financialStatus || 'unknown', sourceCount, localCount,
+      countDelta: localCount - sourceCount, amounts, state };
+  });
+  const state = !stableSourceCounts ? 'source_changed' : groups.some(group => group.state === 'mismatch') ? 'mismatch' :
+    groups.some(group => group.state === 'needs_review') ? 'needs_review' : 'matched';
+  return { state, groups };
 }
 async function processWebhook(pool, connection, event) {
   const sourceEventId = event.eventId ? String(event.eventId).slice(0, 300) : crypto.createHash('sha256').update(event.raw).digest('hex');
@@ -1330,4 +1392,4 @@ function publicRouter({ pool, authenticate, origin, env=process.env }) {
   return router;
 }
 
-module.exports = { workspaceRouter, publicRouter, syncShopify, syncWoo, connectionData, connectionReconciliation, processWebhook, listConnections };
+module.exports = { workspaceRouter, publicRouter, syncShopify, syncWoo, connectionData, connectionReconciliation, compareOrderAmountGroups, processWebhook, listConnections };

@@ -26,7 +26,7 @@ Module._load = function(request, parent, isMain) {
   if (request === 'express') return expressStub;
   return load.call(this, request, parent, isMain);
 };
-const {syncWoo, processWebhook, workspaceRouter} = require('../modules/platform/retail-connected-stores-router');
+const {syncWoo, processWebhook, workspaceRouter, compareOrderAmountGroups, connectionReconciliation} = require('../modules/platform/retail-connected-stores-router');
 Module._load = load;
 
 test('Retail connector preserves decimal amounts and quantities without binary float arithmetic', () => {
@@ -81,6 +81,67 @@ test('Woo products, variations and order breakdowns retain source IDs, SKUs, qua
   assert.equal(order.lineItems[0].quantity, '1.250000');
   assert.equal(order.lineItems[0].discount, '5.000000');
   assert.equal(order.lineItems[0].variantId, '101');
+});
+
+test('Woo order reconciliation compares exact currency/status buckets and marks unavailable components for review', () => {
+  const source=[{currency:'QAR',status:'processing',financialStatus:'paid_reported_by_store',count:1,total:'100.000000',subtotal:'90.000000',
+    discount:'5.000000',shipping:'5.000000',tax:'10.000000',fee:'0.000000',refund:'0.000000'}];
+  const local=[{currency:'QAR',status:'processing',financialStatus:'paid_reported_by_store',count:1,total:'100.000000',subtotal:'90.000000',
+    discount:'5.000000',shipping:'5.000000',tax:'10.000000',fees:'0.000000',refunds:'0.000000'}];
+  const exact=compareOrderAmountGroups(source,local,true,true);
+  assert.equal(exact.state,'matched');
+  assert.equal(exact.groups[0].state,'matched');
+  assert.equal(exact.groups[0].amounts.total.delta,'0.000000');
+
+  const changed=compareOrderAmountGroups(source,[{...local[0],count:2,total:'125.500000'}],true,true);
+  assert.equal(changed.state,'mismatch');
+  assert.equal(changed.groups[0].countDelta,1);
+  assert.equal(changed.groups[0].amounts.total.delta,'25.500000');
+
+  const incomplete=compareOrderAmountGroups([{...source[0],feeComplete:false,fee:undefined,refundComplete:false,refund:undefined}],local,true,true);
+  assert.equal(incomplete.state,'needs_review');
+  assert.equal(incomplete.groups[0].amounts.fees.state,'unavailable');
+  assert.equal(incomplete.groups[0].amounts.refunds.delta,null);
+  assert.equal(compareOrderAmountGroups(source,local,true,false).state,'source_changed');
+  assert.equal(compareOrderAmountGroups(source,local,false,false).state,'scan_incomplete');
+});
+
+test('Woo reconciliation endpoint only reports a passing order check for a complete stable scan', async () => {
+  const localAmounts=[{currency:'QAR',status:'processing',financialStatus:'paid_reported_by_store',count:1,total:'100.000000',subtotal:'90.000000',
+    discount:'5.000000',shipping:'5.000000',tax:'10.000000',fees:'0.000000',refunds:'0.000000'}];
+  const sourceAmounts={'QAR|processing|paid_reported_by_store':{currency:'QAR',status:'processing',financialStatus:'paid_reported_by_store',
+    count:1,total:'100.000000',subtotal:'90.000000',discount:'5.000000',shipping:'5.000000',tax:'10.000000',fee:'0.000000',refund:'0.000000'}};
+  const completeScan={sourceCounts:{products:{total:2,scanned:2,sourceChangedDuringScan:false},orders:{total:1,scanned:1,sourceChangedDuringScan:false},
+    customers:{total:1,scanned:1,sourceChangedDuringScan:false}},orderAmounts:sourceAmounts};
+  const run=async(lastCompleteScan,local=localAmounts)=>{
+    const pool={query:async sql=>{
+      if(sql.includes('AS checkouts'))return [[{products:2,variations:0,orders:1,customers:1,checkouts:0}],[]];
+      if(sql.startsWith('SELECT currency,order_status AS status'))return [local,[]];
+      if(sql.includes('AS variations')&&sql.includes('AS products'))return [[{products:0,variations:0}],[]];
+      if(sql.startsWith('SELECT\n    SUM(mapping_status='))return [[{mapped:0,ignored:0,invalidTargets:0}],[]];
+      if(sql.startsWith('SELECT\n    COUNT(*) AS mapped'))return [[{mapped:0,quantityManaged:0,managedQuantityUnavailable:0,sourceStockSnapshotUnknown:0,
+        parentShared:0,readyForReadOnlyComparison:0}],[]];
+      if(sql.startsWith('SELECT normalizedSku AS sku'))return [[],[]];
+      if(sql.startsWith('SELECT COUNT(*) AS count FROM (SELECT normalizedSku'))return [[{count:0}],[]];
+      throw new Error('Unexpected reconciliation query: '+sql);
+    }};
+    return connectionReconciliation(pool,{id:'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',tenant_id:'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+      provider:'woocommerce',last_sync_at:null,last_error_code:null,sync_cursor:JSON.stringify({woocommerce:lastCompleteScan?{lastCompleteScan}: {}})});
+  };
+  const exact=await run(completeScan);
+  assert.equal(exact.orderReconciliation.state,'matched');
+  assert.equal(exact.orderReconciliation.groups[0].amounts.refunds.delta,'0.000000');
+  const mismatch=await run(completeScan,[{...localAmounts[0],total:'101.000000'}]);
+  assert.equal(mismatch.orderReconciliation.state,'mismatch');
+  const incomplete=await run({...completeScan,sourceCounts:{...completeScan.sourceCounts,orders:{...completeScan.sourceCounts.orders,total:2}}});
+  assert.equal(incomplete.orderReconciliation.state,'scan_incomplete');
+  assert.equal(incomplete.scan.countsFullyScanned,false);
+  const missingMetadata=await run({...completeScan,sourceCounts:{...completeScan.sourceCounts,customers:{...completeScan.sourceCounts.customers,total:null}}});
+  assert.equal(missingMetadata.orderReconciliation.state,'scan_incomplete');
+  assert.equal(missingMetadata.scan.sourceCountMetadataAvailable,false);
+  const missingOrderTotals=await run({...completeScan,orderAmounts:{}});
+  assert.equal(missingOrderTotals.orderReconciliation.state,'scan_incomplete');
+  assert.equal(missingOrderTotals.scan.orderAmountMetadataAvailable,false);
 });
 
 test('Woo sync paginates resources, retries transient GET failures, and imports variations', async () => {
