@@ -166,6 +166,7 @@ async function listLatest(db,tenantId){
     }
     for(const channels of deliveriesByRun.values()){
       for(const aggregate of Object.values(channels)){
+        if((aggregate.acceptedCount>0&&aggregate.acceptedCount<aggregate.recipientCount)||(aggregate.failedCount>0&&aggregate.failedCount<aggregate.recipientCount))aggregate.status='partial';
         if(aggregate.acceptedCount!==aggregate.recipientCount)aggregate.acceptedAt=null;
       }
     }
