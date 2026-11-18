@@ -4833,3 +4833,12 @@ Owner acceptance remains: create one new Pro Catalyst handoff, confirm the alert
 - `sudo -n resolvectl flush-caches` cleared the VM's local systemd-resolved cache, but did not clear the upstream Oracle resolver's negative cache. The authenticated Email Marketing Setup still showed MX not found and the SES receipt rule inactive. Root-domain MX records were not changed.
 - Rollback: not applicable. The cache flush made no persistent configuration change; the upstream negative cache expires and repopulates normally. No process was restarted.
 - Remaining gate: after the Oracle resolver's negative cache expires, use the existing **Check DNS & connect** action and verify that MX is recognized and the SES receipt rule becomes active. Until then, replies are not routed into the Email Inbox.
+
+## 7Network email reply inbox activation — production, 18 November 2026
+
+- The previously cached Oracle VCN DNS NXDOMAIN expired. The VCN resolver (`169.254.169.254`) and the running app container now resolve `reply.7network.live` to `MX 10 inbound-smtp.eu-north-1.amazonaws.com`.
+- From the authenticated 7Network Sales Email Marketing Setup in Edge, **Check DNS & connect** completed successfully. The live screen now shows reply routing `Connected`, `MX: Found`, and `Receipt rule: Active` for `reply.7network.live` in `eu-north-1`. The SES domain identity remains verified. No root-domain MX or DNS records were changed.
+- No application source/release change, service restart, or migration occurred. App image remains `salemax-app:email-marketing-21a07cc41fa9-20261112`, healthy; `/opt/salemax/current` remained `/opt/salemax/releases/training-pipeline-correction-v3-9867ca72-20261104`. The existing setup action activated the SES receipt rule and saved the tenant's receiving status.
+- Rollback reference: before this action there were no active SES receipt-rule sets (previously checked). To roll back this receiving setup, deactivate the newly active SES receipt-rule set and remove its reply-domain rule in `eu-north-1`; keep the public MX/TXT records and root-domain MX unchanged. No schema rollback applies.
+- Verification: production VCN resolver and app Node DNS lookup return the MX; authenticated Edge shows `Connected` / `MX: Found` / `Receipt rule: Active`; app container remains healthy. No test email or inbound reply was sent.
+- Remaining gate: confirm delivery by sending a controlled reply to a campaign that uses the new reply address. Incoming attachment storage remains unsupported by the current inbox workflow.
