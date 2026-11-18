@@ -122,6 +122,10 @@ The metadata-only transaction found one active Essentials by D Woo connection in
 
 No Woo API request/import, migration, webhook, write-back, customer message, WordPress, checkout, payment or production service change occurred.
 
+### Production backup inventory — 13:10 UTC
+
+A metadata-only inventory of `/opt/salemax/shared/backups` found the newest SQL dump dated 16 October 2026. The Retail rollback snapshots contain migration/schema metadata but no full database dump. No backup contents were opened, generated or restored. This does not establish a current production backup or restoreability; a fresh restricted backup and isolated restore rehearsal remain required before schema deployment. Do not restore a historical dump over current production data.
+
 ### Latest read-only recheck — 12:45 UTC
 
 A fresh read-only host check confirmed `carsqatar-prod-01`, with `/opt/salemax/current` resolving to `/opt/salemax/releases/training-pipeline-correction-v3-9867ca72-20261104`. The app and MariaDB containers reported healthy, `https://7network.live/healthz` returned 200, and 20 GB was free on `/`. Docker labels still include the Retail Connected Stores and Woo connect-fix overlay files. The active base release has no `deploy/compose.yml`, so container status and overlay labels were checked directly. No service or release changed.

@@ -10,6 +10,10 @@ The read-only database query found one active Essentials by D WooCommerce connec
 
 No Woo API request/import, migration, webhook, write-back, customer message, WordPress, checkout, payment, or production service change occurred.
 
+## Production backup inventory — 18 November 2026 at 13:10 UTC
+
+A metadata-only inventory of `/opt/salemax/shared/backups` found the newest SQL dump dated 16 October 2026. The task-related Retail rollback snapshots contain migration/schema metadata but no full database dump. No backup contents were opened, generated or restored. This is not a current pre-migration backup and does not prove restoreability; create a fresh restricted production backup and complete an isolated restore rehearsal before any Retail migration rollout. Never restore the historical dump over current production data.
+
 ## Latest local source verification — 18 November 2026 at 12:58 UTC
 
 After refreshing the PR branch with current `main` (`51dc183ea1919dc59e6161a0ce19eb2d820ff051`), the focused Retail/Woo, pilot-gate, quantity, online-order, notification, and connector-package Node tests passed 65/65. Retail release-helper Python checks passed 6/6. The synthetic connector PHP harness passed and confirmed no checkout/payment fields, a valid HMAC, denied contact consent, no customer contact payload, bounded retry, and no live WordPress/Woo request. JavaScript syntax and `git diff --check` passed. These are local source checks only; live Woo reconciliation, migrations, production backup/restore, and authenticated browser acceptance remain open.
