@@ -1,3 +1,9 @@
+## Email Marketing unified sender and reply DNS setup — deployed; DNS confirmation pending, 18 November 2026
+
+The separate **Receive replies in Email Inbox** setup card has been removed. Adding a sending domain prepares its `reply.<domain>` SES identity, and one guided DNS popup shows the sending DKIM records plus reply TXT and MX records with full and Namecheap-short hostnames. Existing domains prepare the reply identity when DNS setup opens. Reply routing activates only after SES identity/DNS and inbound SNS prerequisites are ready. Root-domain MX records are not changed. Deleting an unused domain association retains shared SES identities and DNS records and blocks when active routing or sender addresses depend on it.
+
+Source `a6d437254764edd0acf00a75dc4feefbbc67b008` is deployed as app-only overlay `/opt/salemax/releases/email-marketing-unified-domain-dns-a6d437254764-20261118T121003Z/compose.email-marketing-unified-domain-dns.json` on the existing image; no migration ran. Production health, workspace shell and assets returned 200; anonymous setup API returned 401; database and app were healthy and seven support containers were unchanged. Local synthetic browser review covered English/light desktop and Arabic/dark phone, including the five DNS records. The user still needs to add the displayed reply TXT and MX for `7network.space`; SES detection and end-to-end reply delivery remain pending. No email, domain, campaign, contact, credential or DNS record was changed. See `DEPLOYMENT.md` for hashes, rollback and verification evidence. The full 42-ticket application upgrade remains in progress.
+
 ## 7Network Email Marketing template and sender-domain setup — UI deployed; SES DNS verification pending, 18 November 2026
 
 The Email Marketing template composer now provides a sample-only inbox preview and guided personalization. Domain setup uses compact cards plus a DNS popup with copy actions for the full host, Namecheap-short host and target. The delete action removes only an unused 7Network workspace association; it blocks on sender references and leaves shared AWS SES identities and DNS intact.
@@ -115,6 +121,10 @@ A fresh read-only host check confirmed `carsqatar-prod-01`, with `/opt/salemax/c
 The read-only database transaction found the Essentials by D Woo connection still active in QAR, with `last_sync_at` and `updated_at` unchanged at `2026-11-17 11:41:08.421 UTC`, no error, and 50 product, 50 order, and 50 customer snapshots. The variation snapshot table remains absent. No ledger entries exist for Retail migrations `20270205`–`20270212`. `SALEMAX_RETAIL_CONNECTOR_PILOT_TENANTS` is unset in production runtime; the proposed source gate is not deployed. WordPress-side key rotation remains unverified, and no replacement key has been reconnected in 7Network.
 
 The query selected only connection metadata, snapshot counts, migration status, and cursor presence; it did not output credential ciphertext, raw cursor values, tenant IDs or imported customer/order payloads. No Woo API request, sync/import, migration, webhook, write-back, customer message, website setting, checkout, payment or production service change occurred.
+
+### Local source verification — 12:58 UTC
+
+After refreshing the PR branch with current `main` (`51dc183ea1919dc59e6161a0ce19eb2d820ff051`), the focused Retail/Woo, pilot-gate, quantity, online-order, notification, and connector-package Node tests passed 65/65. Retail release-helper Python checks passed 6/6. The synthetic connector PHP harness passed and verified checkout/payment fields are absent, HMAC signatures, denied contact consent, no customer contact payload, bounded retry, and no live WordPress/Woo request. JavaScript syntax and `git diff --check` passed. This did not run the broader application suite, change production, or prove live import/reconciliation or browser acceptance.
 
 ### Latest read-only recheck — 08:57 UTC
 

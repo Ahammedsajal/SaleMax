@@ -124,9 +124,12 @@ async function deleteDomain(db,ctx,id){
     if(!row)fail('EMAIL_DOMAIN_NOT_FOUND',404);
     const [[usage]]=await db.query('SELECT COUNT(*) AS sender_count FROM sx_email_senders WHERE tenant_id=? AND domain_id=?',[ctx.tenantId,id]);
     if(Number(usage?.sender_count||0)>0)fail('EMAIL_DOMAIN_IN_USE',409);
+    const [[inboundDomain]]=await db.query('SELECT id,receiving_status,receipt_rule_set_name,receipt_rule_name FROM sx_email_inbound_domains WHERE tenant_id=? AND sender_domain_id=? FOR UPDATE',[ctx.tenantId,id]);
+    if(inboundDomain&&(inboundDomain.receiving_status==='active'||inboundDomain.receipt_rule_set_name||inboundDomain.receipt_rule_name))fail('EMAIL_DOMAIN_REPLY_IN_USE',409);
+    if(inboundDomain)await db.query('DELETE FROM sx_email_inbound_domains WHERE tenant_id=? AND sender_domain_id=?',[ctx.tenantId,id]);
     const [result]=await db.query('DELETE FROM sx_email_sender_domains WHERE tenant_id=? AND id=?',[ctx.tenantId,id]);
     if(Number(result?.affectedRows||0)!==1)fail('EMAIL_DOMAIN_NOT_FOUND',404);
-    await audit(db,ctx,'email.domain.deleted','email-domain',id,{domain:row.domain,region:row.region,awsIdentityDeleted:false,dnsRecordsChanged:false});
+    await audit(db,ctx,'email.domain.deleted','email-domain',id,{domain:row.domain,region:row.region,awsIdentityDeleted:false,replyIdentityDeleted:false,dnsRecordsChanged:false});
     await db.commit();
     return {deleted:true,id,domain:row.domain};
   }catch(error){
@@ -165,7 +168,6 @@ async function enableReplies(db,ctx,senderDomainId,key){
   const settings=await configuredProvider(db,key);
   const [[domain]]=await db.query('SELECT id,domain,region,verification_status,dkim_status FROM sx_email_sender_domains WHERE tenant_id=? AND id=?',[ctx.tenantId,senderDomainId]);
   if(!domain)fail('EMAIL_DOMAIN_NOT_FOUND',404);
-  if(domain.verification_status!=='verified'||domain.dkim_status!=='SUCCESS')fail('EMAIL_SENDER_NOT_VERIFIED',409);
   let replyDomain;try{replyDomain=cleanDomain(`reply.${domain.domain}`);}catch{fail('INVALID_EMAIL_REPLY_DOMAIN');}
   const [[existing]]=await db.query('SELECT id FROM sx_email_inbound_domains WHERE tenant_id=? AND sender_domain_id=?',[ctx.tenantId,senderDomainId]);
   if(existing)return refreshReplies(db,ctx,existing.id,key);

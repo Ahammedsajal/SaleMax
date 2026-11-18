@@ -2,6 +2,10 @@
 
 Status as of 18 November 2026. This plan extends the existing 7Network Retail category inside the current business workspace. It does not introduce another application, CRM, login, plan catalogue, or shell. Essentials by D is the only store in the current scope; do not onboard another store under this pilot.
 
+## Latest local source verification — 18 November 2026 at 12:58 UTC
+
+After refreshing the PR branch with current `main` (`51dc183ea1919dc59e6161a0ce19eb2d820ff051`), the focused Retail/Woo, pilot-gate, quantity, online-order, notification, and connector-package Node tests passed 65/65. Retail release-helper Python checks passed 6/6. The synthetic connector PHP harness passed and confirmed no checkout/payment fields, a valid HMAC, denied contact consent, no customer contact payload, bounded retry, and no live WordPress/Woo request. JavaScript syntax and `git diff --check` passed. These are local source checks only; live Woo reconciliation, migrations, production backup/restore, and authenticated browser acceptance remain open.
+
 ## Latest production metadata recheck — partial sync, 18 November 2026 at 12:45 UTC
 
 A read-only host check confirmed `carsqatar-prod-01`, with `/opt/salemax/current` resolving to `/opt/salemax/releases/training-pipeline-correction-v3-9867ca72-20261104`. The app and MariaDB containers reported healthy, public `/healthz` returned 200, and 20 GB was free on `/`. Container labels show the Retail Connected Stores and Woo connect-fix overlays in the active app chain. The generic `/opt/salemax/current/deploy/compose.yml` path is absent from this base release, so service health was verified through Docker container status/labels. No service or release changed.
