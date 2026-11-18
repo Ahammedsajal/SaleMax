@@ -2,6 +2,14 @@
 
 Status as of 18 November 2026. This plan extends the existing 7Network Retail category inside the current business workspace. It does not introduce another application, CRM, login, plan catalogue, or shell. Essentials by D is the only store in the current scope; do not onboard another store under this pilot.
 
+## Latest production metadata recheck — partial sync, 18 November 2026 at 12:45 UTC
+
+A read-only host check confirmed `carsqatar-prod-01`, with `/opt/salemax/current` resolving to `/opt/salemax/releases/training-pipeline-correction-v3-9867ca72-20261104`. The app and MariaDB containers reported healthy, public `/healthz` returned 200, and 20 GB was free on `/`. Container labels show the Retail Connected Stores and Woo connect-fix overlays in the active app chain. The generic `/opt/salemax/current/deploy/compose.yml` path is absent from this base release, so service health was verified through Docker container status/labels. No service or release changed.
+
+A transaction marked read-only confirmed one active WooCommerce connection for Essentials by D in QAR. `last_sync_at` and `updated_at` remain `2026-11-17 11:41:08.421 UTC`; no error is recorded. Aggregate snapshots remain 50 products, 50 orders and 50 customers. The variation snapshot table is absent, and no schema-ledger rows exist for Retail migrations `20270205`–`20270212`. The proposed `SALEMAX_RETAIL_CONNECTOR_PILOT_TENANTS` runtime allowlist is unset; its source gate has not been deployed. This check used only connection metadata, snapshot counts, migration statuses, and cursor presence; it did not output credentials, raw cursors, a tenant ID, or customer/order payloads. WordPress-side key rotation remains unverified, and no replacement key has been reconnected in 7Network.
+
+No Woo API request or sync/import, migration, webhook, write-back, customer message, WordPress setting, checkout, payment, or production service change occurred.
+
 ## Latest production metadata recheck — partial sync, 18 November 2026 at 11:23 UTC
 
 A read-only production check verified `carsqatar-prod-01`, the existing base release `/opt/salemax/releases/training-pipeline-correction-v3-9867ca72-20261104`, healthy app and MariaDB containers, and 20 GB free on `/`. No release or service changed.
