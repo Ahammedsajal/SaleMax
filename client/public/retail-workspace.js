@@ -578,6 +578,7 @@
                     unit_incompatible:t('Woo quantity does not match the current 7Network unit precision or increment.','كمية Woo لا تتوافق مع دقة أو زيادة وحدة 7Network الحالية.'),
                     location_unavailable:t('The mapped 7Network location is inactive or unavailable.','موقع 7Network المرتبط غير نشط أو غير متاح.'),
                     quantity_unavailable:t('Woo manages stock but has no numeric quantity in this snapshot.','يدير Woo المخزون لكن لا توجد كمية رقمية في هذه اللقطة.'),
+                    source_unknown:t('Woo stock management mode is unknown. Run a fresh sync before reviewing stock scope.','طريقة إدارة مخزون Woo غير معروفة. نفّذ مزامنة جديدة قبل مراجعة نطاق المخزون.'),
                     unmapped:t('Map this product before reviewing its stock scope.','اربط هذا المنتج قبل مراجعة نطاق مخزونه.'),
                     not_managed:t('Woo does not manage numeric stock for this item.','لا يدير Woo مخزوناً رقمياً لهذا العنصر.')};
                   if(target.stockMapping?.state)add(line,'p',stockStateLabels[target.stockMapping.state]||t('Stock mapping needs review.','يحتاج ربط المخزون إلى مراجعة.'));
@@ -596,12 +597,14 @@
                 let locations=[];
                 const selectStatus=add(line,'p');
                 const placeholder=add(select,'option',t('Choose a 7Network product','اختر منتج 7Network'));placeholder.value='';
-                const hasIndependentStock=Boolean(source.sourceStock?.managed&&source.sourceStock.quantity!=null&&!source.parentStock?.managed);
+                const hasIndependentStock=Boolean(source.sourceStock?.managementMode==='managed'&&source.sourceStock.quantity!=null);
                 const stockControls=add(line,'div');stockControls.className='sx-retail-stock-mapping-controls';
                 let stockScopeSelect=null,stockLocationSelect=null,unitConfirmed=null,save=null;
                 let lastTargetId=source.targetProduct?.id||'',lastUnitRevision=Number(source.targetProduct?.unitProfile?.revision||0);
-                if(source.parentStock?.managed){
+                if(source.sourceStock?.managementMode==='parent'||source.parentStock?.managed){
                   add(stockControls,'p',t('Woo stock is managed by the parent product and shared across variations. This quantity cannot be reconciled separately per variation.','يدير منتج Woo الرئيسي المخزون المشترك بين المتغيرات. لا يمكن مطابقة هذه الكمية لكل متغير على حدة.'));
+                }else if(source.sourceStock?.managementMode==='unknown'){
+                  add(stockControls,'p',t('Woo stock management mode is unknown. Run a fresh sync before reviewing stock scope.','طريقة إدارة مخزون Woo غير معروفة. نفّذ مزامنة جديدة قبل مراجعة نطاق المخزون.'));
                 }else if(source.sourceStock?.managed&&source.sourceStock.quantity==null){
                   add(stockControls,'p',t('Woo manages stock for this item but did not provide a numeric quantity. Map product identity only until a quantity is available.','يدير Woo المخزون لهذا العنصر لكنه لم يرسل كمية رقمية. اربط هوية المنتج فقط إلى حين توفر الكمية.'));
                 }else if(hasIndependentStock){

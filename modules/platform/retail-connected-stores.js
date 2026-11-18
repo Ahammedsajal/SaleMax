@@ -173,12 +173,14 @@ function normalizeProduct(provider, row) {
         !['localhost','local','internal','test','invalid','example','home','lan','onion'].some(suffix => host === suffix || host.endsWith(`.${suffix}`)) &&
         host.split('.').length >= 2) imageUrl = image.toString();
   } catch { /* Image previews are optional; malformed or private URLs are omitted. */ }
+  const managementMode = stockManagementMode(provider === 'woocommerce' ? row.manage_stock : undefined);
   return { id, title: String(row.name || row.title || row.handle || id).slice(0, 255), sku: String(row.sku || first.sku || '').slice(0, 100) || null,
     productType: provider === 'woocommerce' ? String(row.type || 'unknown').toLowerCase().slice(0, 32) : null,
     status: String(row.status || 'unknown').toLowerCase().slice(0, 32), currency: currency(cur), price: safeAmount(price),
     imageUrl, variants, variationCount: provider === 'woocommerce' && Array.isArray(row.variations) ? row.variations.length : variants.length,
     priceUnavailable: provider === 'woocommerce' && sourcePrice == null && Array.isArray(row.variations) && row.variations.length > 0,
-    sourceStock: provider === 'woocommerce' ? { managed: Boolean(row.manage_stock), quantity: row.stock_quantity == null ? null : safeStockQuantity(row.stock_quantity),
+    sourceStock: provider === 'woocommerce' ? { managed: managementMode === 'managed', managementMode,
+      quantity: managementMode !== 'managed' || row.stock_quantity == null ? null : safeStockQuantity(row.stock_quantity),
       status: String(row.stock_status || 'unknown').toLowerCase().slice(0,32) } : null,
     variantsTruncated: Boolean(row.variants?.pageInfo?.hasNextPage || provider === 'woocommerce' && (row.variations || []).length > 0 && !variants.length),
     updatedAt: row.date_modified_gmt || row.updatedAt || row.updated_at || null, source: provider };
@@ -192,12 +194,20 @@ function normalizeProductVariation(provider, productId, row, defaultCurrency = '
     name: String(attribute?.name || '').slice(0, 80), option: String(attribute?.option || '').slice(0, 100),
   })).filter(attribute => attribute.name || attribute.option) : [];
   const title = String(row.name || attributes.map(attribute => `${attribute.name}: ${attribute.option}`).filter(Boolean).join(' / ') || 'Default').slice(0, 255);
+  const managementMode = stockManagementMode(row.manage_stock);
   return { id, productId: parentId, title, sku: String(row.sku || '').trim().slice(0, 100) || null,
     status: String(row.status || 'unknown').toLowerCase().slice(0, 32), purchasable: row.purchasable == null ? null : Boolean(row.purchasable),
     currency: currency(row.currency || defaultCurrency), price: safeAmount(String(row.price ?? '').trim() ? row.price : '0'), attributes,
-    sourceStock: { managed: Boolean(row.manage_stock), quantity: row.stock_quantity == null ? null : safeStockQuantity(row.stock_quantity),
+    sourceStock: { managed: managementMode === 'managed', managementMode,
+      quantity: managementMode !== 'managed' || row.stock_quantity == null ? null : safeStockQuantity(row.stock_quantity),
       status: String(row.stock_status || 'unknown').toLowerCase().slice(0,32) },
     updatedAt: row.date_modified_gmt || row.date_modified || row.updatedAt || null, source: provider };
+}
+function stockManagementMode(value) {
+  if (value === true || value === 1 || value === 'yes' || value === 'true') return 'managed';
+  if (value === false || value === 0 || value === 'no' || value === 'false') return 'unmanaged';
+  if (value === 'parent') return 'parent';
+  return 'unknown';
 }
 function sourceTimestamp(value, assumeUtc = false) {
   if (value == null || value === '') return null;
@@ -408,17 +418,19 @@ async function upsertProduct(db, connection, row) {
   const updateGuard = newerSourceUpdate;
   await db.query(`INSERT INTO sx_retail_external_products
     (tenant_id,connection_id,external_product_id,product_status,sku,currency,price,product_ciphertext,product_iv,product_auth_tag,
-      source_stock_managed,source_stock_quantity,source_stock_status,source_updated_at)
-    VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?) ON DUPLICATE KEY UPDATE product_status=IF(${updateGuard},VALUES(product_status),product_status),
+      source_stock_managed,source_stock_management,source_stock_quantity,source_stock_status,source_updated_at)
+    VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?) ON DUPLICATE KEY UPDATE product_status=IF(${updateGuard},VALUES(product_status),product_status),
     sku=IF(${updateGuard},VALUES(sku),sku),currency=IF(${updateGuard},VALUES(currency),currency),price=IF(${updateGuard},VALUES(price),price),
     product_ciphertext=IF(${updateGuard},VALUES(product_ciphertext),product_ciphertext),product_iv=IF(${updateGuard},VALUES(product_iv),product_iv),
     product_auth_tag=IF(${updateGuard},VALUES(product_auth_tag),product_auth_tag),imported_at=IF(${updateGuard},UTC_TIMESTAMP(3),imported_at),
     source_stock_managed=IF(${updateGuard},VALUES(source_stock_managed),source_stock_managed),
+    source_stock_management=IF(${updateGuard},VALUES(source_stock_management),source_stock_management),
     source_stock_quantity=IF(${updateGuard},VALUES(source_stock_quantity),source_stock_quantity),
     source_stock_status=IF(${updateGuard},VALUES(source_stock_status),source_stock_status),
     source_updated_at=IF(${updateGuard},VALUES(source_updated_at),source_updated_at)`,
   [connection.tenant_id, connection.id, product.id, product.status, product.sku, product.currency, product.price, encrypted.ciphertext, encrypted.iv,
-    encrypted.authTag, product.sourceStock?.managed ? 1 : 0, product.sourceStock?.quantity ?? null, product.sourceStock?.status || 'unknown', dateOrNull(product.updatedAt)]);
+    encrypted.authTag, product.sourceStock?.managementMode === 'managed' ? 1 : product.sourceStock?.managementMode === 'unmanaged' ? 0 : null,
+    product.sourceStock?.managementMode || 'unknown', product.sourceStock?.quantity ?? null, product.sourceStock?.status || 'unknown', dateOrNull(product.updatedAt)]);
   return product;
 }
 async function upsertProductVariation(db, connection, productId, row) {
@@ -431,18 +443,21 @@ async function upsertProductVariation(db, connection, productId, row) {
   const updateGuard = newerSourceUpdate;
   await db.query(`INSERT INTO sx_retail_external_product_variants
     (tenant_id,connection_id,external_product_id,external_variant_id,sku,variant_status,currency,price,
-      variant_ciphertext,variant_iv,variant_auth_tag,source_stock_managed,source_stock_quantity,source_stock_status,source_updated_at)
-    VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?) ON DUPLICATE KEY UPDATE external_product_id=IF(${updateGuard},VALUES(external_product_id),external_product_id),
+      variant_ciphertext,variant_iv,variant_auth_tag,source_stock_managed,source_stock_management,source_stock_quantity,source_stock_status,source_updated_at)
+    VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?) ON DUPLICATE KEY UPDATE external_product_id=IF(${updateGuard},VALUES(external_product_id),external_product_id),
     sku=IF(${updateGuard},VALUES(sku),sku),variant_status=IF(${updateGuard},VALUES(variant_status),variant_status),
     currency=IF(${updateGuard},VALUES(currency),currency),price=IF(${updateGuard},VALUES(price),price),
     variant_ciphertext=IF(${updateGuard},VALUES(variant_ciphertext),variant_ciphertext),variant_iv=IF(${updateGuard},VALUES(variant_iv),variant_iv),
     variant_auth_tag=IF(${updateGuard},VALUES(variant_auth_tag),variant_auth_tag),imported_at=IF(${updateGuard},UTC_TIMESTAMP(3),imported_at),
     source_stock_managed=IF(${updateGuard},VALUES(source_stock_managed),source_stock_managed),
+    source_stock_management=IF(${updateGuard},VALUES(source_stock_management),source_stock_management),
     source_stock_quantity=IF(${updateGuard},VALUES(source_stock_quantity),source_stock_quantity),
     source_stock_status=IF(${updateGuard},VALUES(source_stock_status),source_stock_status),
     source_updated_at=IF(${updateGuard},VALUES(source_updated_at),source_updated_at)`,
   [connection.tenant_id, connection.id, normalized.productId, normalized.id, normalized.sku, normalized.status, normalized.currency,
-    normalized.price, encrypted.ciphertext, encrypted.iv, encrypted.authTag, normalized.sourceStock.managed ? 1 : 0,
+    normalized.price, encrypted.ciphertext, encrypted.iv, encrypted.authTag,
+    normalized.sourceStock.managementMode === 'managed' ? 1 : normalized.sourceStock.managementMode === 'unmanaged' ? 0 : null,
+    normalized.sourceStock.managementMode,
     normalized.sourceStock.quantity, normalized.sourceStock.status, dateOrNull(normalized.updatedAt)]);
   return normalized;
 }

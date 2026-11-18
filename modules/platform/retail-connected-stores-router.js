@@ -13,6 +13,7 @@ const handle = fn => (req, res, next) => Promise.resolve(fn(req, res)).catch(nex
 const reply = (res, data) => res.json({ success: true, data });
 const noStore = (req, res, next) => { res.set('Cache-Control', 'private, no-store, max-age=0'); res.set('Pragma', 'no-cache'); next(); };
 const fail = connector.fail;
+const stockManagementModes = new Set(['unknown','managed','unmanaged','parent']);
 const validVersion = value => /^20\d{2}-(01|04|07|10)$/.test(value || '');
 const safeConnection = row => {
   const woo = row.provider === 'woocommerce' ? parseJson(row.sync_cursor, {}).woocommerce || {} : null;
@@ -403,7 +404,8 @@ async function connectionData(pool, connection, kind, pageValue, parentProductId
     if (connection.provider !== 'woocommerce' || !/^\d{1,191}$/.test(parentId)) fail('INVALID_STORE_RESOURCE', 400);
     const [rows] = await pool.query(`SELECT external_variant_id AS id,external_product_id AS productId,sku,variant_status AS status,
       currency,price,variant_ciphertext AS ciphertext,variant_iv AS iv,variant_auth_tag AS authTag,
-      source_stock_managed AS sourceStockManaged,CAST(source_stock_quantity AS CHAR) AS sourceStockQuantity,source_stock_status AS sourceStockStatus
+      source_stock_management AS sourceStockManagement,
+      CAST(source_stock_quantity AS CHAR) AS sourceStockQuantity,source_stock_status AS sourceStockStatus
       FROM sx_retail_external_product_variants WHERE tenant_id=? AND connection_id=? AND external_product_id=? AND variant_status<>'deleted'
       ORDER BY external_variant_id LIMIT ? OFFSET ?`, [tenantId,id,parentId,limit+1,offset]);
     return rows.map(row => { const variation = jsonFromEncrypted(row, tenantId, id, `product-variant:${row.id}`); return {
@@ -512,8 +514,12 @@ function normalizeMappingWrite(body) {
     stockScope, targetLocationId, sourceUnitConfirmed, expectedUnitRevision };
 }
 function sourceStockFromRow(row, fallback = null) {
-  if (row?.sourceStockManaged == null) return fallback;
-  return { managed: Boolean(Number(row.sourceStockManaged)), quantity: row.sourceStockQuantity == null ? null : String(row.sourceStockQuantity),
+  const storedMode = row?.sourceStockManagement;
+  const fallbackMode = fallback?.managementMode;
+  const managementMode = stockManagementModes.has(storedMode) ? storedMode :
+    storedMode == null && stockManagementModes.has(fallbackMode) ? fallbackMode : 'unknown';
+  return { managed: managementMode === 'managed', managementMode,
+    quantity: managementMode !== 'managed' || row?.sourceStockQuantity == null ? null : String(row.sourceStockQuantity),
     status: String(row.sourceStockStatus || 'unknown').toLowerCase().slice(0,32) };
 }
 function stockQuantityFitsUnit(value, unit) {
@@ -523,8 +529,10 @@ function stockQuantityFitsUnit(value, unit) {
     quantity.isMultiple(amount, increment);
 }
 function stockMappingState(sourceStock, parentStock, mapping) {
-  if (parentStock?.managed && !sourceStock?.managed) return 'parent_shared';
-  if (!sourceStock?.managed) return 'not_managed';
+  if (sourceStock?.managementMode === 'parent') return 'parent_shared';
+  if (sourceStock?.managementMode === 'unknown' || !sourceStock?.managementMode) return 'source_unknown';
+  if (sourceStock.managementMode === 'unmanaged') return 'not_managed';
+  if (sourceStock.managementMode !== 'managed') return 'source_unknown';
   if (sourceStock.quantity == null) return 'quantity_unavailable';
   if (!mapping?.targetProductId || mapping.mappingStatus !== 'mapped') return 'unmapped';
   if (!['single_location','aggregate'].includes(mapping.stockScope) || !Number(mapping.sourceUnitConfirmed)) return 'needs_review';
@@ -558,7 +566,7 @@ async function productMappingDetails(pool, connection, externalProductId, pageVa
   if (!Number.isSafeInteger(page) || page < 1 || page > 200) fail('INVALID_PAGE', 400);
   const tenantId = connection.tenant_id, connectionId = connection.id;
   const [[row]] = await pool.query(`SELECT product_status AS status,sku,currency,price,product_ciphertext AS ciphertext,
-    product_iv AS iv,product_auth_tag AS authTag,source_stock_managed AS sourceStockManaged,
+    product_iv AS iv,product_auth_tag AS authTag,source_stock_management AS sourceStockManagement,
     CAST(source_stock_quantity AS CHAR) AS sourceStockQuantity,source_stock_status AS sourceStockStatus,source_updated_at AS updatedAt
     FROM sx_retail_external_products
     WHERE tenant_id=? AND connection_id=? AND external_product_id=? AND product_status<>'deleted'`, [tenantId,connectionId,externalProductId]);
@@ -577,7 +585,8 @@ async function productMappingDetails(pool, connection, externalProductId, pageVa
     hasMore = variants.length > 50;
     sourceItems = variants.slice(0,50).map(variant => ({ productId: externalProductId, variationId: variant.id, sourceType: 'variation',
       title: variant.title, sku: variant.sku, status: variant.status, purchasable: variant.purchasable, currency: variant.currency,
-      price: variant.price, sourceStock: variant.sourceStock, parentStock: parentStock?.managed ? parentStock : null, updatedAt: variant.updatedAt,
+      price: variant.price, sourceStock: variant.sourceStock,
+      parentStock: variant.sourceStock?.managementMode === 'parent' ? parentStock : null, updatedAt: variant.updatedAt,
       mappable: row.status === 'publish' && variant.status === 'publish' && variant.purchasable !== false }));
   }
   const variantIds = sourceItems.map(item => item.variationId || '');
@@ -658,11 +667,11 @@ async function connectionReconciliation(pool, connection) {
     WHERE m.tenant_id=? AND m.connection_id=?`,[tenantId,id]);
   const [[stockMappings]] = await pool.query(`SELECT
     COUNT(*) AS mapped,
-    SUM(sourceStockManaged=1 AND sourceStockQuantity IS NOT NULL) AS quantityManaged,
-    SUM(sourceStockManaged=1 AND sourceStockQuantity IS NULL) AS managedQuantityUnavailable,
-    SUM(sourceStockManaged IS NULL) AS sourceStockSnapshotUnknown,
-    SUM(externalVariantId<>'' AND parentStockManaged=1 AND COALESCE(sourceStockManaged,0)=0) AS parentShared,
-    SUM(sourceStockManaged=1 AND sourceStockQuantity IS NOT NULL AND
+    SUM(sourceStockManagement='managed' AND sourceStockQuantity IS NOT NULL) AS quantityManaged,
+    SUM(sourceStockManagement='managed' AND sourceStockQuantity IS NULL) AS managedQuantityUnavailable,
+    SUM(sourceStockManagement='unknown') AS sourceStockSnapshotUnknown,
+    SUM(externalVariantId<>'' AND sourceStockManagement='parent') AS parentShared,
+    SUM(sourceStockManagement='managed' AND sourceStockQuantity IS NOT NULL AND
       sourceUnitConfirmed=1 AND stockScope IN ('single_location','aggregate') AND
       targetUnitRevision=currentUnitRevision AND ROUND(sourceStockQuantity,quantityPrecision)=sourceStockQuantity AND
       MOD(ABS(sourceStockQuantity),quantityIncrement)=0 AND
@@ -672,9 +681,8 @@ async function connectionReconciliation(pool, connection) {
         m.source_unit_confirmed AS sourceUnitConfirmed,m.target_unit_revision AS targetUnitRevision,
         COALESCE(iu.revision,0) AS currentUnitRevision,COALESCE(iu.quantity_precision,0) AS quantityPrecision,
         COALESCE(iu.quantity_increment,1.000000) AS quantityIncrement,loc.status AS targetLocationStatus,
-        CASE WHEN m.external_variant_id='' THEN p.source_stock_managed ELSE v.source_stock_managed END AS sourceStockManaged,
-        CASE WHEN m.external_variant_id='' THEN p.source_stock_quantity ELSE v.source_stock_quantity END AS sourceStockQuantity,
-        p.source_stock_managed AS parentStockManaged
+        CASE WHEN m.external_variant_id='' THEN p.source_stock_management ELSE v.source_stock_management END AS sourceStockManagement,
+        CASE WHEN m.external_variant_id='' THEN p.source_stock_quantity ELSE v.source_stock_quantity END AS sourceStockQuantity
       FROM sx_retail_external_product_mappings m
       LEFT JOIN sx_retail_external_products p ON p.tenant_id=m.tenant_id AND p.connection_id=m.connection_id AND p.external_product_id=m.external_product_id
       LEFT JOIN sx_retail_external_product_variants v ON v.tenant_id=m.tenant_id AND v.connection_id=m.connection_id AND
@@ -984,7 +992,8 @@ function workspaceRouter({ pool, authenticate, origin, env=process.env }) {
       if(!lockedConnection||lockedConnection.provider!=='woocommerce')fail('STORE_CONNECTION_NOT_FOUND',404);
       if(!['active','paused'].includes(lockedConnection.status))fail('STORE_CONNECTION_NOT_ACTIVE',409);
       const [[productRow]]=await db.query(`SELECT product_status AS status,sku,product_ciphertext AS ciphertext,product_iv AS iv,product_auth_tag AS authTag,
-        source_stock_managed AS sourceStockManaged,CAST(source_stock_quantity AS CHAR) AS sourceStockQuantity,source_stock_status AS sourceStockStatus
+        source_stock_management AS sourceStockManagement,
+        CAST(source_stock_quantity AS CHAR) AS sourceStockQuantity,source_stock_status AS sourceStockStatus
         FROM sx_retail_external_products WHERE tenant_id=? AND connection_id=? AND external_product_id=? AND product_status<>'deleted' FOR UPDATE`,
       [context.tenant.id,connection.id,input.externalProductId]);
       if(!productRow)fail('STORE_PRODUCT_NOT_FOUND',404);
@@ -994,13 +1003,14 @@ function workspaceRouter({ pool, authenticate, origin, env=process.env }) {
       if(input.externalVariationId){
         if(sourceType!=='variable'||productRow.status!=='publish')fail('INVALID_PRODUCT_MAPPING_SOURCE',409);
         const [[variantRow]]=await db.query(`SELECT variant_status AS status,sku,variant_ciphertext AS ciphertext,variant_iv AS iv,variant_auth_tag AS authTag,
-          source_stock_managed AS sourceStockManaged,CAST(source_stock_quantity AS CHAR) AS sourceStockQuantity,source_stock_status AS sourceStockStatus
+          source_stock_management AS sourceStockManagement,
+          CAST(source_stock_quantity AS CHAR) AS sourceStockQuantity,source_stock_status AS sourceStockStatus
           FROM sx_retail_external_product_variants WHERE tenant_id=? AND connection_id=? AND external_product_id=? AND external_variant_id=?
             AND variant_status<>'deleted' FOR UPDATE`,[context.tenant.id,connection.id,input.externalProductId,input.externalVariationId]);
         if(!variantRow)fail('STORE_VARIATION_NOT_FOUND',404);
         const variant=jsonFromEncrypted(variantRow,context.tenant.id,connection.id,`product-variant:${input.externalVariationId}`);
         sourceStock=sourceStockFromRow(variantRow,variant.sourceStock||null);
-        parentStock=sourceStock?.managed?null:sourceStockFromRow(productRow,product.sourceStock||null);
+        parentStock=sourceStock?.managementMode==='parent'?sourceStockFromRow(productRow,product.sourceStock||null):null;
         sourceStatus=variantRow.status;sourceSku=variantRow.sku;purchasable=variant.purchasable!==false;
       }else if(sourceType!=='simple')fail('INVALID_PRODUCT_MAPPING_SOURCE',409);
       if(sourceStatus!=='publish'||!purchasable)fail('STORE_PRODUCT_NOT_MAPPABLE',409);

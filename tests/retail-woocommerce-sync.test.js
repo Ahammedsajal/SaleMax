@@ -48,7 +48,7 @@ test('Woo products, variations and order breakdowns retain source IDs, SKUs, qua
   assert.equal(product.sku, 'LINEN');
   assert.equal(product.variationCount, 2);
   assert.equal(product.priceUnavailable, true);
-  assert.deepEqual(product.sourceStock, {managed: false, quantity: null, status: 'instock'});
+  assert.deepEqual(product.sourceStock, {managed: false, managementMode: 'unmanaged', quantity: null, status: 'instock'});
 
   const variation = connector.normalizeProductVariation('woocommerce', 100, {id: 101, sku: 'LINEN-M', price: '20.10',
     parent_id: 100, status: 'publish', purchasable: true, attributes: [{name: 'Size', option: 'M'}], manage_stock: true, stock_quantity: '2.5', stock_status: 'instock'}, 'QAR');
@@ -58,7 +58,16 @@ test('Woo products, variations and order breakdowns retain source IDs, SKUs, qua
   assert.equal(variation.status, 'publish');
   assert.equal(variation.purchasable, true);
   assert.equal(variation.price, '20.100000');
+  assert.equal(variation.sourceStock.managementMode, 'managed');
   assert.equal(variation.sourceStock.quantity, '2.500000');
+  const parentManaged = connector.normalizeProductVariation('woocommerce', 100, {id: 102, sku: 'LINEN-L', price: '20.10',
+    status: 'publish', purchasable: true, manage_stock: 'parent', stock_quantity: 8, stock_status: 'instock'}, 'QAR');
+  assert.equal(parentManaged.sourceStock.managementMode, 'parent');
+  assert.equal(parentManaged.sourceStock.managed, false);
+  assert.equal(parentManaged.sourceStock.quantity, null);
+  const unknownStock = connector.normalizeProductVariation('woocommerce', 100, {id: 103, sku: 'LINEN-XL', price: '20.10', status: 'publish'}, 'QAR');
+  assert.equal(unknownStock.sourceStock.managementMode, 'unknown');
+  assert.equal(unknownStock.sourceStock.quantity, null);
   assert.equal(connector.safeStockQuantity('-1.25'), '-1.250000');
 
   const order = connector.normalizeOrder('woocommerce', {id: 900, status: 'processing', currency: 'QAR', total: '115.50',
@@ -143,7 +152,8 @@ test('Woo sync paginates resources, retries transient GET failures, and imports 
     assert.ok(writes.some(write => write.sql.includes('external_variant_id')));
     const variationStockWrite=writes.find(write=>write.sql.includes('source_stock_quantity')&&write.sql.includes('external_variant_id'));
     assert.equal(variationStockWrite.params[11],1);
-    assert.equal(variationStockWrite.params[12],'3.000000');
+    assert.equal(variationStockWrite.params[12],'managed');
+    assert.equal(variationStockWrite.params[13],'3.000000');
     assert.ok(writes.some(write => write.sql.includes('subtotal_amount')));
     const syncedOrder=writes.find(write=>write.sql.startsWith('INSERT INTO sx_retail_external_orders'));
     assert.ok(syncedOrder.sql.includes('source_created_at'));
@@ -332,6 +342,18 @@ test('Woo stock mapping migration stores source stock and requires explicit loca
   assert.doesNotMatch(migration, /\bDROP\s+(TABLE|COLUMN)\b/i);
 });
 
+test('Woo stock-management mode migration keeps legacy boolean snapshots unknown until resynced', () => {
+  const migration = fs.readFileSync(path.resolve(__dirname, '../database/migrations/20270211_retail_woocommerce_stock_management_modes.sql'), 'utf8');
+  const statements = splitSql(migration);
+  assert.equal(statements.length, 2);
+  assert.match(statements[0], /^ALTER TABLE sx_retail_external_products/i);
+  assert.match(statements[1], /^ALTER TABLE sx_retail_external_product_variants/i);
+  assert.equal((migration.match(/ENUM\('unknown','managed','unmanaged','parent'\)/g) || []).length, 2);
+  assert.equal((migration.match(/DEFAULT 'unknown'/g) || []).length, 2);
+  assert.doesNotMatch(migration, /UPDATE\s+sx_retail_external_/i);
+  assert.doesNotMatch(migration, /\bDROP\s+(TABLE|COLUMN)\b/i);
+});
+
 test('external order source-date migration is additive and indexed for the tenant order list', () => {
   const migration = fs.readFileSync(path.resolve(__dirname, '../database/migrations/20270210_retail_external_order_source_dates.sql'), 'utf8');
   const statements = splitSql(migration);
@@ -342,13 +364,16 @@ test('external order source-date migration is additive and indexed for the tenan
   assert.doesNotMatch(migration, /\bDROP\s+(TABLE|COLUMN)\b/i);
 });
 
-function mappingHarness({productType='simple', parentStatus='publish', variationStatus='publish', existingMapping=null, stockManaged=false, sourceStockQuantity='2.5', unitProfile=null}={}) {
+function mappingHarness({productType='simple', parentStatus='publish', variationStatus='publish', existingMapping=null, stockManaged=false,
+  sourceStockManagement=stockManaged?'managed':'unmanaged', variationStockManagement='unmanaged', sourceStockQuantity='2.5', unitProfile=null}={}) {
   const tenantId='aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
   const connectionId='bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb';
   const identityId='dddddddd-dddd-4ddd-8ddd-dddddddddddd';
   const targetId='eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee';
-  const product=connector.seal({productType,sourceStock:{managed:stockManaged,quantity:stockManaged?sourceStockQuantity:null,status:'instock'}},tenantId,connectionId,'product:100');
-  const variation=connector.seal({purchasable:true,sourceStock:{managed:false,quantity:null,status:'instock'}},tenantId,connectionId,'product-variant:101');
+  const product=connector.seal({productType,sourceStock:{managed:sourceStockManagement==='managed',managementMode:sourceStockManagement,
+    quantity:sourceStockManagement==='managed'?sourceStockQuantity:null,status:'instock'}},tenantId,connectionId,'product:100');
+  const variation=connector.seal({purchasable:true,sourceStock:{managed:variationStockManagement==='managed',managementMode:variationStockManagement,
+    quantity:variationStockManagement==='managed'?sourceStockQuantity:null,status:'instock'}},tenantId,connectionId,'product-variant:101');
   const connection={id:connectionId,tenant_id:tenantId,provider:'woocommerce',status:'active',default_currency:'QAR'};
   const queries=[];
   let mapping=existingMapping,commits=0,rollbacks=0;
@@ -356,9 +381,10 @@ function mappingHarness({productType='simple', parentStatus='publish', variation
     queries.push({sql,params});
     if(sql.startsWith('SELECT id,status,provider FROM sx_retail_store_connections'))return [[{id:connectionId,status:'active',provider:'woocommerce'}],[]];
     if(sql.startsWith('SELECT product_status AS status,sku,product_ciphertext'))return [[{status:parentStatus,sku:'WOO-100',ciphertext:product.ciphertext,iv:product.iv,authTag:product.authTag,
-      sourceStockManaged:stockManaged?1:0,sourceStockQuantity:stockManaged?sourceStockQuantity:null,sourceStockStatus:'instock'}],[]];
+      sourceStockManagement,sourceStockManaged:stockManaged?1:0,sourceStockQuantity:stockManaged?sourceStockQuantity:null,sourceStockStatus:'instock'}],[]];
     if(sql.startsWith('SELECT variant_status AS status,sku,variant_ciphertext'))return [[{status:variationStatus,sku:'WOO-101',ciphertext:variation.ciphertext,iv:variation.iv,authTag:variation.authTag,
-      sourceStockManaged:0,sourceStockQuantity:null,sourceStockStatus:'instock'}],[]];
+      sourceStockManagement:variationStockManagement,sourceStockManaged:variationStockManagement==='managed'?1:variationStockManagement==='unmanaged'?0:null,
+      sourceStockQuantity:variationStockManagement==='managed'?sourceStockQuantity:null,sourceStockStatus:'instock'}],[]];
     if(sql.startsWith('SELECT id,mapping_status AS mappingStatus,target_product_id AS targetProductId,stock_scope'))return [mapping?[mapping]:[],[]];
     if(sql.startsWith('SELECT id,code FROM sx_product_catalog'))return [[{id:targetId,code:'LOCAL-100'}],[]];
     if(sql.startsWith('SELECT base_unit_code AS baseUnitCode'))return unitProfile?[[{...unitProfile}],[]]:[[],[]];
@@ -455,6 +481,35 @@ test('Woo stock mapping requires location, exact unit compatibility, and owner u
     assert.equal(mappingInsert.params[8],locationId);
     assert.equal(mappingInsert.params[9],1);
     assert.equal(mappingInsert.params[10],3);
+  } finally {
+    if(originalKey===undefined)delete process.env.SALEMAX_PLATFORM_KEY_BASE64;
+    else process.env.SALEMAX_PLATFORM_KEY_BASE64=originalKey;
+  }
+});
+
+test('Woo parent-managed or legacy-unknown stock cannot be mapped as an independent quantity', async () => {
+  const originalKey=process.env.SALEMAX_PLATFORM_KEY_BASE64;
+  process.env.SALEMAX_PLATFORM_KEY_BASE64=Buffer.alloc(32,24).toString('base64');
+  const locationId='ffffffff-ffff-4fff-8fff-ffffffffffff';
+  const unit={baseUnitCode:'yard',baseUnitLabel:'',baseUnitLabelAr:'',quantityPrecision:2,quantityIncrement:'0.250000',revision:3};
+  const invokeStockMap=async(fixture,externalVariationId,expectedSku)=>{
+    let error=null;
+    await fixture.handler({businessContext:fixture.context,params:{id:fixture.connectionId},query:{},body:{externalProductId:'100',externalVariationId,
+      targetProductId:fixture.targetId,action:'map',expectedRevision:0,expectedSku,stockScope:'single_location',targetLocationId:locationId,
+      sourceUnitConfirmed:true,expectedUnitRevision:3}},
+    {json(){return this;},sendStatus(){return this;}},value=>{error=value;});
+    return error;
+  };
+  try {
+    const parentManaged=mappingHarness({productType:'variable',stockManaged:true,variationStockManagement:'parent',unitProfile:unit});
+    const parentError=await invokeStockMap(parentManaged,'101','WOO-101');
+    assert.equal(parentError?.code,'PRODUCT_STOCK_SCOPE_UNAVAILABLE');
+    assert.equal(parentManaged.queries.some(query=>query.sql.startsWith('INSERT INTO sx_retail_external_product_mappings')),false);
+
+    const unknownLegacy=mappingHarness({stockManaged:true,sourceStockManagement:'unknown',unitProfile:unit});
+    const unknownError=await invokeStockMap(unknownLegacy,null,'WOO-100');
+    assert.equal(unknownError?.code,'PRODUCT_STOCK_SCOPE_UNAVAILABLE');
+    assert.equal(unknownLegacy.queries.some(query=>query.sql.startsWith('INSERT INTO sx_retail_external_product_mappings')),false);
   } finally {
     if(originalKey===undefined)delete process.env.SALEMAX_PLATFORM_KEY_BASE64;
     else process.env.SALEMAX_PLATFORM_KEY_BASE64=originalKey;
