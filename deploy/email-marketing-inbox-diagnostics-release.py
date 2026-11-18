@@ -215,7 +215,7 @@ def validate_stage(stage_path, commit):
         if path.is_symlink() or not path.is_file() or sha(path.read_bytes()) != digest:
             raise RuntimeError('Staged source hash mismatch: ' + name)
     index = (stage_path / 'source' / INDEX).read_bytes()
-    if index.count(OLD_REF) != 1 or NEW_REF in index or index.count(SIDEBAR_REF) != 1:
+    if OLD_REF in index or index.count(NEW_REF) != 1 or index.count(SIDEBAR_REF) != 1:
         raise RuntimeError('Committed shell does not contain the reviewed Email Marketing cache reference')
     ui = (stage_path / 'source' / UI).read_text()
     ses = (stage_path / 'source' / SES).read_text()
