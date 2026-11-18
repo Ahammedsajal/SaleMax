@@ -63,10 +63,11 @@ test('Woo products, variations and order breakdowns retain source IDs, SKUs, qua
 
   const order = connector.normalizeOrder('woocommerce', {id: 900, status: 'processing', currency: 'QAR', total: '115.50',
     subtotal: '100.00', discount_total: '5.00', shipping_total: '10.00', total_tax: '10.50', fee_lines: [{name: 'Gift wrap', total: '1.25'}],
-    refunds: [{id: 12, total: '-2.00'}], date_modified_gmt: '2026-11-15T10:00:00', line_items: [
+    refunds: [{id: 12, total: '-2.00'}], date_created_gmt: '2026-11-14T08:30:00', date_modified_gmt: '2026-11-15T10:00:00', line_items: [
       {id: 1, product_id: 100, variation_id: 101, sku: 'LINEN-M', name: 'Linen M', quantity: '1.25', subtotal: '100.00', total: '95.00', total_tax: '9.5'},
     ]});
-  assert.equal(order.updatedAt, '2026-11-15T10:00:00');
+  assert.equal(order.createdAt, '2026-11-14T08:30:00.000Z');
+  assert.equal(order.updatedAt, '2026-11-15T10:00:00.000Z');
   assert.deepEqual(order.breakdown, {subtotal: '100.000000', discount: '5.000000', shipping: '10.000000', tax: '10.500000', fees: '1.250000', refunds: '2.000000'});
   assert.equal(order.lineItems[0].quantity, '1.250000');
   assert.equal(order.lineItems[0].discount, '5.000000');
@@ -96,7 +97,7 @@ test('Woo sync paginates source resources and imports variations through GET-onl
     else if (pathname.endsWith('/products')) rows = [{id: 200, name: 'Cotton', sku: 'COTTON', price: '5.00', status: 'publish',
       variations: [], date_modified_gmt: '2026-11-15T11:00:00'}];
     else if (pathname.endsWith('/orders') && page === 1) rows = [{id: 900, status: 'processing', currency: 'QAR', total: '20.00', subtotal: '20.00',
-      discount_total: '0.00', shipping_total: '0.00', total_tax: '0.00', fee_lines: [], refunds: [], date_modified_gmt: '2026-11-15T10:00:00',
+      discount_total: '0.00', shipping_total: '0.00', total_tax: '0.00', fee_lines: [], refunds: [], date_created_gmt: '2026-11-14T08:30:00', date_modified_gmt: '2026-11-15T10:00:00',
       line_items: [{id: 1, product_id: 100, variation_id: 101, sku: 'LINEN-M', name: 'Linen M', quantity: '1', subtotal: '20.00', total: '20.00', total_tax: '0.00'}]}];
     else if (pathname.endsWith('/orders')) rows = [{id: 901, status: 'processing', currency: 'QAR', total: '5.00', subtotal: '5.00',
       discount_total: '0.00', shipping_total: '0.00', total_tax: '0.00', fee_lines: [], refunds: [], date_modified_gmt: '2026-11-15T11:00:00', line_items: []}];
@@ -139,6 +140,9 @@ test('Woo sync paginates source resources and imports variations through GET-onl
     assert.equal(variationStockWrite.params[11],1);
     assert.equal(variationStockWrite.params[12],'3.000000');
     assert.ok(writes.some(write => write.sql.includes('subtotal_amount')));
+    const syncedOrder=writes.find(write=>write.sql.startsWith('INSERT INTO sx_retail_external_orders'));
+    assert.ok(syncedOrder.sql.includes('source_created_at'));
+    assert.equal(syncedOrder.params.at(-1),'2026-11-14 08:30:00.000');
     const cursor = JSON.parse(pool.cursor).woocommerce;
     assert.equal(cursor.lastCompleteScan.sourceCounts.orders.total, 2);
     assert.equal(cursor.lastCompleteScan.queryScope.products.status, 'any');
@@ -285,6 +289,16 @@ test('Woo stock mapping migration stores source stock and requires explicit loca
   assert.match(migration, /stock_scope ENUM\('unverified','single_location','aggregate'\)/);
   assert.match(migration, /FOREIGN KEY \(tenant_id,target_location_id\)\s+REFERENCES sx_retail_locations\(tenant_id,id\)/);
   assert.match(migration, /source_unit_confirmed=1 AND target_unit_revision IS NOT NULL/);
+  assert.doesNotMatch(migration, /\bDROP\s+(TABLE|COLUMN)\b/i);
+});
+
+test('external order source-date migration is additive and indexed for the tenant order list', () => {
+  const migration = fs.readFileSync(path.resolve(__dirname, '../database/migrations/20270210_retail_external_order_source_dates.sql'), 'utf8');
+  const statements = splitSql(migration);
+  assert.equal(statements.length, 1);
+  assert.match(statements[0], /^ALTER TABLE sx_retail_external_orders/i);
+  assert.match(migration, /ADD COLUMN source_created_at DATETIME\(3\) DEFAULT NULL/);
+  assert.match(migration, /ix_retail_external_orders_created \(tenant_id,source_created_at,connection_id,external_order_id\)/);
   assert.doesNotMatch(migration, /\bDROP\s+(TABLE|COLUMN)\b/i);
 });
 

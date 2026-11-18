@@ -312,12 +312,12 @@ function workspaceRouter({pool,authenticate}) {
   }));
   const orderStatuses=new Set(['placed','ready','dispatched','completed','cancelled','returned','partially_returned']);
   const orderSearchPageSize=50;
+  const searchDate=value=>typeof value==='string'&&/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/.test(value)&&Number.isFinite(Date.parse(value))&&new Date(value).toISOString()===value;
   function orderSearchInput(input){
     const allowed=new Set(['from','to','customer','status','page']);
     if(!input||typeof input!=='object'||Array.isArray(input)||Object.keys(input).some(key=>!allowed.has(key)))commerce.fail('INVALID_ORDER_SEARCH');
-    const validDate=value=>typeof value==='string'&&/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/.test(value)&&Number.isFinite(Date.parse(value))&&new Date(value).toISOString()===value;
     const from=input.from||null,to=input.to||null;
-    if((from&&!validDate(from))||(to&&!validDate(to))||(from&&to&&from>=to))commerce.fail('INVALID_ORDER_SEARCH');
+    if((from&&!searchDate(from))||(to&&!searchDate(to))||(from&&to&&from>=to))commerce.fail('INVALID_ORDER_SEARCH');
     const customer=input.customer===undefined?'':typeof input.customer==='string'?input.customer.trim():null;
     if(customer===null||customer.length>120)commerce.fail('INVALID_ORDER_SEARCH');
     const status=input.status===undefined?'':input.status;
@@ -325,6 +325,19 @@ function workspaceRouter({pool,authenticate}) {
     const page=input.page===undefined?0:input.page;
     if(!Number.isSafeInteger(page)||page<0||page>1000)commerce.fail('INVALID_ORDER_SEARCH');
     return {from,to,customer,status,page};
+  }
+  function onlineOrderSearchInput(input){
+    const allowed=new Set(['from','to','order','status','page']);
+    if(!input||typeof input!=='object'||Array.isArray(input)||Object.keys(input).some(key=>!allowed.has(key)))commerce.fail('INVALID_ORDER_SEARCH');
+    const from=input.from||null,to=input.to||null;
+    if((from&&!searchDate(from))||(to&&!searchDate(to))||(from&&to&&from>=to))commerce.fail('INVALID_ORDER_SEARCH');
+    const order=input.order===undefined?'':typeof input.order==='string'?input.order.trim():null;
+    if(order===null||order.length>120)commerce.fail('INVALID_ORDER_SEARCH');
+    const status=input.status===undefined?'':input.status;
+    if(status!==''&&(typeof status!=='string'||!/^[a-z0-9_-]{1,64}$/i.test(status)))commerce.fail('INVALID_ORDER_SEARCH');
+    const page=input.page===undefined?0:input.page;
+    if(!Number.isSafeInteger(page)||page<0||page>1000)commerce.fail('INVALID_ORDER_SEARCH');
+    return {from,to,order,status:status.toLowerCase(),page};
   }
   function escapeLike(value){return value.replace(/[!%_]/g,char=>'!'+char);}
   async function list(res,c,driver,search=null) {
@@ -383,6 +396,35 @@ function workspaceRouter({pool,authenticate}) {
     reply(res,search?{orders,hasMore,page:search.page,pageSize:orderSearchPageSize}:orders);
   }
   router.post('/orders/search',allow('retail.orders',(req,res,c)=>list(res,c,false,orderSearchInput(req.body))));
+  router.post('/orders/online/search',allow('retail.orders',async(req,res,c)=>{
+    const search=onlineOrderSearchInput(req.body),where=['o.tenant_id=?',"s.status<>'pending'"],values=[c.tenant.id];
+    const effectiveDate='COALESCE(o.source_created_at,o.imported_at)';
+    if(search.from){where.push(`${effectiveDate}>=?`);values.push(search.from);}
+    if(search.to){where.push(`${effectiveDate}<?`);values.push(search.to);}
+    if(search.order){const pattern='%'+escapeLike(search.order)+'%';where.push("(o.order_number LIKE ? ESCAPE '!' OR o.external_order_id LIKE ? ESCAPE '!')");values.push(pattern,pattern);}
+    if(search.status){where.push('LOWER(o.order_status)=?');values.push(search.status);}
+    const offset=search.page*orderSearchPageSize;
+    const [found]=await pool.query(`SELECT o.connection_id AS connectionId,s.provider,s.display_name AS storeName,s.status AS connectionStatus,
+      o.external_order_id AS externalOrderId,o.order_number AS orderNumber,o.order_status AS status,
+      COALESCE(o.financial_status,'unknown') AS financialStatus,o.currency,
+      CAST(o.total_amount AS CHAR) AS totalAmount,CAST(COALESCE(o.subtotal_amount,0) AS CHAR) AS subtotalAmount,
+      CAST(COALESCE(o.discount_amount,0) AS CHAR) AS discountAmount,CAST(COALESCE(o.shipping_amount,0) AS CHAR) AS shippingAmount,
+      CAST(COALESCE(o.tax_amount,0) AS CHAR) AS taxAmount,CAST(COALESCE(o.refund_amount,0) AS CHAR) AS refundAmount,
+      DATE_FORMAT(${effectiveDate},'%Y-%m-%dT%H:%i:%s.%fZ') AS orderDate,
+      CASE WHEN o.source_created_at IS NOT NULL THEN 'source_created' ELSE 'imported' END AS dateBasis,
+      s.last_sync_at AS lastSyncAt
+      FROM sx_retail_external_orders o JOIN sx_retail_store_connections s ON s.tenant_id=o.tenant_id AND s.id=o.connection_id
+      WHERE ${where.join(' AND ')} ORDER BY ${effectiveDate} DESC,o.connection_id ASC,o.external_order_id DESC LIMIT ? OFFSET ?`,
+    [...values,orderSearchPageSize+1,offset]);
+    const hasMore=found.length>orderSearchPageSize,orders=(hasMore?found.slice(0,orderSearchPageSize):found).map(row=>({
+      source:'connected_store',connectionId:row.connectionId,provider:row.provider,storeName:row.storeName,
+      connectionStatus:row.connectionStatus,externalOrderId:row.externalOrderId,orderNumber:row.orderNumber,
+      status:row.status,financialStatus:row.financialStatus,currency:row.currency,totalAmount:row.totalAmount,
+      breakdown:{subtotal:row.subtotalAmount,discount:row.discountAmount,shipping:row.shippingAmount,tax:row.taxAmount,refunds:row.refundAmount},
+      orderDate:row.orderDate,dateBasis:row.dateBasis,lastSyncAt:row.lastSyncAt,
+    }));
+    reply(res,{orders,hasMore,page:search.page,pageSize:orderSearchPageSize});
+  }));
   router.get('/orders',allow('retail.orders',(req,res,c)=>list(res,c,false)));
   router.get('/orders/overview',allow('retail.orders',async(req,res,c)=>{
     if (Array.isArray(c.membership.assignedNavigation) && !c.membership.assignedNavigation.includes('retail-orders')) {

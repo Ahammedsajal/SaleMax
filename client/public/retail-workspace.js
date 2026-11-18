@@ -26,6 +26,25 @@
   };
   const api=async(path,method='GET',body)=>(await window.SaleMaxWorkspace.request('retail',path,{method,body})).data;
   const money=minor=>new Intl.NumberFormat(t('en-QA','ar-QA'),{style:'currency',currency:'QAR'}).format(Number(minor)/100);
+  function sourceMoney(amount,currency){
+    const match=String(amount??'0').match(/^(-?)(\d{1,20})(?:\.(\d{1,6}))?$/);
+    if(!match)return String(amount??'—')+' '+String(currency||'');
+    try{
+      const locale=t('en-QA','ar-QA'),formatter=new Intl.NumberFormat(locale,{style:'currency',currency});
+      const digits=formatter.resolvedOptions().maximumFractionDigits,scale=10n**BigInt(digits),fraction=match[3]||'';
+      let minor=BigInt(match[2])*scale+BigInt((fraction+'0'.repeat(digits)).slice(0,digits)||'0');
+      if(fraction.slice(digits, digits+1)>='5')minor++;
+      const negative=match[1]==='-'&&minor>0n,pattern=formatter.formatToParts(negative?-1:1);
+      const first=pattern.findIndex(part=>part.type==='integer');
+      let last=first;for(let index=first+1;index<pattern.length&&['group','integer'].includes(pattern[index].type);index++)last=index;
+      const prefix=pattern.slice(0,first).map(part=>part.value).join(''),suffix=pattern.slice(last+1).filter(part=>!['decimal','fraction'].includes(part.type)).map(part=>part.value).join('');
+      const whole=new Intl.NumberFormat(locale,{useGrouping:true,maximumFractionDigits:0}).format(minor/scale);
+      if(!digits)return prefix+whole+suffix;
+      const decimal=pattern.find(part=>part.type==='decimal')?.value||'.';
+      const decimalValue=new Intl.NumberFormat(locale,{useGrouping:false,minimumIntegerDigits:digits,maximumFractionDigits:0}).format(minor%scale);
+      return prefix+whole+decimal+decimalValue+suffix;
+    }catch{return String(amount)+' '+String(currency||'');}
+  }
   const labels={placed:t('Placed','جديد'),ready:t('Ready','جاهز'),dispatched:t('Dispatched','قيد التوصيل'),completed:t('Completed','مكتمل'),cancelled:t('Cancelled','ملغى'),returned:t('Returned','مرتجع'),partially_returned:t('Partially returned','مرتجع جزئياً')};
   const deliveryLabels={unassigned:t('Not assigned','غير معيّن'),assigned:t('Assigned','تم التعيين'),in_transit:t('On the way','في الطريق'),failed:t('Delivery failed','تعذر التسليم'),delivered:t('Delivered','تم التسليم'),returned:t('Returned to store','أُعيد إلى المتجر')};
   const failureLabels={customer_unavailable:t('Customer unavailable','العميل غير متاح'),address_not_found:t('Address not found','العنوان غير موجود'),customer_rescheduled:t('Customer asked to reschedule','طلب العميل إعادة الجدولة'),access_blocked:t('Access blocked','تعذر الوصول'),other:t('Other','سبب آخر')};
@@ -143,6 +162,41 @@
       return api(base+'/'+order.id+'/status','POST',{status:next});
     },status,refresh);
   }
+  function sourceStatus(value){
+    const key=String(value||'unknown').toLowerCase(),en={pending:'Pending',processing:'Processing', 'on-hold':'On hold',completed:'Completed',cancelled:'Cancelled',refunded:'Refunded',failed:'Failed','checkout-draft':'Checkout draft',open:'Open',closed:'Closed',unknown:'Unknown',paid:'Paid','paid_reported_by_store':'Paid (reported by store)','refunded_reported_by_store':'Refunded (reported by store)'};
+    const ar={pending:'قيد الانتظار',processing:'قيد المعالجة','on-hold':'معلّق',completed:'مكتمل',cancelled:'ملغى',refunded:'مسترد',failed:'فشل','checkout-draft':'مسودة الدفع',open:'مفتوح',closed:'مغلق',unknown:'غير معروف',paid:'مدفوع','paid_reported_by_store':'مدفوع (حسب المتجر)','refunded_reported_by_store':'مسترد (حسب المتجر)'};
+    const fallback=key.replace(/[-_]+/g,' ').replace(/\b\w/g,letter=>letter.toUpperCase());
+    return t(en[key]||fallback,ar[key]||fallback);
+  }
+  function renderOnlineOrder(root,order){
+    const card=add(root,'article');card.className='sx-retail-order sx-retail-online-order';
+    const row=add(card,'div');row.className='sx-retail-order-summary';
+    const reference=add(row,'div');reference.className='sx-retail-order-reference';
+    add(reference,'span',t('Online order','طلب إلكتروني')).className='sx-retail-order-label';
+    const number=add(reference,'bdi','#'+String(order.orderNumber||order.externalOrderId));number.dir='auto';number.className='sx-retail-order-id';
+    const date=add(reference,'time',orderDate(order.orderDate));date.dateTime=order.orderDate||'';date.className='sx-retail-order-date';
+    const source=add(row,'div');source.className='sx-retail-order-buyer';
+    add(source,'strong',order.storeName||t('Connected store','متجر متصل'));
+    add(source,'span',order.provider==='woocommerce'?'WooCommerce':String(order.provider||'').toUpperCase());
+    const total=add(row,'strong',sourceMoney(order.totalAmount,order.currency));total.className='sx-retail-order-total';total.dir='auto';
+    const badges=add(row,'div');badges.className='sx-retail-order-badges';
+    add(badges, 'span', sourceStatus(order.status)).className='sx-retail-order-status';
+    const details=add(card,'details');details.className='sx-retail-order-details';
+    add(details,'summary',t('Source order details','تفاصيل الطلب من المتجر'));
+    const body=add(details,'div');body.className='sx-retail-order-body';
+    const id=add(body,'p');add(id,'strong',t('Store order ID: ','معرّف طلب المتجر: '));const idValue=add(id,'bdi',order.externalOrderId);idValue.dir='ltr';
+    add(body,'p',t('Store: ','المتجر: ')+(order.storeName||'—')+' · '+(order.provider==='woocommerce'?'WooCommerce':String(order.provider||'').toUpperCase()));
+    add(body,'p',t('Order status: ','حالة الطلب: ')+sourceStatus(order.status));
+    add(body,'p',t('Payment status reported by store: ','حالة الدفع حسب المتجر: ')+sourceStatus(order.financialStatus));
+    const dateLabel=order.dateBasis==='source_created'?t('Placed: ','تاريخ الطلب: '):t('Imported: ','تاريخ الاستيراد: ');
+    add(body,'p',dateLabel+orderDate(order.orderDate));
+    if(order.lastSyncAt)add(body,'p',t('Last store sync: ','آخر مزامنة للمتجر: ')+orderDate(order.lastSyncAt));
+    const rows=[['Subtotal', 'المجموع الفرعي',order.breakdown?.subtotal],['Discount','الخصم',order.breakdown?.discount],
+      ['Shipping','الشحن',order.breakdown?.shipping],['Tax','الضريبة',order.breakdown?.tax],['Refunds reported by store','المبالغ المستردة حسب المتجر',order.breakdown?.refunds]];
+    for(const [en,ar,amount] of rows)if(amount!==null&&amount!==undefined&&Number(amount)!==0)add(body,'p',t(en+': ',ar+': ')+sourceMoney(amount,order.currency));
+    if(order.connectionStatus!=='active')add(body,'p',t('This store connection is '+String(order.connectionStatus||'inactive')+'. This snapshot may be out of date.','اتصال هذا المتجر '+String(order.connectionStatus||'غير نشط')+'. قد تكون هذه البيانات قديمة.'));
+    add(body,'p',t('Read-only source record. Manage fulfilment and payment in the connected store; this view does not change stock or payment status.','سجل للقراءة فقط. أدر تنفيذ الطلب والدفع في المتجر المتصل؛ ولا يغيّر هذا العرض المخزون أو حالة الدفع.'));
+  }
   async function orders(root,status,driver,canLinkLead){
     const list=add(root,'div');list.className='sx-retail-order-list';
     if(driver){
@@ -154,15 +208,20 @@
       return;
     }
     const intro=add(root,'p',t('Find and manage customer orders. Use dates, customer details or status to narrow the list.','ابحث عن طلبات العملاء وأدرها. استخدم التاريخ أو بيانات العميل أو الحالة لتصفية القائمة.'));intro.className='sx-retail-page-subtitle';
+    const sourceTabs=add(root,'div');sourceTabs.className='sx-retail-filter-actions sx-retail-order-source-tabs';sourceTabs.setAttribute('role','group');sourceTabs.setAttribute('aria-label',t('Order source','مصدر الطلب'));
+    const nativeTab=add(sourceTabs,'button',t('7Network orders','طلبات 7Network'));nativeTab.type='button';nativeTab.className='sx-retail-primary';
+    const onlineTab=add(sourceTabs,'button',t('Connected store orders','طلبات المتاجر المتصلة'));onlineTab.type='button';onlineTab.className='sx-retail-secondary';
     const filters=add(root,'section');filters.className='sx-retail-filter-panel';
     const form=add(filters,'form');form.className='sx-retail-order-filters';
     const from=input(form,t('From date','من تاريخ'),'','date');from.autocomplete='off';from.parentElement.className='sx-retail-filter-field';
     const to=input(form,t('To date','إلى تاريخ'),'','date');to.autocomplete='off';to.parentElement.className='sx-retail-filter-field';
     const customer=input(form,t('Customer: name, mobile or email','العميل: الاسم أو الهاتف أو البريد الإلكتروني'),'','search');customer.autocomplete='off';customer.maxLength=120;customer.parentElement.className='sx-retail-filter-field sx-retail-filter-customer';
+    const onlineOrder=input(form,t('Store order number or ID','رقم الطلب أو معرّفه في المتجر'),'','search');onlineOrder.autocomplete='off';onlineOrder.maxLength=120;onlineOrder.parentElement.className='sx-retail-filter-field sx-retail-filter-customer';onlineOrder.parentElement.hidden=true;
     const statusLabel=add(form,'label',t('Order status','حالة الطلب'));statusLabel.className='sx-retail-filter-field';
     const statusSelect=add(statusLabel,'select');statusSelect.setAttribute('aria-label',t('Order status','حالة الطلب'));
     add(statusSelect,'option',t('All statuses','كل الحالات')).value='';
     for(const [key,value] of Object.entries(labels)){const option=add(statusSelect,'option',value);option.value=key;}
+    const onlineStatus=input(form,t('Store status (optional)','حالة المتجر (اختياري)'),'','search');onlineStatus.autocomplete='off';onlineStatus.maxLength=64;onlineStatus.parentElement.className='sx-retail-filter-field';onlineStatus.parentElement.hidden=true;
     const controls=add(form,'div');controls.className='sx-retail-filter-actions';
     const searchButton=add(controls,'button',t('Search orders','بحث عن الطلبات'));searchButton.type='submit';searchButton.className='sx-retail-primary';
     const clearButton=add(controls,'button',t('Clear filters','مسح التصفية'));clearButton.type='button';clearButton.className='sx-retail-secondary';
@@ -170,7 +229,7 @@
     const empty=add(root,'p');empty.className='sx-retail-empty';empty.hidden=true;
     const more=add(root,'button',t('Load more orders','تحميل المزيد من الطلبات'));more.type='button';more.className='sx-retail-load-more';more.hidden=true;
     let drivers=[];try{drivers=await api('/drivers');}catch{}
-    let page=0,loaded=0,hasMore=false,searchSequence=0;
+    let page=0,loaded=0,hasMore=false,searchSequence=0,sourceMode='native';
     const localBoundary=(value,nextDay=false)=>{
       const [year,month,day]=value.split('-').map(Number),date=new Date(year,month-1,day);
       if(nextDay)date.setDate(date.getDate()+1);
@@ -184,22 +243,41 @@
       const criteria={page:requestedPage};
       if(from.value)criteria.from=localBoundary(from.value);
       if(to.value)criteria.to=localBoundary(to.value,true);
-      if(customer.value.trim())criteria.customer=customer.value.trim();
-      if(statusSelect.value)criteria.status=statusSelect.value;
+      if(sourceMode==='native'){
+        if(customer.value.trim())criteria.customer=customer.value.trim();
+        if(statusSelect.value)criteria.status=statusSelect.value;
+      }else{
+        if(onlineOrder.value.trim())criteria.order=onlineOrder.value.trim();
+        if(onlineStatus.value.trim())criteria.status=onlineStatus.value.trim();
+      }
       try{
-        const result=await api('/orders/search','POST',criteria);
+        const result=await api(sourceMode==='native'?'/orders/search':'/orders/online/search','POST',criteria);
         if(requestSequence!==searchSequence)return;
-        for(const order of result.orders||[])renderOrder(list,order,{driver:false,drivers,canLinkLead,status,refresh:()=>runSearch(true)});
+        for(const order of result.orders||[])sourceMode==='native'?renderOrder(list,order,{driver:false,drivers,canLinkLead,status,refresh:()=>runSearch(true)}):renderOnlineOrder(list,order);
         loaded+=result.orders?.length||0;hasMore=Boolean(result.hasMore);page=Number.isSafeInteger(result.page)?result.page:requestedPage;
-        resultCount.textContent=loaded?t('Showing ','عرض ')+loaded+t(' matching orders',' طلبات مطابقة'):'';
+        resultCount.textContent=loaded?t('Showing ','عرض ')+loaded+(sourceMode==='native'?t(' matching orders',' طلبات مطابقة'):t(' connected-store orders',' طلبات من المتاجر المتصلة')):'';
         more.hidden=!hasMore;empty.hidden=loaded>0;
-        if(!loaded)empty.textContent=from.value||to.value||customer.value.trim()||statusSelect.value?t('No orders match these filters.','لا توجد طلبات تطابق خيارات التصفية.'):
-          t('No orders yet. Orders placed through your online store will appear here.','لا توجد طلبات بعد. ستظهر هنا الطلبات المرسلة عبر متجرك الإلكتروني.');
+        if(!loaded){
+          const filtered=from.value||to.value||(sourceMode==='native'?(customer.value.trim()||statusSelect.value):(onlineOrder.value.trim()||onlineStatus.value.trim()));
+          empty.textContent=sourceMode==='native'?(filtered?t('No orders match these filters.','لا توجد طلبات تطابق خيارات التصفية.'):
+            t('No 7Network orders yet.','لا توجد طلبات 7Network بعد.')):(filtered?t('No connected-store orders match these filters.','لا توجد طلبات من المتاجر المتصلة تطابق خيارات التصفية.'):
+            t('No imported online orders yet. Connect a store and complete a read-only sync in Connected Stores.','لا توجد طلبات إلكترونية مستوردة بعد. اربط متجراً وأكمل مزامنة للقراءة فقط من صفحة المتاجر المتصلة.'));
+        }
         status.textContent='';
       }catch{
         if(requestSequence===searchSequence)status.textContent=t('Unable to load orders. Check your connection and try again.','تعذر تحميل الطلبات. تحقق من الاتصال وحاول مرة أخرى.');
       }finally{if(requestSequence===searchSequence){searchButton.disabled=false;clearButton.disabled=false;more.disabled=false;}}
     }
+    const setSourceMode=mode=>{
+      sourceMode=mode;const online=mode==='online';nativeTab.setAttribute('aria-pressed',String(!online));onlineTab.setAttribute('aria-pressed',String(online));
+      nativeTab.className=online?'sx-retail-secondary':'sx-retail-primary';onlineTab.className=online?'sx-retail-primary':'sx-retail-secondary';
+      customer.parentElement.hidden=online;onlineOrder.parentElement.hidden=!online;statusLabel.hidden=online;onlineStatus.parentElement.hidden=!online;
+      intro.textContent=online?t('Review imported orders from connected stores. These records are read-only in 7Network.','راجع الطلبات المستوردة من المتاجر المتصلة. هذه السجلات للقراءة فقط في 7Network.'):
+        t('Find and manage customer orders. Use dates, customer details or status to narrow the list.','ابحث عن طلبات العملاء وأدرها. استخدم التاريخ أو بيانات العميل أو الحالة لتصفية القائمة.');
+      runSearch(true);
+    };
+    nativeTab.setAttribute('aria-pressed','true');onlineTab.setAttribute('aria-pressed','false');
+    nativeTab.onclick=()=>setSourceMode('native');onlineTab.onclick=()=>setSourceMode('online');
     form.onsubmit=event=>{event.preventDefault();runSearch(true);};
     clearButton.onclick=()=>{form.reset();runSearch(true);};
     more.onclick=()=>runSearch(false,page+1);
