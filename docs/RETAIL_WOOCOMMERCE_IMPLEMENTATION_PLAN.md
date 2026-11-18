@@ -100,6 +100,12 @@ An isolated test checkout sourced from review head `352fd508f27a2d27b8add38c2d5a
 
 These checks use synthetic requests and isolated source only. They did not call production WooCommerce, read production order/customer payloads, run migrations, send messages, change WordPress, or write catalog/stock/payment data. The previously recorded MariaDB migration replay and inventory integration remain separate evidence; production backup/restore, live read-only reconciliation, unit decisions, visual acceptance and the broader Training Reports integration gate remain open.
 
+## Training Reports delivery-summary gate — source follow-up, 18 November 2026
+
+The prior full application integration run stopped at `tests/business-contract-integration.cjs:96`: the schedule summary omitted its channel-level acceptance timestamp. Source commit `ecbf7dbfdc8786006ecc8aafd19a74268c157b4d` now exposes that timestamp only after every recipient for the channel is accepted, retains per-recipient timestamps, and reports mixed completed/pending or completed/failed deliveries as `partial`. Regression coverage was added in `tests/training-report-schedules.test.js`.
+
+An isolated run of the new regression passed 1/1, `node --check` passed, the focused Retail/Woo suites passed 39/39, Retail release helpers passed 6/6, and the connector PHP harness confirmed `checkoutAndPaymentFields:false` and `liveWordPressOrWooUsed:false`. The full application integration and full test suite have not been rerun after this correction; production acceptance remains open.
+
 ## Existing implementation found
 
 | Area | Present in production/source | Material gap |
