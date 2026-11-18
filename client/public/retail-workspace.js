@@ -238,7 +238,7 @@
     if(order.connectionStatus!=='active')add(body,'p',t('This store connection is '+String(order.connectionStatus||'inactive')+'. This snapshot may be out of date.','اتصال هذا المتجر '+String(order.connectionStatus||'غير نشط')+'. قد تكون هذه البيانات قديمة.'));
     add(body,'p',t('Read-only source record. Manage fulfilment and payment in the connected store; this view does not change stock or payment status.','سجل للقراءة فقط. أدر تنفيذ الطلب والدفع في المتجر المتصل؛ ولا يغيّر هذا العرض المخزون أو حالة الدفع.'));
   }
-  async function orders(root,status,driver,canLinkLead){
+  async function orders(root,status,driver,canLinkLead,canConnectedStores){
     const list=add(root,'div');list.className='sx-retail-order-list';
     if(driver){
       const empty=add(root,'p');empty.className='sx-retail-empty';
@@ -252,6 +252,7 @@
     const sourceTabs=add(root,'div');sourceTabs.className='sx-retail-filter-actions sx-retail-order-source-tabs';sourceTabs.setAttribute('role','group');sourceTabs.setAttribute('aria-label',t('Order source','مصدر الطلب'));
     const nativeTab=add(sourceTabs,'button',t('7Network orders','طلبات 7Network'));nativeTab.type='button';nativeTab.className='sx-retail-primary';
     const onlineTab=add(sourceTabs,'button',t('Connected store orders','طلبات المتاجر المتصلة'));onlineTab.type='button';onlineTab.className='sx-retail-secondary';
+    onlineTab.hidden=!canConnectedStores;
     const filters=add(root,'section');filters.className='sx-retail-filter-panel';
     const form=add(filters,'form');form.className='sx-retail-order-filters';
     const from=input(form,t('From date','من تاريخ'),'','date');from.autocomplete='off';from.parentElement.className='sx-retail-filter-field';
@@ -310,6 +311,7 @@
       }finally{if(requestSequence===searchSequence){searchButton.disabled=false;clearButton.disabled=false;more.disabled=false;}}
     }
     const setSourceMode=mode=>{
+      if(mode==='online'&&!canConnectedStores)return;
       sourceMode=mode;const online=mode==='online';nativeTab.setAttribute('aria-pressed',String(!online));onlineTab.setAttribute('aria-pressed',String(online));
       nativeTab.className=online?'sx-retail-secondary':'sx-retail-primary';onlineTab.className=online?'sx-retail-primary':'sx-retail-secondary';
       customer.parentElement.hidden=online;onlineOrder.parentElement.hidden=!online;statusLabel.hidden=online;onlineStatus.parentElement.hidden=!online;
@@ -956,7 +958,7 @@
     root.className='sx-retail-workspace';
     root.dir=t('ltr','rtl');
     syncTheme();
-    if(!document.querySelector('[data-retail-workspace-css]')){const css=document.createElement('link');css.rel='stylesheet';css.href='/retail-workspace.css?v=20261117-woo-stock-scope1';css.dataset.retailWorkspaceCss='';document.head.append(css);}
+    if(!document.querySelector('[data-retail-workspace-css]')){const css=document.createElement('link');css.rel='stylesheet';css.href='/retail-workspace.css?v=20261118-retail-pilot-detail1';css.dataset.retailWorkspaceCss='';document.head.append(css);}
     new MutationObserver(syncTheme).observe(document.documentElement,{attributes:true,attributeFilter:['data-sx-theme']});
     window.addEventListener('storage',syncTheme);
     add(root,'h1',page[2]);
@@ -965,7 +967,7 @@
       if(active==='retail-finance')return await finance(root,status);
       else if(active==='retail-connected-stores')await connectedStores(root,status);
       else {
-        await orders(root,status,active==='retail-deliveries',access.role==='owner'&&access.permissions['leads.manage']);
+        await orders(root,status,active==='retail-deliveries',access.role==='owner'&&access.permissions['leads.manage'],access.roleNavigation.includes('retail-connected-stores'));
       }
       status.textContent='';
     } catch {status.textContent=t('Unable to load this workspace.','تعذر تحميل مساحة العمل.');}

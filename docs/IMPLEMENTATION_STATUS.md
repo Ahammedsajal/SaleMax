@@ -136,6 +136,12 @@ The existing Retail Orders screen now loads connected-order line details on requ
 
 The connected-order API and sync group passed 23/23, including tenant-scoped query assertions, permission denial before reads, malformed request rejection, SKU mapping, other-provider handling, and a response scan for buyer PII. JavaScript syntax and `git diff --check` passed. This is source-only and has not been deployed; production still lacks the reviewed mapping/date migrations and still requires key rotation, production backup/restore verification, and full reconciliation. Actual existing-screen EN/AR RTL, light/dark, responsive, and PWA verification remains open. No Woo request, live sync, migration, website/checkout/payment change, or customer message occurred.
 
+### Retail connector pilot tenant gate — source only, 18 November 2026
+
+The connector is now default-deny outside tenant UUIDs listed in runtime-only `SALEMAX_RETAIL_CONNECTOR_PILOT_TENANTS`. The gate hides Connected Stores from non-pilot navigation and blocks Connected Stores workspace APIs, imported online-order reads, Shopify OAuth completion, and Woo/Shopify webhook event processing before data access. Existing Retail owner/manager permissions still apply inside the allowlist. The production variable has not been set; deployment must configure only the Essentials by D tenant ID outside Git.
+
+The selected Retail, pilot allowlist/navigation, role-policy, and Woo sync suites pass 49/49; both Retail deployment-helper suites pass 6/6. Syntax and whitespace checks pass. This source-only gate is not deployed; no production environment, website, checkout, payment, migration, live store record, or webhook was changed. Actual browser-screen role, EN/AR RTL, theme, viewport, and PWA verification remains open.
+
 ## Pro Catalyst generic ad enquiry discovery prompt — deployed, 16 November 2026
 
 A generic first message such as “Hello! Can I get more info on this?” now receives the saved welcome and one focused course-discovery question when no course is named and no verified ad referral supplies one. A known course from the message or ad context still gets its published details. The clarification is deterministic and uses zero AI tokens; the bot saves that it is waiting for a course answer. Production health, deployed hashes and a synthetic live check passed. No customer message was sent. A fresh inbound is still needed for WhatsApp device acceptance. See `DEPLOYMENT.md` for release and rollback evidence.

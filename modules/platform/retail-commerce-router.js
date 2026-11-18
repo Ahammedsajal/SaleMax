@@ -5,6 +5,7 @@ const {randomUUID}=require('node:crypto');
 const moment = require('moment-timezone');
 const commerce = require('./retail-commerce');
 const retailConnector = require('./retail-connected-stores');
+const connectorPilot=require('./retail-connector-pilot');
 const quantityMath = require('./retail-quantity');
 const inventoryAlerts = require('./retail-inventory-alerts');
 const {decision} = require('./policy');
@@ -130,7 +131,7 @@ function publicRouter({pool,origin}) {
   router.use(errors);
   return router;
 }
-function workspaceRouter({pool,authenticate}) {
+function workspaceRouter({pool,authenticate,env=process.env}) {
   const router=express.Router();
   router.use(noStore,authenticate,express.json({limit:'12kb'}));
   const allow=(permission,fn,capability='retail.commerce')=>handle(async(req,res)=>{
@@ -406,6 +407,7 @@ function workspaceRouter({pool,authenticate}) {
   }
   router.post('/orders/search',allow('retail.orders',(req,res,c)=>list(res,c,false,orderSearchInput(req.body))));
   router.post('/orders/online/search',allow('retail.orders',async(req,res,c)=>{
+    if(!connectorPilot.isPilotTenant(c.tenant.id,env))commerce.fail('RETAIL_CONNECTOR_PILOT_DISABLED',403);
     const search=onlineOrderSearchInput(req.body),where=['o.tenant_id=?',"s.status<>'pending'"],values=[c.tenant.id];
     const effectiveDate='COALESCE(o.source_created_at,o.imported_at)';
     if(search.from){where.push(`${effectiveDate}>=?`);values.push(search.from);}
@@ -435,6 +437,7 @@ function workspaceRouter({pool,authenticate}) {
     reply(res,{orders,hasMore,page:search.page,pageSize:orderSearchPageSize});
   }));
   router.post('/orders/online/detail',allow('retail.orders',async(req,res,c)=>{
+    if(!connectorPilot.isPilotTenant(c.tenant.id,env))commerce.fail('RETAIL_CONNECTOR_PILOT_DISABLED',403);
     const input=onlineOrderDetailInput(req.body);
     const [[row]]=await pool.query(`SELECT o.connection_id AS connectionId,o.external_order_id AS externalOrderId,
       o.order_ciphertext AS ciphertext,o.order_iv AS iv,o.order_auth_tag AS authTag,s.provider,s.display_name AS storeName

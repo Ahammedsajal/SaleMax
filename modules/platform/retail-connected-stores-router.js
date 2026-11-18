@@ -4,6 +4,7 @@ const express = require('express');
 const crypto = require('node:crypto');
 const {buildConnectorArchive} = require('./woocommerce-connector-package');
 const connector = require('./retail-connected-stores');
+const connectorPilot=require('./retail-connector-pilot');
 const { decision } = require('./policy');
 const originCheck = require('./request-origin');
 const quantity = require('./retail-quantity');
@@ -801,20 +802,29 @@ async function processWebhook(pool, connection, event) {
     throw error;
   } finally { db.release(); }
 }
-async function webhookConnection(pool, provider, id) {
+async function webhookConnectionDetails(pool,provider,id,tenantId){
+  const [[connection]]=await pool.query(`SELECT id,tenant_id,provider,store_domain,status,webhook_secret_ciphertext,webhook_secret_iv,webhook_secret_auth_tag
+    FROM sx_retail_store_connections WHERE id=? AND tenant_id=? AND provider=?`,[id,tenantId,provider]);
+  return connection||null;
+}
+async function webhookConnection(pool, provider, id, env=process.env) {
   if (!connector.validateId(id)) fail('WEBHOOK_NOT_FOUND', 404);
-  const [[connection]] = await pool.query(`SELECT * FROM sx_retail_store_connections WHERE id=? AND provider=?`, [id, provider]);
-  return connection || null;
+  const [[identity]]=await pool.query(`SELECT tenant_id FROM sx_retail_store_connections WHERE id=? AND provider=?`,[id,provider]);
+  if(!identity||!connectorPilot.isPilotTenant(identity.tenant_id,env))return null;
+  return webhookConnectionDetails(pool,provider,id,identity.tenant_id);
 }
 
-function workspaceRouter({ pool, authenticate, origin }) {
+function workspaceRouter({ pool, authenticate, origin, env=process.env }) {
   const router = express.Router();
   const owner = fn => handle(async (req, res) => {
     const context = req.businessContext;
     if (!decision(context, { capability: 'retail.commerce', permission: 'retail.connect' }).allowed) return res.sendStatus(403);
     return fn(req, res, context);
   });
-  router.use(noStore, authenticate, express.json({ limit: '16kb' }));
+  router.use(noStore, authenticate, express.json({ limit: '16kb' }), (req,res,next)=>{
+    if(!connectorPilot.isPilotTenant(req.businessContext?.tenant?.id,env))return res.status(403).json({success:false,code:'RETAIL_CONNECTOR_PILOT_DISABLED'});
+    next();
+  });
   router.use((req, res, next) => ['POST','PUT','DELETE'].includes(req.method) ? originGuard(origin)(req, res, next) : next());
 
   router.get('/', owner(async (req, res, context) => reply(res, { connections: await listConnections(pool, context.tenant.id) })));
@@ -1182,10 +1192,12 @@ function workspaceRouter({ pool, authenticate, origin }) {
   return router;
 }
 
-async function callbackShopify(pool, req, res, origin) {
+async function callbackShopify(pool, req, res, origin, env=process.env) {
   let connectionId = null;
   try {
-    const config = shopifyConfig(), context = req.businessContext;
+    const context = req.businessContext;
+    if(!connectorPilot.isPilotTenant(context?.tenant?.id,env))fail('RETAIL_CONNECTOR_PILOT_DISABLED',403);
+    const config = shopifyConfig();
     if (!decision(context, { capability: 'retail.commerce', permission: 'retail.connect' }).allowed) return res.sendStatus(403);
     if (req.query.error) return res.redirect(303, '/user?page=retail-connected-stores&connectionError=SHOPIFY_INSTALL_CANCELLED');
     const shop = connector.normalizeShop(req.query.shop), state = req.query.state, timestamp = Number(req.query.timestamp);
@@ -1229,8 +1241,9 @@ async function callbackShopify(pool, req, res, origin) {
   }
 }
 
-async function handleWebhook(pool, provider, connection, req, res) {
+async function handleWebhook(pool, provider, connection, req, res, env=process.env) {
   if (!connection || !Buffer.isBuffer(req.body)) return res.sendStatus(404);
+  if(!connectorPilot.isPilotTenant(connection.tenant_id,env))return res.sendStatus(404);
   const raw = req.body;
   if (raw.length > 2 * 1024 * 1024) return res.sendStatus(413);
   const topic = String(provider === 'shopify' ? req.get('X-Shopify-Topic') || '' : req.get('X-WC-Webhook-Topic') || req.get('X-7Network-Event') || '');
@@ -1255,23 +1268,25 @@ async function handleWebhook(pool, provider, connection, req, res) {
   }
 }
 
-function publicRouter({ pool, authenticate, origin }) {
+function publicRouter({ pool, authenticate, origin, env=process.env }) {
   const router = express.Router();
-  const oauthCallback = (req, res, next) => authenticate(req, res, () => callbackShopify(pool, req, res, origin).catch(next));
+  const oauthCallback = (req, res, next) => authenticate(req, res, () => callbackShopify(pool, req, res, origin,env).catch(next));
   router.get('/shopify/callback', noStore, oauthCallback);
   router.post('/shopify', noStore, express.raw({ type: 'application/json', limit: '2mb' }), handle(async (req, res) => {
     let shop;
     try { shop = connector.normalizeShop(req.get('X-Shopify-Shop-Domain')); } catch { return res.sendStatus(401); }
-    const [[connection]] = await pool.query(`SELECT * FROM sx_retail_store_connections WHERE provider='shopify' AND store_domain=? LIMIT 1`, [shop]);
-    return handleWebhook(pool, 'shopify', connection, req, res);
+    const [[identity]]=await pool.query(`SELECT id,tenant_id FROM sx_retail_store_connections WHERE provider='shopify' AND store_domain=? LIMIT 1`,[shop]);
+    if(!identity||!connectorPilot.isPilotTenant(identity.tenant_id,env))return res.sendStatus(404);
+    const connection=await webhookConnectionDetails(pool,'shopify',identity.id,identity.tenant_id);
+    return handleWebhook(pool, 'shopify', connection, req, res,env);
   }));
   router.post('/shopify/:id', noStore, express.raw({ type: 'application/json', limit: '2mb' }), handle(async (req, res) => {
-    const connection = await webhookConnection(pool, 'shopify', req.params.id);
-    return handleWebhook(pool, 'shopify', connection, req, res);
+    const connection = await webhookConnection(pool, 'shopify', req.params.id,env);
+    return handleWebhook(pool, 'shopify', connection, req, res,env);
   }));
   router.post('/woocommerce/:id', noStore, express.raw({ type: 'application/json', limit: '2mb' }), handle(async (req, res) => {
-    const connection = await webhookConnection(pool, 'woocommerce', req.params.id);
-    return handleWebhook(pool, 'woocommerce', connection, req, res);
+    const connection = await webhookConnection(pool, 'woocommerce', req.params.id,env);
+    return handleWebhook(pool, 'woocommerce', connection, req, res,env);
   }));
   router.get('/woocommerce-plugin', noStore, (req, res) => {
     const archive = buildConnectorArchive();

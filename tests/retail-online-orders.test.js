@@ -11,7 +11,7 @@ const row={connectionId:'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',provider:'woocomm
   currency:'QAR',totalAmount:'150.250000',subtotalAmount:'140.000000',discountAmount:'0.000000',shippingAmount:'5.000000',
   taxAmount:'5.250000',refundAmount:'0.000000',orderDate:'2026-11-17T12:00:00.000000Z',dateBasis:'source_created',lastSyncAt:'2026-11-17T12:30:00.000Z'};
 
-function appFor(role='manager'){
+function appFor(role='manager',pilotTenants=tenantId){
   const calls=[];
   const pool={async query(sql,params){
     calls.push({sql,params});
@@ -19,7 +19,7 @@ function appFor(role='manager'){
     throw new Error('Unexpected query: '+sql);
   }};
   const app=express();
-  app.use('/api/workspace/retail',require('../modules/platform/retail-commerce-router').workspaceRouter({pool,authenticate(req,_res,next){
+  app.use('/api/workspace/retail',require('../modules/platform/retail-commerce-router').workspaceRouter({pool,env:{SALEMAX_RETAIL_CONNECTOR_PILOT_TENANTS:pilotTenants},authenticate(req,_res,next){
     const selectedRole=req.get('x-test-role')||role;
     req.businessContext={audience:'tenant',identity:{id:'cccccccc-cccc-4ccc-8ccc-cccccccccccc'},category,
       tenant:{id:req.get('x-test-tenant')||tenantId,status:'active',categoryKey:category.key,categoryVersion:category.version},
@@ -30,7 +30,7 @@ function appFor(role='manager'){
   return {app,calls};
 }
 
-function detailAppFor(role='manager',provider='woocommerce'){
+function detailAppFor(role='manager',provider='woocommerce',pilotTenants=tenantId){
   const calls=[],secret=Buffer.alloc(32,29).toString('base64');
   const encrypted=connector.seal({customer:{email:'buyer-private@example.invalid',phone:'+97400000000'},lineItems:[
     {id:'line-1',productId:'900',variantId:'901',title:'Blue fabric',sku:'WOO-BLUE',quantity:'1.500000',unitPrice:'12.250000',subtotal:'18.375000',discount:'1.000000',total:'17.375000',tax:'0.000000'},
@@ -49,7 +49,7 @@ function detailAppFor(role='manager',provider='woocommerce'){
     throw new Error('Unexpected query: '+sql);
   }};
   const app=express();
-  app.use('/api/workspace/retail',require('../modules/platform/retail-commerce-router').workspaceRouter({pool,authenticate(req,_res,next){
+  app.use('/api/workspace/retail',require('../modules/platform/retail-commerce-router').workspaceRouter({pool,env:{SALEMAX_RETAIL_CONNECTOR_PILOT_TENANTS:pilotTenants},authenticate(req,_res,next){
     const selectedRole=req.get('x-test-role')||role;
     req.businessContext={audience:'tenant',identity:{id:'cccccccc-cccc-4ccc-8ccc-cccccccccccc'},category,
       tenant:{id:req.get('x-test-tenant')||tenantId,status:'active',categoryKey:category.key,categoryVersion:category.version},
@@ -105,6 +105,18 @@ test('Retail connected-order search rejects unsafe filters before querying',asyn
   const body=await response.json();
   assert.equal(response.status,400);
   assert.equal(body.code,'INVALID_ORDER_SEARCH');
+  assert.equal(fixture.calls.length,0);
+});
+
+test('connected-order search is disabled for tenants outside the pilot allowlist',async t=>{
+  const fixture=appFor('manager','cccccccc-cccc-4ccc-8ccc-cccccccccccc'),server=fixture.app.listen(0,'127.0.0.1');
+  await new Promise(resolve=>server.once('listening',resolve));
+  t.after(()=>new Promise(resolve=>server.close(resolve)));
+  const response=await fetch(`http://127.0.0.1:${server.address().port}/api/workspace/retail/orders/online/search`,{
+    method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({page:0})});
+  const body=await response.json();
+  assert.equal(response.status,403);
+  assert.equal(body.code,'RETAIL_CONNECTOR_PILOT_DISABLED');
   assert.equal(fixture.calls.length,0);
 });
 
