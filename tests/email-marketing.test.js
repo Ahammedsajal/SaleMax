@@ -34,7 +34,7 @@ test('one-click tokens bind to UUID tenant, campaign and recipient scopes',()=>{
   assert.throws(()=>email.decodeToken(key,malformed),{code:'INVALID_UNSUBSCRIBE_TOKEN'});
 });
 
-test('audience preview requires valid address and explicit consent',()=>{
+test('audience preview includes valid addresses without consent records and honors opt-outs',()=>{
   const result=email.summarizeAudience([
     {id:1,email:'Sales@Example.com',email_marketing_consent:1},
     {id:2,email:'sales@example.com',email_marketing_consent:1},
@@ -44,10 +44,23 @@ test('audience preview requires valid address and explicit consent',()=>{
     {id:6,email:'stop@example.com',email_marketing_consent:1,email_unsubscribed_at:'2026-01-01'},
     {id:7,email:'bounce@example.com',email_marketing_consent:1,suppressed_email:'bounce@example.com'}
   ]);
-  assert.deepEqual(result.summary,{total:7,eligible:1,missingEmail:1,invalidEmail:1,noConsent:1,unsubscribed:1,suppressed:1,duplicate:1});
-  assert.deepEqual(result.eligible.map(row=>row.normalizedEmail),['sales@example.com']);
+  assert.deepEqual(result.summary,{total:7,eligible:2,missingEmail:1,invalidEmail:1,noConsent:1,unsubscribed:1,suppressed:1,duplicate:1});
+  assert.deepEqual(result.eligible.map(row=>row.normalizedEmail),['sales@example.com','none@example.com']);
   const changed=email.fingerprint([{id:1,email:'sales@example.com',email_marketing_consent:1}])!==email.fingerprint([{id:1,email:'sales@example.com',email_marketing_consent:0}]);
   assert.equal(changed,true);
+});
+
+test('email worker sends to unmarked imported contacts but still blocks unsubscribed and suppressed contacts',async()=>{
+  const item={tenantId:'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',campaignId:'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',id:'cccccccc-cccc-4ccc-8ccc-cccccccccccc',normalizedEmail:'imported@example.com'};
+  const contact={name:'Imported',email:'imported@example.com',email_marketing_consent:0,email_unsubscribed_at:null,suppressedEmail:null};
+  const db={query:async()=>[[contact]]};
+  const available=await worker.currentContact(db,item);
+  assert.equal(available.blocked,undefined);
+  assert.equal(available.contact.email,'imported@example.com');
+  contact.email_unsubscribed_at='2026-11-18 00:00:00';
+  assert.deepEqual(await worker.currentContact(db,item),{blocked:true,code:'CONTACT_UNSUBSCRIBED'});
+  contact.email_unsubscribed_at=null;contact.suppressedEmail='imported@example.com';
+  assert.deepEqual(await worker.currentContact(db,item),{blocked:true,code:'EMAIL_SUPPRESSED'});
 });
 
 test('attachment validation checks signatures and plain text restrictions',()=>{

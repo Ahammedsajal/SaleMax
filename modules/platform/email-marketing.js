@@ -316,10 +316,10 @@ function summarizeAudience(rows){
     const email=normalizeEmail(row.email);
     if(!email){result.missingEmail++;continue;}
     if(!validEmail(email)){result.invalidEmail++;continue;}
-    if(Number(row.email_marketing_consent)!==1){result.noConsent++;continue;}
     if(row.email_unsubscribed_at){result.unsubscribed++;continue;}
     if(row.suppressed_email){result.suppressed++;continue;}
     if(seen.has(email)){result.duplicate++;continue;}
+    if(Number(row.email_marketing_consent)!==1)result.noConsent++;
     seen.add(email);eligible.push({...row,normalizedEmail:email});
   }
   result.eligible=eligible.length;return {summary:result,eligible};
@@ -456,7 +456,7 @@ async function testSend(db,ctx,input,key){
   let account;try{account=await ses.getAccount(sender.region,settings.credentials);}catch(error){fail(safeSesError(error),503);}
   if(!account.sendingEnabled)fail('SES_SENDING_DISABLED',409);
   try{const sent=await ses.sendSimple(sender.region,{FromEmailAddress:sender.email,Destination:{ToAddresses:[recipient]},
-    Content:{Simple:{Subject:{Data:'7Network Email setup test',Charset:'UTF-8'},Body:{Text:{Data:'Your 7Network Sales email sender is connected. Campaigns will only include contacts with explicit email marketing consent.',Charset:'UTF-8'}}}}},settings.credentials);
+    Content:{Simple:{Subject:{Data:'7Network Email setup test',Charset:'UTF-8'},Body:{Text:{Data:'Your 7Network Sales email sender is connected. Campaigns include valid email addresses and exclude unsubscribed or suppressed contacts.',Charset:'UTF-8'}}}}},settings.credentials);
     return {sent:true,recipient,messageId:sent.messageId};
   }catch(error){fail(safeSesError(error),error?.$metadata?.httpStatusCode||503);}
 }

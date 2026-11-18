@@ -1,3 +1,7 @@
+## Email Marketing imported contact eligibility — source implementation, 18 November 2026
+
+Campaign audience selection now includes unique contacts with valid email addresses even when the CRM has no consent record. Invalid, duplicate, unsubscribed and tenant-suppressed addresses remain excluded; consent values are not rewritten. The worker rechecks the current address and opt-out/suppression state immediately before sending, and the existing inbound reply routing is preserved. The composer explains sender responsibility and labels missing consent as informational. The audience/worker suite passes 12/12; changed JavaScript syntax and whitespace checks pass. No production release, contact update or email send has occurred yet.
+
 ## Email Marketing unified sender and reply DNS setup — deployed; DNS confirmation pending, 18 November 2026
 
 The separate **Receive replies in Email Inbox** setup card has been removed. Adding a sending domain prepares its `reply.<domain>` SES identity, and one guided DNS popup shows the sending DKIM records plus reply TXT and MX records with full and Namecheap-short hostnames. Existing domains prepare the reply identity when DNS setup opens. Reply routing activates only after SES identity/DNS and inbound SNS prerequisites are ready. Root-domain MX records are not changed. Deleting an unused domain association retains shared SES identities and DNS records and blocks when active routing or sender addresses depend on it.
