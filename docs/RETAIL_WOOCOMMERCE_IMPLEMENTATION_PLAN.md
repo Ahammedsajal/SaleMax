@@ -2,7 +2,13 @@
 
 Status as of 18 November 2026. This plan extends the existing 7Network Retail category inside the current business workspace. It does not introduce another application, CRM, login, plan catalogue, or shell. Essentials by D is the only store in the current scope; do not onboard another store under this pilot.
 
-## Current production recheck — partial sync and key-rotation state, 18 November 2026 at 08:57 UTC
+## Latest production recheck — partial sync and key-rotation state, 18 November 2026 at 10:04 UTC
+
+The 10:04 UTC metadata-only recheck verified `carsqatar-prod-01`, the current base release `/opt/salemax/releases/training-pipeline-correction-v3-9867ca72-20261104`, healthy app and MariaDB containers, running report/recruitment workers, and 20 GB free on `/`. Docker Compose labels confirmed the Retail Connected Stores and Woo connect-fix overlays remain in the active layered chain. No release, service or configuration was changed.
+
+The `https://essentialsbyd.com` connection remains `active`, currency QAR, with `last_sync_at` and `updated_at` unchanged at `2026-11-17 11:41:08.421 UTC`; aggregate product/order/customer snapshots remain 50/50/50 and no connection error is recorded. The exact schema-ledger query returned no entries for Retail migrations `20270205`–`20270212`, and `sx_retail_external_product_variants` remains absent. The query read connection metadata and aggregate counts only; it did not read credentials, cursors or customer/order payloads and made no Woo request, sync, migration, webhook, write-back, message, WordPress or checkout/payment change. The unchanged timestamps do not establish whether the exposed key was rotated in WordPress; owner-side rotation and reconnection remain required.
+
+## Previous production recheck — partial sync and key-rotation state, 18 November 2026 at 08:57 UTC
 
 The 08:57 UTC read-only recheck verified host `carsqatar-prod-01`, the app container healthy on `salemax-app:email-marketing-21a07cc41fa9-20261112`, the MariaDB container healthy, 20 GB free on `/`, and Asterisk inactive. `/opt/salemax/current` still resolves to the base release `/opt/salemax/releases/training-pipeline-correction-v3-9867ca72-20261104`; this check did not inspect the complete Compose overlay chain or change production.
 
