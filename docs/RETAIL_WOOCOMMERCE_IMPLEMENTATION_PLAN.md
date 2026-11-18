@@ -44,6 +44,10 @@ The connected-order API and sync suites pass 23/23, checking tenant-scoped SQL, 
 
 Before release, configure only the Essentials by D tenant UUID in the production runtime environment; do not commit tenant IDs or operator configuration. Production runtime has not been changed. The selected Retail, allowlist/navigation, role-policy, and Woo sync suites pass 49/49; both Retail deployment-helper suites pass 6/6. Browser navigation and responsive acceptance remain open, and this source is not deployed.
 
+### Source-only increment — bounded Woo GET retry, 18 November 2026
+
+Woo GET requests now retry a bounded set of transient transport failures and HTTP 408/425/429/5xx responses up to two additional attempts. The retry delay uses a valid `Retry-After` value up to three seconds, otherwise bounded exponential delay; larger server-requested waits stop the automatic retry and leave the sync cursor resumable for a later owner retry. Authentication, validation, redirect, and other non-transient failures are not retried. The synthetic sync test covers a dropped connection and a rate-limit response before a successful page read. This changes no Woo write behavior and is source-only.
+
 The rollout order is:
 
 1. Reconcile production source and migration history; keep the reviewed migration and production backup/restore gates visible.

@@ -74,7 +74,7 @@ test('Woo products, variations and order breakdowns retain source IDs, SKUs, qua
   assert.equal(order.lineItems[0].variantId, '101');
 });
 
-test('Woo sync paginates source resources and imports variations through GET-only requests', async () => {
+test('Woo sync paginates resources, retries transient GET failures, and imports variations', async () => {
   const originalRequest = connector.requestHttps;
   const originalKey = process.env.SALEMAX_PLATFORM_KEY_BASE64;
   const originalFetch = globalThis.fetch;
@@ -86,9 +86,12 @@ test('Woo sync paginates source resources and imports variations through GET-onl
     store_domain: 'https://store.example.com', sync_cursor: null, credentials_ciphertext: creds.ciphertext,
     credentials_iv: creds.iv, credentials_auth_tag: creds.authTag};
   const requests = [], writes = [];
+  let networkRetryInjected=false,httpRetryInjected=false;
   connector.requestHttps = async (url, options) => {
     requests.push({url, method: options.method || 'GET'});
     const parsed = new URL(url), pathname = parsed.pathname, page = Number(parsed.searchParams.get('page') || 1);
+    if(pathname.endsWith('/products')&&page===1&&!networkRetryInjected){networkRetryInjected=true;throw Object.assign(new Error('synthetic connection reset'),{code:'ECONNRESET'});}
+    if(pathname.endsWith('/orders')&&page===1&&!httpRetryInjected){httpRetryInjected=true;return {status:429,headers:{'retry-after':'0'},data:null};}
     let rows;
     if (pathname.endsWith('/products/100/variations')) rows = [{id: 101, parent_id: 100, sku: 'LINEN-M', price: '20.00',
       attributes: [{name: 'Size', option: 'M'}], stock_quantity: '3', manage_stock: true, stock_status: 'instock', date_modified_gmt: '2026-11-15T10:00:00'}];
@@ -131,6 +134,8 @@ test('Woo sync paginates source resources and imports variations through GET-onl
     assert.equal(second.resources.orders.scanned, 2);
     assert.ok(requests.length >= 7);
     assert.ok(requests.every(request => request.method === 'GET'));
+    assert.equal(requests.filter(request=>new URL(request.url).pathname.endsWith('/products')&&new URL(request.url).searchParams.get('page')==='1').length,2);
+    assert.equal(requests.filter(request=>new URL(request.url).pathname.endsWith('/orders')&&new URL(request.url).searchParams.get('page')==='1').length,2);
     assert.ok(requests.some(request => new URL(request.url).pathname.endsWith('/products/100/variations')));
     assert.ok(requests.some(request => new URL(request.url).searchParams.get('page') === '2'));
     assert.ok(requests.filter(request => /\/products(?:\/\d+\/variations)?$/.test(new URL(request.url).pathname) || /\/orders$/.test(new URL(request.url).pathname))

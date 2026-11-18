@@ -142,6 +142,10 @@ The connector is now default-deny outside tenant UUIDs listed in runtime-only `S
 
 The selected Retail, pilot allowlist/navigation, role-policy, and Woo sync suites pass 49/49; both Retail deployment-helper suites pass 6/6. Syntax and whitespace checks pass. This source-only gate is not deployed; no production environment, website, checkout, payment, migration, live store record, or webhook was changed. Actual browser-screen role, EN/AR RTL, theme, viewport, and PWA verification remains open.
 
+### WooCommerce read retry — source only, 18 November 2026
+
+WooCommerce GET sync now retries transient transport failures and HTTP 408/425/429/5xx responses at most twice after the initial request. It observes short `Retry-After` hints, uses bounded backoff otherwise, and stops instead of retrying early when the requested wait exceeds the interactive retry limit. Authentication and non-transient errors are not retried. The synthetic paginated sync covers a dropped connection and rate-limited request recovering on retry. No production sync or Woo request was performed.
+
 ## Pro Catalyst generic ad enquiry discovery prompt — deployed, 16 November 2026
 
 A generic first message such as “Hello! Can I get more info on this?” now receives the saved welcome and one focused course-discovery question when no course is named and no verified ad referral supplies one. A known course from the message or ad context still gets its published details. The clarification is deterministic and uses zero AI tokens; the bot saves that it is waiting for a course answer. Production health, deployed hashes and a synthetic live check passed. No customer message was sent. A fresh inbound is still needed for WhatsApp device acceptance. See `DEPLOYMENT.md` for release and rollback evidence.

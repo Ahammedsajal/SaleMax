@@ -184,6 +184,17 @@ async function syncShopify(pool, connection) {
   }
 }
 function wooCredentials(connection) { const value = credentials(connection); return { key: value.consumerKey, secret: value.consumerSecret }; }
+const RETRYABLE_WOO_STATUSES=new Set([408,425,429,500,502,503,504]);
+const RETRYABLE_WOO_ERROR_CODES=new Set(['ECONNRESET','ETIMEDOUT','EAI_AGAIN','ECONNREFUSED','EHOSTUNREACH','ENETUNREACH','EPIPE','PROVIDER_TIMEOUT','PROVIDER_DNS_FAILED']);
+function wooRetryDelayMs(headers,attempt){
+  const retryAfter=headers?.['retry-after'];
+  if(typeof retryAfter==='string'&&retryAfter.trim()){
+    const value=retryAfter.trim(),seconds=Number(value);
+    const delay=Number.isFinite(seconds)&&seconds>=0?seconds*1000:Date.parse(value)-Date.now();
+    if(Number.isFinite(delay)&&delay>=0)return delay<=3000?delay:null;
+  }
+  return Math.min(1000,250*(2**attempt));
+}
 async function wooApi(connection, resource, query = {}) {
   let resourcePath = resource;
   const params = { ...query };
@@ -198,12 +209,20 @@ async function wooApi(connection, resource, query = {}) {
   const apiUrl = new URL(`${base.pathname.replace(/\/$/, '')}/wp-json/wc/v3/${resourcePath}`, base.origin);
   for (const [name, value] of Object.entries(params)) apiUrl.searchParams.set(name, String(value));
   let response;
-  for (let attempt = 0; attempt < 2; attempt++) {
-    response = await connector.requestHttps(apiUrl.toString(), {
-      headers: { Authorization: `Basic ${Buffer.from(`${key}:${secret}`).toString('base64')}`, Accept: 'application/json' },
-    });
-    if (![408,429,500,502,503,504].includes(response.status) || attempt === 1) break;
-    await new Promise(resolve => setTimeout(resolve, 250));
+  for (let attempt = 0; attempt < 3; attempt++) {
+    try{
+      response = await connector.requestHttps(apiUrl.toString(), {
+        headers: { Authorization: `Basic ${Buffer.from(`${key}:${secret}`).toString('base64')}`, Accept: 'application/json' },
+      });
+    }catch(error){
+      if(attempt===2||!RETRYABLE_WOO_ERROR_CODES.has(String(error?.code||'')))throw error;
+      await new Promise(resolve=>setTimeout(resolve,wooRetryDelayMs(null,attempt)));
+      continue;
+    }
+    if(!RETRYABLE_WOO_STATUSES.has(response.status)||attempt===2)break;
+    const delay=wooRetryDelayMs(response.headers,attempt);
+    if(delay===null)break;
+    await new Promise(resolve=>setTimeout(resolve,delay));
   }
   if (response.status < 200 || response.status >= 300 || !Array.isArray(response.data)) {
     fail(response.status === 401 || response.status === 403 ? 'WOOCOMMERCE_KEY_OR_PERMISSION_INVALID' : 'WOOCOMMERCE_REQUEST_FAILED', 502);
