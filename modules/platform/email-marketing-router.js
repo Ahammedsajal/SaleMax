@@ -22,6 +22,9 @@ function createEmailMarketingRouter({pool:injectedPool,authenticate,origin,key}=
   router.get('/setup',run(async(db,ctx)=>service.setup(db,ctx,key)));
   router.post('/domains',run(async(db,ctx,req)=>service.addDomain(db,ctx,req.body,key)));
   router.post('/domains/:id/refresh',run(async(db,ctx,req)=>service.refreshDomain(db,ctx,req.params.id,key)));
+  router.delete('/domains/:id',run(async(db,ctx,req)=>service.deleteDomain(db,ctx,req.params.id)));
+  router.post('/domains/:id/replies',run(async(db,ctx,req)=>service.enableReplies(db,ctx,req.params.id,key)));
+  router.post('/domains/:id/replies/refresh',run(async(db,ctx,req)=>service.refreshReplies(db,ctx,req.params.id,key)));
   router.post('/senders',run(async(db,ctx,req)=>service.addSender(db,ctx,req.body,key)));
   router.post('/senders/:id/refresh',run(async(db,ctx,req)=>service.refreshSender(db,ctx,req.params.id,key)));
   router.post('/senders/:id/test',run(async(db,ctx,req)=>{
@@ -57,6 +60,24 @@ function createPublicEmailRouter({pool:injectedPool,key,topicArn=process.env.SAL
   const express=require('express'),router=express.Router(),pool=injectedPool||require('../../database/config').promise();
   router.use(express.urlencoded({extended:false,limit:'8kb'}));
   const tokenOf=req=>String(req.params.token||'');
+  router.post('/ses/inbound',express.raw({type:'*/*',limit:require('./email-marketing-sns').MAX_SNS_BODY_BYTES}),async(req,res)=>{
+    res.set('Cache-Control','no-store');
+    try{
+      const sns=require('./email-marketing-sns'),inbound=require('./email-marketing-inbound');
+      const settings=require('./email-marketing-provider-settings');
+      const topic=await settings.inboundSnsTopic(pool);if(!topic)throw Object.assign(Error('SES_INBOUND_PROVIDER_NOT_CONFIGURED'),{code:'SES_INBOUND_PROVIDER_NOT_CONFIGURED',status:503});
+      const parsed=await sns.parseAndVerify(req.body,topic);
+      if(parsed.type==='SubscriptionConfirmation'){
+        if(parsed.confirmation?.confirmed)await settings.markInboundSubscriptionConfirmed(pool,topic);
+        return res.status(200).json({accepted:true,confirmed:parsed.confirmation?.confirmed===true});
+      }
+      if(parsed.type==='Notification')return res.status(200).json(await inbound.persistReceived(pool,parsed,key));
+      return res.status(200).json({accepted:true,ignored:true});
+    }catch(error){
+      const status=Number.isInteger(error?.status)?error.status:500;
+      res.status(status).json({success:false,code:status>=500?'SES_INBOUND_UNAVAILABLE':(error?.code||'SNS_MESSAGE_INVALID')});
+    }
+  });
   router.post('/ses/events',express.raw({type:'*/*',limit:require('./email-marketing-sns').MAX_SNS_BODY_BYTES}),async(req,res)=>{
     res.set('Cache-Control','no-store');
     try{

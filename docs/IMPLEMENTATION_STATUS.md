@@ -1,3 +1,11 @@
+## 7Network Email Marketing template and sender-domain setup — UI deployed; SES DNS verification pending, 18 November 2026
+
+The Email Marketing template composer now provides a sample-only inbox preview and guided personalization. Domain setup uses compact cards plus a DNS popup with copy actions for the full host, Namecheap-short host and target. The delete action removes only an unused 7Network workspace association; it blocks on sender references and leaves shared AWS SES identities and DNS intact.
+
+Source commit `60e266155748e53cb9febaddbb2c0dc619871ba2` is live in app-only overlay `/opt/salemax/releases/email-marketing-domain-dns-popup-60e266155748-20261118T093932Z`. No migration ran, no domain was deleted and no email was sent. Health, public shell/assets, anonymous API rejection and runtime file hashes passed; all seven non-app containers were unchanged. Synthetic English/Arabic, light/dark and desktop/phone visual review passed. Authenticated production browser review remains open because this chat had no local browser surface.
+
+For `7network.space` in `eu-north-1`, all three exact DKIM CNAMEs from production setup resolve correctly through Namecheap authoritative DNS and public resolvers. SES still reports `PENDING`; this is SES detection time, not an application DNS-cache miss. AWS allows up to 72 hours for detection. The full Email Marketing provider, inbox and deliverability acceptance gates remain recorded in `DEPLOYMENT.md`. The full 42-ticket application upgrade remains in progress.
+
 ## 7Network Email Marketing public DNS fallback — deployed, 18 November 2026
 
 Email Marketing MX verification now checks the server resolver first and falls back to direct Cloudflare (`1.1.1.1`) and Google (`8.8.8.8`) DNS queries if the expected SES MX record is missing or the server resolver reports a recognized DNS failure. This bypasses a stale Oracle VCN negative cache without changing host/subnet DNS, root-domain records or other application lookups. Public resolvers are queried only for this Email Marketing MX check.

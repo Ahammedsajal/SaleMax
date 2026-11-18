@@ -1,3 +1,31 @@
+# 2026-11-18 10:04 UTC — Essentials by D connection and schema recheck — read only
+
+Verified SSH host `carsqatar-prod-01`. `/opt/salemax/current` still resolves to `/opt/salemax/releases/training-pipeline-correction-v3-9867ca72-20261104`. The `salemax` project reports the app and MariaDB healthy; the report and recruitment-notification workers are running. The root filesystem has 20 GB available. The app remains on image tag `salemax-app:email-marketing-21a07cc41fa9-20261112`, image digest `sha256:753d77d421b3160872df0812e7b38505a1db7104cdb9d6c8b17415b2420de667`. Docker's running-app labels show the layered Compose inputs include the Retail Connected Stores and Woo connection-fix overlays. The base release path does not contain `deploy/compose.yml`; no Compose file, service, image, or release pointer was changed.
+
+A metadata-only query found the `https://essentialsbyd.com` Woo connection still `active`, currency QAR, with `last_sync_at` and `updated_at` unchanged at `2026-11-17 11:41:08.421 UTC` and no recorded error. Aggregate snapshots remain 50 products, 50 orders, and 50 customers. The exact schema-ledger query returned no rows for Retail migrations `20270205`–`20270212`; `sx_retail_external_product_variants` is absent. This does not establish whether the owner rotated the key in WordPress.
+
+The query selected connection metadata, aggregate counts, migration names/status metadata, and table-existence metadata only. It did not read credentials, cursors, Woo payloads, orders, customers, or contacts. No Woo request, sync, migration, webhook, write-back, WordPress/checkout/payment change, or customer message occurred. No rollback applies to this read-only check.
+
+# 2026-11-18 — Email Marketing template and domain setup UI — production
+
+Source commit `60e266155748e53cb9febaddbb2c0dc619871ba2` is pushed to `Ahammedsajal/SaleMax` `main` and deployed as app-only overlay `/opt/salemax/releases/email-marketing-domain-dns-popup-60e266155748-20261118T093932Z/compose.email-marketing-domain-dns-popup.json` on base `/opt/salemax/releases/training-pipeline-correction-v3-9867ca72-20261104`. The release keeps the existing app image `sha256:753d77d421b3160872df0812e7b38505a1db7104cdb9d6c8b17415b2420de667`, all 11 environment inputs, all seven non-app containers and the 261 app mounts. It appended the 288th Compose input. No migration ran.
+
+Email templates now use the focused composer and sample-only preview previously requested. Setup now shows compact domain cards and opens a copy-friendly DNS-record popup, including the short Namecheap host and full host/target values. Domain deletion removes only the unused workspace association, is blocked while sender addresses depend on the domain, and explicitly leaves the shared AWS SES identity and DNS records untouched. Existing production inbox/inbound-reply files were reconciled into tracked source and preserved in this release. No domain was deleted and no email or campaign was sent.
+
+The 7network.space status remains `PENDING` in SES `eu-north-1`. A read-only production check retrieved the three exact records stored by the application; each CNAME resolves to its matching `*.dkim.amazonses.com` target on both authoritative Namecheap nameservers and public Cloudflare/Google resolvers. An earlier diagnostic had transcribed the first and second tokens incorrectly; all three exact records are published. SES still reports domain verification and DKIM as `PENDING`. AWS says SES can take up to 72 hours to detect correctly published DKIM records ([SES DKIM troubleshooting](https://docs.aws.amazon.com/ses/latest/dg/troubleshoot-dkim.html), [creating and verifying identities](https://docs.aws.amazon.com/ses/latest/dg/creating-identities.html)). No further DNS record is needed for this Easy DKIM setup.
+
+Production verification on `carsqatar-prod-01`: app healthy after recreation; `/healthz`, the Email Marketing workspace shell, and the versioned script/style return HTTP 200; the anonymous setup API returns HTTP 401. An unauthenticated `DELETE` probe to an invalid domain ID returned HTTP 403 from the origin/CSRF guard before reaching the delete handler; no data changed. The runtime hashes match the reviewed stage. The database remained healthy, all seven support containers were unchanged, and no database migration ran. Local synthetic browser review covered the domain card, DNS popup and delete confirmation in English and Arabic, light and dark themes, and desktop/phone widths; no production API was used during visual review. An authenticated 7Network Sales browser review remains open because local browser access was unavailable in this chat.
+
+Runtime SHA-256: `client/public/email-marketing-workspace.js` `36a1d91784c1e81227c93dcd5ec0d5685e51db2ffc9a4386968babda540f0d46`; `client/public/email-marketing-workspace.css` `005435b065d1a208c75ab251a035990e469341749283a3f7ee9e649e076fc279`; `client/public/index.html` `3fef5c0cbc4a78337a2ce5c818ec41580214df66d7ff5bfa81252a4919dc8bfa`; `modules/platform/email-marketing.js` `51339700ed4db52f81d35e1c2c7e1ef86a2e37477555a7756f6e8a55ab0eafdd`; `modules/platform/email-marketing-router.js` `e677ad587a60f1a41a302da22a501a129f19ec0ee7000595c0d0c66e7aab4cd2`.
+
+Protected rollback snapshot: `/opt/salemax/shared/rollback-email-marketing-domain-dns-popup-60e266155748-20261118T093932Z` (mode `0700`). Restore only if this is still the newest app overlay; restore any later app overlays first:
+
+```sh
+sudo -n /opt/salemax/shared/with-production-lock.sh python3 /opt/salemax/releases/email-marketing-domain-dns-popup-60e266155748-20261118T093932Z/deploy/email-marketing-domain-dns-popup-release.py restore /opt/salemax/shared/rollback-email-marketing-domain-dns-popup-60e266155748-20261118T093932Z
+```
+
+The overall 42-ticket application upgrade remains in progress. Real authenticated owner/manager and denied-staff acceptance, SES verification completion, and later delivered-email acceptance remain open.
+
 # 2026-11-18 08:57 UTC — Essentials by D Woo connection recheck — read only
 
 Verified SSH host `carsqatar-prod-01`; `/opt/salemax/current` resolves to `/opt/salemax/releases/training-pipeline-correction-v3-9867ca72-20261104`. The app container is healthy on image tag `salemax-app:email-marketing-21a07cc41fa9-20261112`; the MariaDB container is healthy, 20 GB is available on `/`, and Asterisk is inactive. No release or service was changed.
@@ -5,6 +33,8 @@ Verified SSH host `carsqatar-prod-01`; `/opt/salemax/current` resolves to `/opt/
 A metadata-only application-database query found the Woo connection for `https://essentialsbyd.com` still `active`, with `last_sync_at` and `updated_at` both unchanged at `2026-11-17 11:41:08.421 UTC` and no recorded connection error. Aggregate counts remain 50 products, 50 orders and 50 customers. The product-variation snapshot table `sx_retail_external_product_variants` is absent. None of the eight Retail migrations `20270205`–`20270212` appears in the production schema ledger. This confirms that 7Network has not reconnected the store since the prior check; it does not inspect or establish whether the owner rotated the Woo key in WordPress.
 
 The query selected connection metadata, aggregate counts, table-existence metadata and the named Retail migration ledger rows only; it did not select credentials, Woo cursor values, product/order/customer payloads or contact fields. No Woo API request, sync, migration, WordPress/checkout/payment change, write-back or message occurred. Keep live Woo requests gated until the owner revokes the exposed key, enters a fresh Read-only key through Connected Stores, and the reviewed migration/backup gates pass. No rollback applies to this read-only check.
+
+
 
 # 2026-11-18 — Retail physical unit recount and revision safety — source only
 
