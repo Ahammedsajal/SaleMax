@@ -243,7 +243,9 @@
               const movements = await request('/' + item.id + '/history?locationId='+encodeURIComponent(selectedLocationId));
               if (!movements.length) make('li', tr('No movements yet.', 'لا توجد حركات بعد.'), history);
               for (const movement of movements) {
-                make('li', movement.previousQuantity + ' → ' + movement.quantity + ' · ' + movement.reason + ' · ' + new Date(movement.createdAt).toLocaleString(), history);
+                const beforeUnit=quantityUnit({baseUnitCode:movement.previousUnit?.baseUnitCode||'unit',baseUnitLabel:movement.previousUnit?.baseUnitLabel||'',baseUnitLabelAr:movement.previousUnit?.baseUnitLabelAr||''});
+                const afterUnit=quantityUnit({baseUnitCode:movement.unit?.baseUnitCode||'unit',baseUnitLabel:movement.unit?.baseUnitLabel||'',baseUnitLabelAr:movement.unit?.baseUnitLabelAr||''});
+                make('li', movement.previousQuantity+' '+beforeUnit+' → '+movement.quantity+' '+afterUnit+' · '+movement.reason+' · '+new Date(movement.createdAt).toLocaleString(), history);
               }
             } catch { make('li', tr('Could not load history.', 'تعذر تحميل السجل.'), history); }
           });
@@ -304,16 +306,74 @@
           saveUnit.onclick=async()=>{
             saveUnit.disabled=true;
             try{
-              await request('/products/'+item.id+'/unit',{method:'PUT',body:{baseUnitCode:unitSelect.value,baseUnitLabel:customLabel.value.trim(),baseUnitLabelAr:customLabelAr.value.trim(),
+              const saved=await request('/products/'+item.id+'/unit',{method:'PUT',body:{baseUnitCode:unitSelect.value,baseUnitLabel:customLabel.value.trim(),baseUnitLabelAr:customLabelAr.value.trim(),
                 quantityPrecision:Number(precisionSelect.value),quantityIncrement:incrementInput.value.trim(),expectedRevision:String(item.unitRevision||0)}});
-              message.textContent=tr('Unit settings saved.','تم حفظ إعدادات الوحدة.');await load(offset);
+              message.textContent=saved.thresholdsDisabled?tr('Unit settings saved. Re-enter low-stock thresholds for each location.','تم حفظ إعدادات الوحدة. أعد إدخال حدود المخزون المنخفض لكل موقع.'):tr('Unit settings saved.','تم حفظ إعدادات الوحدة.');await load(offset);
             }catch(error){
-              message.textContent=error.message==='INVENTORY_UNIT_LOCKED'?tr('Unit settings are locked after stock or orders are recorded. Contact an administrator to plan a safe recount.',
-                'تم تثبيت إعدادات الوحدة بعد تسجيل المخزون أو الطلبات. تواصل مع المسؤول لتخطيط إعادة جرد آمنة.'):
+              message.textContent=error.message==='INVENTORY_UNIT_LOCKED'?tr('This unit change needs a physical recount. Use the recount section below and count every location.',
+                'يتطلب تغيير الوحدة إعادة جرد فعلي. استخدم قسم إعادة الجرد أدناه واحسب كل المواقع.'):
                 error.message==='INVENTORY_UNIT_CHANGED'?tr('Unit settings changed. Reload and review the current values.','تغيرت إعدادات الوحدة. أعد التحميل وراجع القيم الحالية.'):
                 tr('Unit settings could not be saved. Check the precision and increment.','تعذر حفظ إعدادات الوحدة. تحقق من الدقة والزيادة.');
             }finally{saveUnit.disabled=false;}
           };
+          const rebaseDetails=make('details','',inventoryConfig);rebaseDetails.className='sx-inventory-listing';
+          make('summary',tr('Change this SKU unit with a physical recount','تغيير وحدة المنتج عبر إعادة الجرد الفعلي'),rebaseDetails);
+          make('p',tr('Use this only when recorded stock has been measured in a different unit. Enter a fresh physical count for every location. No conversion is inferred; previous movements keep their original unit, and low-stock thresholds are cleared.','استخدم هذا الخيار فقط إذا كان المخزون المسجل بوحدة مختلفة. أدخل الجرد الفعلي الجديد لكل موقع. لا يتم افتراض أي تحويل؛ تبقى الحركات السابقة بوحدتها الأصلية وتُمسح حدود المخزون المنخفض.'),rebaseDetails);
+          const rebaseContent=make('div','',rebaseDetails);
+          async function loadRebasePreview(){
+            rebaseContent.replaceChildren();make('p',tr('Loading location balances…','جارٍ تحميل أرصدة المواقع…'),rebaseContent);
+            try{
+              const preview=await request('/products/'+item.id+'/unit/rebase-preview');
+              rebaseContent.replaceChildren();
+              const currentUnit={baseUnitCode:preview.product.baseUnitCode,baseUnitLabel:preview.product.baseUnitLabel,baseUnitLabelAr:preview.product.baseUnitLabelAr};
+              make('p',tr('Current unit: ','الوحدة الحالية: ')+quantityUnit(currentUnit)+' · '+tr('profile revision ','مراجعة الإعداد ')+preview.product.unitRevision,rebaseContent);
+              if(!preview.hasMovement){make('p',tr('This SKU has no stock movement history. Set its unit in the standard unit settings above.','لا توجد حركات مخزون لهذا المنتج. حدّد وحدته من الإعدادات أعلاه.'),rebaseContent);return;}
+              if(preview.locationLimitExceeded){make('p',tr('This recount exceeds the supported 100-location limit. Contact support before changing this SKU’s unit.','تتجاوز إعادة الجرد الحد المدعوم البالغ 100 موقع. تواصل مع الدعم قبل تغيير وحدة هذا المنتج.'),rebaseContent);return;}
+              if(preview.hasReservations||preview.hasOpenOrders)make('p',tr('Finish or cancel open orders and clear reservations before recounting this SKU.','أكمل الطلبات المفتوحة أو ألغها وأزل الحجوزات قبل إعادة جرد هذا المنتج.'),rebaseContent);
+              if(preview.archivedStock)make('p',tr('An archived location still has stock. Restore that location and reconcile it before recounting.','لا يزال هناك مخزون في موقع مؤرشف. استعد الموقع وسوِّ مخزونه قبل إعادة الجرد.'),rebaseContent);
+              if(!preview.canRebase){
+                if(!preview.hasReservations&&!preview.hasOpenOrders&&!preview.archivedStock)make('p',tr('A physical recount is not available for this SKU right now. Refresh and review the stock history.','إعادة الجرد غير متاحة لهذا المنتج حالياً. حدّث الصفحة وراجع سجل المخزون.'),rebaseContent);
+                return;
+              }
+              const form=make('form','',rebaseContent);const fields=[];
+              make('h3',tr('Physical count by location','الجرد الفعلي حسب الموقع'),form);
+              for(const location of preview.locations){
+                const section=make('section','',form);section.style.marginBlock='10px';
+                const locationName=(ar()?location.nameAr:location.nameEn)||location.nameEn||location.code;
+                make('strong',locationName+(location.status==='archived'?' · '+tr('Archived','مؤرشف'):'')+' · '+location.code,section);
+                make('p',tr('Recorded balance: ','الرصيد المسجل: ')+location.currentQuantity+' '+quantityUnit(currentUnit)+
+                  ' · '+tr('Reserved: ','محجوز: ')+location.reserved+' '+quantityUnit(currentUnit),section);
+                const input=make('input','',make('label',tr('New physical count in ','الكمية الفعلية الجديدة بوحدة ')+quantityUnit({baseUnitCode:unitSelect.value,baseUnitLabel:customLabel.value,baseUnitLabelAr:customLabelAr.value})+' ',section));
+                input.type='text';input.inputMode='decimal';input.required=true;input.min='0';input.maxLength=12;input.autocomplete='off';input.placeholder=tr('Enter the count; it is not prefilled','أدخل الكمية؛ لن تُملأ تلقائياً');
+                fields.push({locationId:location.id,expectedStockRevision:String(location.expectedStockRevision),archived:location.status==='archived',input});
+              }
+              const why=make('input','',make('label',tr('Recount reason','سبب إعادة الجرد')+' ',form));why.type='text';why.required=true;why.maxLength=120;
+              const status=make('p','',form);status.setAttribute('role','status');
+              const submit=make('button',tr('Apply physical recount','تطبيق الجرد الفعلي'),form);submit.type='submit';let pending=null;
+              form.onsubmit=async event=>{
+                event.preventDefault();const body={baseUnitCode:unitSelect.value,baseUnitLabel:customLabel.value.trim(),baseUnitLabelAr:customLabelAr.value.trim(),
+                  quantityPrecision:Number(precisionSelect.value),quantityIncrement:incrementInput.value.trim(),expectedUnitRevision:String(preview.product.unitRevision),reason:why.value.trim(),
+                  locations:fields.map(field=>({locationId:field.locationId,expectedStockRevision:field.expectedStockRevision,quantity:field.input.value.trim()}))};
+                if(fields.some(field=>quantityToMicro(field.input.value)===null)){status.textContent=tr('Enter a valid non-negative count for every location.','أدخل كمية صحيحة غير سالبة لكل موقع.');return;}
+                if(fields.some(field=>field.archived&&quantityToMicro(field.input.value)>0n)){status.textContent=tr('Archived locations must remain at zero. Restore the location before recording stock there.','يجب أن يبقى رصيد المواقع المؤرشفة صفراً. استعد الموقع قبل تسجيل مخزون فيه.');return;}
+                const signature=JSON.stringify(body);if(pending?.signature!==signature)pending={signature,requestId:crypto.randomUUID()};
+                submit.disabled=true;status.textContent=tr('Saving audited recount…','جارٍ حفظ إعادة الجرد وتوثيقها…');
+                try{
+                  const result=await request('/products/'+item.id+'/unit/rebase',{method:'POST',body:{...body,requestId:pending.requestId}});
+                  await load(offset);message.textContent=result.replayed?tr('Recount was already applied.','تم تطبيق إعادة الجرد مسبقاً.'):tr('Unit changed and physical stock was recounted. Re-enter low-stock thresholds for each location.','تم تغيير الوحدة وإعادة جرد المخزون فعلياً. أعد إدخال حدود المخزون المنخفض لكل موقع.');
+                }catch(error){
+                  const messages={STOCK_CHANGED:tr('Stock changed after this preview. Close and reopen the recount, then review the new balances.','تغير المخزون بعد هذه المعاينة. أغلق إعادة الجرد وافتحها ثم راجع الأرصدة الجديدة.'),
+                    INVENTORY_UNIT_CHANGED:tr('The unit profile changed. Refresh and review the current values.','تغير إعداد الوحدة. حدّث الصفحة وراجع القيم الحالية.'),
+                    INVENTORY_REBASE_HAS_OPEN_STOCK:tr('Open orders or reservations now block this recount. Resolve them and refresh.','تمنع الطلبات المفتوحة أو الحجوزات إعادة الجرد الآن. عالجها ثم حدّث.'),
+                    INVENTORY_REBASE_LOCATIONS_CHANGED:tr('The location list changed. Refresh the preview before recounting.','تغيرت قائمة المواقع. حدّث المعاينة قبل إعادة الجرد.'),
+                    INVENTORY_REBASE_ARCHIVED_STOCK:tr('Restore the archived location and reconcile its stock before recounting.','استعد الموقع المؤرشف وسوِّ مخزونه قبل إعادة الجرد.'),
+                    INVENTORY_REBASE_UNIT_UNCHANGED:tr('Choose a different unit profile above, or use a normal stock count.','اختر إعداد وحدة مختلفاً أعلاه أو استخدم تصحيح المخزون المعتاد.')};
+                  status.textContent=messages[error.message]||tr('Recount was not applied. Check the target unit, precision, increment and all location counts.','لم تُطبق إعادة الجرد. تحقق من الوحدة والدقة والزيادة وكميات جميع المواقع.');
+                }finally{submit.disabled=false;}
+              };
+            }catch{rebaseContent.replaceChildren();const error=make('p',tr('Could not load the recount preview. Refresh and try again.','تعذر تحميل معاينة إعادة الجرد. حدّث الصفحة وحاول مرة أخرى.'),rebaseContent);error.setAttribute('role','alert');}
+          }
+          rebaseDetails.addEventListener('toggle',()=>{if(rebaseDetails.open)loadRebasePreview();});
           const units=quantityUnitNames(item);
           const thresholdInput=make('input','',make('label',tr('Low-stock threshold at this location','حد المخزون المنخفض في هذا الموقع')+' · '+quantityUnit(item)+' ',configFields));
           thresholdInput.type='text';thresholdInput.inputMode='decimal';thresholdInput.maxLength=12;thresholdInput.value=item.lowStockThreshold||'';thresholdInput.placeholder=tr('Disabled','معطل');

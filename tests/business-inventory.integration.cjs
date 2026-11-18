@@ -12,7 +12,7 @@ async function main() {
   const admin = await mysql.createConnection({socketPath, user: 'root'});
   await admin.query('CREATE DATABASE ' + database);
   const pool = mysql.createPool({socketPath, user: 'root', database, decimalNumbers:false});
-  const tenant = randomUUID(), other = randomUUID(), item = randomUUID(), foreign = randomUUID(), legacy = randomUUID();
+  const tenant = randomUUID(), other = randomUUID(), item = randomUUID(), foreign = randomUUID(), legacy = randomUUID(), profiled = randomUUID(), fresh = randomUUID();
   const identity = randomUUID(), location = randomUUID(), secondLocation = randomUUID();
   const category = require('../modules/platform/categories').getCategory('retail_boutique', 1);
   assert.equal(category.public, false);
@@ -121,7 +121,7 @@ async function main() {
       created_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),UNIQUE KEY uq_test_business_event(tenant_id,event_key)) ENGINE=InnoDB`);
     await pool.query("INSERT INTO sx_tenants(id,status,category_key,timezone) VALUES (?,'active','retail_boutique','Asia/Qatar'),(?,'active','retail_boutique','Asia/Qatar')",[tenant,other]);
     await pool.query('INSERT INTO sx_identities(id) VALUES (?)',[identity]);
-    await pool.query("INSERT INTO sx_product_catalog(id,tenant_id,code,name_en,name_ar,deleted_at,status) VALUES (?,?,'YARD-1','Fabric','قماش',NULL,'active'),(?,?,'OTHER','Other','آخر',NULL,'active'),(?,?,'LEGACY','Legacy','قديم',NULL,'active')", [item, tenant, foreign, other, legacy, tenant]);
+    await pool.query("INSERT INTO sx_product_catalog(id,tenant_id,code,name_en,name_ar,deleted_at,status) VALUES (?,?,'YARD-1','Fabric','قماش',NULL,'active'),(?,?,'OTHER','Other','آخر',NULL,'active'),(?,?,'LEGACY','Legacy','قديم',NULL,'active'),(?,?,'PROFILED','Profiled','محدد',NULL,'active'),(?,?,'FRESH','Fresh','جديد',NULL,'active')", [item, tenant, foreign, other, legacy, tenant,profiled,tenant,fresh,tenant]);
     await pool.query("UPDATE sx_product_catalog SET description_en='Fabric sold by yard',description_ar='قماش يباع بالياردة' WHERE tenant_id=? AND id=?",[tenant,item]);
     await pool.query("INSERT INTO sx_retail_locations (id,tenant_id,code,name_en,name_ar,address,map_pin,accepts_pickup,accepts_delivery,is_default,status) VALUES (?,?,'main','Main','الرئيسي','',NULL,1,1,1,'active'),(?,?,'west','West','الغربي','',NULL,1,1,0,'active')", [location,tenant,secondLocation,tenant]);
     const planVersion=randomUUID(),planAssignment=randomUUID();
@@ -137,9 +137,27 @@ async function main() {
     for(const statement of migration.split(';').map(value=>value.replace(/^--.*$/gm,'').trim()).filter(Boolean))await pool.query(statement);
     const alertMigration=readFileSync(require.resolve('../database/migrations/20270209_retail_inventory_alerts.sql'),'utf8');
     for(const statement of alertMigration.split(';').map(value=>value.replace(/^--.*$/gm,'').trim()).filter(Boolean))await pool.query(statement);
+    await pool.query(`INSERT INTO sx_retail_product_inventory_units
+      (tenant_id,product_id,base_unit_code,quantity_precision,quantity_increment,revision,updated_by_identity_id)
+      VALUES (?,?,'yard',2,0.250000,4,?)`,[tenant,profiled,identity]);
+    await pool.query(`INSERT INTO sx_business_stock_movements
+      (tenant_id,product_id,location_id,request_id,actor_id,previous_revision,previous_quantity,quantity,reason)
+      VALUES (?, ?, ?, ?, ?, '0',0,5,'Existing configured unit movement')`,[tenant,profiled,location,randomUUID(),identity]);
+    const historicalOrderId=randomUUID();
+    await pool.query(`INSERT INTO sx_retail_orders
+      (id,tenant_id,request_id,request_hash,buyer_name,buyer_phone,delivery_address,fulfillment,order_lines,total_minor,delivery_fee,location_id,status)
+      VALUES (?,?,?,?,?,'+97455550001','', 'pickup',JSON_ARRAY(JSON_OBJECT('id',?,'quantity','0.25','quantityPrecision',2,'quantityIncrement','0.25')),
+        500,0,?,'completed')`,[historicalOrderId,tenant,randomUUID(),'a'.repeat(64),'Historic Buyer',profiled,location]);
+    const recountMigration=readFileSync(require.resolve('../database/migrations/20270212_retail_inventory_unit_recount.sql'),'utf8');
+    for(const statement of recountMigration.split(';').map(value=>value.replace(/^--.*$/gm,'').trim()).filter(Boolean))await pool.query(statement);
     await pool.query('INSERT INTO sx_business_notification_settings(tenant_id,enabled) VALUES (?,1)',[tenant]);
     const [[legacyRow]]=await pool.query('SELECT CAST(quantity AS CHAR) AS quantity FROM sx_business_stock_movements WHERE tenant_id=? AND product_id=?',[tenant,legacy]);
     assert.equal(String(legacyRow.quantity),'7.000000');
+    const [[profiledMovement]]=await pool.query('SELECT previous_unit_revision AS previousUnitRevision,unit_revision AS unitRevision FROM sx_business_stock_movements WHERE tenant_id=? AND product_id=?',[tenant,profiled]);
+    assert.equal(Number(profiledMovement.previousUnitRevision),4,'existing movements inherit the locked profile revision');
+    assert.equal(Number(profiledMovement.unitRevision),4,'existing movement quantity remains in its configured historical unit');
+    const [[historicalOrder]]=await pool.query('SELECT JSON_EXTRACT(order_lines,\'$[0].unitRevision\') AS unitRevision FROM sx_retail_orders WHERE tenant_id=? AND id=?',[tenant,historicalOrderId]);
+    assert.equal(historicalOrder.unitRevision,null,'migration leaves old order snapshots intact for guarded runtime handling');
     server = app.listen(0, '127.0.0.1');
     await new Promise((resolve, reject) => server.once('listening', resolve).once('error', reject));
     const send = (path, role, body, method=body?'POST':'GET') => fetch('http://127.0.0.1:' + server.address().port + path, {
@@ -147,6 +165,64 @@ async function main() {
       headers: {'content-type': 'application/json', ...(role && {'x-test-role': role})},
       body: body && JSON.stringify(body)
     });
+    const legacyPreviewResponse=await send('/products/'+legacy+'/unit/rebase-preview','owner');
+    assert.equal(legacyPreviewResponse.status,200);
+    const legacyPreview=(await legacyPreviewResponse.json()).data;
+    assert.equal(legacyPreview.canRebase,true);
+    assert.equal(legacyPreview.product.unitRevision,0);
+    assert.equal(legacyPreview.locations.find(value=>value.id===location).currentQuantity,7);
+    assert.equal((await send('/products/'+legacy+'/threshold','owner',{locationId:location,lowStockThreshold:'3',expectedRevision:'0'},'PUT')).status,200);
+    const legacyRebaseBody={baseUnitCode:'yard',baseUnitLabel:'',baseUnitLabelAr:'',quantityPrecision:2,quantityIncrement:'0.25',expectedUnitRevision:'0',reason:'Initial physical yard recount',
+      locations:legacyPreview.locations.map(value=>({locationId:value.id,expectedStockRevision:String(value.expectedStockRevision),quantity:value.id===location?'2.25':'0.75'}))};
+    assert.equal((await send('/products/'+legacy+'/unit/rebase','agent',{...legacyRebaseBody,requestId:randomUUID()})).status,403);
+    assert.equal((await send('/products/'+legacy+'/unit/rebase','owner',{...legacyRebaseBody,requestId:randomUUID(),locations:legacyRebaseBody.locations.map((value,index)=>index?value:{...value,quantity:'0.1'})})).status,400,
+      'recount quantities must honor the new unit increment');
+    const incompleteRebase=await send('/products/'+legacy+'/unit/rebase','owner',{...legacyRebaseBody,requestId:randomUUID(),locations:legacyRebaseBody.locations.slice(0,1)});
+    assert.equal(incompleteRebase.status,409);assert.equal((await incompleteRebase.json()).code,'INVENTORY_REBASE_LOCATIONS_CHANGED');
+    const staleRebase=await send('/products/'+legacy+'/unit/rebase','owner',{...legacyRebaseBody,requestId:randomUUID(),locations:legacyRebaseBody.locations.map(value=>({...value,expectedStockRevision:'999999'}))});
+    assert.equal(staleRebase.status,409);assert.equal((await staleRebase.json()).code,'STOCK_CHANGED');
+    const legacyRebaseRequestId=randomUUID();
+    const legacyRebase=await send('/products/'+legacy+'/unit/rebase','owner',{...legacyRebaseBody,requestId:legacyRebaseRequestId});
+    const legacyRebasePayload=await legacyRebase.json();
+    assert.equal(legacyRebase.status,200,JSON.stringify(legacyRebasePayload));
+    const legacyRebaseResult=legacyRebasePayload.data;
+    assert.equal(legacyRebaseResult.unitRevision,1);assert.equal(legacyRebaseResult.thresholdsDisabled,true);
+    const legacyReplay=await send('/products/'+legacy+'/unit/rebase','owner',{...legacyRebaseBody,requestId:legacyRebaseRequestId});
+    assert.equal(legacyReplay.status,200);assert.equal((await legacyReplay.json()).data.replayed,true,'physical recount retry is idempotent');
+    const conflictingReplay=await send('/products/'+legacy+'/unit/rebase','owner',{...legacyRebaseBody,requestId:legacyRebaseRequestId,reason:'Different recount'});
+    assert.equal(conflictingReplay.status,409,'same idempotency key cannot represent different recount data');
+    const legacyHistory=await (await send('/'+legacy+'/history?locationId='+location,'owner')).json();
+    assert.equal(legacyHistory.data[0].previousQuantity,'7');assert.equal(legacyHistory.data[0].quantity,'2.25');
+    assert.equal(legacyHistory.data[0].previousUnit.baseUnitCode,'unit');assert.equal(legacyHistory.data[0].unit.baseUnitCode,'yard');
+    assert.equal(legacyHistory.data[1].unit.baseUnitCode,'unit','legacy movement history retains its original unit');
+    const [[legacyThreshold]]=await pool.query('SELECT low_stock_threshold AS threshold FROM sx_retail_inventory_location_thresholds WHERE tenant_id=? AND product_id=? AND location_id=?',[tenant,legacy,location]);
+    assert.equal(legacyThreshold.threshold,null,'unit rebasing clears thresholds that use the old unit');
+    const [[legacyAlertState]]=await pool.query('SELECT observed_state AS observed,notified_state AS notified FROM sx_retail_inventory_alert_states WHERE tenant_id=? AND product_id=? AND location_id=?',[tenant,legacy,location]);
+    assert.equal(legacyAlertState.observed,'unknown');assert.equal(legacyAlertState.notified,'unknown');
+    assert.equal((await send('/products/'+legacy+'/unit','owner',{baseUnitCode:'yard',baseUnitLabel:'',baseUnitLabelAr:'',quantityPrecision:2,quantityIncrement:'0.5',expectedRevision:'1'},'PUT')).status,409,'ordinary unit changes remain locked after movement');
+    const profiledPreview=(await (await send('/products/'+profiled+'/unit/rebase-preview','owner')).json()).data;
+    assert.equal(profiledPreview.canRebase,true);
+    const profiledRebase=await send('/products/'+profiled+'/unit/rebase','owner',{requestId:randomUUID(),baseUnitCode:'piece',baseUnitLabel:'',baseUnitLabelAr:'',
+      quantityPrecision:0,quantityIncrement:'1',expectedUnitRevision:String(profiledPreview.product.unitRevision),reason:'Synthetic legacy-order unit change',
+      locations:profiledPreview.locations.map(value=>({locationId:value.id,expectedStockRevision:String(value.expectedStockRevision),quantity:value.id===location?'1':'0'}))});
+    assert.equal(profiledRebase.status,200,'legacy SKU profile can be recounted with known per-location counts');
+    await assert.rejects(require('../modules/platform/retail-commerce').returnItems(pool,tenant,{identityId:identity},historicalOrderId,
+      {requestId:randomUUID(),reason:'Old snapshot return',restock:true,lines:[{id:profiled,quantity:'0.25'}]}),{code:'RETURN_UNIT_RECOUNT_REQUIRED'});
+    await assert.rejects(require('../modules/platform/retail-commerce').transition(pool,tenant,{identityId:identity},historicalOrderId,'returned',false),{code:'RETURN_UNIT_RECOUNT_REQUIRED'});
+    const historicalNoRestock=await require('../modules/platform/retail-commerce').returnItems(pool,tenant,{identityId:identity},historicalOrderId,
+      {requestId:randomUUID(),reason:'Old snapshot requires manual stock review',restock:false,lines:[{id:profiled,quantity:'0.25'}]});
+    assert.equal(historicalNoRestock.status,'returned','legacy order lines without a unit snapshot can be returned without automatic stock conversion');
+    const freshCount=await send('/'+fresh+'/count','owner',{requestId:randomUUID(),expectedRevision:'0',quantity:'2',reason:'Synthetic default-unit opening count',locationId:location});
+    assert.equal(freshCount.status,200,'first movement seeds a historical version even when the SKU has no explicit unit profile');
+    const freshHistory=await (await send('/'+fresh+'/history?locationId='+location,'owner')).json();
+    assert.equal(freshHistory.data[0].unit.baseUnitCode,'unit');
+    const freshPreview=(await (await send('/products/'+fresh+'/unit/rebase-preview','owner')).json()).data;
+    const freshRebase=await send('/products/'+fresh+'/unit/rebase','owner',{requestId:randomUUID(),baseUnitCode:'panel',baseUnitLabel:'',baseUnitLabelAr:'',
+      quantityPrecision:0,quantityIncrement:'1',expectedUnitRevision:String(freshPreview.product.unitRevision),reason:'Synthetic new-SKU recount',
+      locations:freshPreview.locations.map(value=>({locationId:value.id,expectedStockRevision:String(value.expectedStockRevision),quantity:value.id===location?'1':'0'}))});
+    assert.equal(freshRebase.status,200,'new SKUs can be recounted after their first stock movement');
+    const freshRecountHistory=await (await send('/'+fresh+'/history?locationId='+location,'owner')).json();
+    assert.equal(freshRecountHistory.data[0].previousUnit.baseUnitCode,'unit');assert.equal(freshRecountHistory.data[0].unit.baseUnitCode,'panel');
     const unitBody={baseUnitCode:'yard',baseUnitLabel:'',quantityPrecision:2,quantityIncrement:'0.25',expectedRevision:'0'};
     assert.equal((await send('/','agent')).status,403);
     assert.equal((await send('/products/'+foreign+'/unit','owner',unitBody,'PUT')).status,404);
@@ -166,6 +242,8 @@ async function main() {
     assert.equal(row.baseUnitCode,'yard');assert.equal(row.quantityPrecision,2);assert.equal(typeof row.quantityPrecision,'number');
     assert.equal(typeof row.unitRevision,'number');assert.equal(typeof row.thresholdRevision,'number');assert.equal(row.quantityIncrement,'0.25');
     assert.ok(['1.25','2.25'].includes(row.quantity));assert.equal(row.reserved,0);
+    const unchangedUnit=await send('/products/'+item+'/unit','owner',{...unitBody,expectedRevision:String(row.unitRevision)},'PUT');
+    assert.equal(unchangedUnit.status,200);assert.equal((await unchangedUnit.json()).data.revision,1,'saving an unchanged unit does not create a revision or block returns');
     assert.equal((await send('/'+item+'/count','owner',{...winningBody,requestId:randomUUID(),expectedRevision:row.revision,quantity:'1.10'})).status,400);
     const threshold=await send('/products/'+item+'/threshold','owner',{locationId:location,lowStockThreshold:'0.50',expectedRevision:'0'},'PUT');
     assert.equal(threshold.status,200);
@@ -217,9 +295,15 @@ async function main() {
     assert.equal(acceptedOrder.status,'placed');assert.equal(Number(acceptedOrder.total),1000);
     const [[reservation]]=await pool.query('SELECT CAST(quantity AS CHAR) AS quantity FROM sx_retail_stock_reservations WHERE tenant_id=? AND product_id=? AND order_id=?',[tenant,item,accepted.reference]);
     assert.equal(reservation.quantity,'0.500000');
+    const activePreview=(await (await send('/products/'+item+'/unit/rebase-preview','owner')).json()).data;
+    assert.equal(activePreview.hasReservations,true);assert.equal(activePreview.hasOpenOrders,true);
+    const blockedRebase=await send('/products/'+item+'/unit/rebase','owner',{requestId:randomUUID(),baseUnitCode:'piece',baseUnitLabel:'',baseUnitLabelAr:'',
+      quantityPrecision:0,quantityIncrement:'1',expectedUnitRevision:String(activePreview.product.unitRevision),reason:'Must wait for order',
+      locations:activePreview.locations.map(value=>({locationId:value.id,expectedStockRevision:String(value.expectedStockRevision),quantity:'0'}))});
+    assert.equal(blockedRebase.status,409);assert.equal((await blockedRebase.json()).code,'INVENTORY_REBASE_HAS_OPEN_STOCK');
     const replay=await commerce.checkout(pool,'essentials-test',acceptedBody);
     assert.equal(replay.reference,accepted.reference,'checkout retry returns the same order');
-    let [[orderCount]]=await pool.query('SELECT COUNT(*) AS n FROM sx_retail_orders WHERE tenant_id=?',[tenant]);
+    let [[orderCount]]=await pool.query("SELECT COUNT(*) AS n FROM sx_retail_orders WHERE tenant_id=? AND JSON_SEARCH(order_lines,'one',?,NULL,'$[*].id') IS NOT NULL",[tenant,item]);
     assert.equal(Number(orderCount.n),1,'failed concurrent checkout leaves no order');
     await commerce.transition(pool,tenant,{identityId:identity},accepted.reference,'cancelled',false);
     let [[reservationCount]]=await pool.query('SELECT COUNT(*) AS n FROM sx_retail_stock_reservations WHERE tenant_id=? AND product_id=?',[tenant,item]);
@@ -250,7 +334,29 @@ async function main() {
     assert.equal(finalReturn.status,'returned');
     const afterReturn=await (await send('/?locationId='+location,'owner')).json();
     assert.equal(afterReturn.data.items.find(value=>value.id===item).quantity,'0.75','restocked returns restore exact fractional stock');
-    console.log('Exact inventory, role denial, SKU units/increments, concurrent counts and checkouts, reservations, cancellation, fulfilment, fractional returns, alerts, transfers, and history passed');
+    const oldUnitOrder=await commerce.checkout(pool,'essentials-test',{...checkoutBody(randomUUID()),lines:[{id:item,quantity:'0.25'}],expectedTotal:500});
+    await commerce.transition(pool,tenant,{identityId:identity},oldUnitOrder.reference,'ready',false);
+    await commerce.recordCashReceipt(pool,tenant,{identityId:identity,membershipId:identity,role:'owner'},oldUnitOrder.reference,
+      {requestId:randomUUID(),amountMinor:500});
+    await commerce.transition(pool,tenant,{identityId:identity},oldUnitOrder.reference,'completed',false);
+    const beforeUnitRebase=(await (await send('/products/'+item+'/unit/rebase-preview','owner')).json()).data;
+    assert.equal(beforeUnitRebase.canRebase,true);
+    const oldMovementCount=await pool.query('SELECT COUNT(*) AS n FROM sx_business_stock_movements WHERE tenant_id=? AND product_id=?',[tenant,item]);
+    const itemRebase=await send('/products/'+item+'/unit/rebase','owner',{requestId:randomUUID(),baseUnitCode:'piece',baseUnitLabel:'',baseUnitLabelAr:'',
+      quantityPrecision:0,quantityIncrement:'1',expectedUnitRevision:String(beforeUnitRebase.product.unitRevision),reason:'Synthetic test unit change',
+      locations:beforeUnitRebase.locations.map(value=>({locationId:value.id,expectedStockRevision:String(value.expectedStockRevision),quantity:value.id===location?'1':'0'}))});
+    assert.equal(itemRebase.status,200,JSON.stringify(await itemRebase.json()));
+    await assert.rejects(commerce.returnItems(pool,tenant,{identityId:identity},oldUnitOrder.reference,
+      {requestId:randomUUID(),reason:'Historical yard return',restock:true,lines:[{id:item,quantity:'0.25'}]}),{code:'RETURN_UNIT_RECOUNT_REQUIRED'});
+    await assert.rejects(commerce.transition(pool,tenant,{identityId:identity},oldUnitOrder.reference,'returned',false),{code:'RETURN_UNIT_RECOUNT_REQUIRED'});
+    const noRestock=await commerce.returnItems(pool,tenant,{identityId:identity},oldUnitOrder.reference,
+      {requestId:randomUUID(),reason:'Historical yard return without guessed conversion',restock:false,lines:[{id:item,quantity:'0.25'}]});
+    assert.equal(noRestock.status,'returned');
+    const newMovementCount=await pool.query('SELECT COUNT(*) AS n FROM sx_business_stock_movements WHERE tenant_id=? AND product_id=?',[tenant,item]);
+    assert.equal(Number(newMovementCount[0][0].n),Number(oldMovementCount[0][0].n)+2,'only the two physical recount locations add stock movements');
+    const rebasedStock=(await (await send('/?locationId='+location,'owner')).json()).data.items.find(value=>value.id===item);
+    assert.equal(rebasedStock.baseUnitCode,'piece');assert.equal(rebasedStock.quantity,1);
+    console.log('Exact inventory, role denial, audited multi-location unit rebase, historical unit snapshots/returns, concurrent counts and checkouts, reservations, cancellation, fulfilment, fractional returns, alerts, transfers, and history passed');
   } finally {
     if (server) await new Promise(resolve => server.close(resolve));
     await pool.end();

@@ -16,6 +16,7 @@ const productQuery = `SELECT p.id, p.name_en AS nameEn, p.name_ar AS nameAr, l.c
   p.description_en AS descriptionEn, p.description_ar AS descriptionAr, o.price_minor AS priceMinor,
   COALESCE(iu.base_unit_code,'unit') AS baseUnitCode,COALESCE(iu.base_unit_label,'') AS baseUnitLabel,COALESCE(iu.base_unit_label_ar,'') AS baseUnitLabelAr,
   COALESCE(iu.quantity_precision,0) AS quantityPrecision,CAST(COALESCE(iu.quantity_increment,1.000000) AS CHAR) AS quantityIncrement,
+  COALESCE(iu.revision,0) AS unitRevision,
   vg.id AS variantGroupId,vg.title_en AS variantTitleEn,vg.title_ar AS variantTitleAr,
   vg.option_label_en AS optionLabelEn,vg.option_label_ar AS optionLabelAr,
   vp.value_en AS variantValueEn,vp.value_ar AS variantValueAr,vp.sort_order AS variantSortOrder,
@@ -142,17 +143,41 @@ async function lockProduct(db, tenant, product, active = true) {
     (active ? " AND status='active' AND deleted_at IS NULL" : '') + ' FOR UPDATE', [tenant, product]);
   if (!row) fail('PRODUCT_UNAVAILABLE', 409);
 }
+async function ensureUnitVersion(db,tenant,product,unit,actor){
+  const configured=Boolean(unit),revision=Number(unit?.revision||0);
+  await db.query(`INSERT INTO sx_retail_product_inventory_unit_versions
+    (tenant_id,product_id,revision,base_unit_code,base_unit_label,base_unit_label_ar,quantity_precision,quantity_increment,change_reason,actor_identity_id)
+    VALUES (?,?,?,?,?,?,?,?,?,?) ON DUPLICATE KEY UPDATE revision=VALUES(revision)`,[
+    tenant,product,revision,unit?.baseUnitCode||'unit',unit?.baseUnitLabel||'',unit?.baseUnitLabelAr||'',
+    Number(unit?.quantityPrecision||0),unit?.quantityIncrement||'1.000000',configured?'configured':'legacy_default',
+    configured?(unit?.updatedByIdentityId||actor||null):null]);
+  return revision;
+}
 async function move(db, tenant, locationId, product, request, actor, delta, reason, allowArchived=false) {
   const [[location]]=await db.query(`SELECT id,status FROM sx_retail_locations WHERE tenant_id=? AND id=?${allowArchived?'':" AND status='active'"} FOR UPDATE`,[tenant,locationId]);
   if(!location)fail('LOCATION_UNAVAILABLE',409);
   const [[last]] = await db.query(
     'SELECT CAST(id AS CHAR) AS revision,CAST(quantity AS CHAR) AS quantity FROM sx_business_stock_movements WHERE tenant_id=? AND product_id=? AND location_id=? ORDER BY id DESC LIMIT 1 FOR UPDATE',
     [tenant, product,locationId]);
+  const [[unit]]=await db.query(`SELECT base_unit_code AS baseUnitCode,base_unit_label AS baseUnitLabel,base_unit_label_ar AS baseUnitLabelAr,
+    quantity_precision AS quantityPrecision,CAST(quantity_increment AS CHAR) AS quantityIncrement,revision,updated_by_identity_id AS updatedByIdentityId
+    FROM sx_retail_product_inventory_units WHERE tenant_id=? AND product_id=? FOR UPDATE`,[tenant,product]);
+  const unitRevision=await ensureUnitVersion(db,tenant,product,unit,actor);
   const previous = quantityMath.scaled(last?.quantity || '0')||0n,deltaAmount=quantityMath.signed(delta),next=deltaAmount===null?null:previous+deltaAmount;
   if (next===null||next<0n||next>quantityMath.MAX) fail('STOCK_CHANGED', 409);
   await db.query(`INSERT INTO sx_business_stock_movements
-    (tenant_id,product_id,location_id,request_id,actor_id,previous_revision,previous_quantity,quantity,reason) VALUES (?,?,?,?,?,?,?,?,?)`,
-    [tenant, product,locationId,request, actor, last?.revision || '0', quantityMath.fixed(previous), quantityMath.fixed(next), reason]);
+    (tenant_id,product_id,location_id,request_id,actor_id,previous_revision,previous_unit_revision,unit_revision,previous_quantity,quantity,reason) VALUES (?,?,?,?,?,?,?,?,?,?,?)`,
+    [tenant, product,locationId,request, actor, last?.revision || '0',unitRevision,unitRevision, quantityMath.fixed(previous), quantityMath.fixed(next), reason]);
+}
+async function assertReturnUnitCompatible(db,tenant,product,original){
+  await lockProduct(db,tenant,product,false);
+  if(original.unitRevision===null){
+    const [[rebase]]=await db.query('SELECT id FROM sx_retail_inventory_unit_rebases WHERE tenant_id=? AND product_id=? ORDER BY created_at DESC LIMIT 1 FOR UPDATE',[tenant,product]);
+    if(rebase)fail('RETURN_UNIT_RECOUNT_REQUIRED',409);
+    return;
+  }
+  const [[unit]]=await db.query('SELECT COALESCE(revision,0) AS revision FROM sx_retail_product_inventory_units WHERE tenant_id=? AND product_id=? FOR UPDATE',[tenant,product]);
+  if(Number(unit?.revision||0)!==original.unitRevision)fail('RETURN_UNIT_RECOUNT_REQUIRED',409);
 }
 function returnInput(input) {
   if(!input||!uuid.test(input.requestId||'')||typeof input.restock!=='boolean'||!Array.isArray(input.lines)||!input.lines.length||input.lines.length>30)fail('INVALID_RETURN');
@@ -178,13 +203,14 @@ async function returnItems(pool,tenant,actor,orderId,input) {
     if(!order||!['completed','partially_returned'].includes(order.status))fail('RETURN_UNAVAILABLE',409);
     const purchased=typeof order.orderLines==='string'?JSON.parse(order.orderLines):order.orderLines;
     const purchasedById=new Map(purchased.map(line=>[line.id,{quantity:quantityMath.scaled(line.quantity),priceMinor:Number(line.priceMinor),
-      quantityPrecision:Number(line.quantityPrecision||0),quantityIncrement:line.quantityIncrement||'1'}]));
+      quantityPrecision:Number(line.quantityPrecision||0),quantityIncrement:line.quantityIncrement||'1',unitRevision:line.unitRevision==null?null:Number(line.unitRevision)}]));
     const [priorLines]=await db.query('SELECT product_id AS productId,SUM(quantity) AS quantity FROM sx_retail_return_lines WHERE tenant_id=? AND order_id=? GROUP BY product_id',[tenant,orderId]);
     const alreadyReturned=new Map(priorLines.map(line=>[line.productId,quantityMath.scaled(line.quantity)||0n]));
     for(const line of request.lines){
       const original=purchasedById.get(line.id);
       const amount=quantityMath.scaled(line.quantity),returned=alreadyReturned.get(line.id)||0n,remaining=original?.quantity===null?null:original?.quantity-returned;
       if(!original||!quantityMath.atPrecision(amount,original.quantityPrecision)||!quantityMath.isMultiple(amount,quantityMath.scaled(original.quantityIncrement))||remaining===null||amount>remaining)fail('RETURN_QUANTITY_EXCEEDED',409);
+      if(request.restock)await assertReturnUnitCompatible(db,tenant,line.id,original);
     }
     const id=randomUUID();
     await db.query('INSERT INTO sx_retail_returns (id,tenant_id,order_id,request_id,request_hash,reason,restocked,created_by_identity_id) VALUES (?,?,?,?,?,?,?,?)',
@@ -192,7 +218,6 @@ async function returnItems(pool,tenant,actor,orderId,input) {
     for(const line of request.lines){
       await db.query('INSERT INTO sx_retail_return_lines (tenant_id,return_id,order_id,product_id,quantity) VALUES (?,?,?,?,?)',[tenant,id,orderId,line.id,quantityMath.fixed(quantityMath.scaled(line.quantity))]);
       if(request.restock){
-        await lockProduct(db,tenant,line.id,false);
         await move(db,tenant,order.locationId,line.id,id,actor.identityId,line.quantity,'Retail return: '+request.reason,true);
       }
     }
@@ -301,7 +326,7 @@ async function checkout(pool, slug, input) {
       const amount=quantityMath.scaled(line.quantity),precision=Number(item.quantityPrecision||0),increment=quantityMath.scaled(item.quantityIncrement||'1.000000');
       if(!quantityMath.atPrecision(amount,precision)||!quantityMath.isMultiple(amount,increment))fail('INVALID_ORDER_QUANTITY');
       return {...line, quantity:quantityMath.json(amount,precision), nameEn: item.nameEn, nameAr: item.nameAr, priceMinor: Number(item.priceMinor),
-        baseUnitCode:item.baseUnitCode||'unit',baseUnitLabel:item.baseUnitLabel||'',baseUnitLabelAr:item.baseUnitLabelAr||'',quantityPrecision:precision,
+        baseUnitCode:item.baseUnitCode||'unit',baseUnitLabel:item.baseUnitLabel||'',baseUnitLabelAr:item.baseUnitLabelAr||'',quantityPrecision:precision,unitRevision:Number(item.unitRevision||0),
         quantityIncrement:quantityMath.format(increment,precision),
         variantGroupId:item.variantGroupId||null,variantTitleEn:item.variantTitleEn||null,variantTitleAr:item.variantTitleAr||null,
         optionLabelEn:item.optionLabelEn||null,optionLabelAr:item.optionLabelAr||null,
@@ -588,7 +613,8 @@ async function transition(pool, tenant, actor, id, next, driver) {
         await db.query('INSERT INTO sx_retail_returns (id,tenant_id,order_id,request_id,request_hash,reason,restocked,created_by_identity_id) VALUES (?,?,?,?,?,?,?,?)',
           [returnId,tenant,id,request,requestHash,'Full return',1,actor.identityId]);
         for(const line of remaining){
-          await lockProduct(db,tenant,line.id,false);
+          const original=lines.find(item=>item.id===line.id);
+          await assertReturnUnitCompatible(db,tenant,line.id,{unitRevision:original?.unitRevision==null?null:Number(original.unitRevision)});
           await db.query('INSERT INTO sx_retail_return_lines (tenant_id,return_id,order_id,product_id,quantity) VALUES (?,?,?,?,?)',[tenant,returnId,id,line.id,quantityMath.fixed(quantityMath.scaled(line.quantity))]);
           await move(db,tenant,order.locationId,line.id,returnId,actor.identityId,line.quantity,'Retail order returned',true);
         }
