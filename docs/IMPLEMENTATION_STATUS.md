@@ -108,6 +108,14 @@ Generic diploma-duration enquiries now prompt the customer to select one of the 
 
 ## Essentials by D WooCommerce connection — partial live sync rechecked, 18 November 2026
 
+### Latest read-only recheck — 12:45 UTC
+
+A fresh read-only host check confirmed `carsqatar-prod-01`, with `/opt/salemax/current` resolving to `/opt/salemax/releases/training-pipeline-correction-v3-9867ca72-20261104`. The app and MariaDB containers reported healthy, `https://7network.live/healthz` returned 200, and 20 GB was free on `/`. Docker labels still include the Retail Connected Stores and Woo connect-fix overlay files. The active base release has no `deploy/compose.yml`, so container status and overlay labels were checked directly. No service or release changed.
+
+The read-only database transaction found the Essentials by D Woo connection still active in QAR, with `last_sync_at` and `updated_at` unchanged at `2026-11-17 11:41:08.421 UTC`, no error, and 50 product, 50 order, and 50 customer snapshots. The variation snapshot table remains absent. No ledger entries exist for Retail migrations `20270205`–`20270212`. `SALEMAX_RETAIL_CONNECTOR_PILOT_TENANTS` is unset in production runtime; the proposed source gate is not deployed. WordPress-side key rotation remains unverified, and no replacement key has been reconnected in 7Network.
+
+The query selected only connection metadata, snapshot counts, migration status, and cursor presence; it did not output credential ciphertext, raw cursor values, tenant IDs or imported customer/order payloads. No Woo API request, sync/import, migration, webhook, write-back, customer message, website setting, checkout, payment or production service change occurred.
+
 ### Latest read-only recheck — 08:57 UTC
 
 The production app and MariaDB containers were healthy; `/opt/salemax/current` resolved to the recorded base release, 20 GB was free on `/`, and Asterisk remained inactive. The Essentials by D Woo connection is still active with `last_sync_at` and `updated_at` both unchanged at `2026-11-17 11:41:08.421 UTC`; no connection error is recorded. Snapshot counts remain 50 products, 50 orders and 50 customers. The Woo variation snapshot table is absent, and the exact schema-ledger lookup returned no rows for Retail migrations `20270205`–`20270212`.
