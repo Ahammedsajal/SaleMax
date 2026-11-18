@@ -2,6 +2,12 @@
 
 Status as of 18 November 2026. This plan extends the existing 7Network Retail category inside the current business workspace. It does not introduce another application, CRM, login, plan catalogue, or shell. Essentials by D is the only store in the current scope; do not onboard another store under this pilot.
 
+## Latest production metadata recheck — partial sync, 18 November 2026 at 11:23 UTC
+
+A read-only production check verified `carsqatar-prod-01`, the existing base release `/opt/salemax/releases/training-pipeline-correction-v3-9867ca72-20261104`, healthy app and MariaDB containers, and 20 GB free on `/`. No release or service changed.
+
+The Essentials by D connection is still active in QAR. Its `last_sync_at` and `updated_at` remain `2026-11-17 11:41:08.421 UTC`; aggregate snapshots remain 50 products, 50 orders, and 50 customers, with no recorded connection error. The 10:04 UTC check recorded incomplete page-2 cursors; this recheck did not read or alter cursors. No replacement key has been confirmed in Connected Stores. The schema ledger still has no Retail migrations `20270205`–`20270212`, and `sx_retail_external_product_variants` remains absent. This metadata-only query did not read credentials, sync cursors, or imported payloads; it made no Woo request, sync, migration, webhook, write-back, customer message, WordPress, checkout, or payment change.
+
 ## Latest production recheck — partial sync and key-rotation state, 18 November 2026 at 10:04 UTC
 
 The 10:04 UTC metadata-only recheck verified `carsqatar-prod-01`, the current base release `/opt/salemax/releases/training-pipeline-correction-v3-9867ca72-20261104`, healthy app and MariaDB containers, running report/recruitment workers, and 20 GB free on `/`. Docker Compose labels confirmed the Retail Connected Stores and Woo connect-fix overlays remain in the active layered chain. No release, service or configuration was changed.
