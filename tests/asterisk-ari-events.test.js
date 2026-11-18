@@ -71,8 +71,10 @@ test('mobile SIP direct dialing accepts international and national number string
   assert.deepEqual(mobileOutboundArgs(['mobile-outbound','0097455550000']),{destination:'0097455550000'});
   assert.equal(mobileOutboundArgs(['mobile-outbound','555555']),null);
   assert.equal(mobileOutboundArgs(['mobile-outbound','+97455550000','extra']),null);
-  assert.equal(mobileEndpointExtension('PJSIP/salemax-1201-mobile-r1-0000002a'),'1201');
-  assert.equal(mobileEndpointExtension('PJSIP/salemax-1201-mobile-r2-0000002a'),'1201');
+  assert.equal(mobileEndpointExtension('PJSIP/7network-1201-mobile-r1-0000002a'),'1201');
+  assert.equal(mobileEndpointExtension('PJSIP/7network-1201-mobile-r2-0000002a'),'1201');
+  assert.equal(mobileEndpointExtension('PJSIP/salemax-1201-mobile-r1-0000002a'),'1201',
+    'legacy endpoint names remain parseable so stale channels can be rejected cleanly');
   assert.equal(mobileEndpointExtension('PJSIP/salemax-1201-mobile-r0-0000002a'),null);
   assert.equal(mobileEndpointExtension('PJSIP/salemax-1201-browser-0000002a'),null);
   assert.equal(mobileEndpointExtension('PJSIP/salemax-1201-mobile;context=trusted'),null);
@@ -111,7 +113,7 @@ test('a Qatar mobile app local dial is normalized before it is reserved and sent
   const control=new AsteriskCallControl({pool:{async getConnection(){return db;}}});control.client=async()=>client;
   try{
     assert.equal(mobileOutboundArgs(['mobile-outbound','55550000']).destination,'55550000');
-    assert.equal(await control.startMobileOutbound('mobile-channel-1',{channelName:'PJSIP/salemax-1201-mobile-r1-00000001',destination:'55550000'}),true);
+    assert.equal(await control.startMobileOutbound('mobile-channel-1',{channelName:'PJSIP/7network-1201-mobile-r1-00000001',destination:'55550000'}),true);
     assert.equal(recordedDestination,'+97455550000');
     assert.equal(originated.destination,'+97455550000');
     assert.equal(originated.channelNo,1);
@@ -239,12 +241,12 @@ test('ARI call client restricts originated endpoints, app arguments, and transpo
   });
   try {
     const callChannelId = crypto.randomUUID();
-    const agent = await client.originateAgent({ extension: '1201', endpointId:'salemax-1201-mobile-r1', clientType: 'mobile', channelId: callChannelId,
+    const agent = await client.originateAgent({ extension: '1201', endpointId:'7network-1201-mobile-r1', clientType: 'mobile', channelId: callChannelId,
       appArgs: ['outbound-agent', callChannelId], callerId: '+97455550001' });
     assert.equal(agent.id, callChannelId);
     const agentRequest = requests[0];
     assert.equal(agentRequest.url.pathname, '/ari/channels');
-    assert.equal(agentRequest.url.searchParams.get('endpoint'), 'PJSIP/salemax-1201-mobile-r1');
+    assert.equal(agentRequest.url.searchParams.get('endpoint'), 'PJSIP/7network-1201-mobile-r1');
     assert.equal(agentRequest.url.searchParams.get('app'), APP_NAME);
     assert.equal(agentRequest.url.searchParams.get('callerId'), '+97455550001','inbound agent legs receive the caller number');
     assert.equal(agentRequest.options.headers.Authorization, `Basic ${Buffer.from('salemax-events:test-password-that-is-long-enough').toString('base64')}`);
@@ -260,8 +262,11 @@ test('ARI call client restricts originated endpoints, app arguments, and transpo
     await assert.rejects(client.originateAgent({ extension: '1201@evil', clientType: 'mobile', channelId: crypto.randomUUID(), appArgs: [] }), { code: 'INVALID_ARI_ORIGINATE' });
     await assert.rejects(client.originateAgent({ extension: '1201', clientType: 'mobile', channelId: crypto.randomUUID(), appArgs: [], callerId: '+97455550000,evil' }), { code: 'INVALID_ARI_ORIGINATE' });
     await assert.rejects(client.originateGateway({ destination: '+97455550000', channelNo: 5, channelId: crypto.randomUUID(), appArgs: [] }), { code: 'INVALID_ARI_ORIGINATE' });
-    await assert.rejects(client.originateAgent({ extension: '1201', endpointId:'salemax-1201-mobile-r1', clientType: 'mobile',
+    await assert.rejects(client.originateAgent({ extension: '1201', endpointId:'7network-1201-mobile-r1', clientType: 'mobile',
       channelId: crypto.randomUUID(), appArgs: ['bad,arg'] }), { code: 'INVALID_ARI_APP_ARGS' });
+    await assert.rejects(client.originateAgent({ extension: '1201', endpointId:'salemax-1201-mobile-r1', clientType: 'mobile',
+      channelId: crypto.randomUUID(), appArgs: ['outbound-agent', crypto.randomUUID()] }), { code: 'INVALID_ARI_ORIGINATE' },
+      'legacy mobile usernames cannot be re-originated as active 7Network devices');
     currentRevision++;
     const requestCount = requests.length;
     await assert.rejects(client.answer(agent.id), { code: 'ASTERISK_CONFIG_CHANGED' });

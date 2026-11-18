@@ -22,27 +22,29 @@ function memberEndpointProfile(extension, clientType, credentialRevision) {
   if (!/^[0-9]{3,8}$/.test(extension || '') || !['mobile','browser'].includes(clientType)
     || !Number.isSafeInteger(credentialRevision) || credentialRevision < 1) fail('INVALID_SIP_ENDPOINT');
   const legacyEndpointId = `salemax-${extension}-${clientType}`;
-  const endpointId = `${legacyEndpointId}-r${credentialRevision}`;
+  const endpointBaseId = clientType === 'mobile' ? `7network-${extension}-mobile` : legacyEndpointId;
+  const endpointId = `${endpointBaseId}-r${credentialRevision}`;
   // Keep the SIP username, endpoint and AoR revisioned together: Asterisk
   // matches both From and REGISTER To users to these object names. A credential
   // reset therefore moves registrations to a new AoR and can revoke the old one.
   const username = endpointId;
   return {
     username,
-    authId: `${legacyEndpointId}-r${credentialRevision}-auth`,
+    authId: `${endpointId}-auth`,
     aorId: endpointId,
     endpointId,
+    endpointBaseId,
     legacyEndpointId,
   };
 }
 
 function profileObjectIds(extension, clientType, credentialRevision) {
   const profile=memberEndpointProfile(extension,clientType,credentialRevision);
-  const base = profile.legacyEndpointId;
+  const bases = [...new Set([profile.legacyEndpointId, profile.endpointBaseId])];
   return {
-    endpointIds: [base, profile.endpointId],
-    authIds: [`${base}-auth`, profile.authId],
-    aorIds: [base, `${base}-aor`, profile.aorId, `${profile.aorId}-aor`],
+    endpointIds: bases.flatMap(base => [base, `${base}-r${credentialRevision}`]),
+    authIds: bases.flatMap(base => [`${base}-auth`, `${base}-r${credentialRevision}-auth`]),
+    aorIds: bases.flatMap(base => [base, `${base}-aor`, `${base}-r${credentialRevision}`, `${base}-r${credentialRevision}-aor`]),
   };
 }
 
@@ -52,11 +54,13 @@ function endpointField(fields, name) {
 
 function memberProfileObjectId(value, extension, clientType, objectType) {
   if (typeof value !== 'string' || !/^[0-9]{3,8}$/.test(extension || '') || !['mobile','browser'].includes(clientType)) return false;
-  const base = `salemax-${extension}-${clientType}`;
-  if (objectType === 'endpoint') return value === base || new RegExp(`^${base}-r[1-9][0-9]*$`).test(value);
-  if (objectType === 'aor') return value === base || value === `${base}-aor`
-    || new RegExp(`^${base}-r[1-9][0-9]*(?:-aor)?$`).test(value);
-  if (objectType === 'auth') return value === `${base}-auth` || new RegExp(`^${base}-r[1-9][0-9]*-auth$`).test(value);
+  const legacy = `salemax-${extension}-${clientType}`;
+  const current = clientType === 'mobile' ? `7network-${extension}-mobile` : legacy;
+  const bases = [...new Set([legacy, current])];
+  if (objectType === 'endpoint') return bases.some(base => value === base || new RegExp(`^${base}-r[1-9][0-9]*$`).test(value));
+  if (objectType === 'aor') return bases.some(base => value === base || value === `${base}-aor`
+    || new RegExp(`^${base}-r[1-9][0-9]*(?:-aor)?$`).test(value));
+  if (objectType === 'auth') return bases.some(base => value === `${base}-auth` || new RegExp(`^${base}-r[1-9][0-9]*-auth$`).test(value));
   return false;
 }
 
@@ -859,7 +863,7 @@ async function probeGatewayEndpoint(fetchImpl, ariBaseUrl, username, password) {
 
 async function probePjsipEndpointStates(fetchImpl, ariBaseUrl, username, password, resources) {
   if (!Array.isArray(resources) || resources.length > 32 || resources.some(resource => typeof resource !== 'string'
-    || !(/^(?:salemax_dinstar_uc2000ve|salemax_gw_[a-f0-9]{32}|salemax-[0-9]{3,8}-(?:mobile|browser)(?:-r[1-9][0-9]*)?)$/.test(resource)))) fail('INVALID_ARI_ENDPOINT_PROBE');
+    || !(/^(?:(?:salemax_dinstar_uc2000ve|salemax_gw_[a-f0-9]{32})|(?:salemax-[0-9]{3,8}-(?:mobile|browser)|7network-[0-9]{3,8}-mobile)(?:-r[1-9][0-9]*)?)$/.test(resource)))) fail('INVALID_ARI_ENDPOINT_PROBE');
   const states = Object.fromEntries([...new Set(resources)].map(resource => [resource, 'unknown']));
   if (!Object.keys(states).length) return states;
   const target = endpoint(ariBaseUrl);

@@ -127,7 +127,7 @@ test('a Qatar local-number do-not-call lead blocks a direct E.164 mobile call',a
   const control=new AsteriskCallControl({pool:{async getConnection(){return db;}}});
   control.client=async()=>({async hangup(channelId){hangups.push(channelId);}});
   try{
-    await assert.rejects(control.startMobileOutbound('mobile-channel-1',{channelName:'PJSIP/salemax-1201-mobile-r1-00000001',destination:'+97455550000'}),
+    await assert.rejects(control.startMobileOutbound('mobile-channel-1',{channelName:'PJSIP/7network-1201-mobile-r1-00000001',destination:'+97455550000'}),
       {code:'CALL_LEAD_DO_NOT_CALL'});
     const suppression=statements.find(row=>row.sql.includes('EXISTS(SELECT 1 FROM pipeline_activity'));
     assert.deepEqual(suppression.args,[uidHash,['97455550000','55550000']]);
@@ -161,7 +161,7 @@ test('Sales mobile app can direct-dial an unlinked number without CRM lead acces
   control.startOutboundGateway=async(channelId,reservation,options)=>{started={channelId,reservation,options};return true;};
   try{
     assert.equal(await control.startMobileOutbound('mobile-channel-1',{
-      channelName:'PJSIP/salemax-1201-mobile-r1-00000001',destination:'55550000'}),true);
+      channelName:'PJSIP/7network-1201-mobile-r1-00000001',destination:'55550000'}),true);
     assert.equal(callInsert[9],'+97455550000');
     assert.equal(callInsert[7],null,'an unmatched direct number has no lead UID link');
     assert.equal(callInsert[8],null,'an unmatched direct number has no lead ID link');

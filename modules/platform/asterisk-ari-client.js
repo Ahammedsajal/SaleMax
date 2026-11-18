@@ -90,10 +90,13 @@ function createAriClient(row, { fetchImpl = globalThis.fetch, timeoutMs = 5000, 
       }
     },
     async originateAgent({ extension, endpointId, clientType, channelId, appArgs, callerId, timeout = 25 }) {
-      const identity=typeof endpointId==='string'?endpointId.match(/^salemax-([0-9]{3,8})-(mobile|browser)-r([1-9][0-9]*)$/):null;
-      const credentialRevision=identity?Number(identity[3]):0;
+      const mobileIdentity=typeof endpointId==='string'?endpointId.match(/^7network-([0-9]{3,8})-mobile-r([1-9][0-9]*)$/):null;
+      const legacyIdentity=typeof endpointId==='string'?endpointId.match(/^salemax-([0-9]{3,8})-(mobile|browser)-r([1-9][0-9]*)$/):null;
+      const identity=mobileIdentity?{extension:mobileIdentity[1],clientType:'mobile',revision:mobileIdentity[2]}
+        :legacyIdentity?{extension:legacyIdentity[1],clientType:legacyIdentity[2],revision:legacyIdentity[3]}:null;
+      const credentialRevision=identity?Number(identity.revision):0;
       if (!EXTENSION.test(extension || '') || !['mobile', 'browser'].includes(clientType)
-        || !identity || !Number.isSafeInteger(credentialRevision) || identity[1]!==extension || identity[2]!==clientType
+        || !identity || !Number.isSafeInteger(credentialRevision) || identity.extension!==extension || identity.clientType!==clientType
         || asterisk.memberEndpointProfile(extension,clientType,credentialRevision).endpointId!==endpointId || !UUID.test(channelId || '')
         || callerId !== undefined && callerId !== null && !/^\+?[1-9][0-9]{6,14}$/.test(callerId)
         || !Number.isInteger(timeout) || timeout < 5 || timeout > 60) fail('INVALID_ARI_ORIGINATE');

@@ -51,11 +51,11 @@ function mobileOutboundArgs(args) {
 }
 
 function mobileEndpointIdentity(channelName) {
-  const match = String(channelName || '').match(/^(PJSIP\/(salemax-[0-9]{3,8}-mobile-r([1-9][0-9]*)))(?:-[A-Za-z0-9_.:-]+)?$/);
+  const match = String(channelName || '').match(/^(PJSIP\/((?:7network|salemax)-([0-9]{3,8})-mobile-r([1-9][0-9]*)))(?:-[A-Za-z0-9_.:-]+)?$/);
   if (!match) return null;
-  const credentialRevision=Number(match[3]);
+  const credentialRevision=Number(match[4]);
   if (!Number.isSafeInteger(credentialRevision)) return null;
-  return { channelPrefix:match[1],endpointId:match[2],extension:match[2].match(/^salemax-([0-9]{3,8})-/)[1],credentialRevision };
+  return { channelPrefix:match[1],endpointId:match[2],extension:match[3],credentialRevision };
 }
 
 function mobileEndpointExtension(channelName) {
