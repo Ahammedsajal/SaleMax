@@ -140,11 +140,13 @@ The connected-order API and sync group passed 23/23, including tenant-scoped que
 
 The connector is now default-deny outside tenant UUIDs listed in runtime-only `SALEMAX_RETAIL_CONNECTOR_PILOT_TENANTS`. The gate hides Connected Stores from non-pilot navigation and blocks Connected Stores workspace APIs, imported online-order reads, Shopify OAuth completion, and Woo/Shopify webhook event processing before data access. Existing Retail owner/manager permissions still apply inside the allowlist. The production variable has not been set; deployment must configure only the Essentials by D tenant ID outside Git.
 
-The selected Retail, pilot allowlist/navigation, role-policy, and Woo sync suites pass 49/49; both Retail deployment-helper suites pass 6/6. Syntax and whitespace checks pass. This source-only gate is not deployed; no production environment, website, checkout, payment, migration, live store record, or webhook was changed. Actual browser-screen role, EN/AR RTL, theme, viewport, and PWA verification remains open.
+The selected Retail, pilot allowlist/navigation, role-policy, and Woo sync suites now pass 50/50, including owner reconnect with the same connection ID and reset cursor; both Retail deployment-helper suites previously passed 6/6. Syntax and whitespace checks pass. This source-only gate is not deployed; no production environment, website, checkout, payment, migration, live store record, or webhook was changed. Actual browser-screen role, EN/AR RTL, theme, viewport, and PWA verification remains open.
 
 ### WooCommerce read retry — source only, 18 November 2026
 
 WooCommerce GET sync now retries transient transport failures and HTTP 408/425/429/5xx responses at most twice after the initial request. It observes short `Retry-After` hints, uses bounded backoff otherwise, and stops instead of retrying early when the requested wait exceeds the interactive retry limit. Authentication and non-transient errors are not retried. The synthetic paginated sync covers a dropped connection and rate-limited request recovering on retry. No production sync or Woo request was performed.
+
+The current Woo reconnect flow was also traced: the add-store form rejects an already-active domain. After owner-side key revocation, disconnecting the active 7Network store retains imported snapshots; reconnecting the same domain reuses the revoked connection ID and resets the sync cursor. A synthetic route regression test confirms the reconnect path performs only its read-only verification request and does not expose the replacement key or write imported records. Production was not changed.
 
 ## Pro Catalyst generic ad enquiry discovery prompt — deployed, 16 November 2026
 

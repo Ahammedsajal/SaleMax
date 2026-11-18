@@ -219,6 +219,41 @@ test('WooCommerce connection persists a verified read-only store without startin
   }
 });
 
+test('reconnecting a revoked Woo store reuses its ID and resets the resumable cursor after a read-only check',async()=>{
+  const originalRequest=connector.requestHttps,originalKey=process.env.SALEMAX_PLATFORM_KEY_BASE64;
+  process.env.SALEMAX_PLATFORM_KEY_BASE64=Buffer.alloc(32,13).toString('base64');
+  const tenantId='aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',connectionId='bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb';
+  const calls=[],requests=[],db={beginTransaction:async()=>{},commit:async()=>{},rollback:async()=>{},release:()=>{},query:async(sql,params)=>{
+    calls.push({sql,params});
+    if(sql.startsWith('SELECT id,tenant_id,status FROM sx_retail_store_connections'))return [[{id:connectionId,tenant_id:tenantId,status:'revoked'}],[]];
+    return [{affectedRows:1},[]];
+  }};
+  const pool={getConnection:async()=>db},router=workspaceRouter({pool,authenticate:(_req,_res,next)=>next(),origin:'https://workspace.example.invalid'});
+  const handler=router.routes.get('POST /woocommerce'),context={audience:'tenant',tenant:{id:tenantId,status:'active',categoryKey:'retail_boutique',categoryVersion:1,currency:'QAR'},
+    membership:{tenantId,status:'active',role:'owner'},subscription:{status:'active',capabilities:['retail.commerce']},
+    category:{key:'retail_boutique',version:1,capabilities:['retail.commerce']},identity:{id:'dddddddd-dddd-4ddd-8ddd-dddddddddddd'}};
+  let response=null,error=null;
+  const req={businessContext:context,params:{},query:{},body:{storeUrl:'https://store.example.com',displayName:'Test Store',currency:'QAR',consumerKey:'ck_'+'C'.repeat(32),consumerSecret:'cs_'+'D'.repeat(32)}};
+  const res={json(value){response={status:200,value};return this;},sendStatus(status){response={status};return this;}};
+  connector.requestHttps=async(url,options)=>{requests.push({url,method:options.method||'GET'});return {status:200,data:[]};};
+  try{
+    await handler(req,res,value=>{error=value;});
+    assert.equal(error,null);assert.equal(response.status,200);assert.equal(response.value.data.connection.id,connectionId);
+    assert.equal(response.value.data.connection.status,'active');
+    assert.equal(JSON.stringify(response.value).includes('ck_'+'C'.repeat(32)),false);
+    assert.equal(JSON.stringify(response.value).includes('cs_'+'D'.repeat(32)),false);
+    assert.equal(requests.length,1);assert.equal(requests[0].method,'GET');
+    const reconnect=calls.find(item=>item.sql.startsWith('UPDATE sx_retail_store_connections'));
+    assert.ok(reconnect);assert.match(reconnect.sql,/sync_cursor=NULL/);assert.match(reconnect.sql,/sync_lock_token=NULL/);
+    assert.deepEqual(reconnect.params.slice(-2),[tenantId,connectionId]);
+    assert.equal(calls.some(item=>/INSERT INTO sx_retail_external_(products|product_variants|orders|customers)/.test(item.sql)),false);
+    assert.ok(calls.some(item=>item.params?.includes('retail.store-reconnected')));
+  }finally{
+    connector.requestHttps=originalRequest;
+    if(originalKey===undefined)delete process.env.SALEMAX_PLATFORM_KEY_BASE64;else process.env.SALEMAX_PLATFORM_KEY_BASE64=originalKey;
+  }
+});
+
 test('connected-store reads are tenant-scoped and owner-only', async () => {
   const tenantId = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
   const otherTenantId = 'cccccccc-cccc-4ccc-8ccc-cccccccccccc';
