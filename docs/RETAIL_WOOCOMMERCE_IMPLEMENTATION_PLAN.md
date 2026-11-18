@@ -94,6 +94,12 @@ The rollout order is:
 
 Each phase is a separately reviewed release. Synthetic and local integration checks do not prove production reconciliation. The live acceptance is limited to the user-approved read-only Essentials by D import; any later write-back, webhook, or site configuration needs separate authorization. Preserve the current /user shell, Manage Plans and Manage Users flows, tenant authorization, English/Arabic and RTL behavior, light/dark theme, responsive states, and PWA-safe navigation and caching.
 
+## Focused verification re-run — 18 November 2026, review head `352fd508`
+
+An isolated test checkout sourced from review head `352fd508f27a2d27b8add38c2d5a67a1b8af5667` passed the focused Node Retail/WooCommerce suites 39/39, covering pilot allowlisting, role and tenant boundaries, read-only order summary/detail, PII exclusion, exact quantities, SKU and variation mapping, resumable GET sync, reconnect after revocation, exact reconciliation, signed/replay-safe webhook handling, and deterministic field-free connector packaging. The two Retail release-helper suites passed 6/6. The standalone PHP plugin harness reported `checkoutAndPaymentFields:false`, `contactConsent:denied`, and `liveWordPressOrWooUsed:false`.
+
+These checks use synthetic requests and isolated source only. They did not call production WooCommerce, read production order/customer payloads, run migrations, send messages, change WordPress, or write catalog/stock/payment data. The previously recorded MariaDB migration replay and inventory integration remain separate evidence; production backup/restore, live read-only reconciliation, unit decisions, visual acceptance and the broader Training Reports integration gate remain open.
+
 ## Existing implementation found
 
 | Area | Present in production/source | Material gap |
