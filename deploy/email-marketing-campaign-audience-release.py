@@ -230,7 +230,8 @@ def validate_stage(stage_path, commit):
     if ('function renderAudienceReview' not in ui or 'data-audience-page' not in ui or
             'No recorded opt-in · included' not in ui or 'You are responsible for the selected recipient list.' not in ui or 'em-audience-review' not in css or
             'em-audience-list' not in css or 'function previewAudience' not in service or
-            'pageSize,pageCount' not in service or 'withoutRecordedOptInCount:audience.noConsent' not in service or
+            'pageSize:AUDIENCE_PREVIEW_PAGE_SIZE,pageCount' not in service or
+            'withoutRecordedOptInCount:audience.noConsent' not in service or
             'if(Number(row.email_marketing_consent)!==1)result.noConsent++;' not in service or
             'result.noConsent++;continue;' in service or 'CONTACT_UNSUBSCRIBED' not in worker or
             'CONTACT_CONSENT_REVOKED' in worker or 'inbound.replyToken' not in worker):
