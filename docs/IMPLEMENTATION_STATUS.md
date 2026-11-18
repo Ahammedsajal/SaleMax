@@ -1,3 +1,9 @@
+## 7Network Email Marketing public DNS fallback — deployed, 18 November 2026
+
+Email Marketing MX verification now checks the server resolver first and falls back to direct Cloudflare (`1.1.1.1`) and Google (`8.8.8.8`) DNS queries if the expected SES MX record is missing or the server resolver reports a recognized DNS failure. This bypasses a stale Oracle VCN negative cache without changing host/subnet DNS, root-domain records or other application lookups. Public resolvers are queried only for this Email Marketing MX check.
+
+Source commit `22a2cc19c94573fea6e211bf60e6d5eda81065a7` is deployed in the app-only overlay `/opt/salemax/releases/email-marketing-mx-fallback-22a2cc19c945-20261118T082341Z` on the unchanged production image. The app and database are healthy, all seven non-app containers remained unchanged, and no migration ran. Unit tests pass 17/17. Production verification forced a simulated local `ENOTFOUND`; the real public DNS fallback resolved the configured `reply.7network.live` SES MX. No email was sent. A real inbound reply delivery test remains open; see `DEPLOYMENT.md` for runtime hashes and guarded rollback.
+
 ## Zoiper selection and current production readiness — application code deployed, device acceptance pending, 18 November 2026
 
 The owner selected Zoiper for staff mobile calling. Staff use its keypad for direct number dialing and answer inbound calls; they do not need a 7Network CRM login or lead browsing. The Zoiper account display label is `7Network` or `7Network · <staff name>`. The mobile SIP username, PJSIP endpoint and AoR now use `7network-<extension>-mobile-r<revision>`; the auth object is `<username>-auth`. The ARI PJSIP client accepts these 7Network mobile object names and bounded cleanup variants; it retains the legacy `salemax` namespace for browser, gateway and stale mobile objects. Browser endpoint IDs and operational environment/host identifiers remain compatibility names.
