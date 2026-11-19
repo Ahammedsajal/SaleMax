@@ -3,7 +3,8 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
-const { splitSql, discover, applyMigrations } = require('../database/migration-runner');
+const crypto = require('node:crypto');
+const { splitSql, discover, applyMigrations, isCompatibleMigrationChecksum } = require('../database/migration-runner');
 test('quoted delimiters and comments do not split SQL', () => {
   assert.deepEqual(splitSql("-- ;\nINSERT INTO x VALUES ('a;b', 'it''s'); /* ; */ SELECT `a;b`; # comment"), ["INSERT INTO x VALUES ('a;b', 'it''s')", 'SELECT `a;b`']);
   for (const sql of ["SELECT 'broken", '/* broken', 'DELIMITER $$', '/*! DROP TABLE x */']) assert.throws(() => splitSql(sql));
@@ -13,6 +14,11 @@ test('actual discovery excludes destructive rollback', () => {
   assert.ok(migrations.some(m => m.file === '20261127_training_course_soft_deletion.sql'));
   assert.ok(migrations.some(m => m.file === '20261113_team_role_profiles.sql'));
   assert.ok(migrations.some(m => m.file === '20261206_legacy_crm_user_sync_queue.sql'));
+  const notificationSettingsBootstrap = migrations.findIndex(m => m.file === '20261023_business_notification_settings_bootstrap.sql');
+  const dailyReportTime = migrations.findIndex(m => m.file === '20261024_business_daily_report_default_time.sql');
+  const notificationTables = migrations.find(m => m.file === '20261225_business_whatsapp_notifications.sql');
+  assert.ok(notificationSettingsBootstrap >= 0 && notificationSettingsBootstrap < dailyReportTime, 'notification settings exist before the default-time alteration');
+  assert.ok(notificationTables?.statements[0].startsWith('CREATE TABLE IF NOT EXISTS sx_business_notification_settings'));
   const recruitmentScreenings=migrations.find(m=>m.file==='20261019_sales_recruitment_screenings.sql');
   assert.ok(recruitmentScreenings);
   assert.match(recruitmentScreenings.statements.join('\n'),/UNIQUE KEY sx_recruitment_screening_conversation/);
@@ -71,6 +77,20 @@ test('applied history is skipped and checksum drift blocks new SQL', async () =>
   await assert.rejects(applyMigrations(bad, [migration]), { code: 'MIGRATION_CHECKSUM_CHANGED' });
   assert.ok(!bad.calls.some(call => call.sql.startsWith('INSERT')));
   assert.ok(bad.calls.at(-1).sql.includes('RELEASE_LOCK'));
+});
+test('the exact deployed notification migration checksum remains valid after its idempotency fix', async () => {
+  const file = '20261225_business_whatsapp_notifications.sql';
+  const source = fs.readFileSync(path.join(__dirname, '../database/migrations', file), 'utf8');
+  const notificationMigration = { file, checksum: crypto.createHash('sha256').update(source).digest('hex'), statements: splitSql(source) };
+  const productionChecksum = '16bf454a59b59d29e1a07fdd25e56658e476ae9bfe708061ceb445ddfbd613ca';
+  assert.ok(notificationMigration);
+  assert.notEqual(notificationMigration.checksum, productionChecksum);
+  assert.equal(isCompatibleMigrationChecksum(notificationMigration, productionChecksum), true);
+  assert.equal(isCompatibleMigrationChecksum(notificationMigration, 'f'.repeat(64)), false);
+  const appliedRow = { migration_name: notificationMigration.file, checksum: productionChecksum, status: 'applied' };
+  const connection = fake({ rows: [appliedRow] });
+  assert.deepEqual(await applyMigrations(connection, [notificationMigration]), { applied: [], skipped: [notificationMigration.file] });
+  assert.ok(!connection.calls.some(call => call.sql.startsWith('INSERT')));
 });
 test('an explicitly selected telephony migration requires its applied schema prerequisite', async () => {
   const all=discover(path.join(__dirname,'../database/migrations'));

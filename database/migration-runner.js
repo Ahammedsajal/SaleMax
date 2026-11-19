@@ -4,6 +4,16 @@ const crypto = require('node:crypto');
 class MigrationError extends Error {
   constructor(code) { super(code); this.code = code; }
 }
+const legacyChecksums = new Map([
+  // Production recorded this exact checksum before the statement was made idempotent.
+  // Keep the applied ledger value; new databases record the current file checksum.
+  ['20261225_business_whatsapp_notifications.sql', new Set([
+    '16bf454a59b59d29e1a07fdd25e56658e476ae9bfe708061ceb445ddfbd613ca',
+  ])],
+]);
+function isCompatibleMigrationChecksum(migration, recordedChecksum) {
+  return migration?.checksum === recordedChecksum || legacyChecksums.get(migration?.file)?.has(recordedChecksum) === true;
+}
 // Keep historical migration filenames/checksums intact while expressing the
 // one known schema dependency whose date prefix predates its prerequisite.
 const migrationDependencies = Object.freeze({
@@ -103,7 +113,7 @@ async function applyMigrations(connection, migrations, { only = null } = {}) {
     // Check the whole history before applying any new SQL.
     for (const row of rows) {
       if (!current.has(row.migration_name)) throw new MigrationError('MIGRATION_HISTORY_MISSING');
-      if (current.get(row.migration_name).checksum !== row.checksum) throw new MigrationError('MIGRATION_CHECKSUM_CHANGED');
+      if (!isCompatibleMigrationChecksum(current.get(row.migration_name), row.checksum)) throw new MigrationError('MIGRATION_CHECKSUM_CHANGED');
       if (row.status !== 'applied') throw new MigrationError('MIGRATION_RECOVERY_REQUIRED');
     }
     const completedMigrations = new Set(prior.keys());
@@ -134,4 +144,4 @@ async function applyMigrations(connection, migrations, { only = null } = {}) {
     return { applied, skipped };
   } finally { try { await connection.query('SELECT RELEASE_LOCK(?)', [lockName]); } catch (_) {} }
 }
-module.exports = { MigrationError, splitSql, discover, applyMigrations };
+module.exports = { MigrationError, splitSql, discover, applyMigrations, isCompatibleMigrationChecksum };

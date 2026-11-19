@@ -1,4 +1,5 @@
 const { decision } = require('./policy');
+const retailConnectorPilot=require('./retail-connector-pilot');
 const items = [
   ['dashboard', 'tenant.settings', 'tenant.read', 'Dashboard', 'لوحة التحكم', 'Overview', 'نظرة عامة'],
   ['notifications', 'tenant.settings', 'tenant.read', 'Web Notifications', 'إشعارات الويب', 'Overview', 'نظرة عامة'],
@@ -25,6 +26,7 @@ const items = [
   ['sales-organization', 'team.members', 'team.read', 'Organization', 'الهيكل التنظيمي', 'Sales', 'المبيعات'],
   ['commission-policy', 'sales.commissions', 'commission.policy.manage', 'Commission Policy', 'سياسة العمولات', 'Administration', 'الإدارة'],
   ['retail-orders', 'retail.commerce', 'retail.orders', 'Retail orders', 'طلبات التجزئة', 'Business Operations', 'عمليات الأعمال'],
+  ['retail-customers', 'retail.commerce', 'retail.orders', 'Retail customers', 'عملاء التجزئة', 'Business Operations', 'عمليات الأعمال'],
   ['retail-connected-stores', 'retail.commerce', 'retail.connect', 'Connected Stores', 'المتاجر المتصلة', 'Business Operations', 'عمليات الأعمال'],
   ['retail-deliveries', 'retail.commerce', 'retail.deliver', 'My deliveries', 'عمليات التوصيل الخاصة بي', 'Business Operations', 'عمليات الأعمال'],
   ['business-inventory', 'retail.inventory', 'inventory.read', 'Inventory', 'المخزون', 'Business Operations', 'عمليات الأعمال'],
@@ -51,7 +53,7 @@ const items = [
   ['settings', 'tenant.settings', 'tenant.manage', 'Business Settings', 'إعدادات الأعمال', 'Administration', 'الإدارة'],
   ['ai-integrations', 'tenant.settings', 'tenant.manage', 'AI Integrations', 'تكاملات الذكاء الاصطناعي', 'Automation', 'الأتمتة'],
 ].map(([key, capability, permission, en, ar, groupEn, groupAr]) => Object.freeze({ key, capability, permission, path: '/user/' + key, label: { en, ar }, group: { en: groupEn, ar: groupAr },ownerOnly:['recruitment','training-profile','ai-integrations','retail-connected-stores'].includes(key),sidebar:!['batches','enrollments','installments','payments','receipts','credits','scheduled-reports'].includes(key) }));
-function navigationFor(context) {
+function navigationFor(context,env=process.env) {
   if (context?.audience !== 'tenant' || context.tenant?.status !== 'active' || context.membership?.status !== 'active' || context.membership?.tenantId !== context.tenant?.id) return [];
   // Internal Sales accountants work from finance and payout workspaces only.
   // Finance overview, invoices, reconciliation and finance reports are views
@@ -59,7 +61,8 @@ function navigationFor(context) {
   const visible = context.category?.key === '7network_sales' && context.membership.role === 'accountant'
     ? items.filter(item => ['sales-finance', 'sales-commissions'].includes(item.key))
     : items;
-  return visible.filter(item => (!item.ownerOnly||context.membership.role==='owner') && decision(context, item).allowed &&
+  return visible.filter(item => (!['retail-connected-stores','retail-customers'].includes(item.key)||retailConnectorPilot.isPilotTenant(context.tenant.id,env)) &&
+    (!item.ownerOnly||context.membership.role==='owner') && decision(context, item).allowed &&
     (item.key!=='finance-reports'||decision(context,{capability:'finance.invoices',permission:'invoices.read'}).allowed))
     .map(item => ({ ...item, scope: decision(context, item).scope }));
 }
