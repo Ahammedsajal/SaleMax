@@ -29,10 +29,13 @@ CSS_RUNTIME = 'client/public/email-marketing-workspace.css'
 INDEX_RUNTIME = 'client/public/index.html'
 MIGRATION_TEMPLATES = 'database/migrations/20270109_email_template_design.sql'
 MIGRATION_CAMPAIGNS = 'database/migrations/20270110_email_campaign_design.sql'
+MIGRATION_INBOUND = 'database/migrations/20270109_email_marketing_inbound.sql'
+MIGRATION_INBOUND_LEDGER = 'database/migrations/20270109_email_marketing_inbound.sql'
 MIGRATION_FILES = (MIGRATION_TEMPLATES, MIGRATION_CAMPAIGNS)
 NEW_RUNTIME_FILES = (CONTENT, BUILDER, *MIGRATION_FILES)
 RUNTIME_FILES = (SERVICE, ROUTER, WORKER, CONTENT, BUILDER, UI_RUNTIME, CSS_RUNTIME,
-                 INDEX_RUNTIME, MIGRATION_TEMPLATES, MIGRATION_CAMPAIGNS)
+                 INDEX_RUNTIME, MIGRATION_TEMPLATES, MIGRATION_CAMPAIGNS,
+                 'database/migration-runner.js', MIGRATION_INBOUND)
 HELPER = 'deploy/email-marketing-visual-builder-release.py'
 SOURCE_FILES = (*RUNTIME_FILES, HELPER)
 PREIMAGE_SHA256 = {
@@ -42,6 +45,8 @@ PREIMAGE_SHA256 = {
     UI_RUNTIME: 'a1ff0a3d681e32602f50323a4bf51d4dd906fde1120adeb9d571d816728dcf13',
     CSS_RUNTIME: 'f9d09d43b2ab22de15a774a5ea7e6f5378f94a0ca2ea5167026e8c79cd354067',
     INDEX_RUNTIME: '4f7f901ff7c77942cfb93c73078a43f13cd671ebd234c4a1b426be082573e021',
+    'database/migration-runner.js': 'ecd86db1d1fea857b22e83e5a87f0d477fbe467ff46ea4acc6db26261809230e',
+    MIGRATION_INBOUND: 'd994927a0da0493e30488d5934f51fcb1d63d4cd3dc7bc4d29f85478639370d6',
 }
 MINIMUM_FREE_BYTES = 4 * 1024**3
 
@@ -236,8 +241,14 @@ def validate_stage(stage_path, commit):
     index_code = (stage_path / 'source' / INDEX_RUNTIME).read_text()
     template_sql = (stage_path / 'source' / MIGRATION_TEMPLATES).read_text()
     campaign_sql = (stage_path / 'source' / MIGRATION_CAMPAIGNS).read_text()
+    inbound_sql = stage_path / 'source' / MIGRATION_INBOUND
+    migration_runner = (stage_path / 'source' / 'database/migration-runner.js').read_text()
     if (template_sql.strip() != 'ALTER TABLE sx_email_templates ADD COLUMN design_json JSON NULL DEFAULT NULL, ALGORITHM=INSTANT;' or
             campaign_sql.strip() != 'ALTER TABLE sx_email_campaigns ADD COLUMN design_json JSON NULL DEFAULT NULL, ALGORITHM=INSTANT;' or
+            sha(inbound_sql.read_bytes()) != PREIMAGE_SHA256[MIGRATION_INBOUND] or
+            "'20270109_email_marketing_inbound.sql': 'database/migrations/20270109_email_marketing_inbound.sql'" not in migration_runner or
+            "'20270109_email_template_design.sql': 'database/migrations/20270109_email_template_design.sql'" not in migration_runner or
+            "'20270110_email_campaign_design.sql': 'database/migrations/20270110_email_campaign_design.sql'" not in migration_runner or
             'design_json' not in service_code or 'renderDesignedHtml' not in worker_code or
             "ContentDisposition:inline?'INLINE':'ATTACHMENT'" not in worker_code or
             "['image','▧','Image','صورة']" not in builder_code or 'data-builder-preview' not in builder_code or
@@ -298,7 +309,7 @@ def public_check(expected_hashes):
             'anonymousTemplatesApi': 'HTTP 401'}
 
 
-def migration_probe(staged_migrations, complete=False):
+def migration_probe(staged_migrations, legacy_migration, complete=False):
     script = r"""
 let body='';process.stdin.setEncoding('utf8');process.stdin.on('data',x=>body+=x);process.stdin.on('end',async()=>{let c;try{
  const input=JSON.parse(body),crypto=require('node:crypto'),mysql=require('mysql2/promise');
@@ -306,16 +317,19 @@ let body='';process.stdin.setEncoding('utf8');process.stdin.on('data',x=>body+=x
  const [tables]=await c.query("SELECT TABLE_NAME,ENGINE FROM information_schema.tables WHERE table_schema=DATABASE() AND TABLE_NAME IN ('sx_email_templates','sx_email_campaigns')");
  const [columns]=await c.query("SELECT TABLE_NAME,COLUMN_NAME,DATA_TYPE,IS_NULLABLE FROM information_schema.columns WHERE table_schema=DATABASE() AND TABLE_NAME IN ('sx_email_templates','sx_email_campaigns') AND COLUMN_NAME='design_json'");
  const [ledgerTable]=await c.query("SELECT TABLE_NAME FROM information_schema.tables WHERE table_schema=DATABASE() AND TABLE_NAME='salemax_schema_migrations'");
- const ledger=ledgerTable.length?await c.query('SELECT migration_name,checksum,status,statement_count,statements_completed FROM salemax_schema_migrations WHERE migration_name IN (?,?)',input.names).then(x=>x[0]):[];
+ const ledger=ledgerTable.length?await c.query('SELECT migration_name,checksum,status,statement_count,statements_completed FROM salemax_schema_migrations WHERE migration_name IN ('+input.names.map(()=>'?').join(',')+')',input.names).then(x=>x[0]):[];
  const state={tables:Object.fromEntries(tables.map(x=>[x.TABLE_NAME,x.ENGINE])),columns:Object.fromEntries(columns.map(x=>[x.TABLE_NAME,x])),ledger:Object.fromEntries(ledger.map(x=>[x.migration_name,x]))};
+ const legacy=state.ledger[input.legacy.name],legacyChecksum=crypto.createHash('sha256').update(input.legacy.sql,'utf8').digest('hex');
+ if(!legacy||legacy.checksum!==legacyChecksum||legacy.status!=='applied'||Number(legacy.statement_count)!==3||Number(legacy.statements_completed)!==3)throw Object.assign(Error(),{code:'EMAIL_LEGACY_MIGRATION_STATE_MISMATCH'});
  for(const [filename,sql,table] of input.migrations){const row=state.ledger[filename],column=state.columns[table],checksum=crypto.createHash('sha256').update(sql,'utf8').digest('hex');if(!state.tables[table]||String(state.tables[table]).toLowerCase()!=='innodb')throw Object.assign(Error(),{code:'EMAIL_TABLE_NOT_INNODB'});if(row){if(row.checksum!==checksum||row.status!=='applied'||Number(row.statement_count)!==1||Number(row.statements_completed)!==1||!column||!['longtext','json'].includes(String(column.DATA_TYPE).toLowerCase())||column.IS_NULLABLE!=='YES')throw Object.assign(Error(),{code:'EMAIL_MIGRATION_STATE_MISMATCH'});}else if(column||input.complete)throw Object.assign(Error(),{code:column?'EMAIL_MIGRATION_SCHEMA_MISMATCH':'EMAIL_MIGRATION_NOT_APPLIED'});}
- if(Boolean(state.ledger[input.names[1]])&&!state.ledger[input.names[0]])throw Object.assign(Error(),{code:'EMAIL_MIGRATION_ORDER_MISMATCH'});
+ if(Boolean(state.ledger[input.names[2]])&&!state.ledger[input.names[1]])throw Object.assign(Error(),{code:'EMAIL_MIGRATION_ORDER_MISMATCH'});
  console.log(JSON.stringify(state));
 }catch(e){console.log(JSON.stringify({probeError:e.code||e.name||'EMAIL_SCHEMA_PROBE_FAILED'}));process.exitCode=1}finally{try{await c?.end()}catch{}}});
 """
     migrations = [[name, sql, table] for name, (sql, table) in staged_migrations.items()]
     result = json.loads(run('docker', 'exec', '-i', APP, 'node', '-e', script,
-                            input_text=json.dumps({'names': list(staged_migrations),
+                            input_text=json.dumps({'names': [legacy_migration[0], *staged_migrations],
+                                                   'legacy': {'name': legacy_migration[0], 'sql': legacy_migration[1]},
                                                    'migrations': migrations, 'complete': complete}),
                             timeout=60).splitlines()[-1])
     if result.get('probeError'):
@@ -323,11 +337,16 @@ let body='';process.stdin.setEncoding('utf8');process.stdin.on('data',x=>body+=x
     return result
 
 
-def apply_migration(filename, sql, staged_migrations):
+def apply_migration(filename, sql, staged_migrations, legacy_migration):
     script = r"""
 let body='';process.stdin.setEncoding('utf8');process.stdin.on('data',x=>body+=x);process.stdin.on('end',async()=>{let c;try{
  const input=JSON.parse(body),runner=require('/app/database/migration-runner'),crypto=require('node:crypto'),mysql=require('mysql2/promise');
  const migrations=runner.discover('/app/database/migrations');
+ const legacy=input.legacy,legacyChecksum=crypto.createHash('sha256').update(legacy.sql,'utf8').digest('hex');
+ const legacyBasename=legacy.name.split('/').pop(),legacyFile=migrations.find(m=>m.file===legacyBasename);
+ if(!legacyFile||legacyFile.checksum!==legacyChecksum)throw Object.assign(Error(),{code:'LEGACY_MIGRATION_SOURCE_MISMATCH'});
+ if(migrations.some(m=>m.file===legacy.name))throw Object.assign(Error(),{code:'LEGACY_MIGRATION_ALIAS_DUPLICATE'});
+ migrations.push({file:legacy.name,checksum:legacyChecksum,statements:runner.splitSql(legacy.sql)});
  for(const [filename,sql] of Object.entries(input.migrations)){const checksum=crypto.createHash('sha256').update(sql,'utf8').digest('hex'),found=migrations.find(m=>m.file===filename);if(found&&found.checksum!==checksum)throw Object.assign(Error(),{code:'MIGRATION_CHECKSUM_CHANGED'});if(!found)migrations.push({file:filename,checksum,statements:runner.splitSql(sql)});}
  if(!input.migrations[input.filename])throw Object.assign(Error(),{code:'MIGRATION_NOT_FOUND'});
  migrations.sort((a,b)=>a.file.localeCompare(b.file));
@@ -338,8 +357,10 @@ let body='';process.stdin.setEncoding('utf8');process.stdin.on('data',x=>body+=x
 }catch(e){console.log(JSON.stringify({migrationError:e.code||e.name||'MIGRATION_FAILED'}));process.exitCode=1}finally{try{await c?.end()}catch{}}});
 """
     migrations = {name: item[0] for name, item in staged_migrations.items()}
+    legacy = {'name': legacy_migration[0], 'sql': legacy_migration[1]}
     output = run('docker', 'exec', '-i', APP, 'node', '-e', script,
-                 input_text=json.dumps({'filename': filename, 'migrations': migrations}), timeout=900)
+                 input_text=json.dumps({'filename': filename, 'migrations': migrations,
+                                        'legacy': legacy}), timeout=900)
     result = json.loads(output.splitlines()[-1])
     if result.get('migrationError'):
         raise RuntimeError(str(result['migrationError']))
@@ -416,7 +437,8 @@ def deploy(stage_path, commit):
         MIGRATION_TEMPLATES: ((stage_path / 'source' / MIGRATION_TEMPLATES).read_text(), 'sx_email_templates'),
         MIGRATION_CAMPAIGNS: ((stage_path / 'source' / MIGRATION_CAMPAIGNS).read_text(), 'sx_email_campaigns'),
     }
-    schema_before = migration_probe(staged_migrations)
+    legacy_migration = (MIGRATION_INBOUND_LEDGER, (stage_path / 'source' / MIGRATION_INBOUND).read_text())
+    schema_before = migration_probe(staged_migrations, legacy_migration)
     changed = {name: (stage_path / 'source' / name).read_bytes() for name in RUNTIME_FILES}
     deployed_hashes = {name: sha(data) for name, data in changed.items()}
     common = compose_args(files, env_files, workdir)
@@ -487,10 +509,10 @@ def deploy(stage_path, commit):
         applied_migrations = []
         for name in MIGRATION_FILES:
             sql, _table = staged_migrations[name]
-            applied_migrations.append(apply_migration(name, sql, staged_migrations))
+            applied_migrations.append(apply_migration(name, sql, staged_migrations, legacy_migration))
             write_private(backup / 'database-migrations.json',
                           json.dumps(applied_migrations, indent=2) + '\n')
-        schema_after = migration_probe(staged_migrations, complete=True)
+        schema_after = migration_probe(staged_migrations, legacy_migration, complete=True)
         write_private(backup / 'database-schema-after.json',
                       json.dumps(schema_after, indent=2) + '\n')
         run(*(candidate + ['up', '-d', '--no-deps', '--no-build', '--force-recreate', 'app']),

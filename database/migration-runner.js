@@ -9,6 +9,14 @@ class MigrationError extends Error {
 const migrationDependencies = Object.freeze({
   '20261112_telephony_call_remote_number.sql': Object.freeze(['20261204_telephony_call_lead_links.sql']),
 });
+// Older Email Marketing deployments recorded these migration keys with the
+// repository-relative database/migrations/ prefix. Keep that persisted ledger
+// identity while the SQL files remain in the normal migrations directory.
+const migrationNameAliases = Object.freeze({
+  '20270109_email_marketing_inbound.sql': 'database/migrations/20270109_email_marketing_inbound.sql',
+  '20270109_email_template_design.sql': 'database/migrations/20270109_email_template_design.sql',
+  '20270110_email_campaign_design.sql': 'database/migrations/20270110_email_campaign_design.sql',
+});
 function orderMigrations(migrations) {
   const byName = new Map(migrations.map(migration => [migration.file, migration]));
   const ordered = [], visiting = new Set(), visited = new Set();
@@ -67,7 +75,8 @@ function discover(directory) {
       const statements = splitSql(source);
       if (!statements.length) throw new MigrationError('EMPTY_MIGRATION');
       if (statements.some(sql => /^(?:DROP\b|TRUNCATE\b)|\bDROP\s+(?:COLUMN|TABLE|DATABASE)\b/i.test(sql))) throw new MigrationError('DESTRUCTIVE_FORWARD_MIGRATION');
-      return { file, checksum: crypto.createHash('sha256').update(source).digest('hex'), statements };
+      return { file: migrationNameAliases[file] || file,
+        checksum: crypto.createHash('sha256').update(source).digest('hex'), statements };
     });
   return orderMigrations(migrations);
 }
