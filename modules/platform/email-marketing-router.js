@@ -37,6 +37,21 @@ function createEmailMarketingRouter({pool:injectedPool,authenticate,origin,key}=
     if(!Buffer.isBuffer(req.body))throw Object.assign(Error('INVALID_ATTACHMENT'),{code:'INVALID_ATTACHMENT',status:400});
     return service.saveAttachment(db,ctx,{fileName:req.query.filename,buffer:req.body});
   }));
+  router.get('/attachments/:id/preview',async(req,res)=>{
+    let db;
+    try{
+      db=await pool.getConnection();
+      const ctx=await service.sessionContext(db,req.featureSession);
+      const image=await service.previewAttachment(db,ctx,req.params.id);
+      res.set({'Cache-Control':'private, no-store','X-Content-Type-Options':'nosniff',
+        'Cross-Origin-Resource-Policy':'same-site',
+        'Content-Security-Policy':"default-src 'none'; sandbox"});
+      res.type(image.contentType).send(image.content);
+    }catch(error){
+      const status=Number.isInteger(error?.status)?error.status:500;
+      res.status(status).json({success:false,code:status>=500?(error?.code||'EMAIL_MARKETING_UNAVAILABLE'):(error?.code||'INVALID_REQUEST')});
+    }finally{db?.release();}
+  });
   router.get('/templates',run(async(db,ctx)=>({items:await service.listTemplates(db,ctx)})));
   router.post('/templates',run(async(db,ctx,req)=>service.saveTemplate(db,ctx,req.body)));
   router.put('/templates/:id',run(async(db,ctx,req)=>service.saveTemplate(db,ctx,req.body,req.params.id)));

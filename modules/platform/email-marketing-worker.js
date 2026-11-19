@@ -6,6 +6,7 @@ const service=require('./email-marketing');
 const ses=require('./email-marketing-ses');
 const providerSettings=require('./email-marketing-provider-settings');
 const inbound=require('./email-marketing-inbound');
+const emailContent=require('./email-marketing-content');
 const workerId=`email-${os.hostname().replace(/[^A-Za-z0-9._:-]/g,'-').slice(0,60)}-${process.pid}`;
 const id=()=>crypto.randomUUID();
 const interval=5000,leaseSeconds=180;
@@ -17,7 +18,7 @@ async function claim(pool,{limit=8,now=new Date()}={}){
     await db.query("UPDATE sx_email_campaigns SET status='queued' WHERE status='scheduled' AND scheduled_at<=UTC_TIMESTAMP(3)");
     await db.query("UPDATE sx_email_campaign_recipients SET status='unknown',lease_owner=NULL,lease_expires_at=NULL,last_error_code='DELIVERY_OUTCOME_UNKNOWN' WHERE status='sending' AND lease_expires_at<=UTC_TIMESTAMP(3)");
     const [rows]=await db.query(`SELECT r.id,r.tenant_id AS tenantId,r.campaign_id AS campaignId,r.contact_id AS contactId,r.recipient_email AS recipientEmail,
-      r.normalized_email AS normalizedEmail,r.attempt_count AS attemptCount,c.subject,c.text_body AS textBody,c.status AS campaignStatus,
+      r.normalized_email AS normalizedEmail,r.attempt_count AS attemptCount,c.subject,c.text_body AS textBody,c.design_json AS designJson,c.status AS campaignStatus,
       s.email AS senderEmail,s.verification_status AS senderStatus,d.region,d.domain,d.verification_status AS domainStatus,d.dkim_status AS dkimStatus,
       i.reply_domain AS replyDomain,i.receiving_status AS receivingStatus
       FROM sx_email_campaign_recipients r JOIN sx_email_campaigns c ON c.tenant_id=r.tenant_id AND c.id=r.campaign_id
@@ -94,6 +95,11 @@ async function dispatch(pool,item,{key,origin,send=ses.sendSimple,providerCache=
   if(item.senderStatus!=='verified'||item.domainStatus!=='verified'||item.dkimStatus!=='SUCCESS')return finish(pool,item,{status:'failed',errorCode:'EMAIL_SENDER_NOT_VERIFIED'});
   if(!credentials)return finish(pool,item,{status:'retry',errorCode:providerErrorCode||'AWS_CREDENTIALS_REQUIRED',delaySeconds:300});
   const db=await pool.getConnection();let current,attachments;try{current=await currentContact(db,item);if(current.blocked)return finish(pool,item,{status:'suppressed',errorCode:current.code});attachments=await campaignAttachments(db,item);}finally{db.release();}
+  let design=null;
+  if(item.designJson){
+    try{design=emailContent.cleanDesign(emailContent.parseDesign(item.designJson),attachments);}
+    catch{return finish(pool,item,{status:'failed',errorCode:'EMAIL_DESIGN_INVALID'});}
+  }
   let account=providerCache.get(item.region);
   if(!account){try{account=await ses.getAccount(item.region,credentials);providerCache.set(item.region,account);}catch(error){return finish(pool,item,{status:'retry',errorCode:safeProviderCode(error),delaySeconds:300});}}
   if(!account.sendingEnabled||!account.productionAccessEnabled)return finish(pool,item,{status:'retry',errorCode:'SES_PRODUCTION_ACCESS_REQUIRED',delaySeconds:300});
@@ -101,12 +107,17 @@ async function dispatch(pool,item,{key,origin,send=ses.sendSimple,providerCache=
   if(account.max24HourSend>0&&account.sentLast24Hours+account.localAccepted>=account.max24HourSend)return finish(pool,item,{status:'retry',errorCode:'SES_DAILY_QUOTA_REACHED',delaySeconds:300});
   const contact=current.contact,subject=personalize(item.subject,contact),url=unsubscribeUrl(origin,key,item);
   const text=`${personalize(item.textBody,contact)}\n\n---\nUnsubscribe / إلغاء الاشتراك: ${url}`;
-  const html=htmlEmailBody(text,url);
+  const html=design?emailContent.renderDesignedHtml(design,attachments,{contact,personalize,unsubscribeUrl:url}):htmlEmailBody(text,url);
+  const inlineIds=new Set(emailContent.imageIds(design));
   const replyTo=item.receivingStatus==='active'&&item.replyDomain?`${inbound.replyToken(key,item.tenantId,item.campaignId,item.id)}@${item.replyDomain}`:item.senderEmail;
   const message={FromEmailAddress:item.senderEmail,Destination:{ToAddresses:[item.recipientEmail]},ReplyToAddresses:[replyTo],
     Content:{Simple:{Subject:{Data:subject,Charset:'UTF-8'},Body:{Text:{Data:text,Charset:'UTF-8'},Html:{Data:html,Charset:'UTF-8'}},
       Headers:[{Name:'List-Unsubscribe',Value:`<${url}>`},{Name:'List-Unsubscribe-Post',Value:'List-Unsubscribe=One-Click'}],
-      ...(attachments.length?{Attachments:attachments.map(file=>({FileName:file.fileName,ContentType:file.contentType,ContentDisposition:'ATTACHMENT',ContentTransferEncoding:'BASE64',RawContent:file.content}))}:{})}},
+      ...(attachments.length?{Attachments:attachments.map(file=>{
+        const inline=inlineIds.has(file.id);
+        return {FileName:file.fileName,ContentType:file.contentType,ContentDisposition:inline?'INLINE':'ATTACHMENT',
+          ...(inline?{ContentId:emailContent.imageContentId(file.id)}:{}),ContentTransferEncoding:'BASE64',RawContent:file.content};
+      })}:{})}},
     EmailTags:[{Name:'campaign_id',Value:item.campaignId},{Name:'recipient_id',Value:item.id}]};
   const configSet=configurationSetName||process.env.SALEMAX_EMAIL_SES_CONFIGURATION_SET;if(configSet)message.ConfigurationSetName=configSet;
   try{const result=await send(item.region,message,credentials);account.localAccepted++;return finish(pool,item,{status:'accepted',providerMessageId:result.messageId||null,subject,text});}
@@ -162,4 +173,4 @@ function start(pool,{key,origin,logger=console,setIntervalImpl=setInterval,clear
   timer.unref?.();return ()=>clearIntervalImpl(timer);
 }
 
-module.exports={claim,currentContact,personalize,htmlEmailBody,unsubscribeUrl,dispatch,finish,tick,start};
+module.exports={claim,currentContact,personalize,htmlEmailBody,unsubscribeUrl,dispatch,finish,tick,start,renderDesignedHtml:emailContent.renderDesignedHtml};

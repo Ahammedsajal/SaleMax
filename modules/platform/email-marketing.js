@@ -4,6 +4,7 @@ const crypto=require('node:crypto');
 const ses=require('./email-marketing-ses');
 const providerSettings=require('./email-marketing-provider-settings');
 const inbound=require('./email-marketing-inbound');
+const emailContent=require('./email-marketing-content');
 const fail=(code,status=400)=>{throw Object.assign(Error(code),{code,status});};
 const uuid=()=>crypto.randomUUID();
 const sha=value=>crypto.createHash('sha256').update(String(value)).digest('hex');
@@ -256,6 +257,15 @@ async function loadAttachments(db,tenantId,ids){
   const total=rows.reduce((sum,row)=>sum+Number(row.size_bytes),0);if(total>MAX_TOTAL_ATTACHMENT_BYTES)fail('ATTACHMENT_TOTAL_TOO_LARGE');
   return rows.map(row=>({id:row.id,fileName:row.file_name,contentType:row.content_type,size:Number(row.size_bytes),content:Buffer.from(row.content)}));
 }
+async function previewAttachment(db,ctx,id){
+  emailMarketingAccess(ctx.context);
+  if(typeof id!=='string'||!/^[-0-9a-f]{36}$/i.test(id))fail('INVALID_ATTACHMENT_ID');
+  const [[row]]=await db.query(`SELECT file_name,content_type,size_bytes,content FROM sx_email_attachments
+    WHERE tenant_id=? AND id=? AND (expires_at IS NULL OR expires_at>UTC_TIMESTAMP(3))`,[ctx.tenantId,id]);
+  if(!row)fail('ATTACHMENT_NOT_FOUND',404);
+  if(!emailContent.IMAGE_TYPES.has(String(row.content_type||'')))fail('EMAIL_DESIGN_IMAGE_REQUIRED',415);
+  return {fileName:row.file_name,contentType:row.content_type,size:Number(row.size_bytes),content:Buffer.from(row.content)};
+}
 async function attachToTemplate(db,ctx,templateId,attachmentIds){
   const attachments=await loadAttachments(db,ctx.tenantId,attachmentIds);
   await db.query('DELETE FROM sx_email_template_attachments WHERE tenant_id=? AND template_id=?',[ctx.tenantId,templateId]);
@@ -266,38 +276,54 @@ async function attachToTemplate(db,ctx,templateId,attachmentIds){
 
 function cleanTemplateInput(input){
   if(!input||typeof input!=='object'||Array.isArray(input))fail('INVALID_EMAIL_TEMPLATE');
-  const name=cleanText(input.name,120,'INVALID_EMAIL_TEMPLATE_NAME',{required:true}),subject=cleanText(input.subject,998,'INVALID_EMAIL_SUBJECT',{required:true}),text=cleanText(input.text,30000,'INVALID_EMAIL_TEXT',{required:true});
+  const name=cleanText(input.name,120,'INVALID_EMAIL_TEMPLATE_NAME',{required:true}),subject=cleanText(input.subject,998,'INVALID_EMAIL_SUBJECT',{required:true});
+  const text=input.text==null?'':cleanText(input.text,30000,'INVALID_EMAIL_TEXT');
   if(/[\r\n]/.test(subject))fail('INVALID_EMAIL_SUBJECT');
+  const attachmentIdsSpecified=Object.prototype.hasOwnProperty.call(input,'attachmentIds');
   const attachmentIds=Array.isArray(input.attachmentIds)?input.attachmentIds:[];
   if(attachmentIds.length>MAX_ATTACHMENTS)fail('INVALID_ATTACHMENT_SELECTION');
-  return {name,subject,text,attachmentIds};
+  const designSpecified=Object.prototype.hasOwnProperty.call(input,'design');
+  const design=input.design==null?null:emailContent.parseDesign(input.design);
+  if(input.design!=null&&!design)fail('INVALID_EMAIL_DESIGN');
+  return {name,subject,text,design,designSpecified,attachmentIds,attachmentIdsSpecified};
 }
 async function listTemplates(db,ctx){
   emailMarketingAccess(ctx.context);
-  const [rows]=await db.query(`SELECT t.id,t.name,t.subject,t.text_body AS text,t.revision,t.updated_at AS updatedAt,
+  const [rows]=await db.query(`SELECT t.id,t.name,t.subject,t.text_body AS text,t.design_json AS design,t.revision,t.updated_at AS updatedAt,
     COALESCE(JSON_ARRAYAGG(IF(a.id IS NULL,NULL,JSON_OBJECT('id',a.id,'fileName',a.file_name,'contentType',a.content_type,'size',a.size_bytes))),JSON_ARRAY()) AS attachments
     FROM sx_email_templates t LEFT JOIN sx_email_template_attachments x ON x.tenant_id=t.tenant_id AND x.template_id=t.id
     LEFT JOIN sx_email_attachments a ON a.tenant_id=x.tenant_id AND a.id=x.attachment_id WHERE t.tenant_id=? GROUP BY t.id ORDER BY t.updated_at DESC,t.id LIMIT 200`,[ctx.tenantId]);
-  return rows.map(row=>({...row,attachments:parseJsonArray(row.attachments)}));
+  return rows.map(row=>({...row,design:emailContent.parseDesign(row.design),attachments:parseJsonArray(row.attachments)}));
 }
 function parseJsonArray(value){if(Array.isArray(value))return value.filter(Boolean);try{return JSON.parse(value||'[]').filter(Boolean);}catch{return [];}}
 async function saveTemplate(db,ctx,input,id=null){
   emailMarketingAccess(ctx.context);const clean=cleanTemplateInput(input);
   await db.beginTransaction();try{
-    const attachments=await loadAttachments(db,ctx.tenantId,clean.attachmentIds);
+    let attachmentIds=clean.attachmentIds,priorDesign=null;
+    if(id&&(!clean.designSpecified||!clean.attachmentIdsSpecified)){
+      const [[prior]]=await db.query('SELECT design_json FROM sx_email_templates WHERE tenant_id=? AND id=? FOR UPDATE',[ctx.tenantId,id]);
+      if(!prior)fail('EMAIL_TEMPLATE_NOT_FOUND',404);
+      if(!clean.designSpecified)priorDesign=emailContent.parseDesign(prior.design_json);
+      if(!clean.attachmentIdsSpecified){const [links]=await db.query('SELECT attachment_id AS id FROM sx_email_template_attachments WHERE tenant_id=? AND template_id=? ORDER BY attachment_id',[ctx.tenantId,id]);attachmentIds=links.map(row=>row.id);}
+    }
+    const attachments=await loadAttachments(db,ctx.tenantId,attachmentIds);
     const total=attachments.reduce((sum,item)=>sum+item.size,0);if(total>MAX_TOTAL_ATTACHMENT_BYTES)fail('ATTACHMENT_TOTAL_TOO_LARGE');
+    const selectedDesign=clean.designSpecified?clean.design:priorDesign;
+    const design=selectedDesign?emailContent.cleanDesign(selectedDesign,attachments):null;
+    const derivedText=design?emailContent.designToText(design):'';
+    const text=cleanText(clean.text||derivedText,30000,'INVALID_EMAIL_TEXT',{required:true});
     let templateId=id;
     if(id){
       if(!/^[-0-9a-f]{36}$/i.test(id)||!Number.isSafeInteger(input.revision)||input.revision<1)fail('INVALID_EMAIL_TEMPLATE_ID');
-      const [result]=await db.query('UPDATE sx_email_templates SET name=?,subject=?,text_body=?,revision=revision+1,updated_by_identity_id=? WHERE tenant_id=? AND id=? AND revision=?',[clean.name,clean.subject,clean.text,ctx.identityId,ctx.tenantId,id,input.revision]);
+      const [result]=await db.query('UPDATE sx_email_templates SET name=?,subject=?,text_body=?,design_json=?,revision=revision+1,updated_by_identity_id=? WHERE tenant_id=? AND id=? AND revision=?',[clean.name,clean.subject,text,design?JSON.stringify(design):null,ctx.identityId,ctx.tenantId,id,input.revision]);
       if(!result.affectedRows){const [[found]]=await db.query('SELECT revision FROM sx_email_templates WHERE tenant_id=? AND id=? FOR UPDATE',[ctx.tenantId,id]);if(!found)fail('EMAIL_TEMPLATE_NOT_FOUND',404);fail('STALE_EMAIL_TEMPLATE',409);}
     }else{
-      templateId=uuid();await db.query('INSERT INTO sx_email_templates(id,tenant_id,name,subject,text_body,created_by_identity_id,updated_by_identity_id) VALUES(?,?,?,?,?,?,?)',[templateId,ctx.tenantId,clean.name,clean.subject,clean.text,ctx.identityId,ctx.identityId]);
+      templateId=uuid();await db.query('INSERT INTO sx_email_templates(id,tenant_id,name,subject,text_body,design_json,created_by_identity_id,updated_by_identity_id) VALUES(?,?,?,?,?,?,?,?)',[templateId,ctx.tenantId,clean.name,clean.subject,text,design?JSON.stringify(design):null,ctx.identityId,ctx.identityId]);
     }
-    await attachToTemplate(db,ctx,templateId,clean.attachmentIds);
-    await audit(db,ctx,id?'email.template.updated':'email.template.created','email-template',templateId,{name:clean.name,revision:id?input.revision+1:1});
-    const [[saved]]=await db.query('SELECT id,name,subject,text_body AS text,revision,updated_at AS updatedAt FROM sx_email_templates WHERE tenant_id=? AND id=?',[ctx.tenantId,templateId]);
-    await db.commit();return {...saved,attachments:attachments.map(({id,fileName,contentType,size})=>({id,fileName,contentType,size}))};
+    await attachToTemplate(db,ctx,templateId,attachmentIds);
+    await audit(db,ctx,id?'email.template.updated':'email.template.created','email-template',templateId,{name:clean.name,revision:id?input.revision+1:1,visual:Boolean(design)});
+    const [[saved]]=await db.query('SELECT id,name,subject,text_body AS text,design_json AS design,revision,updated_at AS updatedAt FROM sx_email_templates WHERE tenant_id=? AND id=?',[ctx.tenantId,templateId]);
+    await db.commit();return {...saved,design:emailContent.parseDesign(saved.design),attachments:attachments.map(({id,fileName,contentType,size})=>({id,fileName,contentType,size}))};
   }catch(error){try{await db.rollback();}catch{}throw error;}
 }
 
@@ -354,8 +380,11 @@ async function previewAudience(db,ctx,input,key){
 }
 
 async function campaignAttachments(db,ctx,input,template){
-  let ids=Array.isArray(input.attachmentIds)?input.attachmentIds:[];
-  if(!ids.length&&template?.id){const [rows]=await db.query('SELECT attachment_id AS id FROM sx_email_template_attachments WHERE tenant_id=? AND template_id=? ORDER BY attachment_id',[ctx.tenantId,template.id]);ids=rows.map(row=>row.id);}
+  let templateIds=[];
+  if(template?.id){const [rows]=await db.query('SELECT attachment_id AS id FROM sx_email_template_attachments WHERE tenant_id=? AND template_id=? ORDER BY attachment_id',[ctx.tenantId,template.id]);templateIds=rows.map(row=>row.id);}
+  const supplied=Array.isArray(input.attachmentIds)?input.attachmentIds:[];
+  const ids=[...new Set([...templateIds,...supplied])];
+  if(ids.length>MAX_ATTACHMENTS)fail('INVALID_ATTACHMENT_SELECTION');
   return loadAttachments(db,ctx.tenantId,ids);
 }
 async function createCampaign(db,ctx,input,key){
@@ -372,16 +401,17 @@ async function createCampaign(db,ctx,input,key){
       WHERE s.tenant_id=? AND s.id=? FOR UPDATE`,[ctx.tenantId,senderId]);
     const sender=rows[0];if(!sender)fail('EMAIL_SENDER_NOT_FOUND',404);if(sender.verification_status!=='verified'||sender.domain_status!=='verified'||sender.dkim_status!=='SUCCESS')fail('EMAIL_SENDER_NOT_VERIFIED',409);
     let template=null;
-    if(templateId){const [[row]]=await db.query('SELECT id,subject,text_body AS text,revision FROM sx_email_templates WHERE tenant_id=? AND id=?',[ctx.tenantId,templateId]);if(!row)fail('EMAIL_TEMPLATE_NOT_FOUND',404);template=row;}
-    const body=cleanText(input.text||template?.text||'',30000,'INVALID_EMAIL_TEXT',{required:true}),mailSubject=cleanText(input.subject||template?.subject||'',998,'INVALID_EMAIL_SUBJECT',{required:true});
+    if(templateId){const [[row]]=await db.query('SELECT id,subject,text_body AS text,design_json AS design,revision FROM sx_email_templates WHERE tenant_id=? AND id=?',[ctx.tenantId,templateId]);if(!row)fail('EMAIL_TEMPLATE_NOT_FOUND',404);template={...row,design:emailContent.parseDesign(row.design)};}
+    const body=cleanText(template?.design?template.text:(input.text||template?.text||''),30000,'INVALID_EMAIL_TEXT',{required:true}),mailSubject=cleanText(input.subject||template?.subject||'',998,'INVALID_EMAIL_SUBJECT',{required:true});
     if(/[\r\n]/.test(mailSubject))fail('INVALID_EMAIL_SUBJECT');
     const attachments=await campaignAttachments(db,ctx,input,template);if(attachments.reduce((sum,item)=>sum+item.size,0)>MAX_TOTAL_ATTACHMENT_BYTES)fail('ATTACHMENT_TOTAL_TOO_LARGE');
+    const design=template?.design?emailContent.cleanDesign(template.design,attachments):null;
     const audienceRowsValue=await audienceRows(db,ctx.tenantId,ctx.ownerUid,phonebookId,{lock:true}),audience=summarizeAudience(audienceRowsValue),currentFingerprint=fingerprint(audienceRowsValue);
     if(currentFingerprint!==preview.fingerprint)fail('AUDIENCE_CHANGED',409);
     if(!audience.eligible.length)fail('NO_ELIGIBLE_RECIPIENTS',409);
     const id=uuid(),status=scheduledAt?'scheduled':'queued';
-    await db.query(`INSERT INTO sx_email_campaigns(id,tenant_id,sender_id,template_id,name,subject,text_body,phonebook_id,audience_hash,status,scheduled_at,recipient_count,created_by_identity_id)
-      VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)`,[id,ctx.tenantId,senderId,templateId,name,mailSubject,body,phonebookId,currentFingerprint,status,scheduledAt, audience.eligible.length,ctx.identityId]);
+    await db.query(`INSERT INTO sx_email_campaigns(id,tenant_id,sender_id,template_id,name,subject,text_body,design_json,phonebook_id,audience_hash,status,scheduled_at,recipient_count,created_by_identity_id)
+      VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,[id,ctx.tenantId,senderId,templateId,name,mailSubject,body,design?JSON.stringify(design):null,phonebookId,currentFingerprint,status,scheduledAt,audience.eligible.length,ctx.identityId]);
     for(const attachment of attachments){await db.query('INSERT INTO sx_email_campaign_attachments(tenant_id,campaign_id,attachment_id) VALUES(?,?,?)',[ctx.tenantId,id,attachment.id]);await db.query('UPDATE sx_email_attachments SET expires_at=NULL WHERE tenant_id=? AND id=?',[ctx.tenantId,attachment.id]);}
     const recipientRows=audience.eligible.map(row=>{const recipientId=uuid(),token=tokenFor(key,ctx.tenantId,id,recipientId);return [recipientId,ctx.tenantId,id,row.id,row.email,normalizeEmail(row.email),String(row.name||'').slice(0,200),sha(token)];});
     for(let start=0;start<recipientRows.length;start+=500){const batch=recipientRows.slice(start,start+500);await db.query('INSERT INTO sx_email_campaign_recipients(id,tenant_id,campaign_id,contact_id,recipient_email,normalized_email,recipient_name,unsubscribe_token_hash) VALUES ?',[batch]);}
@@ -503,4 +533,4 @@ async function applyUnsubscribe(db,key,token){
   }catch(error){try{await db.rollback();}catch{}throw error;}
 }
 
-module.exports={MAX_RECIPIENTS,MAX_ATTACHMENT_BYTES,MAX_TOTAL_ATTACHMENT_BYTES,MAX_ATTACHMENTS,normalizeEmail,validEmail,cleanDomain,cleanRegion,cleanEmail,tokenFor,decodeToken,safeFilename,sniffAttachment,summarizeAudience,fingerprint,emailMarketingAccess,sessionContext,providerStatus,setup,addDomain,refreshDomain,deleteDomain,addSender,refreshSender,enableReplies,refreshReplies,audit,saveAttachment,loadAttachments,listTemplates,saveTemplate,previewAudience,createCampaign,listCampaigns,campaignDetail,analytics,inbox,threadMessages,testSend,applyUnsubscribe};
+module.exports={MAX_RECIPIENTS,MAX_ATTACHMENT_BYTES,MAX_TOTAL_ATTACHMENT_BYTES,MAX_ATTACHMENTS,normalizeEmail,validEmail,cleanDomain,cleanRegion,cleanEmail,tokenFor,decodeToken,safeFilename,sniffAttachment,summarizeAudience,fingerprint,emailMarketingAccess,sessionContext,providerStatus,setup,addDomain,refreshDomain,deleteDomain,addSender,refreshSender,enableReplies,refreshReplies,audit,saveAttachment,previewAttachment,loadAttachments,listTemplates,saveTemplate,previewAudience,createCampaign,listCampaigns,campaignDetail,analytics,inbox,threadMessages,testSend,applyUnsubscribe};
