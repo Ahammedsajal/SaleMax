@@ -106,7 +106,7 @@ async function eventDestinationConfigured(value,configurationSetName,topicArn,cr
   const {client,sdk}=createClient(value,credentials);
   try{
     const result=await client.send(new sdk.GetConfigurationSetEventDestinationsCommand({ConfigurationSetName:configurationSetName}));
-    return (result.EventDestinations||[]).some(item=>item.EventDestinationName==='7network-email-events'&&item.Enabled===true&&item.SnsDestination?.TopicArn===topicArn);
+    return (result.EventDestinations||[]).some(item=>item.Name==='7network-email-events'&&item.Enabled===true&&item.SnsDestination?.TopicArn===topicArn);
   }catch(error){if(error?.name==='NotFoundException'||error?.$metadata?.httpStatusCode===404)return false;throw error;}
 }
 

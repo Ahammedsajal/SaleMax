@@ -61,6 +61,19 @@ function personalize(value,contact){
   return String(value||'').replace(/\{\{\s*(name|email|mobile|var[1-5])\s*\}\}/gi,(_,key)=>String(values[key.toLowerCase()]||''));
 }
 
+function htmlEmailBody(value){
+  const escapeHtml=text=>String(text||'').replace(/[&<>"']/g,char=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[char]));
+  const source=String(value||''),urlPattern=/https?:\/\/[^\s<>"']+/gi;let html='',cursor=0,match;
+  while((match=urlPattern.exec(source))){
+    const raw=match[0],trailing=(raw.match(/[.,!?;:)\]}]+$/)||[''])[0],url=raw.slice(0,raw.length-trailing.length);
+    html+=escapeHtml(source.slice(cursor,match.index));
+    if(url)html+=`<a href="${escapeHtml(url)}" rel="noreferrer noopener">${escapeHtml(url)}</a>`;
+    html+=escapeHtml(trailing);cursor=match.index+raw.length;
+  }
+  html+=escapeHtml(source.slice(cursor));
+  return `<div style="font-family:Arial,sans-serif;line-height:1.5;white-space:pre-wrap">${html}</div>`;
+}
+
 async function campaignAttachments(db,item){
   const [rows]=await db.query('SELECT attachment_id AS id FROM sx_email_campaign_attachments WHERE tenant_id=? AND campaign_id=? ORDER BY attachment_id',[item.tenantId,item.campaignId]);
   if(!rows.length)return [];
@@ -83,9 +96,10 @@ async function dispatch(pool,item,{key,origin,send=ses.sendSimple,providerCache=
   if(account.max24HourSend>0&&account.sentLast24Hours+account.localAccepted>=account.max24HourSend)return finish(pool,item,{status:'retry',errorCode:'SES_DAILY_QUOTA_REACHED',delaySeconds:300});
   const contact=current.contact,subject=personalize(item.subject,contact),url=unsubscribeUrl(origin,key,item);
   const text=`${personalize(item.textBody,contact)}\n\n---\nUnsubscribe / إلغاء الاشتراك: ${url}`;
+  const html=htmlEmailBody(text);
   const replyTo=item.receivingStatus==='active'&&item.replyDomain?`${inbound.replyToken(key,item.tenantId,item.campaignId,item.id)}@${item.replyDomain}`:item.senderEmail;
   const message={FromEmailAddress:item.senderEmail,Destination:{ToAddresses:[item.recipientEmail]},ReplyToAddresses:[replyTo],
-    Content:{Simple:{Subject:{Data:subject,Charset:'UTF-8'},Body:{Text:{Data:text,Charset:'UTF-8'}},
+    Content:{Simple:{Subject:{Data:subject,Charset:'UTF-8'},Body:{Text:{Data:text,Charset:'UTF-8'},Html:{Data:html,Charset:'UTF-8'}},
       Headers:[{Name:'List-Unsubscribe',Value:`<${url}>`},{Name:'List-Unsubscribe-Post',Value:'List-Unsubscribe=One-Click'}],
       ...(attachments.length?{Attachments:attachments.map(file=>({FileName:file.fileName,ContentType:file.contentType,ContentDisposition:'ATTACHMENT',ContentTransferEncoding:'BASE64',RawContent:file.content}))}:{})}},
     EmailTags:[{Name:'campaign_id',Value:item.campaignId},{Name:'recipient_id',Value:item.id}]};
@@ -143,4 +157,4 @@ function start(pool,{key,origin,logger=console,setIntervalImpl=setInterval,clear
   timer.unref?.();return ()=>clearIntervalImpl(timer);
 }
 
-module.exports={claim,currentContact,personalize,unsubscribeUrl,dispatch,finish,tick,start};
+module.exports={claim,currentContact,personalize,htmlEmailBody,unsubscribeUrl,dispatch,finish,tick,start};
