@@ -25,6 +25,16 @@ function routePermission(req){
   if(mount==='/api/workspace/students')return read?'sales.request':'sales.approve';
   if(mount==='/api/workspace/profile')return 'tenant.manage';
   if(mount==='/api/workspace/forms')return read?'forms.manage':'forms.capture';
+  if(mount==='/api/user/sales-finance'){
+    if(path==='/overview')return 'sales.finance.read';
+    if(path==='/unbilled-sales')return 'sales.invoice.issue';
+    if(path==='/invoices')return read?'sales.finance.read':'sales.invoice.issue';
+    if(path==='/receipts')return read?'sales.finance.read':'sales.receipt.record';
+    if(path==='/receipts/allocate'||/^\/receipts\/[^/]+\/allocations$/.test(path)||/^\/allocations\/[^/]+\/reverse$/.test(path))return 'sales.receipt.allocate';
+    if(path==='/reports')return 'sales.finance.report';
+    if(/^\/documents\/(invoice|receipt)\/[^/]+$/.test(path))return 'sales.finance.read';
+    if(/^\/deals\/[^/]+\/invoice$/.test(path))return 'sales.invoice.issue';
+  }
   if(mount==='/api/workspace/finance'||mount==='/api/user/training/finance-policies'){
     const endpoint=path.replace(/^\/(accountant|canonical)(?=\/|$)/,'');
     if(endpoint.startsWith('/receipts'))return 'receipts.read';
@@ -127,7 +137,7 @@ function authorizeLegacyMembership(req,row){
   }
   const scope=policy.scopeFor({role:row.role,delegatedPermissions:permissions,customPermissions:permissions},permission);
   if(!permissions.includes(permission)||!scope)return {allowed:false,code:'TEAM_ROLE_PERMISSION_DENIED'};
-  if(scope!=='tenant'&&!(req.sourceTable==='agents'&&['assigned','own'].includes(scope)&&['/api/agent','/api/agent/phonebook','/api/pipeline','/api/agent/course-replies','/api/inbox/course-replies','/api/workspace/session','/api/workspace/tasks','/api/user/training/tasks','/api/workspace/phonebook','/api/workspace/inbox/course-replies'].includes(String(req.baseUrl||'').replace(/\/$/,'')))&&!(['/api/workspace/finance','/api/user/training/finance-policies'].includes(mountFor(req))&&['summary','finance','sales'].includes(scope)))return {allowed:false,code:'TEAM_ROLE_PERMISSION_DENIED'};
+  if(scope!=='tenant'&&!(req.sourceTable==='agents'&&['assigned','own'].includes(scope)&&['/api/agent','/api/agent/phonebook','/api/pipeline','/api/agent/course-replies','/api/inbox/course-replies','/api/workspace/session','/api/workspace/tasks','/api/user/training/tasks','/api/workspace/phonebook','/api/workspace/inbox/course-replies'].includes(String(req.baseUrl||'').replace(/\/$/,'')))&&!(['/api/workspace/finance','/api/user/training/finance-policies','/api/user/sales-finance'].includes(mountFor(req))&&['summary','finance','sales'].includes(scope)))return {allowed:false,code:'TEAM_ROLE_PERMISSION_DENIED'};
   return {allowed:true,permission};
 }
 const mountFor=req=>String(req.baseUrl||'').replace(/\/$/,'');
