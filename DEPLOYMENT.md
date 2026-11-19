@@ -1,3 +1,17 @@
+# 2026-11-19 — Sales Finance session guard compatibility — production
+
+- Source commit `96bd8cf875768051c0f547145bb102afd657aaed` is pushed to `Ahammedsajal/SaleMax` `main`. The live Finance client sent the existing user bearer session, while `/api/user/sales-finance` was mounted behind the cookie-only canonical guard. The route now uses the shared business feature-session adapter, preserving current role and finance capability checks; endpoint permission mapping also covers custom staff roles. No invoice logic or financial permission grant changed.
+- App-only release `/opt/salemax/releases/sales-finance-session-guard-96bd8cf87576-20261119T143530Z` is active over base `/opt/salemax/releases/training-pipeline-correction-v3-9867ca72-20261104`. The app image remains `sha256:753d77d421b3160872df0812e7b38505a1db7104cdb9d6c8b17415b2420de667`; the active Compose chain has 297 inputs, 11 environment files and 266 app mounts. Seven non-app containers were unchanged. No database migration or invoice/customer-data write occurred.
+- Runtime hashes: `modules/platform/mount-existing-upgrade.js` `23da5db48cef1c315c8059a40a934b3e723686ac0530ad549a33e1352bd8e4ba`; `modules/platform/team-role-request-guard.js` `55f2ec1efb44c0cbece1069f8d6dbc5c5c6e719666afc1c41eaeb21c6227c498`. Prior file hashes are recorded in the protected rollback snapshot.
+- Verification: app healthy with zero restarts; database healthy; `https://7network.live/healthz` returned HTTP 200. Authenticated production review as `admin@salemax.qa` now loads Sales Finance and displays the Create invoice action. The invoice form opened successfully and was canceled without submission; no invoice was created.
+- Protected rollback snapshot: `/opt/salemax/shared/rollback-sales-finance-session-guard-96bd8cf87576-20261119T143530Z`. Restore only while this remains the latest app overlay; the guarded helper checks for later overlays and changed support services:
+
+  ```sh
+  sudo -n /opt/salemax/shared/with-production-lock.sh python3 /opt/salemax/releases/sales-finance-session-guard-96bd8cf87576-20261119T143530Z/deploy-helper.py restore /opt/salemax/shared/rollback-sales-finance-session-guard-96bd8cf87576-20261119T143530Z
+  ```
+
+  This restores the prior app Compose chain; no database rollback applies.
+
 # 2026-11-18 — Email Marketing campaign audience review and opt-in handling — production
 
 Source commit `70e783a07992a23d48da32c66c09f9e11401536c` is pushed to `Ahammedsajal/SaleMax` `main`. The guarded app-only overlay is `/opt/salemax/releases/email-marketing-campaign-audience-review-70e783a07992-20261118T142957Z/compose.email-marketing-campaign-audience-review.json`, on base `/opt/salemax/releases/training-pipeline-correction-v3-9867ca72-20261104`, using unchanged image `sha256:753d77d421b3160872df0812e7b38505a1db7104cdb9d6c8b17415b2420de667`. The active Compose chain has 291 inputs, 11 environment files and 261 app mounts. All seven non-app containers stayed unchanged. No migration ran.
