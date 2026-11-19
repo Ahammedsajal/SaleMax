@@ -1,3 +1,15 @@
+# 2026-11-19 — Retail pre-deployment backup and restore rehearsal — blocked
+
+Source candidate at start: PR #179 head `3e744ce4b430d0d33d0a1ca1a39bc3c25782bd50`. No Retail code or migration was deployed. On `carsqatar-prod-01`, the active base release remained `/opt/salemax/releases/training-pipeline-correction-v3-9867ca72-20261104`; app image remained `salemax-app:email-marketing-21a07cc41fa9-20261112`; MariaDB remained healthy on 11.4.13. The operation used the production lock.
+
+A compressed SQL snapshot was created at `/opt/salemax/shared/backups/7network-retail-predeploy-20261119T063531Z.sql.gz` (6,585,348 bytes, file mode `0600`; backup directory mode `0700`). It was generated from the application database with MariaDB `--single-transaction`, routines, events, triggers and binary data, and passed `gzip -t`. The protected manifest and Compose-input reference are stored beside it. This dump is not tracked in Git; encryption at rest has not been verified.
+
+The isolated restore rehearsal used the same MariaDB image, an ephemeral container, a `--network none` network and temporary storage. Import stopped with MariaDB `ERROR 2013` (“Lost connection to server during query”); table and migration-ledger comparisons did not run. The rehearsal **failed** and does not prove this backup is restorable. The temporary restore container was removed; the live app and database remained healthy. No live database write, migration, Woo request/sync, WordPress change, checkout/payment change or customer-message action occurred.
+
+The failed MariaDB client emitted SQL row content in its error output. That output contained production conversation text and contact identifiers and is not reproduced here. Treat the transcript output and database archive as sensitive; do not copy the diagnostic output into Git or repeat this restore command pattern. No raw row content was written to a tracked file.
+
+Release remains blocked pending a safe, output-suppressed isolated restore rehearsal, independent source review, authenticated screen acceptance and replacement of the exposed Woo key by the owner. No application rollback is applicable because the release did not occur.
+
 # 2026-11-18 — Email Marketing campaign audience review and opt-in handling — production
 
 Source commit `70e783a07992a23d48da32c66c09f9e11401536c` is pushed to `Ahammedsajal/SaleMax` `main`. The guarded app-only overlay is `/opt/salemax/releases/email-marketing-campaign-audience-review-70e783a07992-20261118T142957Z/compose.email-marketing-campaign-audience-review.json`, on base `/opt/salemax/releases/training-pipeline-correction-v3-9867ca72-20261104`, using unchanged image `sha256:753d77d421b3160872df0812e7b38505a1db7104cdb9d6c8b17415b2420de667`. The active Compose chain has 291 inputs, 11 environment files and 261 app mounts. All seven non-app containers stayed unchanged. No migration ran.
