@@ -5008,3 +5008,19 @@ sudo -n /opt/salemax/shared/with-production-lock.sh python3 /opt/salemax/release
 ```
 
 This restores the previous app Compose chain only; both additive design columns remain. The full Email Marketing provider, inbox, deliverability, browser and delivered-email gates and the broader 42-ticket application upgrade remain in progress.
+
+# 2026-11-19 — Inline formatting in Email Marketing templates — production
+
+Source commit `32a4feeb3255a066c39e26a9382a92778e801f86` is pushed to `Ahammedsajal/SaleMax` `main`. Text blocks in the visual template builder now provide Bold, Italic, Underline and yellow Highlight actions for selected words. The builder sanitizes saved inline markup, preserves formatting in the HTML preview and outgoing designed-email HTML, and removes markup from the plain-text fallback. The production test formatted sample phrases in the existing Training Centers | Annual Subscription template and closed without saving; the template and campaigns were not changed and no email was sent.
+
+The guarded app-only release is `/opt/salemax/releases/email-marketing-text-formatting-32a4feeb3255-20261119T152821Z`, on base `/opt/salemax/releases/training-pipeline-correction-v3-9867ca72-20261104`, using image `salemax-app:email-marketing-21a07cc41fa9-20261112` (`sha256:753d77d421b3160872df0812e7b38505a1db7104cdb9d6c8b17415b2420de667`). The active chain has 300 Compose inputs, 11 environment inputs and 272 app mounts; all seven non-app container identities are unchanged. The app and database are healthy. No migration or database mutation was needed.
+
+Production verification on `carsqatar-prod-01`: the worker module loaded; the focused renderer probe passed for bold, highlight, plain-text cleanup and escaping unsafe markup. Public health and Email Marketing workspace returned HTTP 200; the versioned builder JavaScript and stylesheet returned HTTP 200 and matched staged hashes. Authenticated Edge acceptance showed all four controls and verified bold and highlight in the rendered preview. The test edits were discarded. Runtime SHA-256: `modules/platform/email-marketing-content.js` `bbfd4e6e445c3217f2f97446836caab0ce592c83f291fb0064d4ef955af3a9e8`; `client/public/email-marketing-template-builder.js` `181e31c5e6cc92dbb3c3013f804420bf672f6ca6aa56b98846b6882f7d48373a`; `client/public/email-marketing-workspace.css` `75e79972b4bdb06919ab64f3f4380f75fe3cde35c73cb85dff8aa13a72f237f5`; `client/public/index.html` `4b8da9a95d0b5d3f766ed7c947b4f676bf527438c0376ffb01a75c1cf137ea83`.
+
+Protected rollback snapshot: `/opt/salemax/shared/rollback-email-marketing-text-formatting-32a4feeb3255-20261119T152821Z`. If this is still the active overlay, restore under the production lock with:
+
+```sh
+sudo -n /opt/salemax/shared/with-production-lock.sh python3 /opt/salemax/releases/email-marketing-text-formatting-32a4feeb3255-20261119T152821Z/deploy/email-marketing-text-formatting-release.py restore /opt/salemax/shared/rollback-email-marketing-text-formatting-32a4feeb3255-20261119T152821Z
+```
+
+This restores the prior app Compose chain and four reviewed runtime preimages; no database rollback applies.
