@@ -145,3 +145,34 @@ html[data-theme="dark"] #sx-email-marketing,body.dark #sx-email-marketing,html[d
 .em-dns-compact-cell .em-copy{grid-column:2;grid-row:1;min-height:26px;padding:3px 6px;font-size:9px;white-space:nowrap}
 @media(max-width:560px){.em-dns-section-heading{align-items:flex-start}.em-domain-dns-dialog .em-dialog-body{max-height:calc(100dvh - 132px)}}
 @media(max-width:560px){.em-dns-compact-row{grid-template-columns:1fr 1fr;gap:7px;padding:8px}.em-dns-compact-head{display:none}.em-dns-compact-row>strong{grid-column:1/-1}.em-dns-compact-cell{grid-template-columns:minmax(0,1fr) auto}.em-dns-compact-cell small{font-size:9px}}
+
+
+.em-dialog.em-campaign-dialog{width:min(920px,calc(100vw - 28px));max-height:min(94dvh,900px);overflow:hidden}
+.em-dialog.em-campaign-dialog .em-dialog-form{height:min(94dvh,900px);max-height:min(94dvh,900px);grid-template-rows:auto minmax(0,1fr) auto}
+.em-dialog.em-campaign-dialog .em-dialog-body{min-height:0;padding:18px 22px;overflow:auto}
+.em-audience-review{display:grid;gap:12px;margin-top:14px;padding:14px;border:1px solid var(--em-line);border-radius:13px;background:var(--em-soft)}
+.em-audience-review-head{display:flex;align-items:center;justify-content:space-between;gap:12px;min-width:0}
+.em-audience-review-head h3{margin:3px 0 0;color:var(--em-ink);font-size:15px;overflow-wrap:anywhere}
+.em-audience-total{flex:0 0 auto;padding:5px 9px;border:1px solid var(--em-line);border-radius:999px;background:var(--em-card);color:var(--em-muted);font-size:11px;font-weight:700}
+.em-audience-stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(145px,1fr));gap:7px}
+.em-audience-stat{display:flex;align-items:center;justify-content:space-between;gap:8px;min-height:38px;padding:7px 9px;border:1px solid var(--em-line);border-radius:9px;background:var(--em-card);color:var(--em-muted);font-size:10px;line-height:1.3}
+.em-audience-stat b{flex:0 0 auto;color:var(--em-ink);font-size:12px}
+.em-audience-stat-primary{border-color:var(--em-accent);background:var(--em-accent-soft);color:var(--em-accent);font-weight:750}
+.em-audience-stat-primary b{color:var(--em-accent)}
+.em-audience-stat-notice{border-color:var(--em-warn-line,var(--em-line));color:var(--em-warn,var(--em-muted))}
+.em-audience-notice{margin:0;padding:9px 11px;border-inline-start:3px solid var(--em-accent);border-radius:7px;background:var(--em-card);color:var(--em-ink);font-size:11px;line-height:1.45}
+.em-audience-list-title{display:flex;align-items:center;gap:7px;margin:1px 0 -5px;color:var(--em-ink);font-size:12px}
+.em-audience-list-title span{padding:2px 7px;border-radius:999px;background:var(--em-card);color:var(--em-muted);font-size:10px}
+.em-audience-list{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:7px;max-height:300px;margin:0;padding:1px;overflow:auto;list-style:none;overscroll-behavior:contain}
+.em-audience-recipient{display:flex;align-items:center;justify-content:space-between;gap:9px;min-width:0;padding:9px;border:1px solid var(--em-line);border-radius:9px;background:var(--em-card)}
+.em-audience-recipient-copy{display:grid;gap:3px;min-width:0}
+.em-audience-recipient-copy strong{overflow:hidden;color:var(--em-ink);font-size:11px;text-overflow:ellipsis;white-space:nowrap}
+.em-audience-recipient-copy>span{color:var(--em-muted);font-size:10px;overflow-wrap:anywhere}
+.em-audience-consent{flex:0 0 auto;padding:4px 6px;border-radius:999px;font-size:9px;font-weight:700;line-height:1.25;text-align:center}
+.em-audience-consent.is-recorded{background:var(--em-accent-soft);color:var(--em-accent)}
+.em-audience-consent.is-unrecorded{background:var(--em-soft);color:var(--em-muted)}
+.em-audience-empty{margin:0;padding:13px;border:1px dashed var(--em-line);border-radius:9px;color:var(--em-muted);font-size:11px;line-height:1.45}
+.em-audience-pager{display:flex;align-items:center;justify-content:space-between;gap:12px;color:var(--em-muted);font-size:11px}
+.em-audience-pager>div{display:flex;gap:7px}
+.em-audience-pager button{min-height:40px;padding:7px 11px}
+@media(max-width:560px){.em-dialog.em-campaign-dialog{width:calc(100vw - 14px);max-height:calc(100dvh - 14px)}.em-dialog.em-campaign-dialog .em-dialog-form{height:calc(100dvh - 14px);max-height:calc(100dvh - 14px)}.em-dialog.em-campaign-dialog .em-dialog-body{padding:14px}.em-audience-stats{grid-template-columns:repeat(2,minmax(0,1fr))}.em-audience-stat{font-size:9px}.em-audience-list{grid-template-columns:1fr;max-height:260px}.em-audience-recipient{align-items:flex-start}.em-audience-consent{max-width:112px}.em-audience-pager{align-items:flex-start;flex-direction:column}.em-audience-pager>div{width:100%}.em-audience-pager button{flex:1}}

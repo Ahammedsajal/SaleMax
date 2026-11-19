@@ -1,3 +1,23 @@
+# 2026-11-18 — Email Marketing campaign audience review and opt-in handling — production
+
+Source commit `70e783a07992a23d48da32c66c09f9e11401536c` is pushed to `Ahammedsajal/SaleMax` `main`. The guarded app-only overlay is `/opt/salemax/releases/email-marketing-campaign-audience-review-70e783a07992-20261118T142957Z/compose.email-marketing-campaign-audience-review.json`, on base `/opt/salemax/releases/training-pipeline-correction-v3-9867ca72-20261104`, using unchanged image `sha256:753d77d421b3160872df0812e7b38505a1db7104cdb9d6c8b17415b2420de667`. The active Compose chain has 291 inputs, 11 environment files and 261 app mounts. All seven non-app containers stayed unchanged. No migration ran.
+
+The campaign composer now reviews the actual recipient names and email addresses in pages of 50, labels whether an opt-in record exists, and shows inclusion/exclusion counts before queuing. Contacts with valid unique addresses and no recorded opt-in are included in the selected campaign; this does not change their Phonebook consent field. The sending business is told it is responsible for the selected recipient list. Missing/invalid addresses, duplicates, explicit unsubscribes and provider-suppressed addresses remain excluded. The worker continues to recheck unsubscribe/suppression state and address changes before delivery, and each message retains its individual recipient and unsubscribe link. Campaign audit data records the count of included recipients without a recorded opt-in.
+
+Before this release, production had an active `email-marketing-imported-list-f98ab38da54d-20261118T140333Z` overlay that was not represented in the tracked release record/source. Its live service, worker, UI and shell were hash-inspected and reconciled into tracked source before this deployment, preserving the existing reply-to inbox behavior and the prior no-recorded-opt-in inclusion change. This release supersedes that overlay with reproducible tracked files.
+
+Production verification on `carsqatar-prod-01`: app and database healthy; public health, Email Marketing workspace shell and versioned JS/CSS assets returned HTTP 200; anonymous setup API returned HTTP 401. Runtime SHA-256: `client/public/email-marketing-workspace.js` `5553389de7f391ffa4683e98d0b8dc9243160b8844c99c9da976f1ec91ca3284`; `client/public/email-marketing-workspace.css` `f322aef367b31a3c029f65215a14b3dbf65d571fffc2a911d87e03f8e0822bfe`; `client/public/index.html` `21eb7bbf3a1571023870c3dd6a9219dbed6a28173e45c7df56fe11fb3e24aa3a`; `modules/platform/email-marketing.js` `d6154760142ed60f439fda0c044a88b43f3f26946728e02b68dba8656c7a51aa`; `modules/platform/email-marketing-worker.js` `fcb59067b013e09542fcb5206fdc502aa5050a6004d25690f4e88b8f3fc01468`. JavaScript syntax, release-helper AST and `git diff --check` passed. No campaign was created and no email was sent. Authenticated browser acceptance was unavailable in this chat; actual campaign delivery remains unverified.
+
+Release-retention dry run on the verified host found 274 release directories total, 4 eligible for removal and an estimated 1,302,528 bytes reclaimable. No cleanup was applied.
+
+Protected rollback snapshot: `/opt/salemax/shared/rollback-email-marketing-campaign-audience-review-70e783a07992-20261118T142957Z` (mode `0700`). Restore only if this remains the newest app overlay; restore any later app overlays first:
+
+```sh
+sudo -n /opt/salemax/shared/with-production-lock.sh python3 /opt/salemax/releases/email-marketing-campaign-audience-review-70e783a07992-20261118T142957Z/deploy/email-marketing-campaign-audience-release.py restore /opt/salemax/shared/rollback-email-marketing-campaign-audience-review-70e783a07992-20261118T142957Z
+```
+
+Rollback is app-only; no database rollback applies. The overall 42-ticket application upgrade and Email Marketing authenticated browser, role, provider and delivered-email acceptance gates remain in progress.
+
 # 2026-11-18 — Email Marketing unified domain and reply DNS setup — production
 
 Source commit `a6d437254764edd0acf00a75dc4feefbbc67b008` is pushed to `Ahammedsajal/SaleMax` `main` and deployed as app-only overlay `/opt/salemax/releases/email-marketing-unified-domain-dns-a6d437254764-20261118T121003Z/compose.email-marketing-unified-domain-dns.json` on base `/opt/salemax/releases/training-pipeline-correction-v3-9867ca72-20261104`. The app remains on image `sha256:753d77d421b3160872df0812e7b38505a1db7104cdb9d6c8b17415b2420de667`; the overlay is the 289th Compose input, with 11 environment inputs and 261 app mounts. All seven non-app containers are unchanged. No migration ran.
