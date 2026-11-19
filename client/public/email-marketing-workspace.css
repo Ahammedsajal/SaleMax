@@ -123,9 +123,18 @@ html[data-theme="dark"] #sx-email-marketing,body.dark #sx-email-marketing,html[d
 .em-builder-block-row>div button:disabled{opacity:.35}
 .em-builder-inspector{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:9px;align-items:start}
 .em-builder-inspector>.em-builder-field:has(textarea),.em-builder-inspector>.em-builder-field:has(select),.em-builder-inspector>.em-builder-field-help{grid-column:1/-1}
+.em-builder-inspector>.em-builder-rich-field{grid-column:1/-1}
 .em-builder-field{display:grid;gap:5px;min-width:0;color:var(--em-muted);font-size:10px;font-weight:700}
 .em-builder-field input:not([type=color]),.em-builder-field select,.em-builder-field textarea{width:100%;min-width:0;min-height:36px;border:1px solid var(--em-line);border-radius:7px;padding:8px;background:var(--em-bg);color:var(--em-ink);font-size:12px}
 .em-builder-field textarea{min-height:90px;resize:vertical;line-height:1.5}
+.em-builder-format-toolbar{display:flex;flex-wrap:wrap;align-items:center;gap:5px}
+.em-builder-format-toolbar button{min-width:31px;height:29px;padding:3px 7px;border:1px solid var(--em-line);border-radius:6px;background:var(--em-card);color:var(--em-ink);font-size:12px}
+.em-builder-format-toolbar button[data-format=mark]{background:#fff8cc}
+.em-builder-format-toolbar small{flex-basis:100%;color:var(--em-muted);font-size:10px;font-weight:400}
+.em-builder-rich-editor{min-height:115px;max-height:300px;overflow:auto;resize:vertical;border:1px solid var(--em-line);border-radius:8px;padding:10px;background:var(--em-bg);color:var(--em-ink);font-size:12px;font-weight:400;line-height:1.55;white-space:pre-wrap;overflow-wrap:anywhere}
+.em-builder-rich-editor:focus{outline:2px solid #e8a3bf;outline-offset:1px}
+.em-builder-rich-editor mark{background:#fff2a8;color:inherit}
+.em-builder-rich-editor strong{font-weight:750}
 .em-builder-field input[type=range]{width:100%;accent-color:var(--em-accent)}
 .em-builder-field-help{color:var(--em-muted);font-size:10px;line-height:1.45}
 .em-builder-color-row{display:flex;gap:12px;grid-column:1/-1}

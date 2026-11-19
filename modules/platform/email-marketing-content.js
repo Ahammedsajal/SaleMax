@@ -24,6 +24,24 @@ const alignment=value=>{
   if(!ALIGNMENTS.has(result))fail('INVALID_EMAIL_DESIGN_ALIGNMENT');
   return result;
 };
+function sanitizeInline(value,max,code,{required=false}={}){
+  if(typeof value!=='string')fail(code);
+  const source=value.trim();
+  if(source.length>max)fail(code);
+  const allowed=new Set(['strong','em','u','mark','br']),parts=source.split(/(<[^>]*>)/g);
+  const html=parts.map(part=>{
+    if(!part.startsWith('<'))return escapeHtml(decodeInlineEntities(part));
+    const match=part.match(/^<(\/?)([a-z]+)>$/i);
+    if(!match||!allowed.has(match[2].toLowerCase()))return escapeHtml(part);
+    const tag=match[2].toLowerCase();
+    if(tag==='br')return match[1]?'&lt;/br&gt;':'<br>';
+    return '<'+match[1]+tag+'>';
+  }).join('');
+  if(required&&!html.replace(/<\/?(?:strong|em|u|mark)>|<br>/g,'').replace(/&nbsp;/g,' ').trim())fail(code);
+  return html;
+}
+function decodeInlineEntities(value){return String(value||'').replace(/&amp;|&lt;|&gt;|&quot;|&#39;/g,entity=>({'&amp;':'&','&lt;':'<','&gt;':'>','&quot;':'\"','&#39;':String.fromCharCode(39)}[entity]));}
+function plainInline(value){return decodeInlineEntities(String(value||'').replace(/<br\s*\/?\s*>/gi,'\n').replace(/<\/?(?:strong|em|u|mark)>/gi,''));}
 function httpsUrl(value,{required=false}={}){
   const source=text(value||'',2048,'INVALID_EMAIL_DESIGN_URL',{required});
   if(!source)return '';
@@ -54,7 +72,7 @@ function cleanDesign(value,attachments=[]){
           align:alignment(block.align),size:['small','medium','large'].includes(block.size)?block.size:'medium',
           color:color(block.color,'#172033')};
       case 'text':
-        return {type:'text',text:text(block.text||'',BLOCK_TEXT_LIMIT,'INVALID_EMAIL_DESIGN_TEXT',{required:true}),
+        return {type:'text',text:sanitizeInline(block.text||'',BLOCK_TEXT_LIMIT,'INVALID_EMAIL_DESIGN_TEXT',{required:true}),
           align:alignment(block.align),color:color(block.color,'#344054')};
       case 'image':{
         const attachmentId=String(block.attachmentId||'');
@@ -87,7 +105,8 @@ function designToText(design){
   const blocks=Array.isArray(design?.blocks)?design.blocks:[];
   return blocks.map(block=>{
     if(block.type==='header')return [block.title,block.subtitle].filter(Boolean).join('\n');
-    if(block.type==='heading'||block.type==='text')return String(block.text||'');
+    if(block.type==='heading')return String(block.text||'');
+    if(block.type==='text')return plainInline(block.text||'');
     if(block.type==='image')return String(block.alt||'');
     if(block.type==='button')return [block.text,block.href].filter(Boolean).join(': ');
     return '';
@@ -100,6 +119,17 @@ function personalized(value,personalize,contact){return typeof personalize==='fu
 function renderText(value,personalize,contact){
   const safe=escapeHtml(personalized(value,personalize,contact));
   return safe.replace(/\r\n|\r|\n/g,'<br>');
+}
+function renderInlineText(value,personalize,contact){
+  const safe=sanitizeInline(String(value||''),BLOCK_TEXT_LIMIT,'INVALID_EMAIL_DESIGN_TEXT');
+  return safe.replace(/(<\/?(?:strong|em|u|mark|br)>|[^<]+)/gi,part=>{
+    if(/^<br>$/i.test(part))return '<br>';
+    if(/^<\/?(?:strong|em|u|mark)>$/i.test(part)){
+      if(/^<mark>$/i.test(part))return '<mark style="background-color:#fff2a8;color:inherit">';
+      return part.toLowerCase();
+    }
+    return renderText(decodeInlineEntities(part),personalize,contact);
+  });
 }
 function imageIds(design){return [...new Set((design?.blocks||[]).filter(block=>block.type==='image').map(block=>block.attachmentId))];}
 
@@ -114,7 +144,7 @@ function renderDesignedHtml(design,attachments,{contact,personalize,unsubscribeU
       const size=block.size==='large'?28:block.size==='small'?18:22;
       return `<tr><td dir="auto" style="padding:16px 24px 4px;text-align:${block.align}"><h2 style="margin:0;color:${block.color};font:700 ${size}px/1.3 Arial,sans-serif">${renderText(block.text,personalize,contact)}</h2></td></tr>`;
     }
-    if(block.type==='text')return `<tr><td dir="auto" style="padding:10px 24px;text-align:${block.align}"><p style="margin:0;color:${block.color};font:16px/1.65 Arial,sans-serif">${renderText(block.text,personalize,contact)}</p></td></tr>`;
+    if(block.type==='text')return `<tr><td dir="auto" style="padding:10px 24px;text-align:${block.align}"><p style="margin:0;color:${block.color};font:16px/1.65 Arial,sans-serif">${renderInlineText(block.text,personalize,contact)}</p></td></tr>`;
     if(block.type==='image'){
       const file=byId.get(block.attachmentId);
       if(!file||!IMAGE_TYPES.has(String(file.contentType||'')))fail('EMAIL_DESIGN_IMAGE_REQUIRED');
