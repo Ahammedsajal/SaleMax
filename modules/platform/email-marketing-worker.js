@@ -57,13 +57,17 @@ async function currentContact(db,item){
 }
 
 function personalize(value,contact){
-  const values={name:contact.name||'',email:contact.email||'',mobile:contact.mobile||'',var1:contact.var1||'',var2:contact.var2||'',var3:contact.var3||'',var4:contact.var4||'',var5:contact.var5||''};
-  return String(value||'').replace(/\{\{\s*(name|email|mobile|var[1-5])\s*\}\}/gi,(_,key)=>String(values[key.toLowerCase()]||''));
+  const name=String(contact.name||'').trim();
+  const values={name,email:contact.email||'',mobile:contact.mobile||'',var1:contact.var1||'',var2:contact.var2||'',var3:contact.var3||'',var4:contact.var4||'',var5:contact.var5||'',first_name:name.split(/\s+/)[0]||''};
+  return String(value||'').replace(/\{\{\s*(first[\s_-]*name|name|email|mobile|var[1-5])\s*\}\}/gi,(_,key)=>{const normalized=key.toLowerCase().replace(/^first[\s_-]*name$/,'first_name').replace(/[\s-]+/g,'_');return String(values[normalized]||'');});
 }
 
-function htmlEmailBody(value){
+function htmlEmailBody(value,unsubscribeUrl=null){
   const escapeHtml=text=>String(text||'').replace(/[&<>"']/g,char=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[char]));
-  const source=String(value||''),urlPattern=/https?:\/\/[^\s<>"']+/gi;let html='',cursor=0,match;
+  let source=String(value||''),unsubscribe='';
+  const footer=source.match(/\n\n---\nUnsubscribe \/ إلغاء الاشتراك: (https:\/\/[^\s<>"']+)\s*$/);
+  if(footer&&(!unsubscribeUrl||footer[1]===unsubscribeUrl)){source=source.slice(0,footer.index);unsubscribe=footer[1];}
+  const urlPattern=/https?:\/\/[^\s<>"']+/gi;let html='',cursor=0,match;
   while((match=urlPattern.exec(source))){
     const raw=match[0],trailing=(raw.match(/[.,!?;:)\]}]+$/)||[''])[0],url=raw.slice(0,raw.length-trailing.length);
     html+=escapeHtml(source.slice(cursor,match.index));
@@ -71,7 +75,8 @@ function htmlEmailBody(value){
     html+=escapeHtml(trailing);cursor=match.index+raw.length;
   }
   html+=escapeHtml(source.slice(cursor));
-  return `<div style="font-family:Arial,sans-serif;line-height:1.5;white-space:pre-wrap">${html}</div>`;
+  const unsubscribeLink=unsubscribe?`<p style="margin:20px 0 0;padding-top:12px;border-top:1px solid #dbe2ec"><a href="${escapeHtml(unsubscribe)}" rel="noreferrer noopener">Unsubscribe / إلغاء الاشتراك</a></p>`:'';
+  return `<div style="font-family:Arial,sans-serif;line-height:1.5;white-space:pre-wrap">${html}${unsubscribeLink}</div>`;
 }
 
 async function campaignAttachments(db,item){
@@ -96,7 +101,7 @@ async function dispatch(pool,item,{key,origin,send=ses.sendSimple,providerCache=
   if(account.max24HourSend>0&&account.sentLast24Hours+account.localAccepted>=account.max24HourSend)return finish(pool,item,{status:'retry',errorCode:'SES_DAILY_QUOTA_REACHED',delaySeconds:300});
   const contact=current.contact,subject=personalize(item.subject,contact),url=unsubscribeUrl(origin,key,item);
   const text=`${personalize(item.textBody,contact)}\n\n---\nUnsubscribe / إلغاء الاشتراك: ${url}`;
-  const html=htmlEmailBody(text);
+  const html=htmlEmailBody(text,url);
   const replyTo=item.receivingStatus==='active'&&item.replyDomain?`${inbound.replyToken(key,item.tenantId,item.campaignId,item.id)}@${item.replyDomain}`:item.senderEmail;
   const message={FromEmailAddress:item.senderEmail,Destination:{ToAddresses:[item.recipientEmail]},ReplyToAddresses:[replyTo],
     Content:{Simple:{Subject:{Data:subject,Charset:'UTF-8'},Body:{Text:{Data:text,Charset:'UTF-8'},Html:{Data:html,Charset:'UTF-8'}},
