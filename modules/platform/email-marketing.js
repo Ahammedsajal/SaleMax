@@ -422,7 +422,7 @@ async function analytics(db,ctx,requestedDays=30){
       COUNT(DISTINCT IF(event_type='Open',recipient_id,NULL)) AS opened,
       COUNT(DISTINCT IF(event_type='Click',recipient_id,NULL)) AS clicked,
       COUNT(DISTINCT IF(event_type='Reject',recipient_id,NULL)) AS rejected,
-      COUNT(DISTINCT IF(event_type='DeliveryDelay',recipient_id,NULL)) AS delayed
+      COUNT(DISTINCT IF(event_type='DeliveryDelay',recipient_id,NULL)) AS \`delayed\`
     FROM sx_email_provider_events WHERE tenant_id=? AND created_at>=DATE_SUB(UTC_TIMESTAMP(3),INTERVAL ? DAY)`,[ctx.tenantId,days]);
   const [campaigns]=await db.query(`SELECT c.id,c.name,c.subject,c.status,c.recipient_count AS recipients,c.accepted_count AS accepted,
       c.failed_count AS failed,c.suppressed_count AS suppressed,c.created_at AS createdAt,
