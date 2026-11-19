@@ -4960,3 +4960,28 @@ sudo -n /opt/salemax/shared/with-production-lock.sh python3 /opt/salemax/release
 ```
 
 This restores the previous app Compose chain only; no database rollback applies. The full Email Marketing provider, inbox, deliverability and 42-ticket release gates remain open.
+
+# 2026-11-19 — Email Marketing visual template builder — production
+
+Source commit `3d1a0cf1840a01aebde7c046ca61e732335982a0` is pushed to `Ahammedsajal/SaleMax` `main`. The Templates tab is wired to open a visual editor with a reusable header, heading, text, image, button, divider and spacing blocks, block settings, live sample preview, personalization tokens, inline image uploads and attachments. A plain-text alternative remains available. Campaign creation snapshots the selected template design, and SES sends both HTML and plain text with uploaded images embedded by CID. No campaign was created and no email was sent.
+
+The guarded app-only release is `/opt/salemax/releases/email-marketing-visual-builder-3d1a0cf1840-20261119T093128Z` on base `/opt/salemax/releases/training-pipeline-correction-v3-9867ca72-20261104`. It retains image `salemax-app:email-marketing-21a07cc41fa9-20261112` (`sha256:753d77d421b3160872df0812e7b38505a1db7104cdb9d6c8b17415b2420de667`), 11 environment inputs and the existing Compose chain. The active chain has 296 Compose inputs and 266 app mounts; all seven non-app container identities are unchanged. The app and database are healthy.
+
+Two instant additive migrations are applied:
+
+- `database/migrations/20270109_email_template_design.sql` — checksum `684df874fc49dffcdb7d64194fb411f2df0a1e194cc5ac1f6ed3e752e4e5800b`; adds nullable `design_json` to `sx_email_templates`.
+- `database/migrations/20270110_email_campaign_design.sql` — checksum `df865dcb214d20447c5641e1533057ca92cb291bceb6920d3ae9ee8432f2b902`; adds nullable `design_json` to `sx_email_campaigns`.
+
+The pre-existing inbound migration remains applied under its historical ledger key and checksum. The migration runner now maps that key and the two design migration names consistently. The first guarded attempt stopped before schema or app changes because production's old runner did not recognize the path-prefixed inbox migration ledger key. A second attempt applied the two additive columns but its smoke check assumed a root URL would not gain a trailing slash; the helper automatically restored the previous app chain. The final release verified both columns and migration records, reused the applied migrations without rerunning their DDL, and completed the app overlay. No inbox rows or business data changed.
+
+Production verification on `carsqatar-prod-01`: visual renderer probe passed for structured blocks, inline CID image, HTML escaping, HTTPS button link, unsafe-link rejection and unsubscribe link. The public health/workspace returned HTTP 200; the three cache-versioned builder/workspace JS/CSS assets returned HTTP 200 and matched their staged hashes; anonymous setup, analytics and templates APIs returned HTTP 401. The worker module loaded, MariaDB remained healthy, and the non-app container identities stayed unchanged. Local JavaScript/Python syntax and whitespace checks passed, as did a focused rendering probe. Runtime SHA-256: `modules/platform/email-marketing.js` `a793d39d71aac0ce21458bd9c969e5bc85d305472e8b325dcd8c343748f3eb44`; `modules/platform/email-marketing-router.js` `231da466b22150d67bd2e2b0c570214b30e4bdf61b809bfc641149e50430109f`; `modules/platform/email-marketing-worker.js` `7eab484b1cee984cfeb0d8ac7ca06172dc965c56d4b98973af4084a35fb37b38`; `modules/platform/email-marketing-content.js` `a33668ebd03ef0a76c28a9fa53fe3c8e66b1811231a227ec912ba37a8e1ed786`; `client/public/email-marketing-template-builder.js` `09899cba97167947e9c34fb40c5b301b0d315487b5898b532359ff6a201c5c52`; `client/public/email-marketing-workspace.js` `0a3df88dce9944449f53629d18cfe415aa59594a0ea86bb1686b3561306b3fe2`; `client/public/email-marketing-workspace.css` `c74617ff70987424d7baf9a35f12ed60aa32916395d1fe33f5831a1f4b632a67`; `client/public/index.html` `aed0ccfcc6eb62f285244c96476732fc2adf828615ee99c5e856d1687fa6a932`; `database/migration-runner.js` `e8933e3076c771df3022467e370b1029bb1c0c4ba5fdfe7192b3c7dd486ef18e`.
+
+Authenticated browser visual acceptance remains open. The signed-in Edge tab was still showing the pre-release text editor; the Mac locked before it could be refreshed. Refresh the Email Marketing page after unlocking to load the deployed builder. A new campaign and rendering in actual recipient mail clients have not been sent or verified.
+
+Protected rollback snapshot: `/opt/salemax/shared/rollback-email-marketing-visual-builder-3d1a0cf1840-20261119T093128Z`. If this remains the active app overlay, restore under the production lock with:
+
+```sh
+sudo -n /opt/salemax/shared/with-production-lock.sh python3 /opt/salemax/releases/email-marketing-visual-builder-3d1a0cf1840-20261119T093128Z/deploy/email-marketing-visual-builder-release.py restore /opt/salemax/shared/rollback-email-marketing-visual-builder-3d1a0cf1840-20261119T093128Z
+```
+
+This restores the previous app Compose chain only; both additive design columns remain. The full Email Marketing provider, inbox, deliverability, browser and delivered-email gates and the broader 42-ticket application upgrade remain in progress.
