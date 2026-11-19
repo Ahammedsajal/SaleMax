@@ -416,25 +416,40 @@ async function analytics(db,ctx,requestedDays=30){
       COUNT(DISTINCT IF(status='failed',id,NULL)) AS failed,COUNT(DISTINCT IF(status='suppressed',id,NULL)) AS suppressed,
       COUNT(DISTINCT IF(status='unknown',id,NULL)) AS unknownCount
     FROM sx_email_campaign_recipients WHERE tenant_id=? AND created_at>=DATE_SUB(UTC_TIMESTAMP(3),INTERVAL ? DAY)`,[ctx.tenantId,days]);
+  const [failureRows]=await db.query(`SELECT COUNT(DISTINCT recipient_id) AS failed FROM (
+      SELECT id AS recipient_id FROM sx_email_campaign_recipients
+        WHERE tenant_id=? AND status='failed' AND created_at>=DATE_SUB(UTC_TIMESTAMP(3),INTERVAL ? DAY)
+      UNION
+      SELECT recipient_id FROM sx_email_provider_events
+        WHERE tenant_id=? AND event_type='Reject' AND recipient_id IS NOT NULL
+          AND created_at>=DATE_SUB(UTC_TIMESTAMP(3),INTERVAL ? DAY)
+    ) AS failed_recipients`,[ctx.tenantId,days,ctx.tenantId,days]);
   const [eventRows]=await db.query(`SELECT COUNT(DISTINCT IF(event_type='Delivery',recipient_id,NULL)) AS delivered,
       COUNT(DISTINCT IF(event_type='Bounce',recipient_id,NULL)) AS bounced,
       COUNT(DISTINCT IF(event_type='Complaint',recipient_id,NULL)) AS complained,
       COUNT(DISTINCT IF(event_type='Open',recipient_id,NULL)) AS opened,
       COUNT(DISTINCT IF(event_type='Click',recipient_id,NULL)) AS clicked,
       COUNT(DISTINCT IF(event_type='Reject',recipient_id,NULL)) AS rejected,
-      COUNT(DISTINCT IF(event_type='DeliveryDelay',recipient_id,NULL)) AS delayed
+      COUNT(DISTINCT IF(event_type='DeliveryDelay',recipient_id,NULL)) AS \`delayed\`
     FROM sx_email_provider_events WHERE tenant_id=? AND created_at>=DATE_SUB(UTC_TIMESTAMP(3),INTERVAL ? DAY)`,[ctx.tenantId,days]);
+  const [unsubscribeRows]=await db.query(`SELECT COUNT(DISTINCT normalized_email) AS unsubscribed
+    FROM sx_email_consent_events WHERE tenant_id=? AND consented=0 AND source='one_click'
+      AND created_at>=DATE_SUB(UTC_TIMESTAMP(3),INTERVAL ? DAY)`,[ctx.tenantId,days]);
   const [campaigns]=await db.query(`SELECT c.id,c.name,c.subject,c.status,c.recipient_count AS recipients,c.accepted_count AS accepted,
-      c.failed_count AS failed,c.suppressed_count AS suppressed,c.created_at AS createdAt,
+      c.suppressed_count AS suppressed,c.created_at AS createdAt,
+      COUNT(DISTINCT IF(r.status='failed' OR e.event_type='Reject',r.id,NULL)) AS failed,
       COUNT(DISTINCT IF(e.event_type='Delivery',e.recipient_id,NULL)) AS delivered,
       COUNT(DISTINCT IF(e.event_type='Open',e.recipient_id,NULL)) AS opened,
       COUNT(DISTINCT IF(e.event_type='Click',e.recipient_id,NULL)) AS clicked,
       COUNT(DISTINCT IF(e.event_type='Bounce',e.recipient_id,NULL)) AS bounced,
-      COUNT(DISTINCT IF(e.event_type='Complaint',e.recipient_id,NULL)) AS complained
-    FROM sx_email_campaigns c LEFT JOIN sx_email_provider_events e ON e.tenant_id=c.tenant_id AND e.campaign_id=c.id
+      COUNT(DISTINCT IF(e.event_type='Complaint',e.recipient_id,NULL)) AS complained,
+      COUNT(DISTINCT IF(e.event_type='Reject',e.recipient_id,NULL)) AS rejected
+    FROM sx_email_campaigns c
+    LEFT JOIN sx_email_campaign_recipients r ON r.tenant_id=c.tenant_id AND r.campaign_id=c.id
+    LEFT JOIN sx_email_provider_events e ON e.tenant_id=r.tenant_id AND e.campaign_id=r.campaign_id AND e.recipient_id=r.id
     WHERE c.tenant_id=? AND c.created_at>=DATE_SUB(UTC_TIMESTAMP(3),INTERVAL ? DAY)
     GROUP BY c.id ORDER BY c.created_at DESC,c.id DESC LIMIT 100`,[ctx.tenantId,days]);
-  return {days,totals:{...(campaignRows[0]||{}),...(recipientRows[0]||{}),...(eventRows[0]||{})},campaigns};
+  return {days,totals:{...(campaignRows[0]||{}),...(recipientRows[0]||{}),...(eventRows[0]||{}),...(unsubscribeRows[0]||{}),...(failureRows[0]||{})},campaigns};
 }
 
 async function inbox(db,ctx){

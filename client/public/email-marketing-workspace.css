@@ -176,3 +176,28 @@ html[data-theme="dark"] #sx-email-marketing,body.dark #sx-email-marketing,html[d
 .em-audience-pager>div{display:flex;gap:7px}
 .em-audience-pager button{min-height:40px;padding:7px 11px}
 @media(max-width:560px){.em-dialog.em-campaign-dialog{width:calc(100vw - 14px);max-height:calc(100dvh - 14px)}.em-dialog.em-campaign-dialog .em-dialog-form{height:calc(100dvh - 14px);max-height:calc(100dvh - 14px)}.em-dialog.em-campaign-dialog .em-dialog-body{padding:14px}.em-audience-stats{grid-template-columns:repeat(2,minmax(0,1fr))}.em-audience-stat{font-size:9px}.em-audience-list{grid-template-columns:1fr;max-height:260px}.em-audience-recipient{align-items:flex-start}.em-audience-consent{max-width:112px}.em-audience-pager{align-items:flex-start;flex-direction:column}.em-audience-pager>div{width:100%}.em-audience-pager button{flex:1}}
+
+.em-analytics-toolbar{display:flex;align-items:flex-end;justify-content:space-between;gap:20px;padding:18px 20px;border:1px solid var(--em-line);border-radius:15px;background:var(--em-soft)}
+.em-analytics-toolbar>div{display:grid;gap:5px;min-width:0}
+.em-analytics-toolbar h2{margin:0;color:var(--em-ink);font-size:22px;line-height:1.25}
+.em-analytics-toolbar p{max-width:760px;margin:0;color:var(--em-muted);font-size:13px;line-height:1.5}
+.em-analytics-period{display:grid;gap:5px;flex:0 0 160px;color:var(--em-muted);font-size:11px;font-weight:700}
+.em-analytics-period select{width:100%;min-height:42px;padding:8px 11px;border:1px solid var(--em-line);border-radius:9px;background:var(--em-card);color:var(--em-ink);font:inherit;font-size:13px}
+.em-analytics-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px}
+.em-analytics-card{display:grid;align-content:space-between;gap:14px;min-width:0;min-height:110px;padding:16px 18px;border:1px solid var(--em-line);border-inline-start:4px solid var(--em-line);border-radius:13px;background:var(--em-card);box-shadow:0 2px 9px #17203308}
+.em-analytics-card--sent,.em-analytics-card--read,.em-analytics-card--clicks{border-inline-start-color:var(--em-accent)}
+.em-analytics-card--delivered{border-inline-start-color:var(--em-good)}
+.em-analytics-card--failed,.em-analytics-card--bounced{border-inline-start-color:var(--em-bad)}
+.em-analytics-card--unsubscribed{border-inline-start-color:var(--em-muted)}
+.em-analytics-label{color:var(--em-muted);font-size:12px;font-weight:650;line-height:1.35;overflow-wrap:anywhere}
+.em-analytics-value{color:var(--em-ink);font-size:30px;font-weight:750;line-height:1;font-variant-numeric:tabular-nums}
+.em-analytics-note{margin:-6px 2px 0;color:var(--em-muted);font-size:11px;line-height:1.45}
+.em-analytics-campaigns{min-width:0}
+.em-analytics-table-heading{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:17px 20px;border-bottom:1px solid var(--em-line)}
+.em-analytics-table-heading h3{margin:0;color:var(--em-ink);font-size:16px}
+.em-analytics-table-heading p{margin:3px 0 0;color:var(--em-muted);font-size:11px;line-height:1.4}
+.em-analytics-table-scroll table{min-width:760px}
+.em-analytics-empty{padding:34px 20px}
+@media(max-width:1100px){.em-analytics-grid{grid-template-columns:repeat(3,minmax(0,1fr))}}
+@media(max-width:640px){.em-analytics-toolbar{align-items:stretch;flex-direction:column;gap:14px;padding:16px}.em-analytics-toolbar h2{font-size:20px}.em-analytics-period{grid-template-columns:auto minmax(0,1fr);align-items:center;gap:10px;flex-basis:auto}.em-analytics-period select{min-height:44px}.em-analytics-grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:9px}.em-analytics-card{min-height:96px;padding:13px 14px}.em-analytics-value{font-size:27px}.em-analytics-table-heading{padding:14px 15px}.em-analytics-table-scroll table{min-width:720px}}
+@media(max-width:380px){.em-analytics-grid{grid-template-columns:minmax(0,1fr)}.em-analytics-card{min-height:82px}}
