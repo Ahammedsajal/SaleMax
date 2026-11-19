@@ -59,7 +59,9 @@ async function createInvoice(db,ctx,input={}){
   const customerName=optional(input.customerName,255),customerMobile=optional(input.customerMobile,64),currency=String(input.currency||'').trim().toUpperCase(),dueAt=dateValue(input.dueAt,{optional:true});
   if(!customerName||!Array.isArray(input.lineItems)||input.lineItems.length<1||input.lineItems.length>10)fail('INVALID_FINANCE_INPUT');
   if(!/^[A-Z]{3}$/.test(currency))fail('INVALID_FINANCE_CURRENCY');
-  let total=0;const normalized=[];
+  let total=0;const normalized=[],productLines=input.lineItems.filter(line=>line&&line.productId);
+  let productCatalog=new Map();
+  if(productLines.length){const catalog=require('./product-catalog'),products=require('./training-courses'),page=await products.list(catalog.database(db),ctx,{page:1,limit:100,status:'active'});productCatalog=new Map(page.items.map(item=>[item.id,item]));}
   for(const raw of input.lineItems){
     if(!raw||typeof raw!=='object'||Array.isArray(raw))fail('INVALID_FINANCE_INPUT');
     const productId=raw.productId===null||raw.productId===''?null:raw.productId;
@@ -68,7 +70,7 @@ async function createInvoice(db,ctx,input={}){
     if(!Number.isSafeInteger(quantity)||quantity<1||quantity>9999||!Number.isSafeInteger(discountMinor)||discountMinor<0)fail('INVALID_FINANCE_INPUT');
     const gross=quantity*unitPriceMinor;if(!Number.isSafeInteger(gross)||discountMinor>gross)fail('INVALID_FINANCE_AMOUNT');
     let name;
-    if(productId){const [[product]]=await db.query('SELECT name FROM sx_sales_products WHERE tenant_id=? AND id=? AND active=1',[ctx.tenant.id,productId]);if(!product)fail('SALES_PRODUCT_UNAVAILABLE');name=product.name;}
+    if(productId){const product=productCatalog.get(productId);if(!product)fail('SALES_PRODUCT_UNAVAILABLE');name=raw.name===product.nameAr&&product.nameAr?product.nameAr:product.nameEn;}
     else name=optional(raw.name,191);
     if(!name)fail('INVALID_FINANCE_INPUT');
     const lineTotal=gross-discountMinor;total+=lineTotal;if(!Number.isSafeInteger(total))fail('INVALID_FINANCE_AMOUNT');
@@ -100,8 +102,9 @@ async function document(db,ctx,kind,id){
 }
 async function invoiceProducts(db,ctx){
   assertContext(ctx,'sales.finance.read');
-  const [items]=await db.query('SELECT id,code,name FROM sx_sales_products WHERE tenant_id=? AND active=1 ORDER BY name,id',[ctx.tenant.id]);
-  return {items};
+  const catalog=require('./product-catalog'),products=require('./training-courses');
+  const page=await products.list(catalog.database(db),ctx,{page:1,limit:100,status:'active'});
+  return {items:page.items.map(item=>({id:item.id,code:item.code,name:item.nameEn,nameAr:item.nameAr||null,priceMinor:item.priceMinor===null||item.priceMinor===undefined?null:String(item.priceMinor)}))};
 }
 async function recordReceipt(db,ctx,input){
   assertContext(ctx,'sales.receipt.record');

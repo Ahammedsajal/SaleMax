@@ -22,7 +22,7 @@
   function addLine(){
     if(rows.children.length>=10)return;
     const row=document.createElement('div');row.className='invoice-line';
-    const select=document.createElement('select');select.setAttribute('aria-label',copy.product);select.innerHTML=`<option value="">${api.escape(copy.choose)}</option>`+catalog.map(item=>`<option value="${api.escape(item.id)}">${api.escape(item.name)}${item.code?` · ${api.escape(item.code)}`:''}</option>`).join('')+`<option value="custom">${copy.custom}</option>`;
+    const select=document.createElement('select');select.setAttribute('aria-label',copy.product);select.innerHTML=`<option value="">${api.escape(copy.choose)}</option>`+catalog.map(item=>`<option value="${api.escape(item.id)}">${api.escape(arabic&&item.nameAr?item.nameAr:item.name)}${item.code?` · ${api.escape(item.code)}`:''}${item.priceMinor?` · ${money(item.priceMinor)}`:''}</option>`).join('')+`<option value="custom">${copy.custom}</option>`;
     const product=document.createElement('label');product.textContent=copy.product;product.append(select);
     const desc=document.createElement('label');desc.className='line-description';desc.textContent=copy.description;const name=document.createElement('input');name.type='text';name.maxLength=191;name.required=true;name.dataset.lineName='';name.placeholder=copy.name;desc.append(name);
     const quantity=field(copy.quantity,'number','1','1',9999);quantity.dataset.lineQuantity='';
@@ -30,7 +30,7 @@
     const discount=field(copy.discount,'number','0','0.01',999999999999);discount.min='0';discount.dataset.lineDiscount='';
     const remove=document.createElement('button');remove.type='button';remove.className='secondary';remove.textContent='×';remove.dataset.removeLine='';remove.setAttribute('aria-label',copy.remove);
     const output=document.createElement('output');output.dataset.lineTotal='';row.append(product,quantity.parentElement,price.parentElement,discount.parentElement,remove,desc,output);rows.append(row);
-    select.onchange=()=>{const item=catalog.find(entry=>entry.id===select.value);if(item){name.value=item.name;name.readOnly=true;name.dataset.productId=item.id}else{name.readOnly=false;name.dataset.productId='';if(select.value==='custom')name.focus()}update()};
+    select.onchange=()=>{const item=catalog.find(entry=>entry.id===select.value);if(item){name.value=arabic&&item.nameAr?item.nameAr:item.name;name.readOnly=true;name.dataset.productId=item.id;if(item.priceMinor)price.value=(Number(item.priceMinor)/100).toFixed(2)}else{name.readOnly=false;name.dataset.productId='';if(select.value==='custom')name.focus()}update()};
     row.addEventListener('input',update);remove.onclick=()=>{row.remove();if(!rows.children.length)addLine();update()};update();
   }
   function field(label,type,value,step,max){const wrap=document.createElement('label'),caption=document.createElement('span'),input=document.createElement('input');caption.textContent=label;input.type=type;input.value=value;input.step=step;input.max=max;input.required=true;wrap.append(caption,input);return input}
