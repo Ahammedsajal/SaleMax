@@ -27,6 +27,7 @@ function routePermission(req){
   if(mount==='/api/workspace/forms')return read?'forms.manage':'forms.capture';
   if(mount==='/api/user/sales-finance'){
     if(path==='/overview')return 'sales.finance.read';
+    if(path==='/products')return 'sales.finance.read';
     if(path==='/unbilled-sales')return 'sales.invoice.issue';
     if(path==='/invoices')return read?'sales.finance.read':'sales.invoice.issue';
     if(path==='/receipts')return read?'sales.finance.read':'sales.receipt.record';

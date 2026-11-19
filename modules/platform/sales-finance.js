@@ -56,10 +56,30 @@ async function nextDocumentNumber(db,ctx,kind){
 async function createInvoice(db,ctx,input={}){
   assertContext(ctx,'sales.invoice.issue');
   if(!uuid(input.idempotencyKey))fail('INVALID_FINANCE_INPUT');
-  const data={customerName:optional(input.customerName,255),customerMobile:optional(input.customerMobile,64),description:optional(input.description,500),totalMinor:parseAmount(input.totalMinor),currency:String(input.currency||'').trim().toUpperCase(),dueAt:dateValue(input.dueAt,{optional:true})};
-  if(!data.customerName||!data.description)fail('INVALID_FINANCE_INPUT');
+  const customerName=optional(input.customerName,255),customerMobile=optional(input.customerMobile,64),currency=String(input.currency||'').trim().toUpperCase(),dueAt=dateValue(input.dueAt,{optional:true});
+  if(!customerName||!Array.isArray(input.lineItems)||input.lineItems.length<1||input.lineItems.length>10)fail('INVALID_FINANCE_INPUT');
+  if(!/^[A-Z]{3}$/.test(currency))fail('INVALID_FINANCE_CURRENCY');
+  let total=0;const normalized=[];
+  for(const raw of input.lineItems){
+    if(!raw||typeof raw!=='object'||Array.isArray(raw))fail('INVALID_FINANCE_INPUT');
+    const productId=raw.productId===null||raw.productId===''?null:raw.productId;
+    if(productId!==null&&!uuid(productId))fail('INVALID_FINANCE_INPUT');
+    const quantity=Number(raw.quantity),unitPriceMinor=Number(parseAmount(raw.unitPriceMinor)),discountMinor=raw.discountMinor===undefined?0:Number(raw.discountMinor);
+    if(!Number.isSafeInteger(quantity)||quantity<1||quantity>9999||!Number.isSafeInteger(discountMinor)||discountMinor<0)fail('INVALID_FINANCE_INPUT');
+    const gross=quantity*unitPriceMinor;if(!Number.isSafeInteger(gross)||discountMinor>gross)fail('INVALID_FINANCE_AMOUNT');
+    let name;
+    if(productId){const [[product]]=await db.query('SELECT name FROM sx_sales_products WHERE tenant_id=? AND id=? AND active=1',[ctx.tenant.id,productId]);if(!product)fail('SALES_PRODUCT_UNAVAILABLE');name=product.name;}
+    else name=optional(raw.name,191);
+    if(!name)fail('INVALID_FINANCE_INPUT');
+    const lineTotal=gross-discountMinor;total+=lineTotal;if(!Number.isSafeInteger(total))fail('INVALID_FINANCE_AMOUNT');
+    normalized.push({productId,name,quantity,unitPriceMinor:String(unitPriceMinor),discountMinor:String(discountMinor),lineTotalMinor:String(lineTotal)});
+  }
+  const displayAmount=value=>`${currency} ${(Number(value)/100).toFixed(2)}`;
+  const description=normalized.map(line=>`${line.quantity} × ${line.name} @ ${displayAmount(String(Number(line.unitPriceMinor)*line.quantity))}${Number(line.discountMinor)?` − ${displayAmount(line.discountMinor)} discount`:''} = ${displayAmount(line.lineTotalMinor)}`).join('\n');
+  if(description.length>500)fail('INVALID_FINANCE_INPUT');
+  const data={customerName,customerMobile,description,totalMinor:parseAmount(String(total)),currency,dueAt};
   if(!/^[A-Z]{3}$/.test(data.currency))fail('INVALID_FINANCE_CURRENCY');
-  const payloadHash=crypto.createHash('sha256').update(JSON.stringify(data)).digest('hex');
+  const payloadHash=crypto.createHash('sha256').update(JSON.stringify({...data,lineItems:normalized})).digest('hex');
   await db.beginTransaction();try{
     const [[tenant]]=await db.query("SELECT id FROM sx_tenants WHERE id=? AND status='active' FOR UPDATE",[ctx.tenant.id]);if(!tenant)fail('CATEGORY_UNAVAILABLE');
     const [[prior]]=await db.query('SELECT id,invoice_number AS invoiceNumber,payload_hash AS payloadHash FROM sx_sales_invoices WHERE tenant_id=? AND idempotency_key=? FOR UPDATE',[ctx.tenant.id,input.idempotencyKey]);
@@ -77,6 +97,11 @@ async function document(db,ctx,kind,id){
   const [[row]]=await db.query(`SELECT * FROM ${table} WHERE tenant_id=? AND id=?`,[ctx.tenant.id,id]);
   if(!row)fail(kind==='invoice'?'SALES_INVOICE_NOT_FOUND':'SALES_RECEIPT_NOT_FOUND');
   return {kind,businessName:ctx.tenant.name||'',number:kind==='invoice'?row.invoice_number:row.receipt_number||'RCP-'+row.id.toUpperCase(),customerName:kind==='invoice'?row.customer_name:row.payer_name,customerMobile:row.customer_mobile||null,description:kind==='invoice'?row.description:row.note,amountMinor:String(kind==='invoice'?row.total_minor:row.amount_minor),currency:row.currency,date:kind==='invoice'?row.issued_at:row.received_at,dueAt:row.due_at||null,paymentMethod:row.payment_method||null,reference:row.external_reference||null,status:row.status};
+}
+async function invoiceProducts(db,ctx){
+  assertContext(ctx,'sales.finance.read');
+  const [items]=await db.query('SELECT id,code,name FROM sx_sales_products WHERE tenant_id=? AND active=1 ORDER BY name,id',[ctx.tenant.id]);
+  return {items};
 }
 async function recordReceipt(db,ctx,input){
   assertContext(ctx,'sales.receipt.record');
@@ -190,4 +215,4 @@ async function report(db,ctx,{from,to}={}){
     GROUP BY r.currency,DATE_FORMAT(r.received_at,'%Y-%m') ORDER BY month,currency`,[ctx.tenant.id,from,to]);
   return {from,to,invoices:rows,collections};
 }
-module.exports={createInvoice,document,issueInvoice,recordReceipt,allocateReceipt,reverseAllocation,listInvoices,unbilledSales,listReceipts,listAllocations,overview,report};
+module.exports={createInvoice,invoiceProducts,document,issueInvoice,recordReceipt,allocateReceipt,reverseAllocation,listInvoices,unbilledSales,listReceipts,listAllocations,overview,report};

@@ -1,4 +1,4 @@
-"""Guarded app-only Sales Finance session compatibility release."""
+"""Guarded app-only Sales Finance itemized invoice release."""
 import hashlib
 import json
 import os
@@ -16,8 +16,14 @@ DB = 'salemax-db-1'
 BASE = '/opt/salemax/releases/training-pipeline-correction-v3-9867ca72-20261104'
 IMAGE_ID = 'sha256:753d77d421b3160872df0812e7b38505a1db7104cdb9d6c8b17415b2420de667'
 HELPER = 'deploy/sales-finance-session-guard-release.py'
-FILES = ('modules/platform/mount-existing-upgrade.js',
-         'modules/platform/team-role-request-guard.js')
+FILES = ('modules/platform/sales-finance.js',
+         'modules/platform/sales-finance-router.js',
+         'modules/platform/team-role-request-guard.js',
+         'client/public/sales-finance/index.html',
+         'client/public/sales-finance/sales-finance.css',
+         'client/public/sales-finance/sales-finance.js',
+         'client/public/sales-finance/invoice-composer.js')
+OPTIONAL_PREIMAGE = frozenset({'client/public/sales-finance/invoice-composer.js'})
 
 
 def run(*args, env=None, check=True, timeout=300):
@@ -159,8 +165,8 @@ def deploy(stage_path, commit):
     if app_config.get('image') != app['Config']['Image']:
         raise RuntimeError('resolved Compose image differs from running app')
     stamp = datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%SZ')
-    release = ROOT / 'releases' / f'sales-finance-session-guard-{commit[:12]}-{stamp}'
-    backup = ROOT / 'shared' / f'rollback-sales-finance-session-guard-{commit[:12]}-{stamp}'
+    release = ROOT / 'releases' / f'sales-finance-itemized-invoices-{commit[:12]}-{stamp}'
+    backup = ROOT / 'shared' / f'rollback-sales-finance-itemized-invoices-{commit[:12]}-{stamp}'
     if release.exists() or backup.exists():
         raise RuntimeError('release or rollback path already exists')
     os.umask(0o077)
@@ -169,9 +175,18 @@ def deploy(stage_path, commit):
     runtime = release / 'runtime'
     runtime.mkdir(mode=0o755)
     preimages = {}
+    missing_preimages = []
     for name in FILES:
-        result = run('docker', 'exec', APP, 'cat', '/app/' + name)
-        prior = result.encode()
+        if name in OPTIONAL_PREIMAGE:
+            result = subprocess.run(['docker', 'exec', APP, 'cat', '/app/' + name], capture_output=True)
+            if result.returncode not in (0, 1):
+                raise RuntimeError('could not snapshot optional preimage')
+            prior = result.stdout
+            if result.returncode == 1:
+                missing_preimages.append(name)
+        else:
+            result = run('docker', 'exec', APP, 'cat', '/app/' + name)
+            prior = result.encode()
         preimages[name] = prior
         output = runtime / name
         output.parent.mkdir(parents=True, exist_ok=True)
@@ -183,7 +198,7 @@ def deploy(stage_path, commit):
         saved.chmod(0o600)
     mounts = [{'type': 'bind', 'source': str(runtime / name), 'target': '/app/' + name,
                'read_only': True, 'bind': {'create_host_path': False}} for name in FILES]
-    overlay = release / 'compose.sales-finance-session-guard.json'
+    overlay = release / 'compose.sales-finance-itemized-invoices.json'
     overlay.write_text(json.dumps({'services': {'app': {'image': app['Config']['Image'], 'volumes': mounts}}}, indent=2) + '\n')
     overlay.chmod(0o644)
     shutil.copy2(stage_path / 'source' / HELPER, release / 'deploy-helper.py')
@@ -196,6 +211,7 @@ def deploy(stage_path, commit):
         'compose-vars.json': json.dumps(variables),
         'compose-input-hashes.json': json.dumps(input_hashes, indent=2) + '\n',
         'preimage-hashes.json': json.dumps({name: sha(data) for name, data in preimages.items()}, indent=2) + '\n',
+        'preimage-missing-files.json': json.dumps(missing_preimages, indent=2) + '\n',
         'support-services.json': json.dumps(support, indent=2) + '\n',
         'release-path.txt': str(release) + '\n',
         'source-manifest.json': json.dumps(manifest, indent=2) + '\n',
@@ -248,7 +264,7 @@ def restore(backup_path):
     files = (backup / 'compose-files.before.txt').read_text().splitlines()
     env_files = (backup / 'compose-env-files.before.txt').read_text().splitlines()
     release = Path((backup / 'release-path.txt').read_text().strip())
-    overlay = release / 'compose.sales-finance-session-guard.json'
+    overlay = release / 'compose.sales-finance-itemized-invoices.json'
     app = inspect(APP)
     if app['Config']['Labels'].get('com.docker.compose.project.config_files') != ','.join(files + [str(overlay)]):
         raise RuntimeError('a later app overlay is active; restore it first')

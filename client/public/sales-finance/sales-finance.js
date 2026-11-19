@@ -47,6 +47,7 @@
     $('documentContent').innerHTML=`<p class="eyebrow">${escape(d.businessName)}</p><h2 id="documentTitle">${escape(kind==='invoice'?t('invoice'):t('createReceipt'))}</h2><p class="document-number">${escape(d.number)}</p><dl class="document-details">${rows.filter(x=>x[1]).map(([label,value])=>`<dt>${escape(label)}</dt><dd>${escape(value)}</dd>`).join('')}</dl>`;
     $('documentDialog').showModal();
   }
+  window.SalesFinanceInvoiceApi={request,showDocument,loadInvoices,t,escape,notify,setView};
   $('closeDocument').onclick=()=>$('documentDialog').close();$('printDocument').onclick=()=>window.print();
   $('createReceipt').onclick=()=>{setView('reconciliation');$('receiptForm').elements.payerName.focus()};
   $('createInvoice').onclick=()=>{
