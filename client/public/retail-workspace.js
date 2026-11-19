@@ -5,6 +5,7 @@
   const t=(en,ar)=>(localStorage.getItem('language')||'').toLowerCase().startsWith('ar')?ar:en;
   const pages=[
     ['retail-orders','retail.orders',t('Retail orders','طلبات التجزئة')],
+    ['retail-customers','retail.orders',t('Retail customers','عملاء التجزئة')],
     ['retail-connected-stores','retail.connect',t('Connected Stores','المتاجر المتصلة')],
     ['retail-deliveries','retail.deliver',t('My deliveries','عمليات التوصيل الخاصة بي')],
     ['retail-finance','retail.finance',t('Cash reconciliation','تسوية النقد')]
@@ -168,6 +169,45 @@
     const fallback=key.replace(/[-_]+/g,' ').replace(/\b\w/g,letter=>letter.toUpperCase());
     return t(en[key]||fallback,ar[key]||fallback);
   }
+  function renderOnlineOrderDetails(root,data,currency){
+    const section=add(root,'section');section.className='sx-retail-online-source-details';
+    add(section,'h3',t('Full WooCommerce order details','تفاصيل طلب WooCommerce كاملة'));
+    const customer=data.customer||{},buyerName=[customer.firstName,customer.lastName].filter(Boolean).join(' ');
+    if(buyerName)add(section,'p',t('Customer: ','العميل: ')+buyerName);
+    if(customer.email){const line=add(section,'p');add(line,'strong',t('Email: ','البريد الإلكتروني: '));const value=add(line,'bdi',customer.email);value.dir='ltr';}
+    if(customer.phone){const line=add(section,'p');add(line,'strong',t('Phone: ','الهاتف: '));const value=add(line,'bdi',customer.phone);value.dir='ltr';}
+    const addressText=address=>address?[address.firstName,address.lastName,address.company,address.address1,address.address2,address.city,address.region,address.postalCode,address.country].filter(Boolean).join(', '):'';
+    const billing=addressText(data.billing),shipping=addressText(data.shipping);
+    if(billing)add(section,'p',t('Billing address: ','عنوان الفوترة: ')+billing);
+    if(shipping)add(section,'p',t('Shipping address: ','عنوان الشحن: ')+shipping);
+    const state=add(section,'p');add(state,'strong',t('Woo order / payment status: ','حالة الطلب / الدفع في Woo: '));add(state,'span',sourceStatus(data.status)+' · '+sourceStatus(data.financialStatus));
+    add(section,'p',t('Payment status above is reported by WooCommerce and does not mark a 7Network payment as received.','حالة الدفع أعلاه واردة من WooCommerce ولا تسجل دفعة مستلمة في 7Network.'));
+    for(const [key,labelEn,labelAr] of [['createdAt','Created','تاريخ الإنشاء'],['datePaid','Paid','تاريخ الدفع'],['dateCompleted','Completed','تاريخ الإكمال'],['updatedAt','Last updated','آخر تحديث']])if(data[key])add(section,'p',t(labelEn+': ',labelAr+': ')+orderDate(data[key]));
+    if(data.paymentMethodTitle||data.paymentMethod)add(section,'p',t('Payment method: ','طريقة الدفع: ')+[data.paymentMethodTitle,data.paymentMethod].filter(Boolean).join(' · '));
+    if(data.transactionId){const line=add(section,'p');add(line,'strong',t('Store transaction ID: ','معرّف معاملة المتجر: '));const id=add(line,'bdi',data.transactionId);id.dir='ltr';}
+    if(data.customerNote)add(section,'p',t('Customer note: ','ملاحظة العميل: ')+data.customerNote);
+    const breakdown=data.breakdown||{};
+    for(const [key,labelEn,labelAr] of [['subtotal','Subtotal','المجموع الفرعي'],['discount','Discounts','الخصومات'],['shipping','Shipping','الشحن'],['tax','Tax','الضريبة'],['fees','Fees','الرسوم'],['refunds','Refunds','المبالغ المستردة']])
+      if(breakdown[key]!==null&&breakdown[key]!==undefined)add(section,'p',t(labelEn+': ',labelAr+': ')+sourceMoney(breakdown[key],currency));
+    for(const [key,titleEn,titleAr] of [['shippingLines','Shipping lines','بنود الشحن'],['taxLines','Tax lines','بنود الضرائب'],['couponLines','Coupons','القسائم'],['feeLines','Fees','الرسوم']]){
+      const rows=Array.isArray(data[key])?data[key]:[];if(!rows.length)continue;
+      const block=add(section,'div');add(block,'strong',t(titleEn,titleAr));const list=add(block,'ul');
+      for(const row of rows){const line=add(list,'li');add(line,'span',row.title||row.code||'—');if(row.total!==null&&row.total!==undefined)add(line,'span',' · '+sourceMoney(row.total,currency));if(row.tax!==null&&row.tax!==undefined)add(line,'span',' · '+t('Tax ','ضريبة ')+sourceMoney(row.tax,currency));}
+    }
+    for(const refund of data.refundDetails||[]){
+      const block=add(section,'details'),summary=add(block,'summary',t('Refund','استرداد')+' · '+(refund.id||'—')+' · '+sourceMoney(refund.total,currency)+' · '+orderDate(refund.dateCreated));summary.dir='auto';
+      if(refund.reason)add(block,'p',refund.reason);
+      for(const [key,labelEn,labelAr] of [['lineItems','Refunded items','المنتجات المستردة'],['taxLines','Refund taxes','ضرائب الاسترداد'],['shippingLines','Refund shipping','شحن الاسترداد'],['feeLines','Refund fees','رسوم الاسترداد']]){
+        const entries=Array.isArray(refund[key])?refund[key]:[];if(!entries.length)continue;
+        const group=add(block,'div');add(group,'strong',t(labelEn,labelAr));const list=add(group,'ul');
+        for(const entry of entries){const item=add(list,'li');add(item,'span',key==='lineItems'?((entry.title||t('Item','عنصر'))+' · '+(entry.sku||'—')+' · '+t('Qty ','الكمية ')+(entry.quantity||'0')):(entry.title||entry.code||'—'));if(entry.total!==null&&entry.total!==undefined)add(item,'span',' · '+sourceMoney(entry.total,currency));if(entry.tax!==null&&entry.tax!==undefined)add(item,'span',' · '+t('Tax ','ضريبة ')+sourceMoney(entry.tax,currency));}
+      }
+    }
+    for(const transaction of data.transactions||[]){const line=add(section,'p');add(line,'strong',t('Store transaction: ','معاملة المتجر: '));add(line,'span',[transaction.kind,transaction.status,transaction.gateway,transaction.processedAt,sourceMoney(transaction.amount,transaction.currency||currency)].filter(Boolean).join(' · '));}
+    if(data.pricesIncludeTax!==null&&data.pricesIncludeTax!==undefined)add(section,'p',t('Prices include tax: ','الأسعار تشمل الضريبة: ')+(data.pricesIncludeTax?t('Yes','نعم'):t('No','لا')));
+    const metadata=[...(data.metadata||[])];if(metadata.length){const details=add(section,'details');add(details,'summary',t('Additional Woo order details','تفاصيل Woo إضافية'));const list=add(details,'ul');for(const item of metadata)add(list,'li',String(item.key||'')+': '+(typeof item.value==='string'?item.value:JSON.stringify(item.value)));}
+    add(section,'p',t('Imported source record · Read only · No stock, 7Network payment, receipt or message action is triggered.','سجل مستورد للقراءة فقط · لا يغيّر المخزون أو دفعات 7Network ولا ينشئ إيصالًا أو رسالة.'));
+  }
   function renderOnlineOrder(root,order){
     const card=add(root,'article');card.className='sx-retail-order sx-retail-online-order';
     const row=add(card,'div');row.className='sx-retail-order-summary';
@@ -203,6 +243,7 @@
       loadItems.disabled=true;itemStatus.textContent=t('Loading item details…','جارٍ تحميل تفاصيل المنتجات…');
       try{
         const result=await api('/orders/online/detail','POST',{connectionId:order.connectionId,externalOrderId:order.externalOrderId});
+        items.querySelector('.sx-retail-order-source-detail')?.remove();const fullDetails=add(items,'div');fullDetails.className='sx-retail-order-source-detail';renderOnlineOrderDetails(fullDetails,result.order||{},order.currency);
         itemList.replaceChildren();
         if(!result.lines?.length)itemStatus.textContent=t('No line items were included in this store snapshot.','لا تتضمن لقطة المتجر تفاصيل المنتجات.');
         else{
@@ -217,7 +258,14 @@
             const sourceSku=add(line,'p');add(sourceSku,'strong',t(sourceName+' SKU: ','رمز SKU في '+sourceNameAr+': '));const skuValue=add(sourceSku,'bdi',lineData.sku||'—');skuValue.dir='ltr';
             add(line,'p',t('Quantity: ','الكمية: ')+lineData.quantity);
             if(lineData.unitPrice!==null)add(line,'p',t('Unit price: ','سعر الوحدة: ')+sourceMoney(lineData.unitPrice,order.currency));
+            if(lineData.subtotal!==null)add(line,'p',t('Subtotal: ','المجموع الفرعي: ')+sourceMoney(lineData.subtotal,order.currency));
+            if(lineData.subtotalTax!==null)add(line,'p',t('Tax before discount: ','الضريبة قبل الخصم: ')+sourceMoney(lineData.subtotalTax,order.currency));
+            if(lineData.discount!==null)add(line,'p',t('Line discount: ','خصم السطر: ')+sourceMoney(lineData.discount,order.currency));
             if(lineData.total!==null)add(line,'p',t('Line total: ','إجمالي السطر: ')+sourceMoney(lineData.total,order.currency));
+            if(lineData.tax!==null)add(line,'p',t('Line tax: ','ضريبة السطر: ')+sourceMoney(lineData.tax,order.currency));
+            if(lineData.taxes?.length){const taxList=add(line,'ul');for(const tax of lineData.taxes){const item=add(taxList,'li');add(item,'span',t('Tax rate ','معدل الضريبة ')+(tax.id||'—'));if(tax.subtotal!==null)add(item,'span',' · '+t('Before discount ','قبل الخصم ')+sourceMoney(tax.subtotal,order.currency));if(tax.total!==null)add(item,'span',' · '+t('After discount ','بعد الخصم ')+sourceMoney(tax.total,order.currency));}}
+            if(lineData.image){const image=add(line,'img');image.className='sx-retail-product-image';image.loading='lazy';image.referrerPolicy='no-referrer';image.alt=lineData.name||'';image.src=lineData.image;}
+            if(lineData.metadata?.length){const metadata=add(line,'ul');for(const entry of lineData.metadata)add(metadata,'li',String(entry.key||'')+': '+(typeof entry.value==='string'?entry.value:JSON.stringify(entry.value)));}
             const mappingLabel={mapped:t('Mapped to 7Network inventory','مرتبط بمخزون 7Network'),ignored:t('Explicitly excluded from inventory mapping','مستثنى صراحةً من ربط المخزون'),
               unmapped:t('Not mapped to 7Network inventory','غير مرتبط بمخزون 7Network'),target_unavailable:t('Mapped inventory product is unavailable','منتج المخزون المرتبط غير متاح'),
               not_supported:t('Mapping is not supported for this store provider','الربط غير مدعوم لمزود هذا المتجر')};
@@ -229,7 +277,7 @@
               if(lineData.skuMatches===false)add(line,'p',t('The Woo SKU and mapped 7Network SKU differ. Review the explicit mapping before accepting reconciliation.','يختلف رمز SKU في Woo عن رمز 7Network المرتبط. راجع الربط قبل اعتماد المطابقة.'));
             }
           }
-          if(result.lineItemsTruncated)itemStatus.textContent=t('The source snapshot contains more than 100 items; only the first 100 are available here.','تحتوي لقطة المصدر على أكثر من 100 منتج؛ المتاح هنا أول 100 فقط.');
+          if(result.lineItemsTruncated)itemStatus.textContent=t('The source snapshot contains more than 500 items; only the first 500 are available here.','تحتوي لقطة المصدر على أكثر من 500 منتج؛ المتاح هنا أول 500 فقط.');
         }
         loadItems.textContent=t('Refresh item and SKU details','تحديث تفاصيل المنتجات ورموز SKU');
       }catch{itemStatus.textContent=t('Unable to load item details. Refresh the order list and try again.','تعذر تحميل تفاصيل المنتجات. حدّث قائمة الطلبات وحاول مرة أخرى.');}
@@ -484,6 +532,88 @@
     return load();
   }
   function showCode(status,error){status.textContent=t('Could not complete this action.','تعذر إكمال هذا الإجراء.')+(error?.message?' '+String(error.message).replace(/[^A-Z0-9_ -]/gi,'').slice(0,64):'');}
+  async function customers(root,status){
+    const intro=add(root,'p',t('WooCommerce customer profiles and their imported purchase history. Exact unique email or phone matches link to an existing CRM record; ambiguous matches stay separate for review.','ملفات عملاء WooCommerce وسجل مشترياتهم المستورد. تُربط المطابقة الدقيقة الوحيدة بالبريد أو الهاتف بسجل CRM، وتبقى المطابقات المتعددة منفصلة للمراجعة.'));
+    intro.className='sx-retail-page-subtitle';
+    const form=add(root,'form');form.className='sx-retail-customer-filters';
+    const search=input(form,t('Woo customer ID, exact email or phone','معرّف عميل Woo أو البريد أو الهاتف المطابق'),'','search');search.maxLength=254;search.autocomplete='off';search.setAttribute('aria-label',t('Search Woo customers','ابحث عن عملاء Woo'));
+    const submit=add(form,'button',t('Search customers','بحث عن العملاء'));submit.type='submit';submit.className='sx-retail-primary';
+    const list=add(root,'div');list.className='sx-retail-customer-list';
+    const pager=add(root,'div');pager.className='sx-retail-filter-actions sx-retail-customer-pagination';
+    let page=0,total=0,hasMore=false,query='';
+    const previous=add(pager,'button',t('Previous','السابق'));previous.type='button';
+    const pageLabel=add(pager,'span',t('Page 1','الصفحة 1'));
+    const next=add(pager,'button',t('Next','التالي'));next.type='button';
+    function crmLabel(match){
+      if(match?.status==='unique')return t('Linked to CRM: ','مرتبط بسجل CRM: ')+(match.records?.[0]?.name||match.records?.[0]?.id||'');
+      if(match?.status==='ambiguous')return t('CRM review: ','مراجعة CRM: ')+Number(match.count||0)+' '+t('possible matches','مطابقات محتملة');
+      return t('No exact CRM match','لا توجد مطابقة دقيقة في CRM');
+    }
+    function addressText(address){return address?[address.firstName,address.lastName,address.company,address.address1,address.address2,address.city,address.region,address.postalCode,address.country].filter(value=>String(value||'').trim()).join(', '):'';}
+    function renderHistory(host,data){
+      host.replaceChildren();const profile=add(host,'section');profile.className='sx-retail-customer-profile';
+      const title=add(profile,'h3',data.name||t('WooCommerce customer','عميل WooCommerce'));title.setAttribute('tabindex','-1');
+      const identity=add(profile,'p');add(identity,'strong',t('Woo customer ID: ','معرّف عميل Woo: '));const wooId=add(identity,'bdi',data.externalCustomerId);wooId.dir='ltr';
+      if(data.email){const line=add(profile,'p');add(line,'strong',t('Email: ','البريد الإلكتروني: '));const value=add(line,'bdi',data.email);value.dir='ltr';}
+      if(data.phone){const line=add(profile,'p');add(line,'strong',t('Phone: ','الهاتف: '));const value=add(line,'bdi',data.phone);value.dir='ltr';}
+      const billing=addressText(data.billing),shipping=addressText(data.shipping);if(billing)add(profile,'p',t('Billing address: ','عنوان الفوترة: ')+billing);if(shipping)add(profile,'p',t('Shipping address: ','عنوان الشحن: ')+shipping);
+      const preference=add(profile,'p');add(preference,'strong',t('Woo marketing preference: ','تفضيل التسويق في Woo: '));add(preference,'span',sourceStatus(data.sourceMarketingPreference));
+      add(profile,'p',t('This imported preference does not grant 7Network permission to send messages.','هذا التفضيل المستورد لا يمنح 7Network إذنًا بإرسال الرسائل.'));
+      const match=add(profile,'section');match.className='sx-retail-customer-match';add(match,'h4',t('CRM match','مطابقة CRM'));
+      if(data.crmMatch?.status==='unique'){
+        const record=data.crmMatch.records?.[0]||{};add(match,'p',t('Linked by one exact email or phone match: ','تم الربط بمطابقة دقيقة واحدة للبريد أو الهاتف: ')+(record.name||record.id||''));
+        const line=add(match,'p');add(line,'strong',t('CRM record: ','سجل CRM: '));const value=add(line,'bdi',record.id||'');value.dir='ltr';add(line,'span',' · '+(record.source||''));
+      }else if(data.crmMatch?.status==='ambiguous'){
+        add(match,'p',t('No CRM link was made. Review these possible matches separately:','لم يتم ربط سجل CRM. راجع المطابقات المحتملة منفصلة:'));
+        const candidates=add(match,'ul');for(const record of data.crmMatch.records||[]){const item=add(candidates,'li');add(item,'span',(record.name||t('Unnamed record','سجل بلا اسم'))+' · '+(record.source||''));const id=add(item,'bdi',' #'+record.id);id.dir='ltr';}
+        if(Number(data.crmMatch.count)>Number(data.crmMatch.records?.length||0))add(match,'p',t('Additional matches exist; no automatic link was made.','توجد مطابقات أخرى؛ لم يتم إنشاء ربط تلقائي.'));
+      }else add(match,'p',t('No exact unique email or phone match was found. This Woo profile remains separate.','لم يتم العثور على مطابقة وحيدة دقيقة للبريد أو الهاتف. يبقى ملف Woo منفصلًا.'));
+      const history=add(host,'section');history.className='sx-retail-customer-history';add(history,'h3',t('Purchase history','سجل المشتريات'));
+      add(history,'p',t('Read-only WooCommerce orders: ','طلبات WooCommerce للقراءة فقط: ')+Number(data.purchaseHistory?.total||0));
+      renderHistoryPage(history,data.purchaseHistory,data.connectionId,data.externalCustomerId,host);
+    }
+    function renderHistoryPage(history,purchaseHistory,connectionId,customerId,host){
+      history.querySelector('[data-history-more]')?.remove();
+      if(!purchaseHistory?.orders?.length&&!history.querySelector('.sx-retail-customer-order'))add(history,'p',t('No imported orders are linked to this Woo customer yet.','لا توجد طلبات مستوردة مرتبطة بعميل Woo هذا بعد.'));
+      for(const order of purchaseHistory?.orders||[]){
+        const card=add(history,'article');card.className='sx-retail-customer-order';const heading=add(card,'div');heading.className='sx-retail-customer-order-heading';
+        add(heading,'strong','#'+String(order.orderNumber||order.externalOrderId));add(heading,'span',sourceStatus(order.status));add(heading,'time',orderDate(order.orderDate));add(heading,'bdi',sourceMoney(order.totalAmount,order.currency)).dir='auto';
+        add(card,'p',t('Payment status reported by WooCommerce: ','حالة الدفع حسب WooCommerce: ')+sourceStatus(order.financialStatus));
+        if(order.lineItems?.length){const lines=add(card,'ul');for(const line of order.lineItems){const item=add(lines,'li');add(item,'span',(line.name||t('Store item','منتج من المتجر'))+' · '+(line.sku||'—')+' · '+t('Qty ','الكمية ')+line.quantity);if(line.variationId)add(item,'bdi',' · '+line.variationId);}}
+      }
+      if(purchaseHistory?.hasMore){const more=add(history,'button',t('Load more purchase history','تحميل المزيد من سجل المشتريات'));more.type='button';more.dataset.historyMore='';more.onclick=()=>loadDetail(connectionId,customerId,purchaseHistory.page+1,host);}
+    }
+    async function loadDetail(connectionId,customerId,detailPage,host){
+      const wait=add(host,'p',t('Loading customer history…','جارٍ تحميل سجل العميل…'));wait.setAttribute('role','status');
+      try{const data=await api('/customers/online/detail','POST',{connectionId,externalCustomerId:customerId,page:detailPage});
+        wait.remove();
+        if(detailPage>0){const history=host.querySelector('.sx-retail-customer-history');if(history)renderHistoryPage(history,data.purchaseHistory,connectionId,customerId,host);else renderHistory(host,data);}
+        else renderHistory(host,data);
+      }catch{wait.textContent=t('Unable to load customer history. Refresh the customer list and try again.','تعذر تحميل سجل العميل. حدّث قائمة العملاء وحاول مرة أخرى.');}
+    }
+    async function load(){
+      list.replaceChildren();status.textContent=t('Loading WooCommerce customers…','جارٍ تحميل عملاء WooCommerce…');
+      try{
+        const data=await api('/customers/online/search','POST',{query,page});total=Number(data.total||0);hasMore=Boolean(data.hasMore);pageLabel.textContent=t('Page ','الصفحة ')+(page+1);previous.disabled=page<=0;next.disabled=!hasMore;
+        status.textContent=total?t('Customers: ','العملاء: ')+total:t('No imported WooCommerce customers found.','لم يتم العثور على عملاء WooCommerce مستوردين.');
+        for(const customer of data.customers||[]){
+          const card=add(list,'article');card.className='sx-retail-customer';card.dataset.connectionId=customer.connectionId;card.dataset.customerId=customer.externalCustomerId;
+          const header=add(card,'div');header.className='sx-retail-customer-heading';add(header,'strong',customer.name||t('WooCommerce customer','عميل WooCommerce'));
+          const id=add(header,'bdi','#'+customer.externalCustomerId);id.dir='ltr';add(header,'span',t('Orders: ','الطلبات: ')+Number(customer.orderCount||0));if(customer.lastOrderAt)add(header,'time',orderDate(customer.lastOrderAt));
+          const match=add(card,'p',crmLabel(customer.crmMatch));match.className='sx-retail-customer-match-summary';
+          if(customer.email){const row=add(card,'p');add(row,'strong',t('Email: ','البريد الإلكتروني: '));const value=add(row,'bdi',customer.email);value.dir='ltr';}
+          if(customer.phone){const row=add(card,'p');add(row,'strong',t('Phone: ','الهاتف: '));const value=add(row,'bdi',customer.phone);value.dir='ltr';}
+          add(card,'p',t('Woo marketing preference: ','تفضيل التسويق في Woo: ')+sourceStatus(customer.sourceMarketingPreference));
+          add(card,'p',t('Imported marketing data is not permission to message this customer.','بيانات التسويق المستوردة ليست إذنًا بمراسلة هذا العميل.'));
+          const details=add(card,'details');details.className='sx-retail-customer-details';add(details,'summary',t('Profile and purchase history','الملف الشخصي وسجل المشتريات'));
+          const body=add(details,'div');body.className='sx-retail-customer-detail-body';details.addEventListener('toggle',()=>{if(details.open&&!details.dataset.loaded){details.dataset.loaded='true';loadDetail(customer.connectionId,customer.externalCustomerId,0,body);}});
+        }
+      }catch(error){status.textContent=error.message==='RETAIL_CONNECTOR_PILOT_DISABLED'?t('Retail store import is not enabled for this workspace.','استيراد المتجر غير مفعّل لمساحة العمل هذه.'):t('Unable to load imported customers.','تعذر تحميل العملاء المستوردين.');}
+    }
+    form.onsubmit=event=>{event.preventDefault();query=search.value.trim();page=0;load();};
+    previous.onclick=()=>{page=Math.max(0,page-1);load();};next.onclick=()=>{if(hasMore){page++;load();}};
+    await load();
+  }
   async function connectedStores(root,status){
     const intro=add(root,'p',t('Connect the store to this 7Network business workspace. Read-only sync imports products, variations, orders and customers; it does not edit storefront pages, checkout, payment settings, prices, stock or orders. Customer messages stay off.','اربط المتجر بمساحة عمل النشاط هذه في 7Network. تستورد المزامنة للقراءة فقط المنتجات والمتغيرات والطلبات والعملاء؛ ولا تعدّل صفحات المتجر أو الدفع أو إعدادات الدفع أو الأسعار أو المخزون أو الطلبات. تظل رسائل العملاء متوقفة.'));
     const shopify=add(root,'section');add(shopify,'h2',t('Shopify','Shopify'));
@@ -810,9 +940,41 @@
           if(connection.lastErrorCode)add(card,'p',t('Provider status','حالة المزوّد')+': '+connection.lastErrorCode);
           const tools=add(card,'div');tools.className='sx-retail-connector-actions';
           action(tools,t('Sync now','مزامنة الآن'),async()=>{
-            const result=await api('/connectors/'+encodeURIComponent(connection.id)+'/sync','POST',{});
-            await refreshConnections();
-            return Object.entries(result.resources||{}).map(([name,value])=>name+': '+value.imported+(value.hasMore?' · '+t('more pages','صفحات أخرى'):'')+(value.errorCode?' · '+value.errorCode:'')).join(' | ')||t('No new data.','لا توجد بيانات جديدة.');
+            const totals=new Map(),maxBatches=10000;let result=null,batches=0,acceptance='';
+            try{
+              do{
+                if(batches>=maxBatches)break;
+                batches++;
+                status.textContent=t('Importing WooCommerce page batch ','جارٍ استيراد دفعة صفحات WooCommerce ')+batches+'…';
+                result=await api('/connectors/'+encodeURIComponent(connection.id)+'/sync','POST',{});
+                for(const [name,value] of Object.entries(result.resources||{})){
+                  const item=totals.get(name)||{imported:0,hasMore:false,errorCode:null,sourceTotal:value.sourceTotal};
+                  item.imported+=Number(value.imported)||0;item.hasMore=Boolean(value.hasMore);item.errorCode=value.errorCode||null;
+                  if(value.sourceTotal!==undefined)item.sourceTotal=value.sourceTotal;
+                  totals.set(name,item);
+                }
+                if(result.lastErrorCode||Object.values(result.resources||{}).some(value=>value.errorCode))break;
+              }while(!result?.complete);
+              if(result?.complete&&!result.lastErrorCode){
+                try{
+                  const report=await api('/connectors/'+encodeURIComponent(connection.id)+'/reconciliation');
+                  if(report.recordReconciliation?.state==='matched'&&report.orderReconciliation?.state==='matched')
+                    acceptance=t(' · Full import reconciled: product, variation, order and customer counts and order totals match',' · تمت مطابقة الاستيراد الكامل: تتطابق أعداد المنتجات والمتغيرات والطلبات والعملاء وإجماليات الطلبات');
+                  else acceptance=' · '+t('Source scan finished; reconciliation needs review','اكتمل فحص المصدر؛ المطابقة بحاجة إلى مراجعة')+
+                    ' ('+(report.recordReconciliation?.state||'scan_incomplete')+' / '+(report.orderReconciliation?.state||'scan_incomplete')+')';
+                }catch{acceptance=' · '+t('Source scan finished; reconciliation could not be loaded. Review the report before relying on the import.','اكتمل فحص المصدر؛ تعذر تحميل المطابقة. راجع التقرير قبل الاعتماد على الاستيراد.');}
+              }
+              const resources=[...totals].map(([name,value])=>name+': '+value.imported+ (value.sourceTotal==null?'':' / '+value.sourceTotal)+
+                (value.errorCode?' · '+value.errorCode:value.hasMore?' · '+t('more pages remain','تبقى صفحات أخرى'):''));
+              await refreshConnections();
+              const state=result?.lastErrorCode?' · '+t('Stopped; saved progress is available to resume','توقفت المزامنة؛ يمكن استئناف التقدم المحفوظ'):
+                result?.complete?acceptance:
+                  ' · '+t('Saved progress; click Sync now to continue','تم حفظ التقدم؛ اضغط مزامنة الآن للمتابعة');
+              return (resources.join(' | ')||t('No new data.','لا توجد بيانات جديدة.'))+state;
+            }catch(error){
+              await refreshConnections();
+              return t('Sync stopped; saved progress can be resumed: ','توقفت المزامنة؛ يمكن استئناف التقدم المحفوظ: ')+(error.message||'SYNC_FAILED');
+            }
           },status);
           action(tools,t('Webhook setup','إعداد Webhook'),()=>showSetup(connection,setup),status);
           if(connection.provider==='woocommerce'){
@@ -826,6 +988,16 @@
                 const counts=report.scan?.sourceCounts||{};
                 add(reportBody,'p',t('Imported records','السجلات المستوردة')+': '+report.importedCounts.products+' '+t('products','منتجات')+' · '+report.importedCounts.variations+' '+t('variations','متغيرات')+
                   ' · '+report.importedCounts.orders+' '+t('orders','طلبات')+' · '+report.importedCounts.customers+' '+t('customers','عملاء'));
+                const recordCheck=report.recordReconciliation||{state:'scan_incomplete',records:[]};
+                const recordCheckLabels={matched:t('All source record counts match the imported products, variations, orders and customers.','تتطابق أعداد سجلات المصدر مع المنتجات والمتغيرات والطلبات والعملاء المستوردة.'),
+                  mismatch:t('Woo source counts differ from imported records. Review missing, retained or changed records before accepting the import.','تختلف أعداد مصدر Woo عن السجلات المستوردة. راجع السجلات المفقودة أو المحتفظ بها أو المتغيرة قبل اعتماد الاستيراد.'),
+                  source_changed:t('Woo source counts changed during the scan. Run another full sync before accepting the import.','تغيرت أعداد مصدر Woo أثناء الفحص. نفّذ مزامنة كاملة أخرى قبل اعتماد الاستيراد.'),
+                  scan_incomplete:t('Source count reconciliation requires a complete scan of products, variations, orders and customers.','تتطلب مطابقة الأعداد فحصاً كاملاً للمنتجات والمتغيرات والطلبات والعملاء.'),
+                  needs_review:t('One or more source record totals are unavailable. Review the source API response before accepting the import.','إجمالي مصدر واحد أو أكثر غير متاح. راجع استجابة API المصدر قبل اعتماد الاستيراد.')};
+                add(reportBody,'p',t('Source record count check','فحص أعداد سجلات المصدر')+': '+(recordCheckLabels[recordCheck.state]||recordCheckLabels.needs_review));
+                for(const item of recordCheck.records||[])add(reportBody,'p',t(item.resource,item.resource)+' · '+t('Woo','Woo')+': '+(item.sourceCount??'—')+' · '+
+                  t('7Network','7Network')+': '+item.importedCount+' · '+t('difference','الفرق')+': '+(item.delta??'—')+' · '+
+                  t(item.state==='matched'?'matched':item.state==='mismatch'?'review count':'unavailable',item.state==='matched'?'متطابق':item.state==='mismatch'?'راجع العدد':'غير متاح'));
                 const mapping=report.productMappings||{};
                 add(reportBody,'p',t('7Network inventory mappings','روابط مخزون 7Network')+': '+(mapping.mapped||0)+' '+t('mapped','مرتبط')+' · '+
                   (mapping.ignored||0)+' '+t('ignored','متجاهل')+' · '+(mapping.invalidTargets||0)+' '+t('invalid target','هدف غير صالح'));
@@ -975,7 +1147,7 @@
     root.className='sx-retail-workspace';
     root.dir=t('ltr','rtl');
     syncTheme();
-    if(!document.querySelector('[data-retail-workspace-css]')){const css=document.createElement('link');css.rel='stylesheet';css.href='/retail-workspace.css?v=20261118-retail-pilot-detail1';css.dataset.retailWorkspaceCss='';document.head.append(css);}
+    if(!document.querySelector('[data-retail-workspace-css]')){const css=document.createElement('link');css.rel='stylesheet';css.href='/retail-workspace.css?v=20261119-retail-customer-order-details1';css.dataset.retailWorkspaceCss='';document.head.append(css);}
     new MutationObserver(syncTheme).observe(document.documentElement,{attributes:true,attributeFilter:['data-sx-theme']});
     window.addEventListener('storage',syncTheme);
     add(root,'h1',page[2]);
@@ -983,6 +1155,7 @@
     try {
       if(active==='retail-finance')return await finance(root,status);
       else if(active==='retail-connected-stores')await connectedStores(root,status);
+      else if(active==='retail-customers')await customers(root,status);
       else {
         await orders(root,status,active==='retail-deliveries',access.role==='owner'&&access.permissions['leads.manage'],access.roleNavigation.includes('retail-connected-stores'));
       }

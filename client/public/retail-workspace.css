@@ -199,3 +199,23 @@ html[data-sx-theme=dark] #sx-retail-workspace.sx-retail-finance button { color: 
   #sx-retail-workspace .sx-retail-stock-mapping-controls .sx-retail-unit-confirm { grid-column: 1; }
   #sx-retail-workspace .sx-retail-stock-mapping-controls { grid-template-columns: minmax(0,1fr); }
 }
+
+#sx-retail-workspace .sx-retail-customer-filters{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:end;gap:10px;max-width:1280px;margin:0 auto 16px;padding:16px 18px;border:1px solid var(--retail-border);border-radius:12px;background:var(--retail-card)}
+#sx-retail-workspace .sx-retail-customer-filters label{display:grid;width:100%;max-width:none;margin:0;color:var(--retail-text);font-size:13px;font-weight:600}
+#sx-retail-workspace .sx-retail-customer-filters input{width:100%;margin:0}
+#sx-retail-workspace .sx-retail-customer-list{display:grid;max-width:1280px;margin:0 auto;gap:10px}
+#sx-retail-workspace article.sx-retail-customer{width:100%;margin:0;padding:16px;border-color:var(--retail-border);box-shadow:0 2px 9px #263c5a08}
+#sx-retail-workspace .sx-retail-customer-heading,#sx-retail-workspace .sx-retail-customer-order-heading{display:flex;flex-wrap:wrap;align-items:center;gap:8px 14px;justify-content:space-between}
+#sx-retail-workspace .sx-retail-customer-heading strong{font-size:16px}
+#sx-retail-workspace .sx-retail-customer-match-summary{font-size:13px;font-weight:650;color:var(--retail-text)}
+#sx-retail-workspace .sx-retail-customer-details{margin-top:12px;padding-top:12px;border-top:1px solid var(--retail-border)}
+#sx-retail-workspace .sx-retail-customer-profile{margin:0;padding:0 0 12px;border:0;border-bottom:1px solid var(--retail-border);border-radius:0;background:transparent}
+#sx-retail-workspace .sx-retail-customer-profile p,#sx-retail-workspace .sx-retail-customer-match p{overflow-wrap:anywhere}
+#sx-retail-workspace .sx-retail-customer-match{margin:12px 0;padding:12px;border:1px solid var(--retail-border);border-radius:10px;background:var(--retail-bg)}
+#sx-retail-workspace .sx-retail-customer-match ul{margin:6px 0;padding-inline-start:22px}
+#sx-retail-workspace .sx-retail-customer-history{max-width:none;margin:14px 0 0;padding:0;border:0;background:transparent}
+#sx-retail-workspace .sx-retail-customer-order{display:grid;gap:4px;margin:8px 0;padding:12px;border:1px solid var(--retail-border);border-radius:10px;background:var(--retail-card)}
+#sx-retail-workspace .sx-retail-customer-order ul{margin:4px 0;padding-inline-start:20px}
+#sx-retail-workspace .sx-retail-customer-order li{margin:2px 0;color:var(--retail-muted)}
+#sx-retail-workspace .sx-retail-customer-pagination{max-width:1280px;margin:12px auto}
+@media(max-width:650px){#sx-retail-workspace .sx-retail-customer-filters{grid-template-columns:1fr;padding:13px}#sx-retail-workspace .sx-retail-customer-filters button{width:100%;margin:0}#sx-retail-workspace .sx-retail-customer-pagination{display:grid;grid-template-columns:1fr 1fr}#sx-retail-workspace .sx-retail-customer-pagination span{grid-column:1/-1;text-align:center}#sx-retail-workspace .sx-retail-customer-pagination button{margin:0}#sx-retail-workspace .sx-retail-customer-order-heading{justify-content:flex-start}}

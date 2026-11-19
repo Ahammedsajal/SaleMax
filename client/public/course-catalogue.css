@@ -41,6 +41,34 @@
 #sx-course-screen[data-catalog-kind=courses] .catalogue-pagination{margin-top:12px;padding-top:12px}
 #sx-course-screen[data-catalog-kind=courses] .journey-stats{gap:8px;margin:12px 0}
 #sx-course-screen[data-catalog-kind=courses] .journey-stat{padding:10px;border-radius:9px}
+
+#sx-course-screen[data-catalog-kind=products] .woo-catalog-tabs{display:flex;gap:8px;margin:0 0 14px;flex-wrap:wrap}
+#sx-course-screen[data-catalog-kind=products] .woo-catalog-tabs button[aria-pressed=true]{border-color:#9dbce8;background:#eef4ff;color:#153f78;font-weight:700}
+#sx-course-screen[data-catalog-kind=products] .woo-catalogue-card{padding:18px;border:1px solid #e2e8f0;border-radius:14px;background:#fff}
+#sx-course-screen[data-catalog-kind=products] .woo-product-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(100%,290px),1fr));gap:12px;margin-top:14px}
+#sx-course-screen[data-catalog-kind=products] .woo-product-card{min-width:0;padding:14px;border:1px solid #dfe6ef;border-radius:12px;background:#fff;overflow-wrap:anywhere}
+#sx-course-screen[data-catalog-kind=products] .woo-product-card h3{margin:8px 0;font-size:16px;line-height:1.4;overflow-wrap:anywhere}
+#sx-course-screen[data-catalog-kind=products] .woo-product-source,#sx-course-screen[data-catalog-kind=products] .woo-product-sku{font-size:12px;color:#64748b}
+#sx-course-screen[data-catalog-kind=products] .woo-product-price{font-weight:700;color:#153f78}
+#sx-course-screen[data-catalog-kind=products] .woo-product-image{width:100%;height:190px;object-fit:contain;border-radius:8px;background:#f8fafc}
+#sx-course-screen[data-catalog-kind=products] .woo-product-stock{font-size:12px;color:#52657a;line-height:1.6;overflow-wrap:anywhere}
+#sx-course-screen[data-catalog-kind=products] .woo-product-detail{margin-top:12px;padding-top:12px;border-top:1px solid #e7ecf2}
+#sx-course-screen[data-catalog-kind=products] .woo-product-description{white-space:pre-wrap;overflow-wrap:anywhere;line-height:1.65}
+#sx-course-screen[data-catalog-kind=products] .woo-product-facts{display:grid;grid-template-columns:minmax(110px,.35fr) minmax(0,1fr);gap:5px 12px}
+#sx-course-screen[data-catalog-kind=products] .woo-product-facts dt{font-weight:700;color:#52657a}
+#sx-course-screen[data-catalog-kind=products] .woo-product-facts dd{margin:0;overflow-wrap:anywhere}
+#sx-course-screen[data-catalog-kind=products] .woo-gallery-image{width:min(100%,150px);height:120px;object-fit:contain;margin:4px;border:1px solid #e7ecf2;border-radius:8px}
+#sx-course-screen[data-catalog-kind=products] .woo-variation-card{margin:8px 0;padding:11px;border:1px solid #e4e9f0;border-radius:10px;background:#f8fafc;overflow-wrap:anywhere}
+#sx-course-screen[data-catalog-kind=products] .woo-variation-card h5{margin:0 0 6px;font-size:14px}
+html[data-sx-theme=dark] #sx-course-screen[data-catalog-kind=products] .woo-catalogue-card,
+html[data-sx-theme=dark] #sx-course-screen[data-catalog-kind=products] .woo-product-card{background:#172334;border-color:#344256;color:#e7edf5}
+html[data-sx-theme=dark] #sx-course-screen[data-catalog-kind=products] .woo-variation-card{background:#1c2a3d;border-color:#38485e}
+html[data-sx-theme=dark] #sx-course-screen[data-catalog-kind=products] .woo-product-facts dt,
+html[data-sx-theme=dark] #sx-course-screen[data-catalog-kind=products] .woo-product-stock,
+html[data-sx-theme=dark] #sx-course-screen[data-catalog-kind=products] .woo-product-source,
+html[data-sx-theme=dark] #sx-course-screen[data-catalog-kind=products] .woo-product-sku{color:#b7c4d4}
+html[data-sx-theme=dark] #sx-course-screen[data-catalog-kind=products] .woo-product-price{color:#b9d4ff}
+html[data-sx-theme=dark] #sx-course-screen[data-catalog-kind=products] .woo-catalog-tabs button[aria-pressed=true]{background:#263a55;border-color:#47658a;color:#dceaff}
 @media(max-width:760px){
  #sx-course-screen[data-catalog-kind=courses]{padding:12px 10px}
  #sx-course-screen[data-catalog-kind=courses] .page-heading{margin-bottom:12px}
@@ -71,3 +99,4 @@
  #sx-course-screen[data-catalog-kind=courses] .journey-stats{grid-template-columns:repeat(3,minmax(0,1fr))}
  #sx-course-screen[data-catalog-kind=courses] .journey-stat:last-child{grid-column:auto}
 }
+@media(max-width:600px){#sx-course-screen[data-catalog-kind=products] .woo-product-facts{grid-template-columns:minmax(0,1fr)}#sx-course-screen[data-catalog-kind=products] .woo-product-facts dt{margin-top:6px}}

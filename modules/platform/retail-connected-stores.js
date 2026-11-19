@@ -19,6 +19,15 @@ function encryptionKey(env = process.env) {
   if (result.length !== 32 || result.toString('base64') !== value) fail('RETAIL_CONNECTOR_KEY_UNAVAILABLE', 503);
   return result;
 }
+function customerLookupHashes(customer, tenantId, env = process.env) {
+  const tenantScope = String(tenantId || '').trim();
+  if (!tenantScope || tenantScope.length > 191) fail('RETAIL_CONNECTOR_TENANT_REQUIRED', 500);
+  const key = encryptionKey(env);
+  const hash = (kind, value) => value ? crypto.createHmac('sha256', key).update(`${tenantScope}\0${kind}\0${value}`).digest() : null;
+  const email = String(customer?.email || '').trim().toLowerCase();
+  const phone = String(customer?.phone || '').replace(/[^0-9]/g, '');
+  return { email: email ? hash('email', email) : null, phone: phone ? hash('phone', phone) : null };
+}
 function aad(tenantId, connectionId, kind) { return Buffer.from(`7network/retail-connector/v1\0${tenantId}\0${connectionId}\0${kind}`); }
 function seal(value, tenantId, connectionId, kind, env = process.env) {
   const iv = crypto.randomBytes(12), cipher = crypto.createCipheriv('aes-256-gcm', encryptionKey(env), iv);
@@ -97,6 +106,48 @@ function moneyCurrency(row) {
   return row?.currency ?? row?.currencyCode ?? row?.totalPriceSet?.shopMoney?.currencyCode ??
     row?.total_price_set?.shop_money?.currency_code ?? row?.currency_code;
 }
+const privateMetaKey = /(?:secret|token|password|authorization|api[_-]?key|access[_-]?key|consumer[_-]?key|card|cvv|cvc|pan|cookie|session|order[_-]?key|payment[_-]?(?:token|secret|data|intent)|checkout[_-]?(?:url|token))/i;
+function safeMetaValue(value, depth = 0) {
+  if (depth > 5 || value == null || typeof value === 'boolean' || typeof value === 'number') return value ?? null;
+  if (typeof value === 'string') return value.slice(0, 4000);
+  if (Array.isArray(value)) return value.slice(0, 50).map(item => safeMetaValue(item, depth + 1));
+  if (typeof value !== 'object') return null;
+  const result = {};
+  for (const [key, item] of Object.entries(value).slice(0, 100)) {
+    if (privateMetaKey.test(key)) continue;
+    result[String(key).slice(0, 100)] = safeMetaValue(item, depth + 1);
+  }
+  return result;
+}
+function safeMetadata(rows) {
+  return Array.isArray(rows) ? rows.slice(0, 100).flatMap(item => {
+    const key = String(item?.key || item?.name || '').slice(0, 100);
+    return key && !privateMetaKey.test(key) ? [{ key, value: safeMetaValue(item?.value) }] : [];
+  }) : [];
+}
+function safeHttpsUrl(value) {
+  try {
+    const url = new URL(String(value || ''));
+    const host = url.hostname.toLowerCase().replace(/\.$/, '');
+    if (url.protocol !== 'https:' || url.username || url.password || url.port || net.isIP(host) ||
+        ['localhost','local','internal','test','invalid','example','home','lan','onion'].some(suffix => host === suffix || host.endsWith(`.${suffix}`)) ||
+        host.split('.').length < 2) return null;
+    return url.toString();
+  } catch { return null; }
+}
+function sourceAddress(value) {
+  if (!value || typeof value !== 'object') return null;
+  const result = {};
+  for (const [target, keys] of Object.entries({
+    firstName:['first_name','firstName'], lastName:['last_name','lastName'], company:['company'],
+    address1:['address_1','address1'], address2:['address_2','address2'], city:['city'], region:['state','province'],
+    postalCode:['postcode','zip'], country:['country','country_code','countryCodeV2'], email:['email'], phone:['phone'],
+  })) {
+    const key = keys.find(name => value[name] !== undefined && value[name] !== null && value[name] !== '');
+    if (key) result[target] = String(value[key]).slice(0, target === 'email' ? 254 : target === 'address1' || target === 'address2' ? 255 : 120);
+  }
+  return Object.keys(result).length ? result : null;
+}
 function customerOf(row, provider) {
   const c = row?.customer || {}, billing = row?.billing || {}, address = c.defaultAddress || c.default_address || billing;
   const rawId = c.id ?? row?.customer_id;
@@ -111,6 +162,10 @@ function customerOf(row, provider) {
     firstName: c.first_name || c.firstName || billing.first_name || row?.first_name || null,
     lastName: c.last_name || c.lastName || billing.last_name || row?.last_name || null,
     marketingConsent: providerMarketingConsent === true ? 'granted' : providerMarketingConsent === false ? 'denied' : 'unknown',
+    billing: sourceAddress(c.billing || billing),
+    shipping: sourceAddress(c.shipping || row?.shipping),
+    createdAt: row?.date_created_gmt || row?.date_created || c.date_created_gmt || c.date_created || c.createdAt || null,
+    updatedAt: row?.date_modified_gmt || row?.date_modified || c.date_modified_gmt || c.date_modified || c.updatedAt || null,
     address: address && Object.keys(address).length ? {
       address1: address.address1 || address.address_1 || null, address2: address.address2 || address.address_2 || null,
       city: address.city || null, region: address.province || address.state || null,
@@ -130,11 +185,11 @@ function normalizeTransactions(rows, orderCurrency) {
       currency: currency(tx.currency || tx.amountSet?.shopMoney?.currencyCode || tx.amountSet?.presentmentMoney?.currencyCode ||
         tx.totalRefundedSet?.shopMoney?.currencyCode || orderCurrency),
       amount: safeAmount(amount), gateway: String(tx.gateway || tx.payment_method_title || tx.payment_method || '').slice(0, 100) || null,
-      processed_at: tx.processed_at || tx.processedAt || tx.createdAt || tx.date_created_gmt || tx.date_created || null };
+      processedAt: sourceTimestamp(tx.processed_at || tx.processedAt || tx.createdAt || tx.date_created_gmt || tx.date_created, true) };
   }).filter(Boolean);
 }
 function normalizeLineItems(rows) {
-  return rows.slice(0, 100).map(line => ({ id: line.id == null ? null : String(line.id).slice(0, 191),
+  return rows.slice(0, 500).map(line => ({ id: line.id == null ? null : String(line.id).slice(0, 191),
     productId: line.product_id == null && line.productId == null ? null : String(line.product_id ?? line.productId),
     variantId: line.variant_id == null && line.variation_id == null && line.variantId == null ? null : String(line.variant_id ?? line.variation_id ?? line.variantId),
     title: String(line.title || line.name || line.product_title || '').slice(0, 255),
@@ -142,9 +197,17 @@ function normalizeLineItems(rows) {
     quantity: safeQuantity(line.quantity ?? 0),
     unitPrice: line.originalUnitPriceSet?.shopMoney?.amount ?? line.price ?? null,
     subtotal: line.subtotal == null ? null : safeAmount(line.subtotal),
+    subtotalTax: line.subtotal_tax == null ? null : safeAmount(line.subtotal_tax),
     discount: line.total == null || line.subtotal == null ? null : decimalAdd([line.subtotal, decimalNegate(line.total)]),
     total: line.total == null ? null : safeAmount(line.total),
     tax: line.total_tax == null ? null : safeAmount(line.total_tax),
+    taxClass: String(line.tax_class || '').slice(0, 100) || null,
+    taxes: (Array.isArray(line.taxes) ? line.taxes : []).slice(0, 50).map(tax => ({
+      id: tax?.id == null ? null : String(tax.id).slice(0, 80),
+      subtotal: tax?.subtotal == null ? null : safeAmount(tax.subtotal),
+      total: tax?.total == null ? null : safeAmount(tax.total),
+    })),
+    image: safeHttpsUrl(line.image?.src || line.image?.url), metadata: safeMetadata(line.meta_data),
   }));
 }
 function normalizeCustomer(provider, row) {
@@ -153,7 +216,10 @@ function normalizeCustomer(provider, row) {
   if (!id || id.length > 191) fail('INVALID_PROVIDER_CUSTOMER', 422);
   // Customer API rows carry their ID at row.id; customerOf only reads nested
   // order/customer payloads so an order ID can never be mistaken for this ID.
-  return { ...customer, id, updatedAt: row.date_modified_gmt || row.date_modified || row.updated_at || row.updatedAt || null, source: provider };
+  return { ...customer, id, createdAt: row.date_created_gmt || row.date_created || row.created_at || customer.createdAt || null,
+    updatedAt: row.date_modified_gmt || row.date_modified || row.updated_at || row.updatedAt || customer.updatedAt || null,
+    billing: sourceAddress(row.billing || customer.billing), shipping: sourceAddress(row.shipping || customer.shipping),
+    metadata: safeMetadata(row.meta_data), source: provider };
 }
 function normalizeProduct(provider, row) {
   const id = row?.id == null ? '' : provider === 'shopify' ? canonicalShopifyId('Product', row.id) : String(row.id);
@@ -165,19 +231,36 @@ function normalizeProduct(provider, row) {
   const price = sourcePrice ?? '0';
   const cur = row.currency || first.currency || first.currencyCode || row.priceRangeV2?.minVariantPrice?.currencyCode || row.currencyCode || 'QAR';
   const sourceImage = provider === 'woocommerce' ? row.images?.[0]?.src : row.featuredImage?.url || row.image?.src;
-  let imageUrl = null;
-  try {
-    const image = new URL(sourceImage);
-    const host = image.hostname.toLowerCase().replace(/\.$/, '');
-    if (image.protocol === 'https:' && !image.username && !image.password && !image.port && !net.isIP(host) &&
-        !['localhost','local','internal','test','invalid','example','home','lan','onion'].some(suffix => host === suffix || host.endsWith(`.${suffix}`)) &&
-        host.split('.').length >= 2) imageUrl = image.toString();
-  } catch { /* Image previews are optional; malformed or private URLs are omitted. */ }
+  const imageUrl = safeHttpsUrl(sourceImage);
+  const images = provider === 'woocommerce' ? (Array.isArray(row.images) ? row.images : []).slice(0, 100).map(image => ({
+    id: image?.id == null ? null : String(image.id).slice(0, 191), src: safeHttpsUrl(image?.src),
+    name: String(image?.name || '').slice(0, 255), alt: String(image?.alt || '').slice(0, 500),
+  })).filter(image => image.src) : imageUrl ? [{ src: imageUrl }] : [];
   const managementMode = stockManagementMode(provider === 'woocommerce' ? row.manage_stock : undefined);
   return { id, title: String(row.name || row.title || row.handle || id).slice(0, 255), sku: String(row.sku || first.sku || '').slice(0, 100) || null,
     productType: provider === 'woocommerce' ? String(row.type || 'unknown').toLowerCase().slice(0, 32) : null,
     status: String(row.status || 'unknown').toLowerCase().slice(0, 32), currency: currency(cur), price: safeAmount(price),
     imageUrl, variants, variationCount: provider === 'woocommerce' && Array.isArray(row.variations) ? row.variations.length : variants.length,
+    details: provider === 'woocommerce' ? {
+      slug: String(row.slug || '').slice(0, 200), shortDescription: String(row.short_description || '').slice(0, 20000),
+      description: String(row.description || '').slice(0, 100000), images,
+      categories: (Array.isArray(row.categories) ? row.categories : []).slice(0, 100).map(item => ({ id: item?.id == null ? null : String(item.id), name: String(item?.name || '').slice(0, 200), slug: String(item?.slug || '').slice(0, 200) })),
+      tags: (Array.isArray(row.tags) ? row.tags : []).slice(0, 100).map(item => ({ id: item?.id == null ? null : String(item.id), name: String(item?.name || '').slice(0, 200), slug: String(item?.slug || '').slice(0, 200) })),
+      attributes: (Array.isArray(row.attributes) ? row.attributes : []).slice(0, 100).map(item => ({ id: item?.id == null ? null : String(item.id), name: String(item?.name || '').slice(0, 100), position: Number.isSafeInteger(Number(item?.position)) ? Number(item.position) : null, visible: Boolean(item?.visible), variation: Boolean(item?.variation), options: (Array.isArray(item?.options) ? item.options : []).slice(0, 100).map(option => String(option).slice(0, 200)) })),
+      defaultAttributes: (Array.isArray(row.default_attributes) ? row.default_attributes : []).slice(0, 50).map(item => ({ id: item?.id == null ? null : String(item.id), name: String(item?.name || '').slice(0, 100), option: String(item?.option || '').slice(0, 200) })),
+      regularPrice: row.regular_price == null || row.regular_price === '' ? null : safeAmount(row.regular_price),
+      salePrice: row.sale_price == null || row.sale_price === '' ? null : safeAmount(row.sale_price),
+      onSale: Boolean(row.on_sale), dateOnSaleFrom: sourceTimestamp(row.date_on_sale_from_gmt || row.date_on_sale_from, true),
+      dateOnSaleTo: sourceTimestamp(row.date_on_sale_to_gmt || row.date_on_sale_to, true),
+      taxStatus: String(row.tax_status || '').slice(0, 32), taxClass: String(row.tax_class || '').slice(0, 100),
+      shippingRequired: row.shipping_required == null ? null : Boolean(row.shipping_required), shippingTaxable: row.shipping_taxable == null ? null : Boolean(row.shipping_taxable),
+      shippingClass: String(row.shipping_class || '').slice(0, 100), weight: String(row.weight || '').slice(0, 50), dimensions: safeMetaValue(row.dimensions || {}),
+      virtual: Boolean(row.virtual), downloadable: Boolean(row.downloadable), featured: Boolean(row.featured), catalogVisibility: String(row.catalog_visibility || '').slice(0, 40),
+      parentId: row.parent_id == null ? null : String(row.parent_id), externalUrl: safeHttpsUrl(row.external_url),
+      dateCreated: sourceTimestamp(row.date_created_gmt || row.date_created, true), averageRating: String(row.average_rating || '').slice(0, 20),
+      ratingCount: Number.isSafeInteger(Number(row.rating_count)) ? Number(row.rating_count) : 0,
+      totalSales: Number.isSafeInteger(Number(row.total_sales)) ? Number(row.total_sales) : 0, metadata: safeMetadata(row.meta_data),
+    } : null,
     priceUnavailable: provider === 'woocommerce' && sourcePrice == null && Array.isArray(row.variations) && row.variations.length > 0,
     sourceStock: provider === 'woocommerce' ? { managed: managementMode === 'managed', managementMode,
       quantity: managementMode !== 'managed' || row.stock_quantity == null ? null : safeStockQuantity(row.stock_quantity),
@@ -198,6 +281,12 @@ function normalizeProductVariation(provider, productId, row, defaultCurrency = '
   return { id, productId: parentId, title, sku: String(row.sku || '').trim().slice(0, 100) || null,
     status: String(row.status || 'unknown').toLowerCase().slice(0, 32), purchasable: row.purchasable == null ? null : Boolean(row.purchasable),
     currency: currency(row.currency || defaultCurrency), price: safeAmount(String(row.price ?? '').trim() ? row.price : '0'), attributes,
+    details: { description: String(row.description || '').slice(0, 20000), regularPrice: row.regular_price == null || row.regular_price === '' ? null : safeAmount(row.regular_price),
+      salePrice: row.sale_price == null || row.sale_price === '' ? null : safeAmount(row.sale_price), onSale: Boolean(row.on_sale),
+      dateOnSaleFrom: sourceTimestamp(row.date_on_sale_from_gmt || row.date_on_sale_from, true), dateOnSaleTo: sourceTimestamp(row.date_on_sale_to_gmt || row.date_on_sale_to, true),
+      taxStatus: String(row.tax_status || '').slice(0, 32), taxClass: String(row.tax_class || '').slice(0, 100),
+      shippingClass: String(row.shipping_class || '').slice(0, 100), weight: String(row.weight || '').slice(0, 50), dimensions: safeMetaValue(row.dimensions || {}),
+      image: safeHttpsUrl(row.image?.src), downloadable: Boolean(row.downloadable), virtual: Boolean(row.virtual), metadata: safeMetadata(row.meta_data) },
     sourceStock: { managed: managementMode === 'managed', managementMode,
       quantity: managementMode !== 'managed' || row.stock_quantity == null ? null : safeStockQuantity(row.stock_quantity),
       status: String(row.stock_status || 'unknown').toLowerCase().slice(0,32) },
@@ -235,7 +324,7 @@ function normalizeOrder(provider, row) {
       transactions.push(...refundTransactions.map(transaction => ({ ...transaction, kind: transaction.kind || 'refund' })));
     } else {
       transactions.push({ id: `refund:${refund.id}`, kind: 'refund', status: 'recorded_by_store', currency: row.currency ||
-        refund.totalRefundedSet?.shopMoney?.currencyCode, amount: refund.total ?? refund.totalRefundedSet?.shopMoney?.amount,
+        refund.totalRefundedSet?.shopMoney?.currencyCode, amount: refund.total ?? refund.amount ?? refund.totalRefundedSet?.shopMoney?.amount,
         gateway: row.payment_method || null, processed_at: refund.date_created_gmt || refund.date_created || refund.createdAt || null, refund });
     }
   }
@@ -263,12 +352,31 @@ function normalizeOrder(provider, row) {
   const tax = woo ? (row.total_tax == null ? null : safeAmount(row.total_tax)) :
     row.totalTaxSet?.shopMoney?.amount == null ? null : safeAmount(row.totalTaxSet.shopMoney.amount);
   const fees = woo && Array.isArray(row.fee_lines) ? decimalAdd(row.fee_lines.map(line => line.total ?? '0')) : null;
-  const refunds = woo && Array.isArray(row.refunds) ? decimalAdd(row.refunds.map(refund => decimalAbs(refund.total ?? '0'))) : null;
-  const moneyLines = (items, titleField) => (Array.isArray(items) ? items : []).slice(0, 50).map(item => ({
+  const refunds = woo && Array.isArray(row.refunds) ? decimalAdd(row.refunds.map(refund => decimalAbs(refund.total ?? refund.amount ?? '0'))) : null;
+  const taxDetails = rows => (Array.isArray(rows) ? rows : []).slice(0, 50).map(tax => ({
+    id: tax?.id == null ? null : String(tax.id).slice(0, 80), rateCode: String(tax?.rate_code || '').slice(0, 100) || null,
+    rateId: tax?.rate_id == null ? null : String(tax.rate_id).slice(0, 80), label: String(tax?.label || '').slice(0, 120),
+    compound: tax?.compound == null ? null : Boolean(tax.compound),
+    total: tax?.total == null && tax?.tax_total == null ? null : safeAmount(tax.total ?? tax.tax_total),
+    shippingTax: tax?.shipping_tax_total == null ? null : safeAmount(tax.shipping_tax_total), metadata: safeMetadata(tax?.meta_data),
+  }));
+  const moneyLines = (items, titleField) => (Array.isArray(items) ? items : []).slice(0, 200).map(item => ({
     title: String(item?.[titleField] || item?.name || '').slice(0, 160),
     code: String(item?.method_id || item?.code || '').slice(0, 80) || null,
-    total: item?.total == null ? null : safeAmount(item.total),
-    tax: item?.total_tax == null ? null : safeAmount(item.total_tax),
+    total: item?.total == null && item?.tax_total == null && item?.discount == null && item?.discount_amount == null ? null : safeAmount(item.total ?? item.tax_total ?? item.discount ?? item.discount_amount),
+    tax: item?.total_tax == null && item?.discount_tax == null && item?.shipping_tax_total == null ? null : safeAmount(item.total_tax ?? item.discount_tax ?? item.shipping_tax_total),
+    subtotal: item?.subtotal == null ? null : safeAmount(item.subtotal), discount: item?.discount == null ? null : safeAmount(item.discount),
+    discountTax: item?.discount_tax == null ? null : safeAmount(item.discount_tax), instanceId: item?.instance_id == null ? null : String(item.instance_id).slice(0, 100),
+    taxes: taxDetails(item?.taxes), metadata: safeMetadata(item?.meta_data),
+  }));
+  const refundDetails = (Array.isArray(row.refunds) ? row.refunds : []).slice(0, 100).map(refund => ({
+    id: refund?.id == null ? null : String(refund.id).slice(0, 191), reason: String(refund?.reason || '').slice(0, 1000),
+    total: refund?.total == null && refund?.amount == null ? null : safeAmount(refund.total ?? refund.amount),
+    dateCreated: sourceTimestamp(refund?.date_created_gmt || refund?.date_created, true),
+    lineItems: normalizeLineItems(Array.isArray(refund?.line_items) ? refund.line_items : []),
+    taxLines: moneyLines(refund?.tax_lines, 'label'), shippingLines: moneyLines(refund?.shipping_lines, 'method_title'),
+    feeLines: moneyLines(refund?.fee_lines, 'name'), refundedBy: refund?.refunded_by == null ? null : String(refund.refunded_by).slice(0, 100),
+    refundedPayment: refund?.refunded_payment == null ? null : Boolean(refund.refunded_payment), metadata: safeMetadata(refund?.meta_data),
   }));
   return { id, number: String(row.name || row.number || row.order_number || id).slice(0, 80),
     status: String(orderStatus || 'unknown').toLowerCase().slice(0, 64), financialStatus: String(financial).toLowerCase().slice(0, 64),
@@ -277,7 +385,15 @@ function normalizeOrder(provider, row) {
     lineItems: normalizeLineItems(nodes(row.lineItems || row.line_items)),
     breakdown: { subtotal, discount, shipping, tax, fees, refunds },
     shippingLines: moneyLines(row.shipping_lines, 'method_title'), feeLines: moneyLines(row.fee_lines, 'name'),
-    lineItemsTruncated: Boolean(row.lineItems?.pageInfo?.hasNextPage || (Array.isArray(row.line_items) && row.line_items.length > 100)),
+    taxLines: moneyLines(row.tax_lines, 'label').map((line, index) => ({ ...line, ...taxDetails(row.tax_lines)[index] })),
+    couponLines: moneyLines(row.coupon_lines, 'code'), refundDetails,
+    billing: sourceAddress(row.billing), shipping: sourceAddress(row.shipping),
+    customerNote: String(row.customer_note || '').slice(0, 5000), paymentMethod: String(row.payment_method || '').slice(0, 100),
+    paymentMethodTitle: String(row.payment_method_title || '').slice(0, 200), transactionId: String(row.transaction_id || '').slice(0, 191) || null,
+    createdVia: String(row.created_via || '').slice(0, 80), pricesIncludeTax: row.prices_include_tax == null ? null : Boolean(row.prices_include_tax),
+    datePaid: sourceTimestamp(row.date_paid_gmt || row.date_paid, true), dateCompleted: sourceTimestamp(row.date_completed_gmt || row.date_completed, true),
+    transactions, metadata: safeMetadata(row.meta_data),
+    lineItemsTruncated: Boolean(row.lineItems?.pageInfo?.hasNextPage || (Array.isArray(row.line_items) && row.line_items.length > 500)),
     transactionsTruncated: Boolean(row.transactions?.pageInfo?.hasNextPage || (row.refunds || []).some(refund => refund.transactions?.pageInfo?.hasNextPage)),
     createdAt: orderTimestamp(row,'date_created_gmt','date_created',provider) || sourceTimestamp(row.created_at || row.createdAt),
     updatedAt: orderTimestamp(row,'date_modified_gmt','date_modified',provider) || sourceTimestamp(row.updated_at || row.updatedAt), source: provider };
@@ -398,13 +514,15 @@ async function upsertCustomer(db, connection, row) {
     return { ...customer, stale: true, redacted: existing?.customerStatus === 'redacted' };
   }
   const encrypted = seal(customer, connection.tenant_id, connection.id, `customer:${customer.id}`);
+  const lookup = customerLookupHashes(customer, connection.tenant_id);
   await db.query(`INSERT INTO sx_retail_external_customers
-    (tenant_id,connection_id,external_customer_id,customer_status,customer_ciphertext,customer_iv,customer_auth_tag,source_updated_at)
-    VALUES (?,?,?,'active',?,?,?,?) ON DUPLICATE KEY UPDATE customer_status=IF(${newerSourceUpdate},'active',customer_status),
+    (tenant_id,connection_id,external_customer_id,customer_status,customer_ciphertext,customer_iv,customer_auth_tag,email_lookup_hash,phone_lookup_hash,source_updated_at)
+    VALUES (?,?,?,'active',?,?,?,?,?,?) ON DUPLICATE KEY UPDATE customer_status=IF(${newerSourceUpdate},'active',customer_status),
     customer_ciphertext=IF(${newerSourceUpdate},VALUES(customer_ciphertext),customer_ciphertext),
     customer_iv=IF(${newerSourceUpdate},VALUES(customer_iv),customer_iv),customer_auth_tag=IF(${newerSourceUpdate},VALUES(customer_auth_tag),customer_auth_tag),
+    email_lookup_hash=IF(${newerSourceUpdate},VALUES(email_lookup_hash),email_lookup_hash),phone_lookup_hash=IF(${newerSourceUpdate},VALUES(phone_lookup_hash),phone_lookup_hash),
     imported_at=IF(${newerSourceUpdate},UTC_TIMESTAMP(3),imported_at),source_updated_at=IF(${newerSourceUpdate},VALUES(source_updated_at),source_updated_at)`,
-  [connection.tenant_id, connection.id, customer.id, encrypted.ciphertext, encrypted.iv, encrypted.authTag, dateOrNull(customer.updatedAt)]);
+  [connection.tenant_id, connection.id, customer.id, encrypted.ciphertext, encrypted.iv, encrypted.authTag, lookup.email, lookup.phone, dateOrNull(customer.updatedAt)]);
   return customer;
 }
 async function upsertProduct(db, connection, row) {
@@ -649,7 +767,7 @@ async function eraseConnectionData(db, connection) {
 }
 
 module.exports = {
-  UUID, fail, encryptionKey, aad, seal, open, openJson, normalizeShop, normalizeWooUrl, safeAmount, decimalAdd, decimalAbs, decimalNegate, safeQuantity,
+  UUID, fail, encryptionKey, aad, seal, open, openJson, customerLookupHashes, normalizeShop, normalizeWooUrl, safeAmount, decimalAdd, decimalAbs, decimalNegate, safeQuantity,
   currency, canonicalShopifyId, sourceTimestampIsStale,
   customerOf, normalizeCustomer, normalizeProduct, normalizeProductVariation, normalizeOrder, normalizeCheckout, shopifySignature, shopifyQuerySignature,
   wooSignature, randomSecret, validateId, dateOrNull, publicIpv4, requestHttps, safeStockQuantity, upsertCustomer, upsertProduct, upsertOrder,

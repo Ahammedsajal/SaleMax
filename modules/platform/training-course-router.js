@@ -6,8 +6,10 @@ const fs = require('node:fs/promises');
 const courses = require('./training-courses');
 const courseMedia = require('./training-course-media');
 const enrollmentProgress = require('./training-enrollment-progress');
+const retailConnector = require('./retail-connected-stores');
+const retailConnectorPilot = require('./retail-connector-pilot');
 
-function createTrainingCourseRouter({ pool, origin, userGuard, canonicalGuard, sessionGuard, products = false }) {
+function createTrainingCourseRouter({ pool, origin, userGuard, canonicalGuard, sessionGuard, products = false, env = process.env }) {
   if(products)pool=require('./product-catalog').database(pool);
   const router = express.Router();
   const wrap = fn => (req, res, next) => Promise.resolve(fn(req, res)).catch(next);
@@ -78,6 +80,80 @@ function createTrainingCourseRouter({ pool, origin, userGuard, canonicalGuard, s
     limit: req.query.limit === undefined ? 20 : Number(req.query.limit),
     search: req.query.search || '', status: req.query.status || ''
   }) })));
+  if (products) {
+    router.get('/woocommerce', contextGuard, wrap(async (req, res) => {
+      courses.object(req.courseContext, 'courses.read');
+      if (!retailConnectorPilot.isPilotTenant(req.courseContext.tenant.id, env)) {
+        throw Object.assign(Error('RETAIL_CONNECTOR_PILOT_DISABLED'), { code: 'RETAIL_CONNECTOR_PILOT_DISABLED', status: 403 });
+      }
+      const page = Number(req.query.page || 1), limit = 50, search = String(req.query.search || '').trim();
+      if (!Number.isSafeInteger(page) || page < 1 || page > 10000 || search.length > 100) throw Object.assign(Error('INVALID_PRODUCT_SEARCH'), { code: 'INVALID_PRODUCT_SEARCH', status: 400 });
+      const tenant = req.courseContext.tenant.id, pattern = `%${search.replace(/[!%_]/g, char => '!' + char)}%`;
+      const [[count]] = await pool.query(`SELECT COUNT(*) AS total FROM sx_retail_external_products p
+        JOIN sx_retail_store_connections c ON c.tenant_id=p.tenant_id AND c.id=p.connection_id
+        WHERE p.tenant_id=? AND c.provider='woocommerce' AND c.status<>'pending' AND p.product_status<>'deleted'
+        AND (?='' OR p.sku LIKE ? ESCAPE '!' OR p.external_product_id LIKE ? ESCAPE '!')`, [tenant, search, pattern, pattern]);
+      const [rows] = await pool.query(`SELECT p.connection_id AS connectionId,c.display_name AS storeName,c.status AS connectionStatus,
+        p.external_product_id AS externalProductId,p.product_status AS status,p.sku,p.currency,p.price,p.product_ciphertext AS ciphertext,
+        p.product_iv AS iv,p.product_auth_tag AS authTag,p.source_updated_at AS sourceUpdatedAt,
+        (SELECT COUNT(*) FROM sx_retail_external_product_variants v WHERE v.tenant_id=p.tenant_id AND v.connection_id=p.connection_id
+          AND v.external_product_id=p.external_product_id AND v.variant_status<>'deleted') AS importedVariationCount
+        FROM sx_retail_external_products p JOIN sx_retail_store_connections c ON c.tenant_id=p.tenant_id AND c.id=p.connection_id
+        WHERE p.tenant_id=? AND c.provider='woocommerce' AND c.status<>'pending' AND p.product_status<>'deleted'
+          AND (?='' OR p.sku LIKE ? ESCAPE '!' OR p.external_product_id LIKE ? ESCAPE '!')
+        ORDER BY p.external_product_id LIMIT ? OFFSET ?`, [tenant, search, pattern, pattern, limit, (page - 1) * limit]);
+      const items = rows.map(row => {
+        const source = retailConnector.openJson(row, tenant, row.connectionId, `product:${row.externalProductId}`);
+        return { source: 'woocommerce', connectionId: row.connectionId, storeName: row.storeName, connectionStatus: row.connectionStatus,
+          externalProductId: row.externalProductId, status: row.status, sku: row.sku || source.sku || null, currency: row.currency,
+          price: String(row.price), priceUnavailable: Boolean(source.priceUnavailable), updatedAt: row.sourceUpdatedAt,
+          variationCount: Number(row.importedVariationCount),
+          title: source.title, productType: source.productType, imageUrl: source.imageUrl, sourceStock: source.sourceStock };
+      });
+      res.json({ success: true, data: { items, total: Number(count.total), page, limit, hasMore: page * limit < Number(count.total) } });
+    }));
+    router.get('/woocommerce/:externalProductId', contextGuard, wrap(async (req, res) => {
+      courses.object(req.courseContext, 'courses.read');
+      if (!retailConnectorPilot.isPilotTenant(req.courseContext.tenant.id, env)) {
+        throw Object.assign(Error('RETAIL_CONNECTOR_PILOT_DISABLED'), { code: 'RETAIL_CONNECTOR_PILOT_DISABLED', status: 403 });
+      }
+      if (!/^\d{1,191}$/.test(req.params.externalProductId)) throw Object.assign(Error('INVALID_PRODUCT_ID'), { code: 'INVALID_PRODUCT_ID', status: 400 });
+      const page = Number(req.query.page || 1), limit = 100, tenant = req.courseContext.tenant.id;
+      const connectionId = String(req.query.connectionId || '');
+      if (!/^[0-9a-f-]{36}$/i.test(connectionId) || !Number.isSafeInteger(page) || page < 1 || page > 10000) {
+        throw Object.assign(Error('INVALID_PRODUCT_SEARCH'), { code: 'INVALID_PRODUCT_SEARCH', status: 400 });
+      }
+      const [[row]] = await pool.query(`SELECT p.connection_id AS connectionId,c.display_name AS storeName,c.status AS connectionStatus,
+        p.external_product_id AS externalProductId,p.product_status AS status,p.sku,p.currency,p.price,p.product_ciphertext AS ciphertext,
+        p.product_iv AS iv,p.product_auth_tag AS authTag,p.source_updated_at AS sourceUpdatedAt
+        FROM sx_retail_external_products p JOIN sx_retail_store_connections c ON c.tenant_id=p.tenant_id AND c.id=p.connection_id
+        WHERE p.tenant_id=? AND p.connection_id=? AND c.provider='woocommerce' AND c.status<>'pending'
+          AND p.external_product_id=? AND p.product_status<>'deleted'`, [tenant, connectionId, req.params.externalProductId]);
+      if (!row) throw Object.assign(Error('PRODUCT_NOT_FOUND'), { code: 'PRODUCT_NOT_FOUND', status: 404 });
+      const [[count]] = await pool.query(`SELECT COUNT(*) AS total FROM sx_retail_external_product_variants
+        WHERE tenant_id=? AND connection_id=? AND external_product_id=? AND variant_status<>'deleted'`, [tenant, connectionId, row.externalProductId]);
+      const [variants] = await pool.query(`SELECT external_variant_id AS externalVariantId,sku,variant_status AS variantStatus,currency,price,
+        variant_ciphertext AS ciphertext,variant_iv AS iv,variant_auth_tag AS authTag,
+        source_stock_management AS sourceStockManagement,CAST(source_stock_quantity AS CHAR) AS sourceStockQuantity,
+        source_stock_status AS sourceStockStatus,source_updated_at AS sourceUpdatedAt
+        FROM sx_retail_external_product_variants WHERE tenant_id=? AND connection_id=? AND external_product_id=? AND variant_status<>'deleted'
+        ORDER BY external_variant_id LIMIT ? OFFSET ?`, [tenant, connectionId, row.externalProductId, limit, (page - 1) * limit]);
+      const source = retailConnector.openJson(row, tenant, connectionId, `product:${row.externalProductId}`);
+      const variationItems = variants.map(item => ({
+        ...retailConnector.openJson(item, tenant, connectionId, `product-variant:${item.externalVariantId}`),
+        externalVariantId: item.externalVariantId, sku: item.sku || null, status: item.variantStatus, currency: item.currency,
+        price: String(item.price), updatedAt: item.sourceUpdatedAt,
+        sourceStock: { managed: item.sourceStockManagement === 'managed', managementMode: item.sourceStockManagement || 'unknown',
+          quantity: item.sourceStockManagement === 'managed' ? item.sourceStockQuantity : null, status: item.sourceStockStatus || 'unknown' },
+      }));
+      res.json({ success: true, data: { source: 'woocommerce', connectionId, storeName: row.storeName, connectionStatus: row.connectionStatus,
+        externalProductId: row.externalProductId, status: row.status, sku: row.sku || source.sku || null, currency: row.currency,
+        price: String(row.price), updatedAt: row.sourceUpdatedAt, productType: source.productType || null,
+        sourceStock: source.sourceStock || null, details: source.details || null,
+        variationCount: Number(count.total), variations: variationItems, variationPage: page, variationPageSize: limit,
+        variationsHasMore: page * limit < Number(count.total) } });
+    }));
+  }
   router.post('/import-procatalyst', contextGuard, wrap(async (req, res) => {
     const source=[
       ['PCAT-BARISTA','Barista Training','تدريب باريستا','This programme prepares you for professional work in cafés, restaurants, and hospitality outlets. You learn coffee origins, bean selection, grinding techniques, and espresso extraction. Training covers milk texturing, latte art basics, beverage presentation, hygiene standards, and customer service skills. You practise using commercial coffee machines and handle real service scenarios. After completion, you are ready to work confidently as a barista in fast paced environments.','يهيئك هذا البرنامج للعمل باحتراف في المقاهي والمطاعم ومرافق الضيافة. تتعلم أنواع القهوة واختيار الحبوب وتقنيات الطحن واستخلاص الإسبريسو. ويشمل التدريب تبخير الحليب وأساسيات فن اللاتيه وتقديم المشروبات ومعايير النظافة وخدمة العملاء، مع تطبيق عملي على آلات القهوة التجارية ومواقف الخدمة الواقعية.',['Art & Hobby','Health & Wellness','Personal Training']],

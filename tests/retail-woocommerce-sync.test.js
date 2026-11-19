@@ -42,6 +42,11 @@ test('Retail connector preserves decimal amounts and quantities without binary f
 
 test('Woo products, variations and order breakdowns retain source IDs, SKUs, quantities and stock evidence', () => {
   const product = connector.normalizeProduct('woocommerce', {id: 100, name: 'Linen', sku: 'LINEN', type: 'variable', price: '', status: 'publish',
+    slug:'linen',short_description:'<p>Soft linen</p>',description:'<p>Woven in Europe</p>',regular_price:'24.00',sale_price:'20.00',on_sale:true,
+    images:[{id:7,src:'https://store.example.com/linen.jpg',alt:'Linen fabric'}],categories:[{id:4,name:'Fabric',slug:'fabric'}],
+    attributes:[{id:1,name:'Colour',position:0,visible:true,variation:true,options:['Blue','Natural']}],
+    meta_data:[{key:'fabric_composition',value:'100% linen'},{key:'consumer_secret',value:'must not be retained'},
+      {key:'details',value:{care:'cold wash',api_key:'must not be retained'}}],
     variations: [101, 102], manage_stock: false, stock_quantity: null, stock_status: 'instock', date_modified_gmt: '2026-11-15T10:00:00'});
   assert.equal(product.id, '100');
   assert.equal(product.productType, 'variable');
@@ -49,6 +54,14 @@ test('Woo products, variations and order breakdowns retain source IDs, SKUs, qua
   assert.equal(product.variationCount, 2);
   assert.equal(product.priceUnavailable, true);
   assert.deepEqual(product.sourceStock, {managed: false, managementMode: 'unmanaged', quantity: null, status: 'instock'});
+  assert.equal(product.details.slug,'linen');
+  assert.equal(product.details.regularPrice,'24.000000');
+  assert.equal(product.details.salePrice,'20.000000');
+  assert.deepEqual(product.details.categories,[{id:'4',name:'Fabric',slug:'fabric'}]);
+  assert.deepEqual(product.details.attributes[0].options,['Blue','Natural']);
+  assert.equal(product.details.metadata[0].value,'100% linen');
+  assert.deepEqual(product.details.metadata[1].value,{care:'cold wash'});
+  assert.equal(JSON.stringify(product).includes('must not be retained'),false);
 
   const variation = connector.normalizeProductVariation('woocommerce', 100, {id: 101, sku: 'LINEN-M', price: '20.10',
     parent_id: 100, status: 'publish', purchasable: true, attributes: [{name: 'Size', option: 'M'}], manage_stock: true, stock_quantity: '2.5', stock_status: 'instock'}, 'QAR');
@@ -72,7 +85,12 @@ test('Woo products, variations and order breakdowns retain source IDs, SKUs, qua
 
   const order = connector.normalizeOrder('woocommerce', {id: 900, status: 'processing', currency: 'QAR', total: '115.50',
     subtotal: '100.00', discount_total: '5.00', shipping_total: '10.00', total_tax: '10.50', fee_lines: [{name: 'Gift wrap', total: '1.25'}],
-    refunds: [{id: 12, total: '-2.00'}], date_created_gmt: '2026-11-14T08:30:00', date_modified_gmt: '2026-11-15T10:00:00', line_items: [
+    refunds: [{id: 12, amount: '-2.00', reason:'Returned trim', date_created_gmt:'2026-11-15T09:00:00', refunded_payment:true}],
+    transaction_id:'source-tx-99',payment_method_title:'Card',date_paid_gmt:'2026-11-14T08:35:00',
+    billing:{first_name:'Buyer',email:'buyer@example.invalid',address_1:'1 Main Street',city:'Doha',country:'QA'},
+    shipping:{first_name:'Buyer',address_1:'2 Delivery Road',city:'Doha',country:'QA'},
+    meta_data:[{key:'store_note',value:'gift wrap'},{key:'payment_token',value:'never keep this'}],
+    date_created_gmt: '2026-11-14T08:30:00', date_modified_gmt: '2026-11-15T10:00:00', line_items: [
       {id: 1, product_id: 100, variation_id: 101, sku: 'LINEN-M', name: 'Linen M', quantity: '1.25', subtotal: '100.00', total: '95.00', total_tax: '9.5'},
     ]});
   assert.equal(order.createdAt, '2026-11-14T08:30:00.000Z');
@@ -81,6 +99,44 @@ test('Woo products, variations and order breakdowns retain source IDs, SKUs, qua
   assert.equal(order.lineItems[0].quantity, '1.250000');
   assert.equal(order.lineItems[0].discount, '5.000000');
   assert.equal(order.lineItems[0].variantId, '101');
+  assert.equal(order.customer.email,'buyer@example.invalid');
+  assert.equal(order.billing.address1,'1 Main Street');
+  assert.equal(order.shipping.address1,'2 Delivery Road');
+  assert.equal(order.datePaid,'2026-11-14T08:35:00.000Z');
+  assert.equal(order.refundDetails[0].total,'-2.000000');
+  assert.equal(order.transactions[0].id,'source-tx-99');
+  assert.equal(JSON.stringify(order).includes('never keep this'),false);
+
+  const veryLargeOrder=connector.normalizeOrder('woocommerce',{id:901,status:'processing',currency:'QAR',total:'0',line_items:
+    Array.from({length:501},(_,index)=>({id:index+1,name:'Item '+index,quantity:1,total:'0'}))});
+  assert.equal(veryLargeOrder.lineItems.length,500);
+  assert.equal(veryLargeOrder.lineItemsTruncated,true);
+});
+
+test('customer exact-match indexes are normalized and tenant scoped',()=>{
+  const env={SALEMAX_PLATFORM_KEY_BASE64:Buffer.alloc(32,31).toString('base64')};
+  const first=connector.customerLookupHashes({email:' Buyer@Example.invalid ',phone:'+974 5555-1234'},'tenant-a',env);
+  const same=connector.customerLookupHashes({email:'buyer@example.invalid',phone:'97455551234'},'tenant-a',env);
+  const otherTenant=connector.customerLookupHashes({email:'buyer@example.invalid',phone:'97455551234'},'tenant-b',env);
+  assert.deepEqual(first,same);
+  assert.notDeepEqual(first,otherTenant);
+});
+
+test('customer upsert stores only encrypted profile data and tenant scoped blind indexes',async()=>{
+  const originalKey=process.env.SALEMAX_PLATFORM_KEY_BASE64,secret=Buffer.alloc(32,32).toString('base64');
+  process.env.SALEMAX_PLATFORM_KEY_BASE64=secret;
+  const tenantId='aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',connectionId='bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb';
+  const writes=[],db={query:async(sql,params)=>{if(sql.startsWith('SELECT source_updated_at'))return [[],[]];writes.push({sql,params});return [{affectedRows:1},[]];}};
+  try{
+    await connector.upsertCustomer(db,{tenant_id:tenantId,id:connectionId,provider:'woocommerce'},
+      {id:44,email:'Buyer@Example.invalid',phone:'+974 5555-1234',first_name:'Buyer',meta_data:[{key:'api_token',value:'excluded'}]});
+    const write=writes[0];
+    assert.match(write.sql,/email_lookup_hash,phone_lookup_hash/);
+    assert.ok(Buffer.isBuffer(write.params[6]));assert.ok(Buffer.isBuffer(write.params[7]));
+    assert.deepEqual(write.params[6],connector.customerLookupHashes({email:'buyer@example.invalid'},tenantId).email);
+    assert.equal(write.params.some(value=>String(value||'').includes('buyer@example.invalid')),false);
+    assert.equal(write.params.some(value=>String(value||'').includes('excluded')),false);
+  }finally{if(originalKey===undefined)delete process.env.SALEMAX_PLATFORM_KEY_BASE64;else process.env.SALEMAX_PLATFORM_KEY_BASE64=originalKey;}
 });
 
 test('Woo order reconciliation compares exact currency/status buckets and marks unavailable components for review', () => {
@@ -112,10 +168,11 @@ test('Woo reconciliation endpoint only reports a passing order check for a compl
   const sourceAmounts={'QAR|processing|paid_reported_by_store':{currency:'QAR',status:'processing',financialStatus:'paid_reported_by_store',
     count:1,total:'100.000000',subtotal:'90.000000',discount:'5.000000',shipping:'5.000000',tax:'10.000000',fee:'0.000000',refund:'0.000000'}};
   const completeScan={sourceCounts:{products:{total:2,scanned:2,sourceChangedDuringScan:false},orders:{total:1,scanned:1,sourceChangedDuringScan:false},
-    customers:{total:1,scanned:1,sourceChangedDuringScan:false}},orderAmounts:sourceAmounts};
-  const run=async(lastCompleteScan,local=localAmounts)=>{
+    customers:{total:1,scanned:1,sourceChangedDuringScan:false}},sourceVariationCount:0,orderAmounts:sourceAmounts};
+  const run=async(lastCompleteScan,local=localAmounts,countsOverride={})=>{
     const pool={query:async sql=>{
-      if(sql.includes('AS checkouts'))return [[{products:2,variations:0,orders:1,customers:1,checkouts:0}],[]];
+      if(sql.includes('AS checkouts'))return [[{products:countsOverride.products??2,variations:countsOverride.variations??0,
+        orders:countsOverride.orders??1,customers:countsOverride.customers??1,checkouts:0}],[]];
       if(sql.startsWith('SELECT currency,order_status AS status'))return [local,[]];
       if(sql.includes('AS variations')&&sql.includes('AS products'))return [[{products:0,variations:0}],[]];
       if(sql.startsWith('SELECT\n    SUM(mapping_status='))return [[{mapped:0,ignored:0,invalidTargets:0}],[]];
@@ -131,6 +188,11 @@ test('Woo reconciliation endpoint only reports a passing order check for a compl
   const exact=await run(completeScan);
   assert.equal(exact.orderReconciliation.state,'matched');
   assert.equal(exact.orderReconciliation.groups[0].amounts.refunds.delta,'0.000000');
+  assert.equal(exact.recordReconciliation.state,'matched');
+  assert.deepEqual(exact.recordReconciliation.records.map(row=>row.state),['matched','matched','matched','matched']);
+  const missingProduct=await run(completeScan,localAmounts,{products:1});
+  assert.equal(missingProduct.recordReconciliation.state,'mismatch');
+  assert.equal(missingProduct.recordReconciliation.records[0].delta,-1);
   const mismatch=await run(completeScan,[{...localAmounts[0],total:'101.000000'}]);
   assert.equal(mismatch.orderReconciliation.state,'mismatch');
   const incomplete=await run({...completeScan,sourceCounts:{...completeScan.sourceCounts,orders:{...completeScan.sourceCounts.orders,total:2}}});
@@ -163,8 +225,10 @@ test('Woo sync paginates resources, retries transient GET failures, and imports 
     if(pathname.endsWith('/products')&&page===1&&!networkRetryInjected){networkRetryInjected=true;throw Object.assign(new Error('synthetic connection reset'),{code:'ECONNRESET'});}
     if(pathname.endsWith('/orders')&&page===1&&!httpRetryInjected){httpRetryInjected=true;return {status:429,headers:{'retry-after':'0'},data:null};}
     let rows;
-    if (pathname.endsWith('/products/100/variations')) rows = [{id: 101, parent_id: 100, sku: 'LINEN-M', price: '20.00',
+    if (pathname.endsWith('/products/100/variations')&&page===1) rows = [{id: 101, parent_id: 100, sku: 'LINEN-M', price: '20.00',
       attributes: [{name: 'Size', option: 'M'}], stock_quantity: '3', manage_stock: true, stock_status: 'instock', date_modified_gmt: '2026-11-15T10:00:00'}];
+    else if(pathname.endsWith('/products/100/variations'))rows = [{id:102,parent_id:100,sku:'LINEN-L',price:'21.00',
+      attributes:[{name:'Size',option:'L'}],stock_quantity:'2',manage_stock:true,stock_status:'instock',date_modified_gmt:'2026-11-15T10:30:00'}];
     else if (pathname.endsWith('/products') && page === 1) rows = [{id: 100, name: 'Linen', sku: 'LINEN', price: '20.00', status: 'publish',
       variations: [101], date_modified_gmt: '2026-11-15T10:00:00'}];
     else if (pathname.endsWith('/products')) rows = [{id: 200, name: 'Cotton', sku: 'COTTON', price: '5.00', status: 'publish',
@@ -178,7 +242,7 @@ test('Woo sync paginates resources, retries transient GET failures, and imports 
     else if (pathname.endsWith('/customers')) rows = [{id: 6, email: 'second@example.invalid', first_name: 'Synthetic Two', date_modified_gmt: '2026-11-15T11:00:00'}];
     else throw new Error('Unexpected Woo request: ' + pathname);
     const paged = !pathname.endsWith('/products/100/variations');
-    return {status: 200, headers: {'x-wp-totalpages': paged ? '2' : '1', 'x-wp-total': paged ? '2' : String(rows.length)}, data: rows};
+    return {status: 200, headers: {'x-wp-totalpages': '2', 'x-wp-total': paged ? '2' : '2'}, data: rows};
   };
   let stagedCursor = null, committedCursor = null;
   const writer = {beginTransaction: async()=>{stagedCursor = null;}, commit: async()=>{if(stagedCursor)committedCursor=stagedCursor;}, rollback: async()=>{stagedCursor=null;}, release: ()=>{}, query: async(sql,params)=>{
@@ -194,7 +258,8 @@ test('Woo sync paginates resources, retries transient GET failures, and imports 
     const first = await syncWoo(pool, connection);
     assert.equal(first.complete, false);
     assert.equal(first.resources.products.hasMore, true);
-    assert.equal(first.resources.variations.imported, 1);
+    assert.equal(first.resources.variations.imported, 2);
+    assert.equal(first.resources.variations.hasMore,false);
     connection.sync_cursor = pool.cursor;
     const second = await syncWoo(pool, connection);
     assert.equal(second.complete, true);
@@ -206,11 +271,12 @@ test('Woo sync paginates resources, retries transient GET failures, and imports 
     assert.ok(requests.every(request => request.method === 'GET'));
     assert.equal(requests.filter(request=>new URL(request.url).pathname.endsWith('/products')&&new URL(request.url).searchParams.get('page')==='1').length,2);
     assert.equal(requests.filter(request=>new URL(request.url).pathname.endsWith('/orders')&&new URL(request.url).searchParams.get('page')==='1').length,2);
-    assert.ok(requests.some(request => new URL(request.url).pathname.endsWith('/products/100/variations')));
+    assert.ok(requests.some(request => new URL(request.url).pathname.endsWith('/products/100/variations')&&new URL(request.url).searchParams.get('page')==='1'));
+    assert.ok(requests.some(request => new URL(request.url).pathname.endsWith('/products/100/variations')&&new URL(request.url).searchParams.get('page')==='2'));
     assert.ok(requests.some(request => new URL(request.url).searchParams.get('page') === '2'));
     assert.ok(requests.filter(request => /\/products(?:\/\d+\/variations)?$/.test(new URL(request.url).pathname) || /\/orders$/.test(new URL(request.url).pathname))
       .every(request => new URL(request.url).searchParams.get('status') === 'any'));
-    assert.ok(writes.some(write => write.sql.includes('external_variant_id')));
+    assert.equal(writes.filter(write => write.sql.includes('external_variant_id')&&write.sql.startsWith('INSERT INTO sx_retail_external_product_variants')).length,2);
     const variationStockWrite=writes.find(write=>write.sql.includes('source_stock_quantity')&&write.sql.includes('external_variant_id'));
     assert.equal(variationStockWrite.params[11],1);
     assert.equal(variationStockWrite.params[12],'managed');
@@ -228,6 +294,27 @@ test('Woo sync paginates resources, retries transient GET failures, and imports 
     if (originalKey === undefined) delete process.env.SALEMAX_PLATFORM_KEY_BASE64;
     else process.env.SALEMAX_PLATFORM_KEY_BASE64 = originalKey;
     globalThis.fetch = originalFetch;
+  }
+});
+
+test('Woo sync refuses to call a page complete when pagination headers are missing', async () => {
+  const originalRequest=connector.requestHttps,originalKey=process.env.SALEMAX_PLATFORM_KEY_BASE64;
+  const tenantId='aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',connectionId='bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb';
+  process.env.SALEMAX_PLATFORM_KEY_BASE64=Buffer.alloc(32,19).toString('base64');
+  const credentials=connector.seal({consumerKey:'ck_'+'E'.repeat(32),consumerSecret:'cs_'+'F'.repeat(32)},tenantId,connectionId,'credentials');
+  const connection={id:connectionId,tenant_id:tenantId,provider:'woocommerce',status:'active',default_currency:'QAR',store_domain:'https://store.example.com',
+    sync_cursor:null,credentials_ciphertext:credentials.ciphertext,credentials_iv:credentials.iv,credentials_auth_tag:credentials.authTag};
+  const queries=[],requests=[];
+  const pool={query:async(sql)=>{queries.push(sql);return [{affectedRows:1},[]];},getConnection:async()=>{throw new Error('No source rows may be written without pagination metadata');}};
+  connector.requestHttps=async(url,options)=>{requests.push({url,method:options.method||'GET'});return {status:200,headers:{},data:[{id:100,name:'Linen',sku:'LINEN',status:'publish',variations:[]}]};};
+  try{
+    await assert.rejects(syncWoo(pool,connection),error=>error.code==='WOOCOMMERCE_PAGINATION_METADATA_MISSING');
+    assert.equal(requests.length,1);assert.equal(requests[0].method,'GET');
+    assert.equal(queries.filter(sql=>sql.includes('SET sync_cursor=?')).length,0);
+    assert.equal(queries.filter(sql=>sql.includes('SET sync_lock_token=NULL')).length,1);
+  }finally{
+    connector.requestHttps=originalRequest;
+    if(originalKey===undefined)delete process.env.SALEMAX_PLATFORM_KEY_BASE64;else process.env.SALEMAX_PLATFORM_KEY_BASE64=originalKey;
   }
 });
 
@@ -387,6 +474,18 @@ test('Woo product mapping migration is additive and tenant scoped', () => {
   assert.match(migration, /FOREIGN KEY \(tenant_id,connection_id\)\s+REFERENCES sx_retail_store_connections\(tenant_id,id\)/);
   assert.match(migration, /FOREIGN KEY \(tenant_id,target_product_id\)\s+REFERENCES sx_product_catalog\(tenant_id,id\)/);
   assert.doesNotMatch(migration, /\bDROP\s+(TABLE|COLUMN)\b/i);
+});
+
+test('Woo customer exact-match migration is additive and indexed by tenant and connection',()=>{
+  const migration=fs.readFileSync(path.resolve(__dirname,'../database/migrations/20270213_retail_customer_search_indexes.sql'),'utf8');
+  const statements=splitSql(migration);
+  assert.equal(statements.length,1);
+  assert.match(statements[0],/^ALTER TABLE sx_retail_external_customers/i);
+  assert.match(migration,/email_lookup_hash BINARY\(32\)/i);
+  assert.match(migration,/phone_lookup_hash BINARY\(32\)/i);
+  assert.match(migration,/\(tenant_id,connection_id,email_lookup_hash\)/i);
+  assert.match(migration,/\(tenant_id,connection_id,phone_lookup_hash\)/i);
+  assert.doesNotMatch(migration,/\bDROP\s+(TABLE|COLUMN)\b/i);
 });
 
 test('Woo stock mapping migration stores source stock and requires explicit location/unit scope', () => {

@@ -228,9 +228,15 @@ async function wooApi(connection, resource, query = {}) {
   if (response.status < 200 || response.status >= 300 || !Array.isArray(response.data)) {
     fail(response.status === 401 || response.status === 403 ? 'WOOCOMMERCE_KEY_OR_PERMISSION_INVALID' : 'WOOCOMMERCE_REQUEST_FAILED', 502);
   }
-  const totalPages = Number(response.headers['x-wp-totalpages']), total = Number(response.headers['x-wp-total']);
-  return { rows: response.data, totalPages: Number.isSafeInteger(totalPages) && totalPages > 0 ? totalPages : 1,
-    total: Number.isSafeInteger(total) && total >= 0 ? total : null };
+  const rawTotalPages = response.headers?.['x-wp-totalpages'], rawTotal = response.headers?.['x-wp-total'];
+  const totalPages = typeof rawTotalPages === 'string' && /^\d{1,10}$/.test(rawTotalPages) ? Number(rawTotalPages) : NaN;
+  const total = typeof rawTotal === 'string' && /^\d{1,12}$/.test(rawTotal) ? Number(rawTotal) : NaN;
+  if (!Number.isSafeInteger(totalPages) || totalPages < 0 || !Number.isSafeInteger(total) || total < 0 || (total > 0 && totalPages < 1)) {
+    fail('WOOCOMMERCE_PAGINATION_METADATA_MISSING', 502);
+  }
+  // WooCommerce may report zero pages for an empty collection. Page one is
+  // still queried once, while both source totals remain available for audit.
+  return { rows: response.data, totalPages: Math.max(1, totalPages), total };
 }
 async function verifyWooConnection(base, key, secret) {
   const url = new URL(`${new URL(base).pathname.replace(/\/$/, '')}/wp-json/wc/v3/orders?per_page=1&orderby=id&order=desc`, new URL(base).origin);
@@ -721,7 +727,24 @@ async function connectionReconciliation(pool, connection) {
   const scanComparable = Boolean(sourceCountMetadataAvailable && countsFullyScanned && orderAmountMetadataAvailable);
   const orderReconciliation = compareOrderAmountGroups(scan?.orderAmounts ? Object.values(scan.orderAmounts) : [], localOrderAmounts,
     scanComparable, stableSourceCounts);
+  const sourceRecordCounts = {
+    products: scan?.sourceCounts?.products?.total,
+    variations: scan?.sourceVariationCount,
+    orders: scan?.sourceCounts?.orders?.total,
+    customers: scan?.sourceCounts?.customers?.total,
+  };
+  const recordRows = Object.entries(sourceRecordCounts).map(([resource,sourceCount]) => {
+    const source = sourceCount === null || sourceCount === undefined || sourceCount === '' ? null : Number(sourceCount);
+    const imported = Number(counts?.[resource]);
+    const valid = source !== null && Number.isSafeInteger(source) && Number.isSafeInteger(imported);
+    return { resource, sourceCount: valid ? source : null, importedCount: Number.isSafeInteger(imported) ? imported : 0,
+      delta: valid ? imported - source : null, state: !valid ? 'unavailable' : imported === source ? 'matched' : 'mismatch' };
+  });
+  const recordReconciliationState = !scan || !sourceCountMetadataAvailable || !countsFullyScanned ? 'scan_incomplete' :
+    !stableSourceCounts ? 'source_changed' : recordRows.some(item => item.state === 'unavailable') ? 'needs_review' :
+      recordRows.some(item => item.state === 'mismatch') ? 'mismatch' : 'matched';
   return { provider: connection.provider, importedCounts: Object.fromEntries(Object.entries(counts).map(([key,value]) => [key, Number(value)])),
+    recordReconciliation: { state: recordReconciliationState, records: recordRows },
     productMappings: { mapped: Number(mappingCounts?.mapped||0), ignored: Number(mappingCounts?.ignored||0), invalidTargets: Number(mappingCounts?.invalidTargets||0),
       stock: { mapped: Number(stockMappings?.mapped||0), quantityManaged: Number(stockMappings?.quantityManaged||0),
         managedQuantityUnavailable: Number(stockMappings?.managedQuantityUnavailable||0),

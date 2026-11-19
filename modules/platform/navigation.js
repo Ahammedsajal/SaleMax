@@ -26,6 +26,7 @@ const items = [
   ['sales-organization', 'team.members', 'team.read', 'Organization', 'الهيكل التنظيمي', 'Sales', 'المبيعات'],
   ['commission-policy', 'sales.commissions', 'commission.policy.manage', 'Commission Policy', 'سياسة العمولات', 'Administration', 'الإدارة'],
   ['retail-orders', 'retail.commerce', 'retail.orders', 'Retail orders', 'طلبات التجزئة', 'Business Operations', 'عمليات الأعمال'],
+  ['retail-customers', 'retail.commerce', 'retail.orders', 'Retail customers', 'عملاء التجزئة', 'Business Operations', 'عمليات الأعمال'],
   ['retail-connected-stores', 'retail.commerce', 'retail.connect', 'Connected Stores', 'المتاجر المتصلة', 'Business Operations', 'عمليات الأعمال'],
   ['retail-deliveries', 'retail.commerce', 'retail.deliver', 'My deliveries', 'عمليات التوصيل الخاصة بي', 'Business Operations', 'عمليات الأعمال'],
   ['business-inventory', 'retail.inventory', 'inventory.read', 'Inventory', 'المخزون', 'Business Operations', 'عمليات الأعمال'],
@@ -60,7 +61,7 @@ function navigationFor(context,env=process.env) {
   const visible = context.category?.key === '7network_sales' && context.membership.role === 'accountant'
     ? items.filter(item => ['sales-finance', 'sales-commissions'].includes(item.key))
     : items;
-  return visible.filter(item => (item.key!=='retail-connected-stores'||retailConnectorPilot.isPilotTenant(context.tenant.id,env)) &&
+  return visible.filter(item => (!['retail-connected-stores','retail-customers'].includes(item.key)||retailConnectorPilot.isPilotTenant(context.tenant.id,env)) &&
     (!item.ownerOnly||context.membership.role==='owner') && decision(context, item).allowed &&
     (item.key!=='finance-reports'||decision(context,{capability:'finance.invoices',permission:'invoices.read'}).allowed))
     .map(item => ({ ...item, scope: decision(context, item).scope }));

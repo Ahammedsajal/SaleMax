@@ -349,7 +349,29 @@ function workspaceRouter({pool,authenticate,env=process.env}) {
     if(!commerce.uuid.test(connectionId)||!externalOrderId||externalOrderId.length>191||/[\u0000-\u001f\u007f]/.test(externalOrderId))commerce.fail('INVALID_ORDER_DETAIL');
     return {connectionId,externalOrderId};
   }
+  function onlineCustomerSearchInput(input){
+    const allowed=new Set(['query','connectionId','page']);
+    if(!input||typeof input!=='object'||Array.isArray(input)||Object.keys(input).some(key=>!allowed.has(key)))commerce.fail('INVALID_CUSTOMER_SEARCH');
+    const query=input.query===undefined?'':typeof input.query==='string'?input.query.trim():null;
+    const connectionId=input.connectionId===undefined?'':typeof input.connectionId==='string'?input.connectionId.trim():null;
+    const page=input.page===undefined?0:input.page;
+    if(query===null||query.length>254||connectionId===null||(connectionId&&!commerce.uuid.test(connectionId))||!Number.isSafeInteger(page)||page<0||page>1000)commerce.fail('INVALID_CUSTOMER_SEARCH');
+    return {query,connectionId,page};
+  }
+  function onlineCustomerDetailInput(input){
+    const allowed=new Set(['connectionId','externalCustomerId','page']);
+    if(!input||typeof input!=='object'||Array.isArray(input)||Object.keys(input).some(key=>!allowed.has(key)))commerce.fail('INVALID_CUSTOMER_DETAIL');
+    const connectionId=typeof input.connectionId==='string'?input.connectionId.trim():'';
+    const externalCustomerId=typeof input.externalCustomerId==='string'?input.externalCustomerId.trim():'';
+    const page=input.page===undefined?0:input.page;
+    if(!commerce.uuid.test(connectionId)||!/^\d{1,191}$/.test(externalCustomerId)||!Number.isSafeInteger(page)||page<0||page>1000)commerce.fail('INVALID_CUSTOMER_DETAIL');
+    return {connectionId,externalCustomerId,page};
+  }
   function escapeLike(value){return value.replace(/[!%_]/g,char=>'!'+char);}
+  async function crmMatches(tenantId,customers){
+    try{return await require('./invoice-customers').matchContacts(pool,tenantId,customers);}
+    catch(error){if(error.code==='BUSINESS_LINK_INVALID')return customers.map(()=>({status:'none',count:0,records:[]}));throw error;}
+  }
   async function list(res,c,driver,search=null) {
     const where=['o.tenant_id=?'],values=[c.tenant.id];
     if(driver){where.push("o.driver_id=?","o.status IN ('ready','dispatched')");values.push(c.membership.id);}
@@ -405,6 +427,86 @@ function workspaceRouter({pool,authenticate,env=process.env}) {
     });
     reply(res,search?{orders,hasMore,page:search.page,pageSize:orderSearchPageSize}:orders);
   }
+  router.post('/customers/online/search',allow('retail.orders',async(req,res,c)=>{
+    if(!connectorPilot.isPilotTenant(c.tenant.id,env))commerce.fail('RETAIL_CONNECTOR_PILOT_DISABLED',403);
+    const search=onlineCustomerSearchInput(req.body),where=['x.tenant_id=?',"s.provider='woocommerce'","s.status<>'pending'","x.customer_status='active'"],values=[c.tenant.id];
+    if(search.connectionId){where.push('x.connection_id=?');values.push(search.connectionId);}
+    if(search.query){
+      const terms=[];
+      if(/^\d{1,191}$/.test(search.query)){terms.push('x.external_customer_id=?');values.push(search.query);}
+      if(/^[^\s@<>]+@[^\s@<>]+\.[^\s@<>]+$/.test(search.query)){
+        const hash=retailConnector.customerLookupHashes({email:search.query},c.tenant.id,env).email;
+        terms.push('x.email_lookup_hash=?');values.push(hash);
+      }
+      if(/^[+\d\s().-]+$/.test(search.query)){
+        const phone=search.query.replace(/\D/g,'');
+        if(phone.length>=7&&phone.length<=15){const hash=retailConnector.customerLookupHashes({phone},c.tenant.id,env).phone;terms.push('x.phone_lookup_hash=?');values.push(hash);}
+      }
+      if(!terms.length)commerce.fail('CUSTOMER_SEARCH_REQUIRES_WOO_ID_EMAIL_OR_PHONE');
+      where.push('('+terms.join(' OR ')+')');
+    }
+    const [[count]]=await pool.query(`SELECT COUNT(*) AS total FROM sx_retail_external_customers x
+      JOIN sx_retail_store_connections s ON s.tenant_id=x.tenant_id AND s.id=x.connection_id WHERE ${where.join(' AND ')}`,values);
+    const pageSize=50,[rows]=await pool.query(`SELECT x.connection_id AS connectionId,s.display_name AS storeName,s.status AS connectionStatus,
+      x.external_customer_id AS externalCustomerId,x.customer_ciphertext AS ciphertext,x.customer_iv AS iv,x.customer_auth_tag AS authTag,
+      x.source_updated_at AS sourceUpdatedAt FROM sx_retail_external_customers x
+      JOIN sx_retail_store_connections s ON s.tenant_id=x.tenant_id AND s.id=x.connection_id
+      WHERE ${where.join(' AND ')} ORDER BY x.source_updated_at DESC,x.external_customer_id DESC LIMIT ? OFFSET ?`,
+    [...values,pageSize+1,search.page*pageSize]);
+    const hasMore=rows.length>pageSize,items=hasMore?rows.slice(0,pageSize):rows;
+    const customers=items.map(row=>retailConnector.openJson(row,c.tenant.id,row.connectionId,`customer:${row.externalCustomerId}`));
+    const [matches,orderRows]=await Promise.all([
+      crmMatches(c.tenant.id,customers),
+      items.length?pool.query(`SELECT connection_id AS connectionId,customer_external_id AS externalCustomerId,
+        COUNT(*) AS orderCount,MAX(COALESCE(source_created_at,imported_at)) AS lastOrderAt
+        FROM sx_retail_external_orders WHERE tenant_id=? AND (${items.map(()=>'(connection_id=? AND customer_external_id=?)').join(' OR ')})
+        GROUP BY connection_id,customer_external_id`,[c.tenant.id,...items.flatMap(row=>[row.connectionId,row.externalCustomerId])]):Promise.resolve([[]]),
+    ]);
+    const orderByCustomer=new Map(orderRows[0].map(row=>[`${row.connectionId}:${row.externalCustomerId}`,row]));
+    const mapped=items.map((row,index)=>{
+      const customer=customers[index],orders=orderByCustomer.get(`${row.connectionId}:${row.externalCustomerId}`);
+      return {source:'woocommerce',connectionId:row.connectionId,storeName:row.storeName,connectionStatus:row.connectionStatus,
+        externalCustomerId:row.externalCustomerId,name:[customer.firstName,customer.lastName].filter(Boolean).join(' ')||customer.email||customer.phone||`Woo #${row.externalCustomerId}`,
+        email:customer.email||null,phone:customer.phone||null,sourceMarketingPreference:customer.marketingConsent||'unknown',
+        marketingPermission:'not_granted_by_import',updatedAt:row.sourceUpdatedAt,orderCount:Number(orders?.orderCount||0),lastOrderAt:orders?.lastOrderAt||null,
+        crmMatch:matches[index]};
+    });
+    reply(res,{customers:mapped,total:Number(count.total),page:search.page,pageSize,hasMore});
+  }));
+  router.post('/customers/online/detail',allow('retail.orders',async(req,res,c)=>{
+    if(!connectorPilot.isPilotTenant(c.tenant.id,env))commerce.fail('RETAIL_CONNECTOR_PILOT_DISABLED',403);
+    const input=onlineCustomerDetailInput(req.body),pageSize=50;
+    const [[row]]=await pool.query(`SELECT x.connection_id AS connectionId,s.provider,s.display_name AS storeName,s.status AS connectionStatus,
+      x.external_customer_id AS externalCustomerId,x.customer_ciphertext AS ciphertext,x.customer_iv AS iv,x.customer_auth_tag AS authTag,
+      x.source_updated_at AS sourceUpdatedAt FROM sx_retail_external_customers x
+      JOIN sx_retail_store_connections s ON s.tenant_id=x.tenant_id AND s.id=x.connection_id
+      WHERE x.tenant_id=? AND x.connection_id=? AND x.external_customer_id=? AND s.provider='woocommerce' AND s.status<>'pending'
+        AND x.customer_status='active'`,[c.tenant.id,input.connectionId,input.externalCustomerId]);
+    if(!row)commerce.fail('ONLINE_CUSTOMER_NOT_FOUND',404);
+    const customer=retailConnector.openJson(row,c.tenant.id,row.connectionId,`customer:${row.externalCustomerId}`);
+    const matches=(await crmMatches(c.tenant.id,[customer]))[0];
+    const [[count]]=await pool.query(`SELECT COUNT(*) AS total FROM sx_retail_external_orders
+      WHERE tenant_id=? AND connection_id=? AND customer_external_id=?`,[c.tenant.id,row.connectionId,row.externalCustomerId]);
+    const [orders]=await pool.query(`SELECT external_order_id AS externalOrderId,order_number AS orderNumber,order_status AS status,
+      financial_status AS financialStatus,currency,CAST(total_amount AS CHAR) AS totalAmount,
+      DATE_FORMAT(COALESCE(source_created_at,imported_at),'%Y-%m-%dT%H:%i:%s.%fZ') AS orderDate,
+      order_ciphertext AS ciphertext,order_iv AS iv,order_auth_tag AS authTag
+      FROM sx_retail_external_orders WHERE tenant_id=? AND connection_id=? AND customer_external_id=?
+      ORDER BY COALESCE(source_created_at,imported_at) DESC,external_order_id DESC LIMIT ? OFFSET ?`,
+    [c.tenant.id,row.connectionId,row.externalCustomerId,pageSize+1,input.page*pageSize]);
+    const hasMore=orders.length>pageSize,orderItems=(hasMore?orders.slice(0,pageSize):orders).map(order=>{
+      const snapshot=retailConnector.openJson(order,c.tenant.id,row.connectionId,`order:${order.externalOrderId}`);
+      return {externalOrderId:order.externalOrderId,orderNumber:order.orderNumber,status:order.status,financialStatus:order.financialStatus,
+        currency:order.currency,totalAmount:order.totalAmount,orderDate:order.orderDate,
+        lineItems:(snapshot.lineItems||[]).slice(0,500).map(line=>({id:line.id,productId:line.productId,variationId:line.variantId,
+          name:line.title,sku:line.sku,quantity:line.quantity,unitPrice:line.unitPrice,subtotal:line.subtotal,discount:line.discount,total:line.total,tax:line.tax}))};
+    });
+    reply(res,{source:'woocommerce',connectionId:row.connectionId,storeName:row.storeName,connectionStatus:row.connectionStatus,
+      externalCustomerId:row.externalCustomerId,name:[customer.firstName,customer.lastName].filter(Boolean).join(' '),email:customer.email||null,phone:customer.phone||null,
+      billing:customer.billing||customer.address||null,shipping:customer.shipping||null,createdAt:customer.createdAt||null,updatedAt:row.sourceUpdatedAt,
+      sourceMarketingPreference:customer.marketingConsent||'unknown',marketingPermission:'not_granted_by_import',crmMatch:matches,
+      purchaseHistory:{orders:orderItems,total:Number(count.total),page:input.page,pageSize,hasMore}});
+  }));
   router.post('/orders/search',allow('retail.orders',(req,res,c)=>list(res,c,false,orderSearchInput(req.body))));
   router.post('/orders/online/search',allow('retail.orders',async(req,res,c)=>{
     if(!connectorPilot.isPilotTenant(c.tenant.id,env))commerce.fail('RETAIL_CONNECTOR_PILOT_DISABLED',403);
@@ -447,7 +549,7 @@ function workspaceRouter({pool,authenticate,env=process.env}) {
     [c.tenant.id,input.connectionId,input.externalOrderId]);
     if(!row)commerce.fail('ONLINE_ORDER_NOT_FOUND',404);
     const snapshot=retailConnector.openJson(row,c.tenant.id,row.connectionId,`order:${row.externalOrderId}`);
-    const sourceLines=Array.isArray(snapshot.lineItems)?snapshot.lineItems.slice(0,100):[];
+    const sourceLines=Array.isArray(snapshot.lineItems)?snapshot.lineItems.slice(0,500):[];
     const mappingSourceKey=(product,variation)=>JSON.stringify([String(product),String(variation||'')]);
     const pairs=row.provider==='woocommerce'?[...new Map(sourceLines.filter(line=>line.productId).map(line=>{
       const variationId=String(line.variantId||'');
@@ -472,11 +574,23 @@ function workspaceRouter({pool,authenticate,env=process.env}) {
       const mappingStatus=row.provider!=='woocommerce'?'not_supported':!mapping?'unmapped':mapping.mappingStatus==='ignored'?'ignored':mappedTarget?'mapped':'target_unavailable';
       const sourceSku=String(line.sku||'').slice(0,100)||null;
       return {id:String(line.id||'').slice(0,191)||null,productId,variationId,name:String(line.title||'').slice(0,200),sku:sourceSku,
-        quantity:String(line.quantity??'0.000000'),unitPrice,subtotal:line.subtotal??null,discount:line.discount??null,total:line.total??null,tax:line.tax??null,
+        quantity:String(line.quantity??'0.000000'),unitPrice,subtotal:line.subtotal??null,subtotalTax:line.subtotalTax??null,
+        discount:line.discount??null,total:line.total??null,tax:line.tax??null,taxClass:line.taxClass||null,taxes:line.taxes||[],
+        image:line.image||null,metadata:line.metadata||[],
         mappingStatus,target:mappedTarget,skuMatches:sourceSku&&mappedTarget?.sku?sourceSku.trim().toUpperCase()===mappedTarget.sku.trim().toUpperCase():null};
     });
     reply(res,{connectionId:row.connectionId,provider:row.provider,storeName:row.storeName,externalOrderId:row.externalOrderId,
-      lines,lineItemsTruncated:Boolean(snapshot.lineItemsTruncated)});
+      readOnly:true,lines,lineItemsTruncated:Boolean(snapshot.lineItemsTruncated),order:{
+        number:snapshot.number,status:snapshot.status,financialStatus:snapshot.financialStatus,currency:snapshot.currency,
+        total:snapshot.total,customer:snapshot.customer||null,billing:snapshot.billing||null,shipping:snapshot.shipping||null,
+        breakdown:snapshot.breakdown||null,shippingLines:snapshot.shippingLines||[],taxLines:snapshot.taxLines||[],
+        couponLines:snapshot.couponLines||[],feeLines:snapshot.feeLines||[],refundDetails:snapshot.refundDetails||[],
+        customerNote:snapshot.customerNote||'',paymentMethod:snapshot.paymentMethod||'',paymentMethodTitle:snapshot.paymentMethodTitle||'',
+        transactionId:snapshot.transactionId||null,createdVia:snapshot.createdVia||'',pricesIncludeTax:snapshot.pricesIncludeTax,
+        datePaid:snapshot.datePaid||null,dateCompleted:snapshot.dateCompleted||null,createdAt:snapshot.createdAt||null,updatedAt:snapshot.updatedAt||null,
+        sourceMarketingPreference:snapshot.customer?.marketingConsent||'unknown',marketingPermission:'not_granted_by_import',
+        metadata:snapshot.metadata||[],transactions:(snapshot.transactions||[]).slice(0,100),transactionsTruncated:Boolean(snapshot.transactionsTruncated),
+      }});
   }));
   router.get('/orders',allow('retail.orders',(req,res,c)=>list(res,c,false)));
   router.get('/orders/overview',allow('retail.orders',async(req,res,c)=>{

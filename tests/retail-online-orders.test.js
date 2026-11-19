@@ -32,8 +32,18 @@ function appFor(role='manager',pilotTenants=tenantId){
 
 function detailAppFor(role='manager',provider='woocommerce',pilotTenants=tenantId){
   const calls=[],secret=Buffer.alloc(32,29).toString('base64');
-  const encrypted=connector.seal({customer:{email:'buyer-private@example.invalid',phone:'+97400000000'},lineItems:[
-    {id:'line-1',productId:'900',variantId:'901',title:'Blue fabric',sku:'WOO-BLUE',quantity:'1.500000',unitPrice:'12.250000',subtotal:'18.375000',discount:'1.000000',total:'17.375000',tax:'0.000000'},
+  const encrypted=connector.seal({number:'EB-9001',status:'processing',financialStatus:'paid_reported_by_store',currency:'QAR',total:'150.250000',
+    customer:{firstName:'Buyer',lastName:'Private',email:'buyer-private@example.invalid',phone:'+97400000000',marketingConsent:'granted'},
+    billing:{firstName:'Buyer',lastName:'Private',address1:'1 Main Street',city:'Doha',country:'QA',email:'buyer-private@example.invalid'},
+    shipping:{firstName:'Buyer',lastName:'Private',address1:'2 Delivery Road',city:'Doha',country:'QA'},
+    breakdown:{subtotal:'140.000000',discount:'2.000000',shipping:'5.000000',tax:'7.250000',fees:'1.000000',refunds:'5.000000'},
+    shippingLines:[{title:'Courier',total:'5.000000',tax:'0.250000'}],taxLines:[{title:'VAT',total:'7.250000'}],couponLines:[{code:'FABRIC5',total:'2.000000'}],
+    feeLines:[{title:'Gift wrap',total:'1.000000'}],refundDetails:[{id:'refund-1',reason:'Returned trim',total:'-5.000000',dateCreated:'2026-11-16T11:00:00.000Z',lineItems:[]}],
+    paymentMethod:'myfatoorah',paymentMethodTitle:'MyFatoorah - Cards',transactionId:'source-transaction-9001',createdVia:'checkout',pricesIncludeTax:false,
+    createdAt:'2026-11-16T10:00:00.000Z',datePaid:'2026-11-16T10:04:00.000Z',dateCompleted:null,updatedAt:'2026-11-17T10:00:00.000Z',
+    customerNote:'Call on arrival',metadata:[{key:'store_reference',value:'front desk'}],transactions:[{id:'txn-1',kind:'payment',status:'success',currency:'QAR',amount:'150.250000',gateway:'MyFatoorah',processedAt:'2026-11-16T10:04:00.000Z'}],
+    lineItems:[
+    {id:'line-1',productId:'900',variantId:'901',title:'Blue fabric',sku:'WOO-BLUE',quantity:'1.500000',unitPrice:'12.250000',subtotal:'18.375000',subtotalTax:'0.250000',discount:'1.000000',total:'17.375000',tax:'0.000000',taxClass:'standard',taxes:[{id:'1',subtotal:'0.250000',total:'0.000000'}],image:'https://store.example.com/blue.jpg',metadata:[{key:'batch',value:'B-11'}]},
     {id:'line-2',productId:'902',variantId:null,title:'Needle pack',sku:'NEEDLE-3',quantity:'2.000000',unitPrice:'3.000000',subtotal:'6.000000',discount:'0.000000',total:'6.000000',tax:'0.000000'},
     {id:'line-3',productId:'903',variantId:null,title:'Buttons',sku:'BUTTON-1',quantity:'4.000000',unitPrice:'0.500000',subtotal:'2.000000',discount:'0.000000',total:'2.000000',tax:'0.000000'}
   ],lineItemsTruncated:true},tenantId,connectionId,'order:9001',{SALEMAX_PLATFORM_KEY_BASE64:secret});
@@ -120,7 +130,7 @@ test('connected-order search is disabled for tenants outside the pilot allowlist
   assert.equal(fixture.calls.length,0);
 });
 
-test('connected-order detail returns item and SKU mappings without decrypting customer data into the response',async t=>{
+test('connected-order detail returns full read-only Woo data, line items and mappings',async t=>{
   const fixture=detailAppFor(),originalKey=process.env.SALEMAX_PLATFORM_KEY_BASE64;
   process.env.SALEMAX_PLATFORM_KEY_BASE64=fixture.secret;
   t.after(()=>{if(originalKey===undefined)delete process.env.SALEMAX_PLATFORM_KEY_BASE64;else process.env.SALEMAX_PLATFORM_KEY_BASE64=originalKey;});
@@ -138,7 +148,21 @@ test('connected-order detail returns item and SKU mappings without decrypting cu
     {productId:'903',variationId:null,sku:'BUTTON-1',mappingStatus:'unmapped',targetSku:undefined,quantity:'4.000000',total:'2.000000',skuMatches:null},
   ]);
   assert.equal(body.data.lineItemsTruncated,true);
-  assert.doesNotMatch(JSON.stringify(body),/buyer-private@example\.invalid|\+97400000000/);
+  assert.equal(body.data.readOnly,true);
+  assert.equal(body.data.order.customer.email,'buyer-private@example.invalid');
+  assert.equal(body.data.order.customer.phone,'+97400000000');
+  assert.equal(body.data.order.billing.address1,'1 Main Street');
+  assert.equal(body.data.order.shipping.address1,'2 Delivery Road');
+  assert.equal(body.data.order.breakdown.fees,'1.000000');
+  assert.equal(body.data.order.shippingLines[0].title,'Courier');
+  assert.equal(body.data.order.couponLines[0].code,'FABRIC5');
+  assert.equal(body.data.order.refundDetails[0].reason,'Returned trim');
+  assert.equal(body.data.order.transactions[0].id,'txn-1');
+  assert.equal(body.data.order.marketingPermission,'not_granted_by_import');
+  assert.equal(body.data.order.metadata[0].value,'front desk');
+  assert.equal(body.data.lines[0].subtotalTax,'0.250000');
+  assert.equal(body.data.lines[0].image,'https://store.example.com/blue.jpg');
+  assert.doesNotMatch(JSON.stringify(body),/api_secret|card_number|payment_token/);
   assert.equal(fixture.calls.length,2);
   assert.match(fixture.calls[0].sql,/o\.tenant_id=\?/);
   assert.match(fixture.calls[1].sql,/m\.tenant_id=\?/);
