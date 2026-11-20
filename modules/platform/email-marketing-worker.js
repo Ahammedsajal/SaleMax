@@ -20,7 +20,7 @@ async function claim(pool,{limit=8,now=new Date()}={}){
     const [rows]=await db.query(`SELECT r.id,r.tenant_id AS tenantId,r.campaign_id AS campaignId,r.contact_id AS contactId,r.recipient_email AS recipientEmail,
       r.normalized_email AS normalizedEmail,r.attempt_count AS attemptCount,c.subject,c.text_body AS textBody,c.design_json AS designJson,c.status AS campaignStatus,
       s.email AS senderEmail,s.verification_status AS senderStatus,d.region,d.domain,d.verification_status AS domainStatus,d.dkim_status AS dkimStatus,
-      i.reply_domain AS replyDomain,i.receiving_status AS receivingStatus
+      i.reply_domain AS replyDomain,i.receiving_status AS receivingStatus,c.reply_to_email AS replyToEmail
       FROM sx_email_campaign_recipients r JOIN sx_email_campaigns c ON c.tenant_id=r.tenant_id AND c.id=r.campaign_id
       JOIN sx_email_senders s ON s.tenant_id=c.tenant_id AND s.id=c.sender_id
       JOIN sx_email_sender_domains d ON d.tenant_id=s.tenant_id AND d.id=s.domain_id
@@ -91,6 +91,16 @@ function unsubscribeUrl(origin,key,item){
   return `${base}/api/public/email/unsubscribe/${service.tokenFor(key,item.tenantId,item.campaignId,item.id)}`;
 }
 
+function campaignReplyAddresses(item,key){
+  const addresses=new Set();
+  if(item.replyToEmail)addresses.add(item.replyToEmail);
+  if(item.receivingStatus==='active'&&item.replyDomain){
+    const token=inbound.replyToken(key,item.tenantId,item.campaignId,item.id);
+    addresses.add(token+'@'+item.replyDomain);
+  }
+  return addresses.size ? Array.from(addresses) : [item.senderEmail];
+}
+
 async function dispatch(pool,item,{key,origin,send=ses.sendSimple,providerCache=new Map(),credentials=null,providerErrorCode=null,configurationSetName=null}={}){
   if(item.senderStatus!=='verified'||item.domainStatus!=='verified'||item.dkimStatus!=='SUCCESS')return finish(pool,item,{status:'failed',errorCode:'EMAIL_SENDER_NOT_VERIFIED'});
   if(!credentials)return finish(pool,item,{status:'retry',errorCode:providerErrorCode||'AWS_CREDENTIALS_REQUIRED',delaySeconds:300});
@@ -109,8 +119,7 @@ async function dispatch(pool,item,{key,origin,send=ses.sendSimple,providerCache=
   const text=`${personalize(item.textBody,contact)}\n\n---\nUnsubscribe / إلغاء الاشتراك: ${url}`;
   const html=design?emailContent.renderDesignedHtml(design,attachments,{contact,personalize,unsubscribeUrl:url}):htmlEmailBody(text,url);
   const inlineIds=new Set(emailContent.imageIds(design));
-  const replyTo=item.receivingStatus==='active'&&item.replyDomain?`${inbound.replyToken(key,item.tenantId,item.campaignId,item.id)}@${item.replyDomain}`:item.senderEmail;
-  const message={FromEmailAddress:item.senderEmail,Destination:{ToAddresses:[item.recipientEmail]},ReplyToAddresses:[replyTo],
+  const message={FromEmailAddress:item.senderEmail,Destination:{ToAddresses:[item.recipientEmail]},ReplyToAddresses:campaignReplyAddresses(item,key),
     Content:{Simple:{Subject:{Data:subject,Charset:'UTF-8'},Body:{Text:{Data:text,Charset:'UTF-8'},Html:{Data:html,Charset:'UTF-8'}},
       Headers:[{Name:'List-Unsubscribe',Value:`<${url}>`},{Name:'List-Unsubscribe-Post',Value:'List-Unsubscribe=One-Click'}],
       ...(attachments.length?{Attachments:attachments.map(file=>{
@@ -173,4 +182,4 @@ function start(pool,{key,origin,logger=console,setIntervalImpl=setInterval,clear
   timer.unref?.();return ()=>clearIntervalImpl(timer);
 }
 
-module.exports={claim,currentContact,personalize,htmlEmailBody,unsubscribeUrl,dispatch,finish,tick,start,renderDesignedHtml:emailContent.renderDesignedHtml};
+module.exports={claim,currentContact,personalize,htmlEmailBody,unsubscribeUrl,campaignReplyAddresses,dispatch,finish,tick,start,renderDesignedHtml:emailContent.renderDesignedHtml};

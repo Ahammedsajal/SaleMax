@@ -71,6 +71,7 @@ async function providerStatus(db,ctx,key){
 }
 async function setup(db,ctx,key){
   emailMarketingAccess(ctx.context);
+  const [[replySettings]]=await db.query('SELECT reply_to_email AS replyToEmail,revision FROM sx_email_marketing_settings WHERE tenant_id=?',[ctx.tenantId]);
   const [domains]=await db.query('SELECT * FROM sx_email_sender_domains WHERE tenant_id=? ORDER BY created_at,id',[ctx.tenantId]);
   const [inboundDomains]=await db.query(`SELECT id,sender_domain_id,region,reply_domain,verification_status,mx_verified_at,receiving_status,
     receipt_rule_set_name,receipt_rule_name,last_error_code,verification_token FROM sx_email_inbound_domains WHERE tenant_id=? ORDER BY created_at,id`,[ctx.tenantId]);
@@ -78,7 +79,35 @@ async function setup(db,ctx,key){
   const [senders]=await db.query('SELECT * FROM sx_email_senders WHERE tenant_id=? ORDER BY created_at,id',[ctx.tenantId]);
   const [books]=await db.query('SELECT id,name,(SELECT COUNT(*) FROM contact c WHERE c.uid=p.uid AND c.phonebook_id=p.id) AS contactCount FROM phonebook p WHERE p.uid=? ORDER BY p.name,p.id',[ctx.ownerUid]);
   const [templates]=await db.query('SELECT id,name,subject,text_body AS text,revision,updated_at AS updatedAt FROM sx_email_templates WHERE tenant_id=? ORDER BY updated_at DESC,id',[ctx.tenantId]);
-  return {provider:await providerStatus(db,ctx,key),domains:domains.map(row=>({...decodeDomain(row),inbound:decodeInbound(inboundBySender.get(row.id),row.domain)})),senders:senders.map(decodeSender),phonebooks:books,templates};
+  return {provider:await providerStatus(db,ctx,key),replyToEmail:replySettings?.replyToEmail||'',replyToRevision:Number(replySettings?.revision||0),domains:domains.map(row=>({...decodeDomain(row),inbound:decodeInbound(inboundBySender.get(row.id),row.domain)})),senders:senders.map(decodeSender),phonebooks:books,templates};
+}
+
+function campaignMailbox(value){
+  if(typeof value!=='string'||/[\x00-\x1f\x7f-\uffff]/.test(value))fail('INVALID_EMAIL_ADDRESS');
+  const email=cleanEmail(value);
+  if(!email)return null;
+  const [local,domain]=email.split('@');
+  if(local.length>64||local.startsWith('.')||local.endsWith('.')||local.includes('..')||
+    !/^[a-z0-9.!#$%&'*+/=?^_`{|}~-]+$/i.test(local))fail('INVALID_EMAIL_ADDRESS');
+  try{cleanDomain(domain);}catch{fail('INVALID_EMAIL_ADDRESS');}
+  return email;
+}
+
+async function saveReplyTo(db,ctx,input){
+  emailMarketingAccess(ctx.context);
+  if(!input||typeof input!=='object'||Array.isArray(input))fail('INVALID_REPLY_TO');
+  const email=campaignMailbox(input.replyToEmail);
+  await db.beginTransaction();
+  try{
+    await db.query('SELECT id FROM sx_tenants WHERE id=? FOR UPDATE',[ctx.tenantId]);
+    const [[row]]=await db.query('SELECT revision FROM sx_email_marketing_settings WHERE tenant_id=? FOR UPDATE',[ctx.tenantId]);
+    const revision=Number(row?.revision||0);
+    if(input.revision!==undefined&&Number(input.revision)!==revision)fail('EMAIL_SETTINGS_REVISION_CONFLICT',409);
+    if(row)await db.query('UPDATE sx_email_marketing_settings SET reply_to_email=?,revision=revision+1,updated_by_identity_id=? WHERE tenant_id=? AND revision=?',[email||null,ctx.identityId,ctx.tenantId,revision]);
+    else await db.query('INSERT INTO sx_email_marketing_settings(tenant_id,reply_to_email,revision,updated_by_identity_id) VALUES(?,?,1,?)',[ctx.tenantId,email||null,ctx.identityId]);
+    await audit(db,ctx,'email.reply-to.updated','email-settings',ctx.tenantId,{configured:Boolean(email),revision:revision+1});
+    await db.commit();return {replyToEmail:email||'',revision:revision+1};
+  }catch(error){try{await db.rollback();}catch{}throw error;}
 }
 
 function decodeInbound(row,domain){
@@ -409,9 +438,11 @@ async function createCampaign(db,ctx,input,key){
     const audienceRowsValue=await audienceRows(db,ctx.tenantId,ctx.ownerUid,phonebookId,{lock:true}),audience=summarizeAudience(audienceRowsValue),currentFingerprint=fingerprint(audienceRowsValue);
     if(currentFingerprint!==preview.fingerprint)fail('AUDIENCE_CHANGED',409);
     if(!audience.eligible.length)fail('NO_ELIGIBLE_RECIPIENTS',409);
+    const [[replySettings]]=await db.query('SELECT reply_to_email AS replyToEmail FROM sx_email_marketing_settings WHERE tenant_id=? FOR UPDATE',[ctx.tenantId]);
+    const replyToEmail=input.replyToEmail===undefined ? replySettings?.replyToEmail||null : campaignMailbox(input.replyToEmail);
     const id=uuid(),status=scheduledAt?'scheduled':'queued';
-    await db.query(`INSERT INTO sx_email_campaigns(id,tenant_id,sender_id,template_id,name,subject,text_body,design_json,phonebook_id,audience_hash,status,scheduled_at,recipient_count,created_by_identity_id)
-      VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,[id,ctx.tenantId,senderId,templateId,name,mailSubject,body,design?JSON.stringify(design):null,phonebookId,currentFingerprint,status,scheduledAt,audience.eligible.length,ctx.identityId]);
+    await db.query(`INSERT INTO sx_email_campaigns(id,tenant_id,sender_id,reply_to_email,template_id,name,subject,text_body,design_json,phonebook_id,audience_hash,status,scheduled_at,recipient_count,created_by_identity_id)
+      VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,[id,ctx.tenantId,senderId,replyToEmail,templateId,name,mailSubject,body,design?JSON.stringify(design):null,phonebookId,currentFingerprint,status,scheduledAt,audience.eligible.length,ctx.identityId]);
     for(const attachment of attachments){await db.query('INSERT INTO sx_email_campaign_attachments(tenant_id,campaign_id,attachment_id) VALUES(?,?,?)',[ctx.tenantId,id,attachment.id]);await db.query('UPDATE sx_email_attachments SET expires_at=NULL WHERE tenant_id=? AND id=?',[ctx.tenantId,attachment.id]);}
     const recipientRows=audience.eligible.map(row=>{const recipientId=uuid(),token=tokenFor(key,ctx.tenantId,id,recipientId);return [recipientId,ctx.tenantId,id,row.id,row.email,normalizeEmail(row.email),String(row.name||'').slice(0,200),sha(token)];});
     for(let start=0;start<recipientRows.length;start+=500){const batch=recipientRows.slice(start,start+500);await db.query('INSERT INTO sx_email_campaign_recipients(id,tenant_id,campaign_id,contact_id,recipient_email,normalized_email,recipient_name,unsubscribe_token_hash) VALUES ?',[batch]);}
@@ -430,7 +461,7 @@ async function listCampaigns(db,ctx){
 }
 async function campaignDetail(db,ctx,id){
   emailMarketingAccess(ctx.context);if(typeof id!=='string'||!/^[-0-9a-f]{36}$/i.test(id))fail('INVALID_EMAIL_CAMPAIGN_ID');
-  const [[campaign]]=await db.query(`SELECT c.id,c.name,c.status,c.subject,c.text_body AS text,c.scheduled_at AS scheduledAt,c.created_at AS createdAt,c.recipient_count AS recipientCount,
+  const [[campaign]]=await db.query(`SELECT c.id,c.name,c.status,c.subject,c.text_body AS text,c.reply_to_email AS replyToEmail,c.scheduled_at AS scheduledAt,c.created_at AS createdAt,c.recipient_count AS recipientCount,
     s.email AS senderEmail FROM sx_email_campaigns c JOIN sx_email_senders s ON s.tenant_id=c.tenant_id AND s.id=c.sender_id WHERE c.tenant_id=? AND c.id=?`,[ctx.tenantId,id]);if(!campaign)fail('EMAIL_CAMPAIGN_NOT_FOUND',404);
   const [recipients]=await db.query('SELECT id,recipient_email AS email,recipient_name AS name,status,provider_message_id AS providerMessageId,last_error_code AS errorCode,accepted_at AS acceptedAt FROM sx_email_campaign_recipients WHERE tenant_id=? AND campaign_id=? ORDER BY id LIMIT 1000',[ctx.tenantId,id]);
   return {...campaign,recipients};
@@ -533,4 +564,4 @@ async function applyUnsubscribe(db,key,token){
   }catch(error){try{await db.rollback();}catch{}throw error;}
 }
 
-module.exports={MAX_RECIPIENTS,MAX_ATTACHMENT_BYTES,MAX_TOTAL_ATTACHMENT_BYTES,MAX_ATTACHMENTS,normalizeEmail,validEmail,cleanDomain,cleanRegion,cleanEmail,tokenFor,decodeToken,safeFilename,sniffAttachment,summarizeAudience,fingerprint,emailMarketingAccess,sessionContext,providerStatus,setup,addDomain,refreshDomain,deleteDomain,addSender,refreshSender,enableReplies,refreshReplies,audit,saveAttachment,previewAttachment,loadAttachments,listTemplates,saveTemplate,previewAudience,createCampaign,listCampaigns,campaignDetail,analytics,inbox,threadMessages,testSend,applyUnsubscribe};
+module.exports={MAX_RECIPIENTS,MAX_ATTACHMENT_BYTES,MAX_TOTAL_ATTACHMENT_BYTES,MAX_ATTACHMENTS,normalizeEmail,validEmail,cleanDomain,cleanRegion,cleanEmail,tokenFor,decodeToken,safeFilename,sniffAttachment,summarizeAudience,fingerprint,emailMarketingAccess,sessionContext,providerStatus,setup,saveReplyTo,addDomain,refreshDomain,deleteDomain,addSender,refreshSender,enableReplies,refreshReplies,audit,saveAttachment,previewAttachment,loadAttachments,listTemplates,saveTemplate,previewAudience,createCampaign,listCampaigns,campaignDetail,analytics,inbox,threadMessages,testSend,applyUnsubscribe};
