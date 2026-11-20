@@ -2628,3 +2628,7 @@ No WhatsApp test messages were sent during deployment. Owner acceptance still ne
 New handoffs use a simple one-letter/one-digit code (for example, `A1`): claim with `YES A1`, prefix a staff reply with `A1:` only when handling multiple chats, and close with `CLOSE A1`. The relay parser still accepts existing six-character codes, so the 13 handoffs active during deployment kept their current codes. The profile feature flag is enabled for Pro Catalyst and is preserved when the bot profile is edited.
 
 Codes are never reused, preventing an old unread WhatsApp alert from targeting a different customer. There are 260 two-character combinations per tenant; the system safely falls back to six characters after they are all issued. The additive registry migration backfilled the 55 existing codes. Production is healthy, the migration is applied, the profile flag is true, and all deployed asset/health/support-service checks passed. No WhatsApp test message was sent. Owner acceptance and the guarded rollback are documented in `DEPLOYMENT.md`.
+
+## CRM appearance — 20 November 2026
+
+The live CRM uses light mode for returning and new users. The signed-in dashboard, sidebar and top navigation were visually checked after reloading a session previously in dark mode. Source `8452f9a`; release and rollback details are in `DEPLOYMENT.md`.

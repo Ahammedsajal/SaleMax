@@ -5051,3 +5051,28 @@ Protected rollback and release evidence are in `/opt/salemax/shared/rollback-ema
 ```sh
 sudo -n /opt/salemax/shared/with-production-lock.sh python3 /opt/salemax/releases/email-marketing-reply-to-348ffa6d3d05-20261120T125054Z/deploy/email-marketing-reply-to-release.py restore /opt/salemax/shared/rollback-email-marketing-reply-to-348ffa6d3d05-20261120T125054Z
 ```
+
+## CRM light-only appearance — 20 November 2026
+
+Source `8452f9aed7d61d002d29218dda9e2e11746c2473` is live in `/opt/salemax/releases/crm-light-8452f9aed7d6-20261120T130251Z` on the existing training-pipeline-correction-v3 base and image `salemax-app:email-marketing-21a07cc41fa9-20261112` (`sha256:753d77d421b3160872df0812e7b38505a1db7104cdb9d6c8b17415b2420de667`). The shell selects light before React mounts, upgrades previously stored dark preferences and removes the visible appearance switches. Standalone Pipeline and Properties declare light mode. The CRM authorization page and PWA launch palette also use light. Production preimages for the six modified assets matched Git. The release adds two assets and applies no schema or customer-data changes.
+
+Authenticated Edge acceptance used the same owner dashboard before and after rollout. Before refresh its theme control offered Light Mode and the header computed to rgb(13,17,23). After refresh the sidebar computed to white and the header to rgb(247,248,250), the appearance control was absent from the accessibility tree, and the language and direction controls remained visible. Screenshot confirmed readable sidebar labels. The public dashboard and admin/agent sign-in shells served the new asset references. Health and database checks passed, and seven other service identities stayed the same. Native installed PWA rendering and signed-in staff/admin sessions were not visually exercised.
+
+| Runtime file under client/public | SHA-256 |
+| --- | --- |
+| index.html | 629d23b0439bdaeca3655bf9e18c93036c4f7f225c956b3c101859e13bfaeae7 |
+| pipeline/index.html | 865f952d32a8b7b329f8bffd9db3a3f2fe5126e9f4c2bf195503a7c4876c8c4d |
+| property-listings/index.html | f37389ed4eb2d1bf73c0345a365b28e23eae616aac99598fb39fa4d667c0ef98 |
+| branding/7network/manifest.webmanifest | 1ebd862634f8fe7100e43dba7fb24c99c962415f08227be5871f40da8753ae7b |
+| chatgpt-oauth.html | e6945026a161300e25e4fe3acfc67af89472c3888c5f545a21f8e6d7f5866fd5 |
+| chatgpt-oauth.css | 1fd1d5d23ef8e7455455aa2b4b0c3e37c46cbed2d0c44aebb67a433223d74134 |
+| crm-light-mode.js | cccfa2a9c686a1c4bc8925815655df895fe4ca463f232db16b280d3406d7e1b8 |
+| crm-light-mode.css | 8163df5aa290a7b9d2ec9cc63745cd60882977423df20c0cec389bce2a1319e4 |
+
+The protected snapshot is `/opt/salemax/shared/rollback-crm-light-8452f9aed7d6-20261120T130251Z`. If this is still the latest overlay, restore with:
+
+```sh
+sudo -n /opt/salemax/shared/with-production-lock.sh python3 /opt/salemax/releases/crm-light-8452f9aed7d6-20261120T130251Z/deploy/crm-light-release.py restore /opt/salemax/shared/rollback-crm-light-8452f9aed7d6-20261120T130251Z
+```
+
+App rollback restores the pre-release files and controls. Browsers that loaded the new release keep light as their saved preference.
