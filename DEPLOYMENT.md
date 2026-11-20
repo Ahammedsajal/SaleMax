@@ -5024,3 +5024,9 @@ sudo -n /opt/salemax/shared/with-production-lock.sh python3 /opt/salemax/release
 ```
 
 This restores the prior app Compose chain and four reviewed runtime preimages; no database rollback applies.
+
+## Training Center five-part admissions email sequence — 20 November 2026
+
+Source `3eec3185fb6aa6a95c5a94db4ebc565ff3abcb68` supplies the revised copy at `docs/email-marketing/training-center-sequence.json`. Updated the five existing numbered visual templates in the intended business workspace in one audited transaction, preserving their IDs, names and existing attachment links. Each has a scenario, heading, bold feature list, reply question, divider and the existing business signature. Authenticated Edge showed all five subjects and six-block designs. Production readback matched every subject, design and text fallback. Revisions are 4, 2, 2, 2 and 2. This content publication required no application restart or migration. No campaign was queued or sent.
+
+Protected snapshot `/opt/salemax/shared/rollback-training-email-3eec318-20261120T124654Z` holds the preimages and verified content update script. To restore, run the saved script in `restore` mode under the production lock in the app container with the saved `before.json` supplied as `TEMPLATE_SNAPSHOT`. It rejects newer edits. The release base and image remain as recorded in the preceding text-formatting entry.
