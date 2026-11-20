@@ -1,0 +1,13 @@
+/* The native header uses a translated tooltip. Its two brightness icons also
+   identify the switch on the agent and sign-in screens, in every language. */
+#root button:is([aria-label="Dark Mode" i], [aria-label="Light Mode" i],
+                [aria-label="Switch to dark mode" i], [aria-label="Switch to light mode" i]),
+#root button:has(svg path[d^="M20 8.69V4h-4.69L12 .69"]),
+#root button.MuiButton-root:has(.MuiButton-startIcon path[d^="M12 3c-4.97 0-9 4.03-9 9"]),
+#root button.MuiButton-root:has(.MuiButton-startIcon path[d^="M12 7c-2.76 0-5 2.24-5 5"]) {
+  display: none !important;
+}
+
+html[data-theme="light"] .em-dialog {
+  color-scheme: only light;
+}

@@ -5,8 +5,8 @@
   "start_url": "/user?page=dashboard",
   "scope": "/",
   "display": "standalone",
-  "theme_color": "#081630",
-  "background_color": "#081630",
+  "theme_color": "#ffffff",
+  "background_color": "#ffffff",
   "icons": [
     {
       "src": "/branding/7network/icon-192.png?v=20261021-color-wordmark1",
