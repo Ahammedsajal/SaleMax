@@ -5030,3 +5030,24 @@ This restores the prior app Compose chain and four reviewed runtime preimages; n
 Source `3eec3185fb6aa6a95c5a94db4ebc565ff3abcb68` supplies the revised copy at `docs/email-marketing/training-center-sequence.json`. Updated the five existing numbered visual templates in the intended business workspace in one audited transaction, preserving their IDs, names and existing attachment links. Each has a scenario, heading, bold feature list, reply question, divider and the existing business signature. Authenticated Edge showed all five subjects and six-block designs. Production readback matched every subject, design and text fallback. Revisions are 4, 2, 2, 2 and 2. This content publication required no application restart or migration. No campaign was queued or sent.
 
 Protected snapshot `/opt/salemax/shared/rollback-training-email-3eec318-20261120T124654Z` holds the preimages and verified content update script. To restore, run the saved script in `restore` mode under the production lock in the app container with the saved `before.json` supplied as `TEMPLATE_SNAPSHOT`. It rejects newer edits. The release base and image remain as recorded in the preceding text-formatting entry.
+
+## Email Marketing campaign Reply-To — 20 November 2026
+
+Source `348ffa6d3d057f3874db21354267213cedeed18a` is live at `/opt/salemax/releases/email-marketing-reply-to-348ffa6d3d05-20261120T125054Z`, on base `/opt/salemax/releases/training-pipeline-correction-v3-9867ca72-20261104` with image `salemax-app:email-marketing-21a07cc41fa9-20261112` (`sha256:753d77d421b3160872df0812e7b38505a1db7104cdb9d6c8b17415b2420de667`). Setup stores an optional tenant default. The composer shows the default and accepts a different mailbox or blank for automatic routing. Each new campaign stores its own value. The SES worker puts the chosen mailbox first and adds the recipient’s signed CRM alias for an active inbound domain. With neither configured, replies use the verified sender.
+
+Migration `20270207_email_marketing_reply_to.sql` applied both statements, creating tenant settings and adding a nullable column to campaigns with instant DDL. The application and database are healthy. The public shell, versioned JS and health endpoint returned 200. Authenticated Edge showed both controls. A synthetic probe in the running worker verified sender fallback, mailbox only, CRM alias only, and mailbox plus CRM alias. Seven non-app container identities matched before and after. The production default was left unset. No outbound email or customer reply was used for verification.
+
+| Mounted file | SHA-256 |
+| --- | --- |
+| modules/platform/email-marketing.js | a3649634a9e3c64c354d1b1887a82ae29967043cdc64b8e6d6bf2ef18be91342 |
+| modules/platform/email-marketing-router.js | b8ccd896b32940b6a9c07ce83244dcf9c0f8a0f1e41a9e1d4778d3302cf15061 |
+| modules/platform/email-marketing-worker.js | c8c6897e8628221131f91f718031c8f7addb623b051af1a6e4ab49acfd6764db |
+| client/public/email-marketing-workspace.js | e78f8472b90e232e9027f4b44ac347760a13d1d48f43af1bac699b26acc9cb66 |
+| client/public/index.html | f4e454b8e3a5856fa718a5fda47d9d818e7a54d10afda5b20147f66432798a71 |
+| database/migrations/20270207_email_marketing_reply_to.sql | 7420c8acdfddf2c7f4aba30334b12f9db5395ca003b94459fa9fd5d9513fbb9b |
+
+Protected rollback and release evidence are in `/opt/salemax/shared/rollback-email-marketing-reply-to-348ffa6d3d05-20261120T125054Z`. To restore this app overlay while it is the active tail, use the following command. It preserves the additive schema. If rolling the app back, retain the reviewed migration SQL for subsequent migration discovery.
+
+```sh
+sudo -n /opt/salemax/shared/with-production-lock.sh python3 /opt/salemax/releases/email-marketing-reply-to-348ffa6d3d05-20261120T125054Z/deploy/email-marketing-reply-to-release.py restore /opt/salemax/shared/rollback-email-marketing-reply-to-348ffa6d3d05-20261120T125054Z
+```
