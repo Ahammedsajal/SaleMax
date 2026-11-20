@@ -1,0 +1,111 @@
+[
+  {
+    "day": 1,
+    "subject": "Who answers at midnight?",
+    "open": "At midnight, someone taps your ad and asks on WhatsApp, “How much is the evening course?” Your 7Network training center bot gives the fee and next batch date while the learner is still interested. It collects their details and preferred callback time, then sends your team the request on WhatsApp.",
+    "heading": "What your team can do next",
+    "list": [
+      [
+        "Admissions",
+        "Manage courses, batches, applications and enrolments."
+      ],
+      [
+        "Staff inbox",
+        "Use staff accounts to take over chats and assign callbacks."
+      ],
+      [
+        "Follow-up",
+        "Schedule reminders for learners who go quiet."
+      ],
+      [
+        "Finance",
+        "Track invoices and payments, then get a daily report."
+      ]
+    ],
+    "ask": "Which course should I use to show you the midnight reply?"
+  },
+  {
+    "day": 2,
+    "subject": "One seat in the evening batch",
+    "open": "“I can only come after work. How do I register?” Once a learner is ready, the next reply should get them into the right batch. With 7Network, your adviser can find the course, send the application and track the enrolment in one place.",
+    "heading": "From that first yes to a place in class",
+    "list": [
+      [
+        "Course catalogue",
+        "Keep fees, schedules and batch details together."
+      ],
+      [
+        "Applications",
+        "Share the course form while the learner is in the chat."
+      ],
+      [
+        "Enrolments",
+        "See who has applied and who has joined the batch."
+      ]
+    ],
+    "ask": "Would a sample application for one of your courses be useful?"
+  },
+  {
+    "day": 3,
+    "subject": "Same chat, new adviser",
+    "open": "A learner asks whether the evening course suits a complete beginner. Your adviser knows the answer but is away from the desk. On a QR-connected WhatsApp chat with staff handoff enabled, they can take over from their own phone.",
+    "heading": "What the handoff looks like",
+    "list": [
+      [
+        "On the adviser’s phone",
+        "A WhatsApp alert brings the enquiry and the details already collected."
+      ],
+      [
+        "From their own WhatsApp",
+        "The adviser claims the chat and replies between classes."
+      ],
+      [
+        "On the learner’s phone",
+        "The answer appears in the same chat, from your center’s business number."
+      ]
+    ],
+    "ask": "Would you like to see what each person sees on their phone?"
+  },
+  {
+    "day": 4,
+    "subject": "“Call me after six”",
+    "open": "A learner likes the course and asks for a call after six. By then, the adviser who took the enquiry has finished for the day. In 7Network, the next shift can see the promise your team made.",
+    "heading": "Give the next shift a clear next step",
+    "list": [
+      [
+        "Staff tasks",
+        "Assign the callback to one adviser with a due time."
+      ],
+      [
+        "Shared inbox",
+        "Read the learner’s question before calling."
+      ],
+      [
+        "Automated follow-ups",
+        "Schedule a WhatsApp reminder if the learner still needs to decide."
+      ]
+    ],
+    "ask": "Would a sample follow-up for an undecided learner help your team?"
+  },
+  {
+    "day": 5,
+    "subject": "Before you fill the next batch",
+    "open": "Before you open another evening batch, you need to know who enrolled, which fees are outstanding and who still wants a call. 7Network brings those answers into the same workspace your admissions team uses.",
+    "heading": "Three ways to cut the end-of-day admin",
+    "list": [
+      [
+        "Invoices and receipts",
+        "Record instalments and see which fees are still due."
+      ],
+      [
+        "Daily reports",
+        "Schedule a summary of new enquiries, applications and invoices."
+      ],
+      [
+        "AI handoff summaries",
+        "When enabled, advisers get a short recap before taking over a chat."
+      ]
+    ],
+    "ask": "Would you like the annual subscription details and a walkthrough using one of your courses?"
+  }
+]
