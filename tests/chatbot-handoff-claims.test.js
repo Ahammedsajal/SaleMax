@@ -74,7 +74,8 @@ test('new and reopened handoffs use one hour only for the configured tenant', as
       for (const existing of [null, { id: 'previous', status: 'expired', revision: 1 }]) {
         let write;
         const db = { query: async (sql, args) => {
-          if (sql.includes('FOR UPDATE')) return [[existing]];
+          if (sql.includes('sx_chatbot_handoff_code_registry')) return [[]];
+          if (sql.includes('FROM sx_chatbot_handoff_claims')) return [[existing]];
           write = { sql, args };
           return [{ affectedRows: 1 }];
         } };
