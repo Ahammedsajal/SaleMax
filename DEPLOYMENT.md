@@ -5229,3 +5229,30 @@ sudo -n /opt/salemax/shared/with-production-lock.sh python3 /opt/salemax/release
 ```
 
 This rollback is app-only; it preserves conversations and has no database rollback.
+
+## 2026-11-21 — Pro Catalyst callback-consent confirmation and staff handoff
+
+Source commit `aed914508ca25bd14bf8f04aa7f4b9d38edac10f` is pushed to `Ahammedsajal/SaleMax` `main`. The app-only release is `/opt/salemax/releases/pro-catalyst-conversation-quality-aed914508ca2-20261121T153203Z`, layered over `/opt/salemax/releases/training-pipeline-correction-v3-9867ca72-20261104`. The app image remains `sha256:753d77d421b3160872df0812e7b38505a1db7104cdb9d6c8b17415b2420de667`; no migration ran.
+
+When a customer replies affirmatively to the immediately preceding callback-permission question, the bot now records a `callback_requested` CRM activity, upgrades or creates the existing handoff with the confirmed number/course, preserves an existing staff claim/code and task, and queues the staff callback notification. It then sends one thank-you and leaves the conversation paused for staff. The check is limited to affirmative replies with a recorded or immediately preceding callback-consent prompt; unrelated “yes” replies do not trigger this flow. Confirmation and task updates use no AI request. An acknowledgement retry reuses the linked task and does not create another callback task. The Pro Catalyst profile greeting and channel settings were not edited; relay and short-code flags remain enabled.
+
+The guarded helper verified 310 Compose inputs, 11 environment inputs, 280 app mounts, a healthy database, an app health status of healthy with zero restarts after rollout, and unchanged support-service identities. Public `https://7network.live/healthz` returned HTTP 200; a separate readback confirmed the active release overlay and all eight mounted asset hashes below. No customer message, handoff, lead or profile row was edited during deployment. No automated test suite, WhatsApp test message or paid AI call was run. Owner acceptance is still needed to confirm a real “Yes please” produces the customer thank-you and a staff-visible callback task/notification.
+
+| Mounted runtime file | SHA-256 |
+|---|---|
+| `modules/platform/chatbot-business-context.js` | `759b086a15864496025167a50117698cac64c0cfe1076c42eeef85eeef34628f` |
+| `modules/platform/chatbot-ai-prompt.js` | `927698a4345c5d09f842cd5a00e58e8e3df7e5dc3751493d4e1283581a3e9ea4` |
+| `modules/platform/chatbot-runtime.js` | `88934de1d207d253a12f22b82339e985840ef1c0790787aa8bbd172785612439` |
+| `modules/platform/chatbot-lead-capture.js` | `58ba76fa80b8d28e6a2c137ba2b2a3bf053b5db205790a668cfb21a8c29885c8` |
+| `modules/platform/chatbot-conversation-control.js` | `dbdeccc170c1bdf517eac08ec21225c0001d65f81c6530ade5e33f4c7b419fca` |
+| `modules/platform/chatbot-handoff-claims.js` | `56211c6b6e42348fe19fa7c4cf651e63ec64abd78ac48f96a9b42b95bdb0f32e` |
+| `modules/platform/chatbot-router.js` | `11bd363778476bea152a55368dc016a32674c7feb1623bc44db7032f013305d5` |
+| `modules/platform/chatbot-contact-assistant.js` | `bb8fe28d96f41925a17d894075bd4dd7746ad3b11f295027508d9c88226e2a44` |
+
+Protected rollback snapshot: `/opt/salemax/shared/rollback-pro-catalyst-conversation-quality-aed914508ca2-20261121T153203Z`. Restore the previous Compose chain only if this is still the latest app overlay; restore any later overlays first:
+
+```sh
+sudo -n /opt/salemax/shared/with-production-lock.sh python3 /opt/salemax/releases/pro-catalyst-conversation-quality-aed914508ca2-20261121T153203Z/deploy/pro-catalyst-conversation-quality-release.py restore /opt/salemax/shared/rollback-pro-catalyst-conversation-quality-aed914508ca2-20261121T153203Z
+```
+
+Rollback is app-only; no migration or database rollback applies.

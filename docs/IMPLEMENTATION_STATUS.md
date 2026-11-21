@@ -2646,3 +2646,7 @@ The opening greeting now identifies the bot as Pro Catalyst Training Center’s 
 ## CRM appearance — 20 November 2026
 
 The live CRM uses light mode for returning and new users. The signed-in dashboard, sidebar and top navigation were visually checked after reloading a session previously in dark mode. Source `8452f9a`; release and rollback details are in `DEPLOYMENT.md`.
+
+### Pro Catalyst callback consent and staff follow-up — production, 21 November 2026
+
+An affirmative reply such as “Yes please” now confirms a callback only when the bot’s preceding message explicitly asked permission to call the displayed Qatar number. The bot records a `callback_requested` lead activity, adds the callback number/course and consent to the existing handoff, notifies staff or refreshes the still-open notification, reuses any existing staff task/code, thanks the customer once, and keeps the bot paused. Confirming consent is deterministic and makes no AI provider call. Production deployment and health evidence are in `DEPLOYMENT.md`; a real customer-channel reply remains owner acceptance and was not sent as a deployment test.
