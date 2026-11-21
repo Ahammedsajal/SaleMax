@@ -5147,3 +5147,33 @@ sudo -n /opt/salemax/shared/with-production-lock.sh python3 /opt/salemax/release
 ```
 
 The restore helper verifies the release is still active, the runtime hashes match, the prior Compose inputs are unchanged, and support services retain their identities before restoring the previous app chain. The virtual-assistant greeting and existing handoff settings were already correct and were not rewritten. Organic customer replies and the GPT-generated wording remain owner-acceptance gates.
+
+## Pro Catalyst handoff deduplication and pause expiry — production, 21 November 2026
+
+Runtime changes are in source commit `c06646c4cc9109125a56087fd0bb0281a01bef25`; reusable release-helper inventory is in `2231dcd153e12703205a9ae1407f625280329521`, pushed to `Ahammedsajal/SaleMax` `main`. The app-only overlay is `/opt/salemax/releases/pro-catalyst-conversation-quality-2231dcd1ee9a-20261121T120025Z`, on base `/opt/salemax/releases/training-pipeline-correction-v3-9867ca72-20261104`, using image `sha256:753d77d421b3160872df0812e7b38505a1db7104cdb9d6c8b17415b2420de667`. There were no migrations or customer-data writes. The release directory suffix is a deployment label, not a source SHA: the helper was initially passed an incorrect commit label. All seven deployed file hashes were verified against the staged source, and the protected release result metadata was corrected to the actual source commit under the production lock.
+
+The read-only chat audit covered 1,271 chats and 10,298 messages from 13 October through 21 November 2026; the last seven days contained 354 chats and 2,945 messages. Across the retained period, 45 exact bot-text repeats were found (38 within three minutes), including 28 repeated handoff messages and 28 repeated course-discovery prompts; categories overlap. The seven-day slice had 34 exact repeats (32 within three minutes), including 23 repeated discovery prompts and 21 repeated handoff messages. The course mismatches in the audit, including a Marine Deckhand fee answered with the Health & Social Care fee, were historical and predate the 11:00 UTC course-context release. A synthetic post-release context check selected the expected course and fee. Older outbound rows sometimes lack sender attribution, so bot-volume and latency totals are incomplete.
+
+The repeated handoff replies came from clearing the system pause on a new customer message, allowing the same open handoff to re-enter the bot. Pending handoffs now remain paused; an acknowledgement can be reserved once per claim, so subsequent customer messages do not trigger another generic handoff reply. A fresh greeting can restart an unclaimed handoff. New system pauses caused by a staff reply now expire after 24 hours. Existing system `staff-replied` rows with a NULL deadline use `updated_at + 24 hours` in both runtime and Inbox bot-control reads, so 112 of the 140 audited legacy rows are now considered expired while 28 remain within their 24-hour window. The rows were not rewritten. Identity-owned pauses are preserved.
+
+The release helper’s first preflight stopped before app activation because its prior asset inventory classified the already-mounted contact-assistant module as a new file. The live app remained healthy and unchanged; the exact inactive partial snapshot was removed under the production lock. The helper inventory was corrected and the release completed successfully.
+
+Verification: 229 focused chatbot and handoff tests passed, all changed JavaScript passed `node --check`, the release helper passed Python syntax parsing, and `git diff --check` passed. The guarded deployment verified all seven runtime file hashes, app health with zero restarts, database health, public `/healthz` HTTP 200, unchanged image and support services, 307 Compose inputs, 11 environment inputs and 280 app mounts. The profile greeting and relay settings were read back and left unchanged. No WhatsApp test message or paid model call was sent. Owner acceptance remains to verify the fresh-greeting reset, one-time handoff acknowledgement and 24-hour expiry in the controlled Pro Catalyst chat.
+
+| Mounted runtime file | SHA-256 |
+|---|---|
+| `modules/platform/chatbot-business-context.js` | `04e15b41b9b078a5e6851e72f6e589de5cbd4f86c184dd41ea2048e70daafb8d` |
+| `modules/platform/chatbot-runtime.js` | `75982379edcf61d5b2047628958b8282cd900fb38e13eebae07d3c84f8efdb54` |
+| `modules/platform/chatbot-lead-capture.js` | `45ab6452407a94d9d84b3afd4315bcdbff89973ab94780d69ba58a89ffafe386` |
+| `modules/platform/chatbot-conversation-control.js` | `dbdeccc170c1bdf517eac08ec21225c0001d65f81c6530ade5e33f4c7b419fca` |
+| `modules/platform/chatbot-handoff-claims.js` | `a80f7c72a11dc72a853bfc708658b9be1f2fbd8690c1a2c0716d30a11323b144` |
+| `modules/platform/chatbot-router.js` | `11bd363778476bea152a55368dc016a32674c7feb1623bc44db7032f013305d5` |
+| `modules/platform/chatbot-contact-assistant.js` | `01e4b54e77a52507f2e3a56065eb6beb3bb594327104706e1a324c337846a00e` |
+
+Protected rollback snapshot: `/opt/salemax/shared/rollback-pro-catalyst-conversation-quality-2231dcd1ee9a-20261121T120025Z`. Restore the previous app overlay under the production lock with:
+
+```sh
+sudo -n /opt/salemax/shared/with-production-lock.sh python3 /opt/salemax/releases/pro-catalyst-conversation-quality-2231dcd1ee9a-20261121T120025Z/deploy/pro-catalyst-conversation-quality-release.py restore /opt/salemax/shared/rollback-pro-catalyst-conversation-quality-2231dcd1ee9a-20261121T120025Z
+```
+
+This rollback changes no database rows. Restoring the prior runtime would again treat legacy system `staff-replied` rows with NULL deadlines as unbounded pauses; normalize those rows under a separately reviewed, backed-up data change before reverting if that legacy behavior is unacceptable.
