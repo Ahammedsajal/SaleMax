@@ -8,6 +8,10 @@ const { findApprovedFaq, keywords: faqKeywords } = require('./chatbot-faq');
 const normalized = value => normalizeDigits(value).toLowerCase().normalize('NFKC').replace(/[أإآ]/g, 'ا').replace(/ى/g, 'ي').replace(/[^\p{L}\p{N}]+/gu, ' ').replace(/\bcare\s+givers?\b/gu, 'caregiver').trim();
 const STOP_WORDS = new Set('the for your our are can you what how want would like tell about course courses training please help certificate certification professional class classes session sessions certificates certifications accreditation accredited attestation attested certified شهادة الشهادة شهادات الشهادات اعتماد معتمدة تصديق مصدقة احترافي اريد دورة الدورات التدريب ماهي ممكن لو سمحت'.split(' '));
 const tokens = value => normalized(value).split(' ').filter(word => word.length > 2 && !STOP_WORDS.has(word));
+const BEGINNER_TEXT = /\b(?:beginner|beginners|new to this|no experience|just starting|starting from zero)\b/u;
+const BEGINNER_TEXT_AR = /(?:مبتدئ|مبتدئة|مبتدئين|لا املك خبرة|ابدأ من الصفر)/u;
+const DISCOVERY_COMPLAINT = /\b(?:why keep(?: on)? (?:sending|asking)|why do you keep (?:sending|asking|repeating)|keep on (?:sending|asking)|keep (?:sending|asking) the same|same question|repeat(?:ing)? (?:yourself|the same)|not serious|not listening|you do not listen|you don t listen|i said .*beginner)\b/u;
+const DISCOVERY_COMPLAINT_AR = /ليش تكرر|تكرر نفس السؤال|لا تكرر السؤال|مش جاد/u;
 function courseInquiryTopic(message, state = null) {
   const raw = String(message || '').normalize('NFKC').replace(/\s+/g, ' ').trim();
   if (!raw || raw.length > 200) return null;
@@ -377,6 +381,45 @@ function shouldClarifyGenericCourseInterest(message, context, state = {}) {
   return isGenericAdInterest(message) && !(context?.selectedCourseCode || state?.selectedCourseCode);
 }
 
+function isCourseDiscoveryFeedback(message, state = {}) {
+  const text = normalized(message);
+  const complaint = DISCOVERY_COMPLAINT.test(text) || DISCOVERY_COMPLAINT_AR.test(text);
+  const beginner = BEGINNER_TEXT.test(text) || BEGINNER_TEXT_AR.test(text);
+  return complaint || (beginner && (state?.waitingForCourse === true || !state?.selectedCourseCode));
+}
+
+function courseDiscoveryRepairReply({ message, state = {}, history = [], facts = [] } = {}) {
+  const language = languageFor(message, state);
+  const ar = language === 'ar';
+  const text = normalized(message);
+  const complaint = DISCOVERY_COMPLAINT.test(text) || DISCOVERY_COMPLAINT_AR.test(text);
+  const turns = Array.isArray(history) ? history : [];
+  const currentBeginner = BEGINNER_TEXT.test(text) || BEGINNER_TEXT_AR.test(text);
+  const beginnerMentioned = state?.beginnerPreference === true
+    || currentBeginner
+    || (complaint && turns.some(turn => turn?.role === 'user'
+      && (BEGINNER_TEXT.test(normalized(turn.text)) || BEGINNER_TEXT_AR.test(normalized(turn.text)))));
+  if (!complaint && !currentBeginner) return null;
+
+  const beginnerCourses = (Array.isArray(facts) ? facts : [])
+    .filter(course => !course?.kind && course?.code && normalized(course.difficultyLevel) === 'beginner')
+    .slice(0, 3)
+    .map(course => local(course, 'name', language))
+    .filter(Boolean);
+  if (ar) {
+    const apology = complaint ? 'أعتذر، كررت السؤال ولم أجب على ما ذكرته.' : 'شكرًا لإخباري أنك مبتدئ.';
+    if (beginnerMentioned && beginnerCourses.length) {
+      return { reply: `${apology} الدورات المنشورة للمبتدئين تشمل ${beginnerCourses.join(' و')}. هل تود معرفة تفاصيل إحداها، أم تبحث عن مجال آخر؟`, beginnerMentioned: true };
+    }
+    return { reply: `${apology} أخبرني بالمجال الذي تريد تعلمه، وسأقترح لك دورة مناسبة من الدورات المتاحة.`, beginnerMentioned };
+  }
+  const apology = complaint ? 'Sorry—I repeated myself instead of responding to what you told me.' : 'Thanks for telling me you’re a beginner.';
+  if (beginnerMentioned && beginnerCourses.length) {
+    return { reply: `${apology} Our published beginner-level courses include ${beginnerCourses.join(' and ')}. Would you like details about one of these, or are you interested in another subject?`, beginnerMentioned: true };
+  }
+  return { reply: `${apology} What subject would you like to learn? I’ll suggest suitable options from our available courses.`, beginnerMentioned };
+}
+
 function ambiguousDiplomaCandidates(message, facts, state = {}) {
   const text = normalized(message);
   if (!/\bdiplomas?\b/u.test(text) || isCourseCatalogueRequest(message)
@@ -662,4 +705,4 @@ function polishGuidedReply({ result, profile, message, state, defaults }) {
   return result;
 }
 
-module.exports = { normalized, fingerprint, languageFor, controlRoute, isScheduleQuestion, hasPublishedSchedule, courseDetailNeedsCoordinator, trainingCenterCoordinatorReason, publishedDurationRange, retrieveContext, validateAnswer, clarification, unavailableReply, publishedTrainingReply, simpleFactualReply, isCourseOverviewRequest, shouldSkipApprovedFaq, isGenericAdInterest, shouldClarifyGenericCourseInterest, courseDiscoveryReply, ambiguousDiplomaCandidates, diplomaClarificationReply, isBareCourseSelection, courseInquiryTopic, previewState, redactCustomerText, polishGuidedReply, qrAdReferral, courseFromVerifiedReferral, isTrainingGreeting, trainingGreeting, repeatQuestion, repeatedCourseFact, isCertificateQuestion, courseCertificateReply, certificateFollowUp };
+module.exports = { normalized, fingerprint, languageFor, controlRoute, isScheduleQuestion, hasPublishedSchedule, courseDetailNeedsCoordinator, trainingCenterCoordinatorReason, publishedDurationRange, retrieveContext, validateAnswer, clarification, unavailableReply, publishedTrainingReply, simpleFactualReply, isCourseOverviewRequest, shouldSkipApprovedFaq, isGenericAdInterest, shouldClarifyGenericCourseInterest, isCourseDiscoveryFeedback, courseDiscoveryRepairReply, courseDiscoveryReply, ambiguousDiplomaCandidates, diplomaClarificationReply, isBareCourseSelection, courseInquiryTopic, previewState, redactCustomerText, polishGuidedReply, qrAdReferral, courseFromVerifiedReferral, isTrainingGreeting, trainingGreeting, repeatQuestion, repeatedCourseFact, isCertificateQuestion, courseCertificateReply, certificateFollowUp };

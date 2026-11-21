@@ -463,7 +463,7 @@ async function sendCourseReplyFollowups({ ctx, profile, uid, origin, sessionId, 
   } catch (error) { console.warn('[chatbot] name question unavailable', error.code || 'NAME_QUESTION_FAILED'); }
 }
 
-async function trainingCenterGuidedTurn({ ctx, profile, uid, message, sessionId, origin, chatId, intent = null, leadInfo, courseSelection = null, onStage = null }) {
+async function trainingCenterGuidedTurn({ ctx, profile, uid, message, sessionId, origin, chatId, intent = null, leadInfo, courseSelection = null, courseDiscoveryFeedback = false, onStage = null }) {
   onStage?.('training-channel-and-pack');
   const channelKind = channelFor(origin);
   const pack = getDomainPack(ctx.category.key, ctx.category.version);
@@ -493,6 +493,13 @@ async function trainingCenterGuidedTurn({ ctx, profile, uid, message, sessionId,
       : []);
     onStage?.('training-approved-faqs');
     const knowledgeEntries = mergeKnowledgeEntries(profile.config?.knowledgeEntries || [], await loadApprovedFaqs(ctx.tenant.id));
+    let discoveryHistory = [];
+    if (courseDiscoveryFeedback) {
+      const [historyRows] = await db.query(`SELECT route,msgContext FROM beta_conversation
+        WHERE uid=? AND chat_id=? AND origin=? AND route IN ('INCOMING','OUTGOING')
+        ORDER BY id DESC LIMIT 12`, [uid, chatId, origin]);
+      discoveryHistory = conversationHistoryFromRows(historyRows, textOf(message));
+    }
     onStage?.('training-session-transaction');
     await db.beginTransaction();
     await db.query(`INSERT IGNORE INTO sx_chatbot_guided_sessions(id,tenant_id,profile_id,channel_kind,channel_ref,conversation_id,conversation_hash,state,expires_at)
@@ -510,7 +517,7 @@ async function trainingCenterGuidedTurn({ ctx, profile, uid, message, sessionId,
     const pilotGreeting = !intent && mockup.ownsInbox(uid, origin) && !profile.config?.flowId && !profile.config?.introFlowId
       && businessContext.isTrainingGreeting(textOf(message));
     const openingGreeting = pilotGreeting || isOpeningGreeting(intent || textOf(message));
-    deferLeadQuestion = openingGreeting || !priorState?.greeted;
+    deferLeadQuestion = openingGreeting || !priorState?.greeted || courseDiscoveryFeedback;
     if(cvSubmission){
       const success= cvSubmission.repeated
         ? (priorState?.language==='ar'?'تم تسجيل طلبك مسبقاً. سيرتك الذاتية محفوظة، وسيتواصل معك المؤسس قريباً.':'Your application is already recorded. Your CV is saved, and the Founder will contact you soon.')
@@ -524,6 +531,11 @@ async function trainingCenterGuidedTurn({ ctx, profile, uid, message, sessionId,
       const language = businessContext.languageFor(textOf(message), state);
       reply = businessContext.trainingGreeting({ message: textOf(message), state, facts, welcome:
         profile.config?.guidedContent?.messages?.greeting?.[language] || pack.guidedContentDefaults.messages.greeting[language] });
+    } else if (courseDiscoveryFeedback) {
+      const language = businessContext.languageFor(textOf(message), priorState || {});
+      const recovery = businessContext.courseDiscoveryRepairReply({ message: textOf(message), state: priorState || {}, history: discoveryHistory, facts });
+      if (recovery) reply = { reply: recovery.reply, state: { ...(priorState || {}), greeted: true, language,
+        beginnerPreference: recovery.beginnerMentioned, waitingForCourse: recovery.beginnerMentioned }, buttons: [] };
     } else {
       const referral = message?.msgContext?.referral || null;
       const referralContext = courseSelection?.context || businessContext.retrieveContext({ facts, message: intent || textOf(message), state: priorState || {}, referral });
@@ -561,7 +573,12 @@ async function trainingCenterGuidedTurn({ ctx, profile, uid, message, sessionId,
       return false;
     }
     onStage?.('training-guide-polish');
-    if (!pilotGreeting) reply = businessContext.polishGuidedReply({ result: reply, profile, message: textOf(message), state: priorState, defaults: pack.guidedContentDefaults });
+    if (!priorState?.greeted && !openingGreeting && !pilotGreeting && !reply.handoff) {
+      const language = businessContext.languageFor(textOf(message), priorState || {});
+      const welcome = profile.config?.guidedContent?.messages?.greeting?.[language] || pack.guidedContentDefaults.messages.greeting[language];
+      if (welcome && !String(reply.reply || '').includes(welcome)) reply.reply = `${welcome}\n\n${reply.reply}`;
+    }
+    if (!pilotGreeting && !courseDiscoveryFeedback) reply = businessContext.polishGuidedReply({ result: reply, profile, message: textOf(message), state: priorState, defaults: pack.guidedContentDefaults });
     const questionLeadInfo = deferLeadQuestion ? null : leadInfo;
     if (!reply.handoff && !reply.openingTexts) reply.reply = require('./chatbot-lead-capture').addQuestion(reply.reply, questionLeadInfo, profile.config, pack.guidedContentDefaults);
     if (!reply.handoff && leadInfo?.qatarContactPending && (courseSelection?.context || courseSelection?.unlisted || courseSelection?.clarify)) {
@@ -902,8 +919,26 @@ async function generateAiAnswer({ ctx, profile, uid, customerMessage, chatId = n
   if (personalReply) return { canAnswer: true, confidence: 1, reply: personalReply,
     state: { ...nextState, greeted: true }, route: 'empathy', suppressIntakeQuestion: true,
     metrics: { inputTokens: 0, outputTokens: 0, cacheHit: false, sources: [] } };
+  const discoveryState = { ...session, selectedCourseCode: context.selectedCourseCode || session.selectedCourseCode || null };
+  if (businessContext.isCourseDiscoveryFeedback(customerMessage, discoveryState)) {
+    let discoveryHistory = Array.isArray(historyOverride) && historyOverride.length
+      ? historyOverride : Array.isArray(session.recentConversation) ? session.recentConversation : [];
+    if (!discoveryHistory.length && uid && chatId && channelKind) {
+      discoveryHistory = await loadConversationHistory({ uid, chatId,
+        origin: channelKind === 'whatsapp_qr' ? 'qr' : channelKind === 'whatsapp_meta' ? 'meta' : null,
+        currentMessage: customerMessage });
+    }
+    const recovery = businessContext.courseDiscoveryRepairReply({ message: customerMessage, state: discoveryState, history: discoveryHistory, facts });
+    const namedCourseInMessage = context.courseContextSource === 'message' && Number(context.explicitCourses) > 0;
+    if (recovery && (!namedCourseInMessage || !recovery.beginnerMentioned)) {
+      return { canAnswer: true, confidence: 1, reply: recovery.reply,
+        state: { ...nextState, greeted: true, beginnerPreference: recovery.beginnerMentioned, waitingForCourse: recovery.beginnerMentioned },
+        route: 'discovery_recovery', suppressIntakeQuestion: true,
+        metrics: { inputTokens: 0, outputTokens: 0, cacheHit: false, sources: context.sources } };
+    }
+  }
   if (typeof businessContext.shouldClarifyGenericCourseInterest === 'function' && businessContext.shouldClarifyGenericCourseInterest(customerMessage, context, session)) {
-    const firstDiscovery = !continuity && session.greeted !== true;
+    const firstDiscovery = session.greeted !== true;
     const greeting = profile.config?.guidedContent?.messages?.greeting?.[context.language]
       || pack.guidedContentDefaults.messages.greeting[context.language];
     const reply = businessContext.courseDiscoveryReply({ language: context.language, greeting, firstMessage: firstDiscovery });
@@ -1285,6 +1320,7 @@ async function aiTurn({ ctx, profile, uid, message, user, sessionId, origin, cha
     let bareCourseSelection = false;
     let fullCourseOpening = false;
     let courseSelection = null;
+    let courseDiscoveryFeedback = false;
     if ((route === 'answer' || continuity) && (!leadInfo?.nameOnly || session?.waitingForCourse) && ctx.category.key === 'training_center') {
       const pack = getDomainPack(ctx.category.key, ctx.category.version);
       let selectionFacts = leadInfo?.facts;
@@ -1296,18 +1332,20 @@ async function aiTurn({ ctx, profile, uid, message, user, sessionId, origin, cha
       const selectionContext = businessContext.retrieveContext({ facts: selectionFacts || [], message: incoming, state: session || {}, referral: message?.msgContext?.referral || null });
       bareCourseSelection = businessContext.isBareCourseSelection(incoming, selectionContext);
       if (profile.engine === 'hybrid') courseSelection = await identifyCourse({ ctx, profile, facts: selectionFacts || [], message: incoming, state: session || {}, referral: message?.msgContext?.referral || null, route });
+      courseDiscoveryFeedback = businessContext.isCourseDiscoveryFeedback(incoming, session || {}) && !courseSelection?.context;
+      if (courseDiscoveryFeedback) courseSelection = null;
       if (continuity && profile.engine !== 'hybrid' && !session?.courseOpeningCodes?.includes(selectionContext.selectedCourseCode)) {
         fullCourseOpening = courseOpening.isOpeningRequest(incoming, selectionContext, selectionFacts?.find(item => item.code === selectionContext.selectedCourseCode));
       }
     }
     const applicationAccepted = acceptsRegistrationForm(session, incoming);
     const routeUsesAi = aiHandlesStaffRoute(profile, route);
-    if (courseSelection || (!intakeAnswer && ((route !== 'answer' && !routeUsesAi) || leadInfo?.nameOnly || applicationAccepted || bareCourseSelection || fullCourseOpening || (profile.engine === 'hybrid' && profile.config.aiFallback === false)))) {
+    if (courseDiscoveryFeedback || courseSelection || (!intakeAnswer && ((route !== 'answer' && !routeUsesAi) || leadInfo?.nameOnly || applicationAccepted || bareCourseSelection || fullCourseOpening || (profile.engine === 'hybrid' && profile.config.aiFallback === false)))) {
       onStage?.('training-center-guided-reply');
       const handoffIntent = route === 'human' || route === 'handoff'
         ? (businessContext.languageFor(incoming, session || {}) === 'ar' ? 'موظف' : 'agent')
         : null;
-      const dispatched = await trainingCenterGuidedTurn({ ctx, profile, uid, message, sessionId, origin, chatId, leadInfo, intent: handoffIntent, courseSelection, onStage });
+      const dispatched = await trainingCenterGuidedTurn({ ctx, profile, uid, message, sessionId, origin, chatId, leadInfo, intent: handoffIntent, courseSelection, courseDiscoveryFeedback, onStage });
       return dispatched ? { flowDispatched: true, route } : { handedOff: true, code: 'GUIDED_FLOW_UNAVAILABLE' };
     }
   } else if (!intakeAnswer && profile.engine === 'hybrid' && profile.config.flowId) {
