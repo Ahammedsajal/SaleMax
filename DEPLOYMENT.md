@@ -5118,3 +5118,32 @@ The protected rollback snapshot is `/opt/salemax/shared/rollback-pro-catalyst-co
 ```sh
 sudo -n /opt/salemax/shared/with-production-lock.sh python3 /opt/salemax/releases/pro-catalyst-course-price-followup-90befc867faf-20261121/deploy/pro-catalyst-course-price-followup-release.py restore /opt/salemax/shared/rollback-pro-catalyst-course-price-followup-90befc867faf-20261121
 ```
+
+## Pro Catalyst contact capture and course-fee context — production, 21 November 2026
+
+Runtime source commit `7ec71cb3d66803a6dec94b019e21c3b42ab101d5` is pushed to `Ahammedsajal/SaleMax` `main`. Test-fixture follow-up `cc1cb3f89b9585e7f51bdb47ce0d63ac900c1920` is also pushed; it makes the existing handoff-claim test distinguish claim rows from short-code registry lookups. The guarded app-only release is `/opt/salemax/releases/pro-catalyst-conversation-quality-7ec71cb3d668-20261121T110017Z`, layered on the existing Compose chain and base `/opt/salemax/releases/training-pipeline-correction-v3-9867ca72-20261104`. The existing app image was preserved. The chain has 306 Compose inputs, 11 environment inputs and 280 app mounts. The app and database are healthy, support-service identities are unchanged, no migration was applied, and no customer messages, handoffs or profile settings were modified.
+
+The fee mismatch came from a stale selected-course code in guided conversation state: the follow-up `fee?` could retrieve a different course’s fee even though the bot had just described Marine Deckhand. For a standalone fee question, the bot now recovers an unambiguous course from its latest course-specific assistant message and gives that course precedence over stale state. A new course name still takes precedence; when the recent context does not identify exactly one published course, it asks which course the customer means instead of guessing.
+
+Pro Catalyst training chats now ask once for a missing customer name and, for senders outside Qatar, a Qatar callback number. A saved WhatsApp/phonebook name is presented as unverified for the customer to confirm; after a rejection the bot does not offer that saved name again. GPT-6 Luna drafts concise contact and handoff wording through the configured tenant OpenAI integration, with deterministic safe copy as fallback. The reply only says the enquiry was shared after a staff claim is actually queued. After a successful handoff acknowledgment, the bot pause is recorded for the existing 24-hour handoff window. The Qatar callback path also pauses after it sends the queued acknowledgment. No WhatsApp message was sent for deployment verification.
+
+Production checks on `carsqatar-prod-01`: runtime file hashes matched the staged commit; app and MariaDB were healthy; the container image and non-app service identities were preserved; the production OpenAI integration is configured (key value was not read or exposed); and `https://7network.live/healthz` returned HTTP 200. A synthetic in-container context probe with stale `HEALTH` selection and a preceding Marine Deckhand assistant reply returned `Marine Deckhand is currently 3000.00 QAR.` No customer conversation was read or changed because the screenshot did not identify a chat record. The GPT provider itself was not called, avoiding a paid test request.
+
+Verification: 236 focused lead-capture, contact-assistant, course-context and handoff-claim tests passed; changed JavaScript modules passed `node --check`, the release helper passed Python AST parsing, and `git diff --check` passed. A wider test sweep is not fully verified in this checkout because `moment-timezone` is unavailable for `chatbot-general-lead-capture.test.js` and `node-fetch` is unavailable for `chatbot-handoff-summary.test.js`; install the project’s declared dependencies and rerun those suites. No database integration test or live WhatsApp provider test was run.
+
+Runtime SHA-256:
+
+| Mounted runtime file | SHA-256 |
+|---|---|
+| `modules/platform/chatbot-business-context.js` | `04e15b41b9b078a5e6851e72f6e589de5cbd4f86c184dd41ea2048e70daafb8d` |
+| `modules/platform/chatbot-runtime.js` | `4143916536c13858a785e96f202fea1d8fafa02de32de9202241bedb439ccc0d` |
+| `modules/platform/chatbot-lead-capture.js` | `45ab6452407a94d9d84b3afd4315bcdbff89973ab94780d69ba58a89ffafe386` |
+| `modules/platform/chatbot-contact-assistant.js` | `01e4b54e77a52507f2e3a56065eb6beb3bb594327104706e1a324c337846a00e` |
+
+Protected rollback snapshot: `/opt/salemax/shared/rollback-pro-catalyst-conversation-quality-7ec71cb3d668-20261121T110017Z`. If this remains the latest app overlay, restore the previous Compose chain under the production lock with:
+
+```sh
+sudo -n /opt/salemax/shared/with-production-lock.sh python3 /opt/salemax/releases/pro-catalyst-conversation-quality-7ec71cb3d668-20261121T110017Z/deploy/pro-catalyst-conversation-quality-release.py restore /opt/salemax/shared/rollback-pro-catalyst-conversation-quality-7ec71cb3d668-20261121T110017Z
+```
+
+The restore helper verifies the release is still active, the runtime hashes match, the prior Compose inputs are unchanged, and support services retain their identities before restoring the previous app chain. The virtual-assistant greeting and existing handoff settings were already correct and were not rewritten. Organic customer replies and the GPT-generated wording remain owner-acceptance gates.
