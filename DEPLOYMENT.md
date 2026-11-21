@@ -5205,3 +5205,27 @@ sudo -n /opt/salemax/shared/with-production-lock.sh python3 /opt/salemax/release
 ```
 
 Rollback is app-only; no migration or database rollback applies.
+
+## 2026-11-21 — Pro Catalyst context-aware discovery and refusal handling
+
+- Source commit `c7b5cab254242a292c65ee633ef6e39f626f5d1b` is pushed to `Ahammedsajal/SaleMax` `main`. The app-only release is `/opt/salemax/releases/pro-catalyst-conversation-quality-c7b5cab25424-20261121T144905Z`, layered on `/opt/salemax/releases/training-pipeline-correction-v3-9867ca72-20261104`. The app image remains `sha256:753d77d421b3160872df0812e7b38505a1db7104cdb9d6c8b17415b2420de667`. No migration ran and no customer conversation, lead, provider setting or profile greeting was changed.
+- Root cause: the opening greeting already included the course-discovery question, but the lead-capture record did not mark it as asked. The following inbound therefore remained eligible for the generic `collectCourseMessage` prompt. An explicit opt-out was also treated as an ordinary answer, allowing the same prompt and contact capture to be appended.
+- The runtime now records discovery as asked after a successful opening/clarification send, skips appending a generic course prompt when the drafted answer already asks a course question, and answers clear refusal phrases with one short localized acknowledgment. The refusal path suppresses discovery, name and Qatar-number prompts and uses zero provider tokens. Ambiguous customer replies continue through the existing history-aware AI path. The active tenant provider/model was verified as OpenAI `gpt-6-luna`; no extra model call was added for clear refusals.
+- The guarded release verified 309 Compose inputs, 11 environment inputs, 280 app mounts, a healthy database, zero app restarts after rollout and unchanged supporting service identities. Public `/healthz` returned HTTP 200; a separate readback confirmed the active release tail and runtime hashes. The greeting and staff relay/short-code settings were left unchanged.
+
+| Mounted runtime file | SHA-256 |
+|---|---|
+| `modules/platform/chatbot-business-context.js` | `759b086a15864496025167a50117698cac64c0cfe1076c42eeef85eeef34628f` |
+| `modules/platform/chatbot-ai-prompt.js` | `927698a4345c5d09f842cd5a00e58e8e3df7e5dc3751493d4e1283581a3e9ea4` |
+| `modules/platform/chatbot-runtime.js` | `82dfbf76aae4e415b253e454371655a2197eb680840afa675337104063603615` |
+| `modules/platform/chatbot-lead-capture.js` | `8e60a078a9729280127af9403eeef2a13d08b79382abe15c40829786f41fecfb` |
+
+Changed JavaScript passed `node --check`, the release helper passed Python AST parsing, and `git diff --check` passed. No automated test suite, paid model call, or WhatsApp customer message was run. A live customer reply after the release is still needed to confirm delivered wording.
+
+Protected rollback snapshot: `/opt/salemax/shared/rollback-pro-catalyst-conversation-quality-c7b5cab25424-20261121T144905Z`. If this remains the latest app overlay, restore the prior Compose chain under the production lock with:
+
+```sh
+sudo -n /opt/salemax/shared/with-production-lock.sh python3 /opt/salemax/releases/pro-catalyst-conversation-quality-c7b5cab25424-20261121T144905Z/deploy/pro-catalyst-conversation-quality-release.py restore /opt/salemax/shared/rollback-pro-catalyst-conversation-quality-c7b5cab25424-20261121T144905Z
+```
+
+This rollback is app-only; it preserves conversations and has no database rollback.
