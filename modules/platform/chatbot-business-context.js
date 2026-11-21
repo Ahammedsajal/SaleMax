@@ -411,6 +411,17 @@ function shouldClarifyGenericCourseInterest(message, context, state = {}) {
   return isGenericAdInterest(message) && !(context?.selectedCourseCode || state?.selectedCourseCode);
 }
 
+function isCourseDiscoveryOptOut(message) {
+  const text = normalized(message);
+  return /^(?:not interested(?: in (?:this|that|the course|your courses?|any courses?))?|i am not interested|i m not interested|no thanks|no thank you|not for me|stop|unsubscribe|do not contact|لا شكرا(?: لك)?|لست مهتم(?:ة)?|مش مهتم(?:ة)?|غير مهتم(?:ة)?|لا اريد|ما اريد|لا ارغب|ما ارغب)$/u.test(text);
+}
+
+function courseDiscoveryOptOutReply(message, state = {}) {
+  return languageFor(message, state) === 'ar'
+    ? 'أفهم ذلك، شكرًا لإخباري. سأتوقف هنا، ويمكنك مراسلتنا متى احتجت إلى المساعدة.'
+    : 'Understood, thanks for letting me know. I’ll leave it there. If you need help later, just message us.';
+}
+
 function isCourseDiscoveryFeedback(message, state = {}) {
   const text = normalized(message);
   const complaint = DISCOVERY_COMPLAINT.test(text) || DISCOVERY_COMPLAINT_AR.test(text);
@@ -741,4 +752,4 @@ function polishGuidedReply({ result, profile, message, state, defaults }) {
   return result;
 }
 
-module.exports = { normalized, fingerprint, languageFor, controlRoute, isScheduleQuestion, hasPublishedSchedule, courseDetailNeedsCoordinator, trainingCenterCoordinatorReason, publishedDurationRange, retrieveContext, validateAnswer, clarification, unavailableReply, publishedTrainingReply, simpleFactualReply, isCourseOverviewRequest, shouldSkipApprovedFaq, isGenericAdInterest, shouldClarifyGenericCourseInterest, isCourseDiscoveryFeedback, courseDiscoveryRepairReply, courseDiscoveryReply, ambiguousDiplomaCandidates, diplomaClarificationReply, isBareCourseSelection, courseInquiryTopic, previewState, redactCustomerText, polishGuidedReply, qrAdReferral, courseFromVerifiedReferral, isTrainingGreeting, trainingGreeting, repeatQuestion, repeatedCourseFact, isCertificateQuestion, isStandalonePriceQuestion, recentAssistantCourseCode, courseCertificateReply, certificateFollowUp };
+module.exports = { normalized, fingerprint, languageFor, controlRoute, isScheduleQuestion, hasPublishedSchedule, courseDetailNeedsCoordinator, trainingCenterCoordinatorReason, publishedDurationRange, retrieveContext, validateAnswer, clarification, unavailableReply, publishedTrainingReply, simpleFactualReply, isCourseOverviewRequest, shouldSkipApprovedFaq, isGenericAdInterest, shouldClarifyGenericCourseInterest, isCourseDiscoveryOptOut, courseDiscoveryOptOutReply, isCourseDiscoveryFeedback, courseDiscoveryRepairReply, courseDiscoveryReply, ambiguousDiplomaCandidates, diplomaClarificationReply, isBareCourseSelection, courseInquiryTopic, previewState, redactCustomerText, polishGuidedReply, qrAdReferral, courseFromVerifiedReferral, isTrainingGreeting, trainingGreeting, repeatQuestion, repeatedCourseFact, isCertificateQuestion, isStandalonePriceQuestion, recentAssistantCourseCode, courseCertificateReply, certificateFollowUp };

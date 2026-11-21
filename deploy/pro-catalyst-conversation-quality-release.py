@@ -20,6 +20,7 @@ SUPPORT = ('salemax-db-1', 'salemax-report-worker-1', 'salemax-libretranslate-1'
            'salemax-recruitment-founder-notification-worker-1', 'salemax-bot-lead-test-db')
 ASSETS = (
     'modules/platform/chatbot-business-context.js',
+    'modules/platform/chatbot-ai-prompt.js',
     'modules/platform/chatbot-runtime.js',
     'modules/platform/chatbot-lead-capture.js',
     'modules/platform/chatbot-conversation-control.js',

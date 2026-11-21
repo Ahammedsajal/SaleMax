@@ -225,11 +225,18 @@ async function captureLead(pool, { ctx, profile, uid, chatId, origin, message, f
     }
     const needsName = useIntake ? intake?.state?.nameConfirmed !== true : !meta.nameConfirmed;
     const needsQatarNumber = qatarCallbackEnabled(ctx) && !senderIsQatar && !qualification.qatarContactNumber;
-    const contactPromptPending = !useIntake && (
+    const courseDiscoveryOptOut = context.isCourseDiscoveryOptOut(text);
+    if (!alreadyCaptured && courseDiscoveryOptOut) {
+      // A refusal closes the pending discovery prompt. Do not turn it into
+      // another course, name, or callback question.
+      meta.courseAsked = true;
+      meta.waitingFor = null;
+    }
+    const contactPromptPending = !useIntake && !courseDiscoveryOptOut && (
       (needsName && !meta.contactNamePrompted) || (needsQatarNumber && !meta.qatarContactAsked)
     );
     const questionKey = useIntake || contactPromptPending || ['qatarContact', 'callbackContact'].includes(meta.waitingFor)
-      ? null : !qualification.courseInterest && !meta.courseAsked ? 'collectCourseMessage' : null;
+      || courseDiscoveryOptOut || qualification.courseInterest || meta.courseAsked ? null : 'collectCourseMessage';
     qualification.botCapture = meta;
     const changed = !alreadyCaptured && (JSON.stringify(qualification) !== JSON.stringify(parse(lead.qualification_data)) || (name && name !== lead.learner_name) || !!details.email);
     if (changed) {
@@ -282,6 +289,8 @@ function addQuestion(reply, info, config, defaults) {
     return appendPrompt(reply, info.intake.prompt);
   }
   if (!info?.questionKey) return reply;
+  if (info.questionKey === 'collectCourseMessage'
+    && /\b(?:which|what)\s+(?:course|diploma|programme|program|training)\b[^?؟\n]{0,140}[?؟]|\b(?:course|diploma|programme|program|training)\b[^?؟\n]{0,100}\b(?:interested|looking for|mean|refer(?:ring)? to)\b[^?؟\n]*[?؟]|(?:أي|ما)\s+(?:دورة|دبلوم|برنامج)[^؟\n]{0,140}؟/iu.test(String(reply || ''))) return reply;
   const text = config?.guidedContent?.messages?.[info.questionKey]?.[info.language] || defaults?.messages?.[info.questionKey]?.[info.language];
   if (!text) return reply;
   return appendPrompt(reply, text);
@@ -354,6 +363,13 @@ async function markAsked(pool, info, uid) {
     await db.query(`UPDATE pipeline_leads SET qualification_data=JSON_SET(COALESCE(qualification_data,JSON_OBJECT()),?,true,'$.botCapture.waitingFor',?) WHERE uid_hash=? AND uid=? AND id=?`, ['$.botCapture.' + key + 'Asked', key, info.uidHash, uid, info.leadId]);
   } finally { db.release(); }
 }
+async function markCourseAsked(pool, info, uid) {
+  if (!info?.leadId || !info?.uidHash || !uid) return;
+  const db = await pool.getConnection();
+  try {
+    await db.query(`UPDATE pipeline_leads SET qualification_data=JSON_SET(COALESCE(qualification_data,JSON_OBJECT()),'$.botCapture.courseAsked',true,'$.botCapture.waitingFor','course') WHERE uid_hash=? AND uid=? AND id=?`, [info.uidHash, uid, info.leadId]);
+  } finally { db.release(); }
+}
 module.exports = { savedContactName, captureLead, captureGenericLead, genericCaptureEnabled, customerName, qualificationFromText,
   qatarMobile, qatarMobileFromText, phoneOnly, qatarCallbackEnabled, addQuestion, addQatarContactQuestion,
-  markQatarContactAsked, markContactPromptAsked, standaloneNamePrompt, markAsked, nameCandidateForTurn };
+  markQatarContactAsked, markContactPromptAsked, standaloneNamePrompt, markAsked, markCourseAsked, nameCandidateForTurn };

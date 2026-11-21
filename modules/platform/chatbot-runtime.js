@@ -549,7 +549,8 @@ async function trainingCenterGuidedTurn({ ctx, profile, uid, message, sessionId,
     const pilotGreeting = !intent && mockup.ownsInbox(uid, origin) && !profile.config?.flowId && !profile.config?.introFlowId
       && businessContext.isTrainingGreeting(textOf(message));
     const openingGreeting = pilotGreeting || isOpeningGreeting(intent || textOf(message));
-    deferLeadQuestion = openingGreeting || !priorState?.greeted || courseDiscoveryFeedback;
+    const courseOptOut = ctx.category.key === 'training_center' && businessContext.isCourseDiscoveryOptOut(textOf(message));
+    deferLeadQuestion = openingGreeting || !priorState?.greeted || courseDiscoveryFeedback || courseOptOut;
     if(cvSubmission){
       const success= cvSubmission.repeated
         ? (priorState?.language==='ar'?'تم تسجيل طلبك مسبقاً. سيرتك الذاتية محفوظة، وسيتواصل معك المؤسس قريباً.':'Your application is already recorded. Your CV is saved, and the Founder will contact you soon.')
@@ -574,6 +575,10 @@ async function trainingCenterGuidedTurn({ ctx, profile, uid, message, sessionId,
       const recovery = businessContext.courseDiscoveryRepairReply({ message: textOf(message), state: priorState || {}, history: discoveryHistory, facts });
       if (recovery) reply = { reply: recovery.reply, state: { ...(priorState || {}), greeted: true, language,
         beginnerPreference: recovery.beginnerMentioned, waitingForCourse: recovery.beginnerMentioned }, buttons: [] };
+    } else if (courseOptOut) {
+      const language = businessContext.languageFor(textOf(message), priorState || {});
+      reply = { reply: businessContext.courseDiscoveryOptOutReply(textOf(message), priorState || {}),
+        state: { ...(priorState || {}), greeted: true, language, waitingForCourse: false }, buttons: [] };
     } else {
       const referral = message?.msgContext?.referral || null;
       const referralContext = courseSelection?.context || businessContext.retrieveContext({ facts, message: intent || textOf(message), state: priorState || {}, referral });
@@ -625,7 +630,7 @@ async function trainingCenterGuidedTurn({ ctx, profile, uid, message, sessionId,
     const expectsHandoff = Boolean(reply.handoff || selectedForCallback
       || (courseSelection?.unlisted && leadInfo?.senderIsQatar));
     const questionLeadInfo = deferLeadQuestion ? null : leadInfo;
-    const contactPromptInfo = !expectsHandoff && leadInfo?.contactPromptPending
+    const contactPromptInfo = !expectsHandoff && !courseOptOut && leadInfo?.contactPromptPending
       ? { ...leadInfo, contactPrompt: await draftContactAssistant({ ctx, leadInfo, mode: 'contact' }) }
       : null;
     const captureQuestionInfo = contactPromptInfo || questionLeadInfo;
@@ -699,6 +704,9 @@ async function trainingCenterGuidedTurn({ ctx, profile, uid, message, sessionId,
   onStage?.('training-conversation-persist');
   await require('./chatbot-conversation-store').persistConversationMessage({ uid, chatId, data: { ...messageData, msgContext: JSON.stringify(messageData.msgContext), context: null } });
   await query(`UPDATE beta_chats SET last_message=? WHERE uid=? AND chat_id=?`, [JSON.stringify(messageData), uid, chatId]);
+  if (openingGreeting && !leadInfo?.courseInterest) {
+    await require('./chatbot-lead-capture').markCourseAsked(dbPool, leadInfo, uid);
+  }
   if (handoffClaim?.id) {
     handoffClaim = await handoffConversation(ctx, chatId, channelKind, sessionId, handoffReason, profile, uid,
       { courseInterest: selectedForCallback?.nameEn || selectedForCallback?.nameAr || courseSelection?.topic || leadInfo?.courseInterest,
@@ -1019,6 +1027,13 @@ async function generateAiAnswer({ ctx, profile, uid, customerMessage, chatId = n
     selectedCourseCode: context.explicitCourses ? context.selectedCourseCode : session.selectedCourseCode || null,
     ...(session.pendingCertificateQuestion ? { pendingCertificateQuestion: null } : {}),
   };
+  if (courseCertificates && businessContext.isCourseDiscoveryOptOut(customerMessage)) {
+    return { canAnswer: true, confidence: 1,
+      reply: businessContext.courseDiscoveryOptOutReply(customerMessage, nextState),
+      state: { ...nextState, greeted: true, waitingForCourse: false }, route: 'customer_declined',
+      suppressIntakeQuestion: true, suppressContactPrompt: true,
+      metrics: { inputTokens: 0, outputTokens: 0, cacheHit: false, sources: context.sources } };
+  }
   if (courseCertificates && businessContext.isStandalonePriceQuestion(customerMessage) && !context.selectedCourseCode) {
     const reply = context.language === 'ar'
       ? 'أي دورة تريد معرفة رسومها؟ اكتب اسم الدورة وسأتحقق من السعر المنشور.'
@@ -1513,7 +1528,7 @@ async function aiTurn({ ctx, profile, uid, message, user, sessionId, origin, cha
     || ((acknowledgement || answer.repeat) && leadInfo?.intake?.state.waiting) ? null : leadInfo?.intake
     ? { ...leadInfo, intake: { ...leadInfo.intake, session: answer.state || {} } }
     : onboarding ? null : leadInfo;
-  const contactPromptInfo = !handoffReasonForTurn && leadInfo?.contactPromptPending
+  const contactPromptInfo = !answer.suppressContactPrompt && !handoffReasonForTurn && leadInfo?.contactPromptPending
     ? { ...leadInfo, contactPrompt: await draftContactAssistant({ ctx, leadInfo, mode: 'contact' }) }
     : null;
   const answerBeforeIntake = answer.reply;
@@ -1529,6 +1544,10 @@ async function aiTurn({ ctx, profile, uid, message, user, sessionId, origin, cha
   const messageData = { type: 'text', metaChatId: sentId, msgContext: { type: 'text', text: { preview_url: false, body: answer.reply } }, reaction: '', timestamp, senderName: message.senderName, senderMobile: message.senderMobile, star: 0, route: 'OUTGOING', context: null, origin, sentBy: 'bot' };
   await require('./chatbot-conversation-store').persistConversationMessage({ uid, chatId, data: { ...messageData, msgContext: JSON.stringify(messageData.msgContext), context: null } });
   await query(`UPDATE beta_chats SET last_message=? WHERE uid=? AND chat_id=?`, [JSON.stringify(messageData), uid, chatId]);
+  if (!answer.suppressIntakeQuestion && leadInfo && !leadInfo.courseInterest
+    && leadInfo.questionKey === 'collectCourseMessage' && answer.route === 'clarification') {
+    await require('./chatbot-lead-capture').markCourseAsked(dbPool, leadInfo, uid);
+  }
   if (handoffReasonForTurn) {
     const pausedClaim = await handoffConversation(ctx, chatId, channelFor(origin), sessionId, handoffReasonForTurn, profile, uid,
       { courseInterest: leadInfo?.courseInterest || null, qatarContactNumber: leadInfo?.qatarContactNumber || null }, { pause: true });
@@ -1866,7 +1885,11 @@ async function runConfiguredBot({ uid, message, user, sessionId, origin, chatId 
       message = { ...message, msgContext: { text: { body: 'Hi' } } };
     }
     let result;
-    if (completionAction) result = await finishRecruitmentChat({ctx,profile,uid,message,sessionId,origin,chatId,completion,action:completionAction});
+    if (ctx.category.key === 'training_center' && businessContext.isCourseDiscoveryOptOut(textOf(message))) {
+      const dispatched = await trainingCenterGuidedTurn({ ctx, profile, uid, message, sessionId, origin, chatId, leadInfo, onStage: setStage });
+      result = dispatched ? { sent: true, route: 'customer_declined' } : { handedOff: true, code: 'COURSE_OPTOUT_REPLY_UNAVAILABLE' };
+    }
+    else if (completionAction) result = await finishRecruitmentChat({ctx,profile,uid,message,sessionId,origin,chatId,completion,action:completionAction});
     else if (profile.engine === 'guided' && ctx.category.key === 'training_center' && (isOpeningGreeting(textOf(message)) || (pilot && businessContext.isTrainingGreeting(textOf(message))))) result = await aiTurn({ ctx, profile, uid, message, user, sessionId, origin, chatId, leadInfo, onStage: setStage });
     else if (profile.engine === 'guided') { const guided=await guidedTurn({ ctx, profile, uid, message, user, sessionId, origin, chatId, leadInfo });result=guided?.paused?{paused:true}:guided?{sent:true}:{handedOff:true,code:'GUIDED_FLOW_UNAVAILABLE'}; }
     else result = await aiTurn({ ctx, profile, uid, message, user, sessionId, origin, chatId, leadInfo, onStage: setStage });
