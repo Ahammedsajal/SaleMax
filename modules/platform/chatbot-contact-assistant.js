@@ -40,6 +40,33 @@ function fallbackHandoffReply({ language, courseName, needsName, needsQatarNumbe
   return reply;
 }
 
+function callbackNumber(value) {
+  const digits = String(value || '').replace(/\D/g, '').replace(/^00/u, '');
+  const national = digits.startsWith('974') && digits.length === 11 ? digits.slice(3) : digits.length === 8 ? digits : '';
+  return /^[3567]\d{7}$/u.test(national) ? `+974 ${national.slice(0, 4)} ${national.slice(4)}` : null;
+}
+
+function fallbackCallbackReply({ language, nameCandidate, needsName = true, phone = null, needsQatarNumber = false }) {
+  const ar = language === 'ar';
+  const lines = [ar
+    ? 'أحلت استفسارك إلى منسق الدورة، وسيتصل بك قريبًا.'
+    : 'I’ve shared your enquiry with our course coordinator, who will call you soon.'];
+  if (needsName) lines.push(nameCandidate
+    ? (ar ? 'هل هذا هو الاسم الذي تفضّل أن أشاركه مع المنسق: {name}؟' : 'Is {name} the name you’d like me to share with the coordinator?')
+    : (ar ? 'ما الاسم الذي تفضّل أن أشاركه مع منسق الدورة؟' : 'What name should I share with the course coordinator?'));
+  const number = callbackNumber(phone);
+  if (number) lines.push(ar
+    ? `هل يمكن لمنسق الدورة الاتصال بك على هذا الرقم: ${number}؟`
+    : `May the course coordinator call you on this number: ${number}?`);
+  else if (needsQatarNumber) lines.push(ar
+    ? 'يرجى إرسال رقم جوال قطري (+974، 8 أرقام) ليتمكن منسق الدورة من الاتصال بك.'
+    : 'Please share a Qatar mobile number (+974, 8 digits) so the course coordinator can call you.');
+  else lines.push(ar
+    ? 'ما رقم الهاتف الأنسب ليتصل بك منسق الدورة؟'
+    : 'What is the best number for the course coordinator to call you?');
+  return lines.join('\n\n');
+}
+
 function safeDraft(text, { mode, language, hasNameCandidate, needsName, handoffQueued }) {
   const reply = context.redactCustomerText(text).trim();
   if (!reply || reply.length > 700 || /\b(?:scheduled for|guaranteed|within \d+ (?:minutes?|hours?|days?))\b/i.test(reply)) return null;
@@ -93,4 +120,4 @@ async function draft({ pool, tenantId, mode, language = 'en', courseName = null,
   }
 }
 
-module.exports = { draft, fallbackContactQuestion, fallbackHandoffReply, safeDraft };
+module.exports = { draft, fallbackContactQuestion, fallbackHandoffReply, fallbackCallbackReply, safeDraft };

@@ -241,7 +241,7 @@ async function captureLead(pool, { ctx, profile, uid, chatId, origin, message, f
     }
     await db.commit();
     return { leadId: lead.id, uidHash, facts, questionKey, language, nameCaptured: !!name, nameOnly: !!simpleName && !retrieval.explicitCourses,
-      courseInterest: qualification.courseInterest || null, intake, senderIsQatar,
+      courseInterest: qualification.courseInterest || null, intake, senderIsQatar, callbackNumber: qatarMobile(message.senderMobile),
       qatarContactNumber: qualification.qatarContactNumber || null,
       qatarContactPending: needsQatarNumber,
       qatarContactAsked: prior.qatarContactAsked === true,

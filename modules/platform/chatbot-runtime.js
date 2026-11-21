@@ -158,7 +158,7 @@ function studentSupportReply(reason, language) {
     : 'Thanks for letting me know you’re already studying with us. I’ve passed your message to our training team, and they’ll follow up to help with your questions.';
 }
 
-async function sendCustomerHandoffNotice({ ctx, profile, uid, message, origin, sessionId, chatId, accepted = false }) {
+async function sendCustomerHandoffNotice({ ctx, profile, uid, message, origin, sessionId, chatId, accepted = false, leadInfo = null }) {
   if (!await canSendNow({ ctx, profile, uid, origin, sessionId, chatId, message, checkPause: false })) return false;
   const channelKind = channelFor(origin);
   const inboundId = String(message?.metaChatId || crypto.createHash('sha256').update(JSON.stringify([chatId, message?.timestamp || '', textOf(message)])).digest('hex')).slice(0, 191);
@@ -167,18 +167,31 @@ async function sendCustomerHandoffNotice({ ctx, profile, uid, message, origin, s
   if (!pending) return false;
   // A handoff acknowledgement belongs to the handoff, not to each inbound
   // message. Keep the bot from repeating the same notice while staff claim it.
-  const coordinatorHandoff = coordinatorHandoffReasons.has(pending.reason);
+  const coordinatorHandoff = coordinatorHandoffReasons.has(pending.reason) || pending.reason === 'qatar-coordinator-callback';
+  const studentSupport = ['student-class-support','existing-student-support'].includes(pending.reason);
+  const callbackHandoff = !accepted && !studentSupport && (coordinatorHandoff || (ctx.category.key === 'training_center'
+    && origin === 'qr' && mockup.ownsInbox(uid, origin)));
   if (!await claims.reserveCustomerAcknowledgement(dbPool, { tenantId: ctx.tenant.id, claimId: pending.id, inboundId })) return false;
   const language = businessContext.languageFor(textOf(message));
-  const body = ['student-class-support','existing-student-support'].includes(pending.reason)
-    ? studentSupportReply(pending.reason, language)
-    : coordinatorHandoff ? await draftContactAssistant({ ctx, leadInfo: { language }, mode: 'handoff',
-      handoffQueued: true, needsName: false, needsQatarNumber: false })
-    : !accepted && ctx.category.key === 'training_center' && origin === 'qr' && mockup.ownsInbox(uid, origin)
-    ? coordinatorReply({ language: businessContext.languageFor(textOf(message)), followUp: Boolean(pending.lastCustomerAckAt) })
-    : handoffText(message, null, accepted);
+  let body;
+  if (accepted) body = handoffText(message, language, true);
+  else if (studentSupport) body = studentSupportReply(pending.reason, language);
+  else if (callbackHandoff) {
+    const leadCapture = require('./chatbot-lead-capture');
+    const phone = leadInfo?.qatarContactNumber || leadInfo?.callbackNumber || leadCapture.qatarMobile(message?.senderMobile);
+    body = require('./chatbot-contact-assistant').fallbackCallbackReply({
+      language,
+      nameCandidate: leadInfo?.nameCandidate || null,
+      needsName: leadInfo?.needsName !== false,
+      phone,
+      needsQatarNumber: leadInfo?.qatarContactPending === true || (leadCapture.qatarCallbackEnabled(ctx) && !phone),
+    }).replaceAll('{name}', String(leadInfo?.nameCandidate || '').trim());
+  } else body = handoffText(message, language);
   const sent = await sendBotText({ origin, sessionId, message, uid, chatId, body }).catch(() => false);
   if (!sent) await claims.releaseCustomerAcknowledgement(dbPool, { tenantId: ctx.tenant.id, claimId: pending.id, inboundId }).catch(() => {});
+  if (sent && callbackHandoff && leadInfo?.contactPromptPending) {
+    await require('./chatbot-lead-capture').markContactPromptAsked(dbPool, leadInfo, uid).catch(() => {});
+  }
   return sent;
 }
 
@@ -780,6 +793,15 @@ function coordinatorReply({ language, followUp = false }) {
 
 async function draftContactAssistant({ ctx, leadInfo = null, mode = 'contact', handoffQueued = false, needsName = null,
   needsQatarNumber = null, qatarNumberSaved = null, courseName = null }) {
+  if (mode === 'handoff' && handoffQueued && ctx.category.key === 'training_center') {
+    return require('./chatbot-contact-assistant').fallbackCallbackReply({
+      language: leadInfo?.language === 'ar' ? 'ar' : 'en',
+      nameCandidate: leadInfo?.nameCandidate || null,
+      needsName: needsName == null ? leadInfo?.needsName !== false : needsName === true,
+      phone: leadInfo?.qatarContactNumber || leadInfo?.callbackNumber || null,
+      needsQatarNumber: needsQatarNumber == null ? leadInfo?.qatarContactPending === true : needsQatarNumber === true,
+    }).replaceAll('{name}', String(leadInfo?.nameCandidate || '').trim()).trim();
+  }
   const result = await require('./chatbot-contact-assistant').draft({
     pool: dbPool,
     tenantId: ctx.tenant.id,
@@ -1790,7 +1812,7 @@ async function runConfiguredBot({ uid, message, user, sessionId, origin, chatId 
       leadInfo = await require('./chatbot-lead-capture').captureLead(dbPool, { ctx, profile, uid, chatId, origin, message, facts });
     } catch (error) {
       const claim = await handoffConversation(ctx, chatId, channelFor(origin), sessionId, 'lead-capture-unavailable', profile, uid).catch(() => null);
-      if (claim) await sendCustomerHandoffNotice({ ctx, profile, uid, message, origin, sessionId, chatId });
+      if (claim) await sendCustomerHandoffNotice({ ctx, profile, uid, message, origin, sessionId, chatId, leadInfo });
       return { handled: true, handedOff: true, code: 'LEAD_CAPTURE_UNAVAILABLE' };
     }
   } else if (ctx.category.chatbotLeadCapture === 'generic' && profile.config?.captureLeads === true) {
@@ -1799,7 +1821,7 @@ async function runConfiguredBot({ uid, message, user, sessionId, origin, chatId 
         leadInfo = await require('./chatbot-lead-capture').captureGenericLead(dbPool, { ctx, profile, uid, chatId, origin, message });
       } catch (error) {
         const claim = await handoffConversation(ctx, chatId, channelFor(origin), sessionId, 'lead-capture-unavailable', profile, uid).catch(() => null);
-        if (claim) await sendCustomerHandoffNotice({ ctx, profile, uid, message, origin, sessionId, chatId });
+        if (claim) await sendCustomerHandoffNotice({ ctx, profile, uid, message, origin, sessionId, chatId, leadInfo });
         return { handled: true, handedOff: true, code: 'LEAD_CAPTURE_UNAVAILABLE' };
       }
     }
@@ -1821,7 +1843,7 @@ async function runConfiguredBot({ uid, message, user, sessionId, origin, chatId 
   if(completionAction==='silent'){
     if(!completion.control||completion.control.mode!=='paused'){
       const claim=await handoffConversation(ctx,chatId,channelKind,sessionId,completion.application.cvFileName?'recruitment-complete':'recruitment-awaiting-cv',profile,uid);
-      if(claim)await sendCustomerHandoffNotice({ctx,profile,uid,message,origin,sessionId,chatId});
+      if(claim)await sendCustomerHandoffNotice({ctx,profile,uid,message,origin,sessionId,chatId,leadInfo});
     }
     return {handled:true,paused:true,code:'RECRUITMENT_QUESTIONS_FINISHED'};
   }
@@ -1829,7 +1851,7 @@ async function runConfiguredBot({ uid, message, user, sessionId, origin, chatId 
   const turn = await claimTurn(ctx, profile, message, chatId);
   if (!turn) {
     const claim = await handoffConversation(ctx, chatId, channelKind, sessionId, 'inbound-message-id-unavailable', profile, uid);
-    if (claim) await sendCustomerHandoffNotice({ ctx, profile, uid, message, origin, sessionId, chatId });
+    if (claim) await sendCustomerHandoffNotice({ ctx, profile, uid, message, origin, sessionId, chatId, leadInfo });
     return { handled: true, handedOff: true, code: 'INBOUND_MESSAGE_ID_UNAVAILABLE' };
   }
   if (turn.duplicate) return { handled: true, duplicate: true };
@@ -1854,7 +1876,7 @@ async function runConfiguredBot({ uid, message, user, sessionId, origin, chatId 
     else if (result?.paused) await finishTurn(turn, 'handed_off', 'human-paused');
     else {
       const claim = await handoffConversation(ctx, chatId, channelKind, sessionId, result?.code || 'human-review', profile, uid, leadInfo?.intake ? { ...leadInfo.intake, courseInterest: leadInfo.courseInterest } : null);
-      if (claim && !result?.sent && !result?.flowDispatched) await sendCustomerHandoffNotice({ ctx, profile, uid, message, origin, sessionId, chatId });
+      if (claim && !result?.sent && !result?.flowDispatched) await sendCustomerHandoffNotice({ ctx, profile, uid, message, origin, sessionId, chatId, leadInfo });
       const softFailure = result?.code === 'GUIDED_FLOW_UNAVAILABLE';
       await finishTurn(turn, 'handed_off', result?.code || 'human-review', softFailure ? { stage: activeStage, code: result.code } : null);
     }
@@ -1869,7 +1891,7 @@ async function runConfiguredBot({ uid, message, user, sessionId, origin, chatId 
     const failure = ['AI_PROVIDER_NOT_CONFIGURED','AI_PROVIDER_TIMEOUT','AI_PROVIDER_REQUEST_FAILED','AI_PROVIDER_INVALID_OUTPUT'].includes(error.code) ? error.code : 'runtime-error';
     console.warn('[chatbot] inbound turn failed', JSON.stringify({ stage: activeStage, code: diagnosticCode }));
     const claim = await handoffConversation(ctx, chatId, channelKind, sessionId, failure, profile, uid).catch(() => null);
-    if (claim) await sendCustomerHandoffNotice({ ctx, profile, uid, message, origin, sessionId, chatId }).catch(() => false);
+    if (claim) await sendCustomerHandoffNotice({ ctx, profile, uid, message, origin, sessionId, chatId, leadInfo }).catch(() => false);
     await finishTurn(turn, 'handed_off', failure, { stage: activeStage, code: diagnosticCode }).catch(() => {});
     return { handled: true, handedOff: true, code: error.code || 'BOT_RUNTIME_ERROR' };
   }
