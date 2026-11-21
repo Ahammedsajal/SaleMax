@@ -5076,3 +5076,26 @@ sudo -n /opt/salemax/shared/with-production-lock.sh python3 /opt/salemax/release
 ```
 
 App rollback restores the pre-release files and controls. Browsers that loaded the new release keep light as their saved preference.
+
+## Pro Catalyst virtual-assistant greeting and repeated-prompt recovery — production, 21 November 2026
+
+Source commit `c13e87c1bb71085a173057ff1141dc68d9c73d87` is pushed to `Ahammedsajal/SaleMax` `main` and deployed as app-only overlay `/opt/salemax/releases/pro-catalyst-conversation-quality-c13e87c1bb71-20261121T092719Z` on base `/opt/salemax/releases/training-pipeline-correction-v3-9867ca72-20261104`. The app image remains `sha256:753d77d421b3160872df0812e7b38505a1db7104cdb9d6c8b17415b2420de667`. The guard preserved the existing Compose chain with 304 inputs, 11 environment files and 279 app mounts; non-app service identities are unchanged. No migration was required.
+
+The first greeting now introduces the Pro Catalyst virtual assistant in English and Arabic, including the first course-specific response. Hybrid recognizes beginner disclosures and repeated-prompt/frustration messages before unlisted-course classification. It acknowledges the customer, retrieves a prior beginner preference from recent chat where available, and lists published beginner-level courses. This path is deterministic and uses no AI tokens; it suppresses the generic course prompt so the customer is not asked the same discovery question again. The Pro Catalyst live Hybrid profile greeting was updated from revision 20 to 21. Existing `staffWhatsAppRelayEnabled` and `shortHandoffCodesEnabled` remain true.
+
+Production verification on `carsqatar-prod-01`: deployed hashes matched the staged files; app state is `healthy`, restart count is zero, and public `/healthz` returned HTTP 200. The English/Arabic profile greeting and both relay flags were independently read back. The app image and non-app service identities were preserved. Static JavaScript/Python syntax and `git diff --check` passed. No customer message, WhatsApp message or provider acceptance test was sent/run.
+
+| Mounted runtime file | SHA-256 |
+| --- | --- |
+| `modules/platform/chatbot-business-context.js` | `570e8a3e91bd985a2f84ca1beba3370fbb3ad0a0a3681491c3eda3898e966f0d` |
+| `modules/platform/chatbot-domain-packs.js` | `e9efc184d08c5bd2aead5af18da7a41488c21501cec3fee95fcf22531df00c10` |
+| `modules/platform/chatbot-runtime.js` | `0c986629c6cbaf26b6776fd29cc6231cc33d1adb97f31f11198163d14cf2c3d5` |
+| `modules/platform/chatbot-training-guide.js` | `8073771cacf04358524859bc9c5ec154331886823292497fb2a4b5bc96207e47` |
+
+Protected rollback snapshot: `/opt/salemax/shared/rollback-pro-catalyst-conversation-quality-c13e87c1bb71-20261121T092719Z`. If this overlay remains active, restore the previous app chain and the prior localized greeting under the production lock with:
+
+```sh
+sudo -n /opt/salemax/shared/with-production-lock.sh python3 /opt/salemax/releases/pro-catalyst-conversation-quality-c13e87c1bb71-20261121T092719Z/deploy/pro-catalyst-conversation-quality-release.py restore /opt/salemax/shared/rollback-pro-catalyst-conversation-quality-c13e87c1bb71-20261121T092719Z
+```
+
+The guarded restore rejects a later app chain, changed runtime files, or a subsequent greeting edit. Owner acceptance remains to verify a new greeting, “I’m a beginner” and a repetition complaint through the controlled WhatsApp test chat. No staff handoffs or existing conversation state were reset.

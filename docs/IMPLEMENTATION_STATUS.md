@@ -2629,6 +2629,10 @@ New handoffs use a simple one-letter/one-digit code (for example, `A1`): claim w
 
 Codes are never reused, preventing an old unread WhatsApp alert from targeting a different customer. There are 260 two-character combinations per tenant; the system safely falls back to six characters after they are all issued. The additive registry migration backfilled the 55 existing codes. Production is healthy, the migration is applied, the profile flag is true, and all deployed asset/health/support-service checks passed. No WhatsApp test message was sent. Owner acceptance and the guarded rollback are documented in `DEPLOYMENT.md`.
 
+### Pro Catalyst virtual-assistant greeting and conversational recovery — production, 21 November 2026
+
+The opening greeting now identifies the bot as Pro Catalyst Training Center’s virtual assistant in English and Arabic. First course-specific replies include the introduction too. Hybrid recovery now recognizes beginner disclosures and feedback about repeated prompts before course-name extraction; it apologizes, recalls the beginner preference from recent chat when needed, and lists the published beginner-level courses. This deterministic recovery uses no AI tokens and suppresses the generic repeat question. Production is healthy, the greeting was read back at profile revision 21, and the staff relay/short-code settings remain enabled. No WhatsApp test message was sent; owner acceptance should check a new greeting, a beginner response and a complaint in a controlled chat. Release hashes and guarded rollback are in `DEPLOYMENT.md`.
+
 ## CRM appearance — 20 November 2026
 
 The live CRM uses light mode for returning and new users. The signed-in dashboard, sidebar and top navigation were visually checked after reloading a session previously in dark mode. Source `8452f9a`; release and rollback details are in `DEPLOYMENT.md`.
