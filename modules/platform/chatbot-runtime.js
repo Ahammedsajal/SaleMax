@@ -192,6 +192,11 @@ async function sendCustomerHandoffNotice({ ctx, profile, uid, message, origin, s
   if (sent && callbackHandoff && leadInfo?.contactPromptPending) {
     await require('./chatbot-lead-capture').markContactPromptAsked(dbPool, leadInfo, uid).catch(() => {});
   }
+  if (sent && callbackHandoff) {
+    const leadCapture = require('./chatbot-lead-capture');
+    const phone = leadInfo?.qatarContactNumber || leadInfo?.callbackNumber || leadCapture.qatarMobile(message?.senderMobile);
+    if (phone) await leadCapture.markCallbackConsentPromptAsked(dbPool, { ...leadInfo, callbackNumber: phone }, uid).catch(() => {});
+  }
   return sent;
 }
 
@@ -203,7 +208,58 @@ async function recordHandoffAcknowledgement(ctx, claim, message) {
   }).catch(() => false);
 }
 
-async function handoffConversation(ctx, chatId, channelKind, channelRef, reason, profile = null, uid = null, intake = null, { pause = true } = {}) {
+async function handleCallbackConsent({ ctx, profile, uid, message, sessionId, origin, chatId }) {
+  const leadCapture = require('./chatbot-lead-capture');
+  if (ctx?.category?.key !== 'training_center' || !leadCapture.qatarCallbackEnabled(ctx)
+    || !leadCapture.affirmativeReply(textOf(message))) return null;
+  const prompted = await leadCapture.callbackConsentPromptWasAsked(dbPool, { uid, chatId, origin }).catch(() => false);
+  if (!prompted) return null;
+  let leadInfo = null;
+  try {
+    const db = await dbPool.getConnection();
+    let facts;
+    try { facts = await getDomainPack(ctx.category.key, ctx.category.version).loadFacts({ db, tenantId: ctx.tenant.id,
+      platformOrigin: process.env.SALEMAX_PLATFORM_ORIGIN, config: profile.config }); }
+    finally { db.release(); }
+    leadInfo = await leadCapture.captureLead(dbPool, { ctx, profile, uid, chatId, origin, message, facts,
+      legacyCallbackConsentPrompted: prompted });
+    if (!leadInfo?.callbackConsentSubmitted) return null;
+    const callbackNumber = leadInfo.callbackNumber || leadInfo.qatarContactNumber;
+    if (!callbackNumber) return null;
+    const courseName = leadInfo.courseInterest || null;
+    const claim = await handoffConversation(ctx, chatId, channelFor(origin), sessionId, 'qatar-coordinator-callback', profile, uid,
+      { name: leadInfo.name || leadInfo.nameCandidate || null, courseInterest: courseName,
+        qatarContactNumber: leadInfo.qatarContactNumber || null, callbackNumber,
+        callbackConsentConfirmed: true, callbackConsentEventKey: leadInfo.callbackConsentEventKey },
+      { pause: true, callbackConfirmed: true });
+    if (!claim?.id || !(claim.callbackNotificationQueued || claim.callbackAssigned || claim.created)) {
+      throw Object.assign(new Error('CALLBACK_HANDOFF_NOT_QUEUED'), { code: 'CALLBACK_HANDOFF_NOT_QUEUED' });
+    }
+    const reserved = await leadCapture.reserveCallbackAcknowledgement(dbPool, leadInfo, uid);
+    if (!reserved) return { handled: true, paused: true, duplicate: true, route: 'callback-consent' };
+    const language = leadInfo.language === 'ar' ? 'ar' : 'en';
+    const name = String(leadInfo.name || leadInfo.nameCandidate || '').trim().slice(0, 80);
+    const body = language === 'ar'
+      ? `شكرًا${name ? ` يا ${name}` : ''} على التأكيد. سجلت طلب معاودة الاتصال ورقمك ${callbackNumber} وشاركته مع منسق الدورات.`
+      : `Thank you${name ? `, ${name}` : ''} for confirming. I’ve recorded your callback request and shared ${callbackNumber} with our course coordinator.`;
+    const sent = await sendBotText({ origin, sessionId, message, uid, chatId, body, bypassBotPause: true }).catch(() => false);
+    if (!sent) {
+      await leadCapture.releaseCallbackAcknowledgement(dbPool, leadInfo, uid).catch(() => {});
+      return { handled: true, paused: true, handedOff: true, code: 'CALLBACK_ACKNOWLEDGEMENT_SEND_FAILED' };
+    }
+    return { handled: true, sent: true, paused: true, handedOff: true, route: 'callback-consent' };
+  } catch (error) {
+    console.warn('[chatbot] callback consent handoff unavailable', error.code || 'CALLBACK_HANDOFF_FAILED');
+    const language = leadInfo?.language === 'ar' ? 'ar' : businessContext.languageFor(textOf(message));
+    const body = language === 'ar'
+      ? 'شكرًا على التأكيد. لم أتمكن من إرسال طلب الاتصال إلى الفريق الآن. يرجى مراسلتنا مرة أخرى بعد قليل.'
+      : 'Thanks for confirming. I couldn’t send the callback request to our team just now. Please message us again shortly.';
+    const sent = await sendBotText({ origin, sessionId, message, uid, chatId, body, bypassBotPause: true }).catch(() => false);
+    return { handled: true, sent, paused: true, code: error.code || 'CALLBACK_HANDOFF_FAILED' };
+  }
+}
+
+async function handoffConversation(ctx, chatId, channelKind, channelRef, reason, profile = null, uid = null, intake = null, { pause = true, callbackConfirmed = false } = {}) {
   const db = await dbPool.getConnection();
   try {
     await db.beginTransaction();
@@ -212,7 +268,11 @@ async function handoffConversation(ctx, chatId, channelKind, channelRef, reason,
     let claim = null;
     if (profile && uid) {
       const brief = await buildHandoffBrief(db, { ctx, profile, uid, chatId, channelKind, channelRef, intake });
-      claim = await handoffs.open(db, { ctx, profile, uid, chatId, channelKind, channelRef, reason, brief });
+      claim = callbackConfirmed
+        ? await handoffs.confirmCallback(db, { ctx, profile, uid, chatId, channelKind, channelRef, brief,
+          callbackNumber: intake?.callbackNumber || intake?.qatarContactNumber,
+          courseName: intake?.courseInterest || null, requestKey: intake?.callbackConsentEventKey })
+        : await handoffs.open(db, { ctx, profile, uid, chatId, channelKind, channelRef, reason, brief });
     }
     const controlReason = String(claim?.reason || reason || 'human-review').slice(0, 240);
     if (pause) await db.query(`INSERT INTO sx_chatbot_conversation_controls(id,tenant_id,channel_kind,channel_ref,conversation_id,mode,pause_until,reason,revision,updated_by_kind,updated_by_identity_id)
@@ -226,10 +286,17 @@ async function handoffConversation(ctx, chatId, channelKind, channelRef, reason,
       VALUES (?,?,NULL,'system',?,'chatbot-conversation',?,?,?)`,
     [crypto.randomUUID(), ctx.tenant.id, pause ? 'chatbot.conversation-auto-handoff' : 'chatbot.conversation-staff-notified', chatId,
       JSON.stringify({ mode: pause ? 'paused' : 'staff-notified', reason: controlReason, timeoutMinutes: minutes }), crypto.randomUUID()]);
-    if (claim?.created) {
-      const taskId = await require('./chatbot-handoff-task').assignHandoffTask(db, { ctx, profile, uid, chatId, channelKind, channelRef, reason });
-      if (taskId) await db.query('UPDATE sx_chatbot_handoff_claims SET handoff_task_id=? WHERE tenant_id=? AND id=?', [taskId, ctx.tenant.id, claim.id]);
-      await handoffs.queue(db, ctx.tenant.id, claim);
+    if (claim?.created || callbackConfirmed) {
+      const taskId = callbackConfirmed && claim.handoffTaskId
+        ? claim.handoffTaskId
+        : await require('./chatbot-handoff-task').assignHandoffTask(db, { ctx, profile, uid, chatId, channelKind, channelRef, reason });
+      if (taskId) {
+        await db.query('UPDATE sx_chatbot_handoff_claims SET handoff_task_id=COALESCE(handoff_task_id,?) WHERE tenant_id=? AND id=?', [taskId, ctx.tenant.id, claim.id]);
+        if (callbackConfirmed) await handoffs.appendCallbackTask(db, { tenantId: ctx.tenant.id, taskId,
+          callbackNumber: intake?.callbackNumber || intake?.qatarContactNumber, courseName: intake?.courseInterest || null,
+          requestKey: intake?.callbackConsentEventKey });
+      }
+      if (claim?.created && !claim.callbackNotificationQueued) await handoffs.queue(db, ctx.tenant.id, claim);
     }
     if (profile?.config?.assignHandoffsToInbox === true && profile.config.handoffAssigneeIdentityId && uid) {
       await require('./team-conversation-assignment').assignConversation(db, { ctx, uid, chatId, identityId: profile.config.handoffAssigneeIdentityId, reason: 'bot-human-handover' });
@@ -270,6 +337,7 @@ async function buildHandoffBrief(db, { ctx, profile, uid, chatId, channelKind, c
       courseDetails,
       latestEnquiry: [intake?.courseInterest ? `Course enquiry: ${intake.courseInterest}` : '',
         intake?.qatarContactNumber ? `Qatar callback: ${intake.qatarContactNumber}` : '',
+        intake?.callbackConsentConfirmed ? `Callback consent: confirmed; call ${intake.callbackNumber || intake.qatarContactNumber || ''}` : '',
         intake?.preferredStart ? `Preferred start: ${intake.preferredStart}` : '',
         businessContext.redactCustomerText(latestEnquiry)].filter(Boolean).join('\n').slice(0, 1000),
       summaryContext: profile.config?.aiDataProcessingConfirmed === true ? transcript.map(turn => ({ ...turn, text: businessContext.redactCustomerText(turn.text).slice(0, 300) })) : null,
@@ -363,9 +431,13 @@ async function handleHandoffPriorityMessage({ uid, message, user, sessionId, ori
     }
   }
   const staffPause = await require('./chatbot-conversation-control').readPause(uid, chatId, channelFor(origin), sessionId);
-  if (staffPause?.reason === 'staff-replied' || coordinatorHandoffReasons.has(staffPause?.reason)) return { handled: true, paused: true };
-  const pause = await require('./chatbot-conversation-control').readPause(uid, chatId, channelFor(origin), sessionId);
-  if (!pause) return { handled: false };
+  if (!staffPause) return { handled: false };
+  if (staffPause.updatedByKind === 'system' && staffPause.reason !== 'staff-replied') {
+    const callback = await handleCallbackConsent({ ctx, profile, uid, message, sessionId, origin, chatId });
+    if (callback) return callback;
+  }
+  if (staffPause.reason === 'staff-replied' || coordinatorHandoffReasons.has(staffPause.reason)
+    || staffPause.updatedByKind !== 'system') return { handled: true, paused: true };
   return processHandoffPriorityForProfile({ ctx, profile, uid, message, user, sessionId, origin, chatId });
 }
 

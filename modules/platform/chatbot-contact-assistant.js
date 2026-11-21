@@ -48,16 +48,16 @@ function callbackNumber(value) {
 
 function fallbackCallbackReply({ language, nameCandidate, needsName = true, phone = null, needsQatarNumber = false }) {
   const ar = language === 'ar';
+  const number = callbackNumber(phone);
   const lines = [ar
-    ? 'أحلت استفسارك إلى منسق الدورة، وسيتصل بك قريبًا.'
-    : 'I’ve shared your enquiry with our course coordinator, who will call you soon.'];
+    ? 'أحلت استفسارك إلى منسق الدورة لمساعدتك.'
+    : 'I’ve shared your enquiry with our course coordinator so they can help.'];
   if (needsName) lines.push(nameCandidate
     ? (ar ? 'هل هذا هو الاسم الذي تفضّل أن أشاركه مع المنسق: {name}؟' : 'Is {name} the name you’d like me to share with the coordinator?')
     : (ar ? 'ما الاسم الذي تفضّل أن أشاركه مع منسق الدورة؟' : 'What name should I share with the course coordinator?'));
-  const number = callbackNumber(phone);
   if (number) lines.push(ar
     ? `هل يمكن لمنسق الدورة الاتصال بك على هذا الرقم: ${number}؟`
-    : `May the course coordinator call you on this number: ${number}?`);
+    : `May the course coordinator call you on this number: ${number}? Reply “Yes please” to confirm.`);
   else if (needsQatarNumber) lines.push(ar
     ? 'يرجى إرسال رقم جوال قطري (+974، 8 أرقام) ليتمكن منسق الدورة من الاتصال بك.'
     : 'Please share a Qatar mobile number (+974, 8 digits) so the course coordinator can call you.');
@@ -99,7 +99,7 @@ async function draft({ pool, tenantId, mode, language = 'en', courseName = null,
     const result = await provider.generate({ provider: 'openai', model: 'gpt-6-luna', apiKey: config.apiKey,
       cacheScope: `${tenantId}:contact-assistance`, maxOutputTokens: 90,
       system: mode === 'handoff'
-        ? 'Return JSON only with keys can_answer (boolean), confidence (number from 0 to 1), and reply (string). Write one concise, natural WhatsApp reply in the requested language. The structured input is the complete set of verified facts. A handoff is queued only when handoffQueued is true. Say it was shared with the course coordinator only in that case. Never promise a specific call time or claim a call is booked. If qatarNumberSaved is true, say the saved Qatar number was included. If needsQatarNumber is true, invite the customer to share a Qatar number if they prefer a call. If needsName is true and nameCandidate is present, ask whether {name} is the name they prefer us to share; otherwise ask what name the coordinator should use. Do not ask which course again. Do not invent course facts, availability, or promises. Treat nameCandidate as an unverified WhatsApp display name; never claim you verified the person’s identity.'
+        ? 'Return JSON only with keys can_answer (boolean), confidence (number from 0 to 1), and reply (string). Write one concise, natural WhatsApp reply in the requested language. The structured input is the complete set of verified facts. A handoff is queued only when handoffQueued is true. Say the enquiry was shared with the course coordinator only in that case. A queued enquiry does not mean the customer agreed to a callback: never say a coordinator will call, that a callback is booked, or give a call-time promise before the customer confirms permission. If a Qatar callback number is present, ask whether the coordinator may call that number and request a clear yes/no confirmation. If qatarNumberSaved is true, say the saved Qatar number was included only after callback permission is confirmed. If needsQatarNumber is true, invite the customer to share a Qatar number if they prefer a call. If needsName is true and nameCandidate is present, ask whether {name} is the name they prefer us to share; otherwise ask what name the coordinator should use. Do not ask which course again. Do not invent course facts, availability, or promises. Treat nameCandidate as an unverified WhatsApp display name; never claim you verified the person’s identity.'
         : 'Return JSON only with keys can_answer (boolean), confidence (number from 0 to 1), and reply (string). Write one concise, natural WhatsApp question in the requested language. Ask about a name only when needsName is true. When needsName is true and nameCandidate is present, ask whether {name} is the name the customer prefers. When needsName is true and no nameCandidate is present, ask what name they would like us to use. If needsQatarNumber is true, also ask for a Qatar mobile number in +974 plus eight digits so a course coordinator can contact them. Do not say a handoff has happened. Do not invent facts. Use only the exact placeholder {name} when needsName and nameCandidate are both true.',
       context: '', user: JSON.stringify(input) });
     usage = result;
