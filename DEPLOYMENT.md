@@ -5076,3 +5076,35 @@ sudo -n /opt/salemax/shared/with-production-lock.sh python3 /opt/salemax/release
 ```
 
 App rollback restores the pre-release files and controls. Browsers that loaded the new release keep light as their saved preference.
+
+## Email Marketing campaign reports and reply inbox — production, 21 November 2026
+
+Source commit `baa6e9023f1c45f6b93b0b4f47177bbcae469c5e` (implementation commit `55eb4000cecc7656487d70c72f2b99f6b716880e`) is deployed as app-only overlay `/opt/salemax/releases/email-marketing-campaign-report-baa6e9023f1c-20261121T085201Z/compose.email-marketing-campaign-report.json`, on base `/opt/salemax/releases/training-pipeline-correction-v3-9867ca72-20261104`. The app image remains `salemax-app:email-marketing-21a07cc41fa9-20261112` (`sha256:753d77d421b3160872df0812e7b38505a1db7104cdb9d6c8b17415b2420de667`). The existing Compose chain was extended to 303 inputs, retained 11 environment-file inputs and 279 app mounts; all seven non-app container identities remained unchanged.
+
+The Analytics campaign link and Campaigns list now open the same tenant-scoped campaign detail report. It shows sender, schedule, reply-to, subject, message and attachment details; sent, delivered, read, reply, failure, bounce and click totals; delivery/engagement bars; exclusive latest recipient outcomes; and a searchable, status-filterable recipient table with event timestamps, failure details and 50-row pagination. Campaign reply totals are included in analytics. The existing Email Inbox now supports direct reply and compose drafts, edit/delete, attachments, and user-triggered queueing through the outbound worker. No campaign or recipient records were edited and no email was sent.
+
+All mounted runtime files came from the committed source in this release; no production-only Email Marketing source had to be recovered or substituted.
+
+Migration `20270208_email_inbox_composer.sql` applied five of five statements. Checksum: `50e49a515040a62924279f48486acfd31ba00c2e38a47cd71798f9f46d728d40`. It adds message attachment/outbound queue tables and nullable sender/campaign/contact links plus draft/delivery metadata needed for composed threads. The database migration ledger reports `applied`; the worker and inbox modules loaded. Schema changes are additive with no campaign/contact updates.
+
+Production verification on `carsqatar-prod-01`: app and database healthy, app restart count zero, public `/healthz` and Email Marketing workspace returned HTTP 200, versioned workspace JavaScript/CSS returned HTTP 200 and match the deployed source, and the authenticated Edge session opened a campaign report showing its summary, both charts, recipient status/event rows and pagination. Anonymous Email Marketing APIs remained denied. The report page was visually checked in English/light desktop only; Arabic/RTL, mobile/tablet widths, standalone PWA, inbound reply receipt and real composed-email delivery remain unverified. Focused `tests/email-marketing.test.js` passed 12/12; changed JavaScript syntax and `git diff --check` passed. No local MariaDB container was available for a second local schema integration run; the migration was applied and checked on production MariaDB. No email was sent.
+
+| Mounted file | SHA-256 |
+| --- | --- |
+| `client/public/index.html` | `eef14a309dda62ba23877e6c62f4b96d4164ee5af7335d0cf20f7982ce99d368` |
+| `client/public/email-marketing-workspace.js` | `3985798c6f9ed7da1b0f452d9af0d4a77b9bb8a0c40b502a647693a0757829f1` |
+| `client/public/email-marketing-workspace.css` | `1336092ccaddf487460bb24745173fd1971276ef02a1dfc6cefb2d74e91345b9` |
+| `modules/platform/email-marketing.js` | `9825cc4a31dd3cc32875d983d87600b43833e51154b4c3354ecc3df25355b9fc` |
+| `modules/platform/email-marketing-router.js` | `a08eab60ea28fae9027d3cd1a4120d7b2a3c9583260039e7c9c8b9a90de714fc` |
+| `modules/platform/email-marketing-worker.js` | `7399cf77676db087fa2b8030a8f2ce0a1a373bc79c801fba8c06b4da26c1e245` |
+| `modules/platform/email-marketing-inbox.js` | `57ac7c9b10e4e6ddf4069ab430cf21864233591c6a15d437a8367e8a6bfae12b` |
+| `database/migrations/20270208_email_inbox_composer.sql` | `50e49a515040a62924279f48486acfd31ba00c2e38a47cd71798f9f46d728d40` |
+| `database/migrations/20270208_email_inbox_composer_rollback.sql` | `f65f7426bdc91a9f36bd885d720736fc63c8d10196c129cbc1e0236d0aefe26c` |
+
+Protected rollback snapshot: `/opt/salemax/shared/rollback-email-marketing-campaign-report-baa6e9023f1c-20261121T085201Z`. If this overlay is still the active Compose-chain tail, restore the prior app chain under the production lock with:
+
+```sh
+sudo -n /opt/salemax/shared/with-production-lock.sh python3 /opt/salemax/releases/email-marketing-campaign-report-baa6e9023f1c-20261121T085201Z/deploy/email-marketing-campaign-report-release.py restore /opt/salemax/shared/rollback-email-marketing-campaign-report-baa6e9023f1c-20261121T085201Z
+```
+
+The app rollback retains the applied additive schema. The protected snapshot also contains `composer-schema-rollback.sql`; do not execute it unless composer-thread/message/outbound data has been audited, preserved and confirmed empty, because its reverse DDL drops the new composer tables. The full provider, real-message, responsive/Arabic/PWA and 42-ticket release gates remain open.

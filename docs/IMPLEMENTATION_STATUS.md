@@ -1,3 +1,9 @@
+## Email Marketing campaign reports and reply inbox — deployed, 21 November 2026
+
+The existing Campaigns list and Analytics campaign links now open a tenant-scoped report with campaign/sender details, performance summaries, delivery and engagement charts, message/attachment details, and searchable recipient outcomes with event times and paginated status rows. Replies are included in campaign analytics. The existing Email Inbox can now save/edit/delete drafts and queue a reply or composed message through the outbound worker. The report was opened in authenticated production Edge and showed its charts, recipient status table and pagination. No email was sent during this release.
+
+Source commit `baa6e9023f1c45f6b93b0b4f47177bbcae469c5e` is live. The additive inbox/composer schema migration is applied. Authenticated visual acceptance covered English/light desktop; mobile/tablet, Arabic/RTL, standalone PWA, actual inbound replies and actual composed-email delivery remain open. The broader 42-ticket upgrade and provider/deliverability gates remain in progress. See `DEPLOYMENT.md` for runtime hashes, migration, rollback and release evidence.
+
 ## Email Marketing visual template builder — deployed, 19 November 2026
 
 The existing Email Marketing Templates tab is wired to a visual builder with a reusable header, headings, text, inline image, button, divider and spacing blocks; a block inspector; image upload and preview; and a live sample email. It retains a plain-text alternative and template attachments. Campaigns copy the design as a snapshot and send HTML plus text, with uploaded images embedded by CID. No email or campaign was sent during release.
