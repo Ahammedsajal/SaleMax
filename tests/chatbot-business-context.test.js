@@ -1,7 +1,7 @@
 'use strict';
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { controlRoute, isScheduleQuestion, hasPublishedSchedule, courseDetailNeedsCoordinator, trainingCenterCoordinatorReason, publishedDurationRange, retrieveContext, validateAnswer, languageFor, fingerprint, previewState, simpleFactualReply, unavailableReply, isCourseOverviewRequest, shouldSkipApprovedFaq, isGenericAdInterest, shouldClarifyGenericCourseInterest, courseDiscoveryReply, isBareCourseSelection, publishedTrainingReply } = require('../modules/platform/chatbot-business-context');
+const { controlRoute, isScheduleQuestion, hasPublishedSchedule, courseDetailNeedsCoordinator, trainingCenterCoordinatorReason, publishedDurationRange, retrieveContext, validateAnswer, languageFor, fingerprint, previewState, simpleFactualReply, unavailableReply, isCourseOverviewRequest, shouldSkipApprovedFaq, isGenericAdInterest, shouldClarifyGenericCourseInterest, courseDiscoveryReply, isBareCourseSelection, publishedTrainingReply, recentAssistantCourseCode } = require('../modules/platform/chatbot-business-context');
 const facts = [
  { courseId:'english',code:'ENG',nameEn:'Business English',nameAr:'الإنجليزية للأعمال',descriptionEn:'English communication for work and presentations',descriptionAr:'التواصل باللغة الإنجليزية في العمل والعروض',durationValue:8,durationUnit:'weeks',offer:{priceAmount:'350.00',registrationFeeAmount:'25.00',currency:'QAR'},batches:[{startsOn:'2026-11-15',seatsAvailable:7}] },
  { courseId:'excel',code:'EXCEL',nameEn:'Excel Essentials',nameAr:'أساسيات إكسل',descriptionEn:'Practical spreadsheets and office skills',descriptionAr:'مهارات الجداول والحاسوب المكتبية',offer:{priceAmount:'250.00',currency:'QAR'},batches:[] },
@@ -36,6 +36,23 @@ test('certificate enquiry does not select a different course with certificate in
  assert.deepEqual(c.evidence.filter(x=>x.kind==='course').map(x=>x.code),['ADV-EXCEL']);
  assert.match(c.evidence[0].description,/6–7 weeks and a certificate of completion/);
  assert.equal(validateAnswer({canAnswer:true,reply:'The outline states 6–7 weeks and a certificate of completion.',sourceIds:['course:excel']},c).code,'ANSWER_CERTIFICATE_UNVERIFIED');
+});
+test('fee-only follow-up uses the most recent named course and never ranks another course when context is missing',()=>{
+ const courses=[
+  {courseId:'marine',code:'MARINE',nameEn:'Marine Deckhand',nameAr:'مساعد سطح السفينة البحري',descriptionEn:'Entry-level maritime operations',offer:{priceAmount:'3000.00',currency:'QAR'}},
+  {courseId:'health',code:'HEALTH',nameEn:'Diploma Health & Social Care – Qualifi (UK)',nameAr:'دبلوم الصحة والرعاية الاجتماعية',descriptionEn:'Health and social care qualification',offer:{priceAmount:'3200.00',currency:'QAR'}},
+ ];
+ const history=[{role:'assistant',text:'Marine Deckhand course details. Duration: 2 months. Course fee: QAR 3,000.'}];
+ const recent=recentAssistantCourseCode(history,courses);
+ assert.equal(recent,'MARINE');
+ const context=retrieveContext({facts:courses,message:'fee?',state:{selectedCourseCode:'HEALTH'}});
+ const fromConversation=retrieveContext({facts:courses,message:'fee?',state:{selectedCourseCode:recent}});
+ assert.equal(context.selectedCourseCode,'HEALTH');
+ assert.equal(fromConversation.selectedCourseCode,'MARINE');
+ assert.equal(simpleFactualReply('fee?',fromConversation).reply.includes('3000.00'),true);
+ const missing=retrieveContext({facts:courses,message:'fee?',state:{}});
+ assert.equal(missing.selectedCourseCode,null);
+ assert.equal(missing.evidence.some(item=>item.kind==='course'),false);
 });
 test('spaced caregiver alias selects the caregiver course instead of broader health and social care',()=>{
  const courses=[
@@ -344,7 +361,9 @@ test('informal training greetings continue discovery and preserve known course a
  }
  assert.equal(isTrainingGreeting('hello sir, what is the fee?'), false);
  const first = trainingGreeting({ message: 'hlo', state: {}, facts, welcome: 'Welcome to Northstar.' });
- assert.match(first.reply, /^Welcome to Northstar.*course in mind/);
+ assert.match(first.reply, /virtual assistant.*Welcome to Northstar.*course in mind/);
+ const alreadyIdentified = trainingGreeting({ message: 'hi', state: {}, facts, welcome: 'Hi, I am Northstar’s virtual assistant.' });
+ assert.equal((alreadyIdentified.reply.match(/virtual assistant/gi) || []).length, 1);
  const second = trainingGreeting({ message: 'sir', state: first.state, facts });
  assert.match(second.reply, /Business English.*Excel Essentials/);
  const third = trainingGreeting({ message: 'Hi', state: second.state, facts });

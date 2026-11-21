@@ -170,13 +170,22 @@ async function sendCustomerHandoffNotice({ ctx, profile, uid, message, origin, s
   const language = businessContext.languageFor(textOf(message));
   const body = ['student-class-support','existing-student-support'].includes(pending.reason)
     ? studentSupportReply(pending.reason, language)
-    : once ? coordinatorReply({ language })
+    : once ? await draftContactAssistant({ ctx, leadInfo: { language }, mode: 'handoff',
+      handoffQueued: true, needsName: false, needsQatarNumber: false })
     : !accepted && ctx.category.key === 'training_center' && origin === 'qr' && mockup.ownsInbox(uid, origin)
     ? coordinatorReply({ language: businessContext.languageFor(textOf(message)), followUp: Boolean(pending.lastCustomerAckAt) })
     : handoffText(message, null, accepted);
   const sent = await sendBotText({ origin, sessionId, message, uid, chatId, body }).catch(() => false);
   if (!sent) await claims.releaseCustomerAcknowledgement(dbPool, { tenantId: ctx.tenant.id, claimId: pending.id, inboundId }).catch(() => {});
   return sent;
+}
+
+async function recordHandoffAcknowledgement(ctx, claim, message) {
+  if (!claim?.id) return;
+  const inboundId = String(message?.metaChatId || `handoff-ack:${message?.timestamp || Date.now()}`).slice(0, 191);
+  await require('./chatbot-handoff-claims').reserveCustomerAcknowledgement(dbPool, {
+    tenantId: ctx.tenant.id, claimId: claim.id, inboundId, once: true,
+  }).catch(() => false);
 }
 
 async function handoffConversation(ctx, chatId, channelKind, channelRef, reason, profile = null, uid = null, intake = null, { pause = true } = {}) {
@@ -485,7 +494,9 @@ async function trainingCenterGuidedTurn({ ctx, profile, uid, message, sessionId,
   let facts = [];
   let selectedForCallback = null;
   let deferLeadQuestion = false;
-  let qatarContactPromptAdded = false;
+  let contactPromptAdded = false;
+  let handoffReason = null;
+  let handoffClaim = null;
   try {
     onStage?.('training-course-facts');
     facts = leadInfo?.facts || (pack.requiresDatabase
@@ -514,6 +525,15 @@ async function trainingCenterGuidedTurn({ ctx, profile, uid, message, sessionId,
     else if (row) { try { priorState = typeof row.state === 'string' ? JSON.parse(row.state) : row.state; } catch { priorState = null; } }
     if(priorState&&typeof message.senderMobile==='string')priorState.whatsappNumber=message.senderMobile;
     if (profile.engine !== 'guided' && priorState) priorState.language = businessContext.languageFor(intent || textOf(message), priorState);
+    const standaloneFeeQuestion = ctx.category.key === 'training_center' && businessContext.isStandalonePriceQuestion(textOf(message));
+    if (standaloneFeeQuestion) {
+      const [historyRows] = await db.query(`SELECT route,msgContext FROM beta_conversation
+        WHERE uid=? AND chat_id=? AND origin=? AND route IN ('INCOMING','OUTGOING')
+        ORDER BY id DESC LIMIT 12`, [uid, chatId, origin]);
+      const history = conversationHistoryFromRows(historyRows, textOf(message));
+      const recentCourseCode = businessContext.recentAssistantCourseCode(history, facts);
+      if (recentCourseCode) priorState = { ...(priorState || {}), selectedCourseCode: recentCourseCode };
+    }
     const pilotGreeting = !intent && mockup.ownsInbox(uid, origin) && !profile.config?.flowId && !profile.config?.introFlowId
       && businessContext.isTrainingGreeting(textOf(message));
     const openingGreeting = pilotGreeting || isOpeningGreeting(intent || textOf(message));
@@ -526,6 +546,12 @@ async function trainingCenterGuidedTurn({ ctx, profile, uid, message, sessionId,
     }else if(cvError){
       const invalid=cvError==='CV_TYPE_NOT_ALLOWED'||cvError==='INVALID_CV_FILE';
       reply={reply:priorState?.language==='ar'?(invalid?'يرجى إرسال السيرة الذاتية كملف PDF أو DOCX حتى 8 ميغابايت.':'تعذر حفظ الملف الآن. يرجى المحاولة مرة أخرى بعد قليل.'):(invalid?'Please send your CV as a PDF or DOCX file up to 8 MB.':'I couldn’t save that file just now. Please try sending it again shortly.'),state:priorState,buttons:[]};
+    } else if (standaloneFeeQuestion && !priorState?.selectedCourseCode) {
+      const language = businessContext.languageFor(textOf(message), priorState || {});
+      reply = { reply: language === 'ar'
+        ? 'أي دورة تريد معرفة رسومها؟ اكتب اسم الدورة وسأتحقق من السعر المنشور.'
+        : 'Which course’s fee would you like me to check? Tell me the course name and I’ll look up its published price.',
+      state: { ...(priorState || {}), greeted: true, language, waitingForCourse: true }, buttons: [] };
     } else if (pilotGreeting) {
       const state = priorState || {};
       const language = businessContext.languageFor(textOf(message), state);
@@ -579,21 +605,25 @@ async function trainingCenterGuidedTurn({ ctx, profile, uid, message, sessionId,
       if (welcome && !String(reply.reply || '').includes(welcome)) reply.reply = `${welcome}\n\n${reply.reply}`;
     }
     if (!pilotGreeting && !courseDiscoveryFeedback) reply = businessContext.polishGuidedReply({ result: reply, profile, message: textOf(message), state: priorState, defaults: pack.guidedContentDefaults });
-    const questionLeadInfo = deferLeadQuestion ? null : leadInfo;
-    if (!reply.handoff && !reply.openingTexts) reply.reply = require('./chatbot-lead-capture').addQuestion(reply.reply, questionLeadInfo, profile.config, pack.guidedContentDefaults);
-    if (!reply.handoff && leadInfo?.qatarContactPending && (courseSelection?.context || courseSelection?.unlisted || courseSelection?.clarify)) {
-      const capture = require('./chatbot-lead-capture');
-      if (reply.openingTexts?.length) {
-        reply.openingTexts[reply.openingTexts.length - 1] = capture.addQatarContactQuestion(reply.openingTexts.at(-1), leadInfo);
-      } else {
-        reply.reply = capture.addQatarContactQuestion(reply.reply, leadInfo);
-      }
-      qatarContactPromptAdded = true;
-    }
     reply.state.sentCoursePdfIds = priorState?.sentCoursePdfIds || [];
     if (leadInfo?.qatarContactNumber && !leadInfo.qatarContactSubmitted
       && reply.state.selectedCourseCode && reply.state.selectedCourseCode !== priorState?.selectedCourseCode) {
       selectedForCallback = facts.find(item => !item.kind && item.code === reply.state.selectedCourseCode) || null;
+    }
+    const expectsHandoff = Boolean(reply.handoff || selectedForCallback
+      || (courseSelection?.unlisted && leadInfo?.senderIsQatar));
+    const questionLeadInfo = deferLeadQuestion ? null : leadInfo;
+    const contactPromptInfo = !expectsHandoff && leadInfo?.contactPromptPending
+      ? { ...leadInfo, contactPrompt: await draftContactAssistant({ ctx, leadInfo, mode: 'contact' }) }
+      : null;
+    const captureQuestionInfo = contactPromptInfo || questionLeadInfo;
+    if (!reply.handoff && !reply.openingTexts) {
+      reply.reply = require('./chatbot-lead-capture').addQuestion(reply.reply, captureQuestionInfo, profile.config, pack.guidedContentDefaults);
+      contactPromptAdded = Boolean(contactPromptInfo);
+    } else if (!reply.handoff && reply.openingTexts?.length && captureQuestionInfo) {
+      const last = reply.openingTexts.length - 1;
+      reply.openingTexts[last] = require('./chatbot-lead-capture').addQuestion(reply.openingTexts[last], captureQuestionInfo, profile.config, pack.guidedContentDefaults);
+      contactPromptAdded = Boolean(contactPromptInfo);
     }
     if (!reply.openingTexts) {
       const pdfs = require('./chatbot-course-media').coursePdfs(facts, reply.state.selectedCourseCode, textOf(message), reply.state.sentCoursePdfIds);
@@ -623,6 +653,22 @@ async function trainingCenterGuidedTurn({ ctx, profile, uid, message, sessionId,
     throw error;
   } finally { db.release(); }
 
+  handoffReason = reply.handoff ? (reply.handoffReason || 'customer-requested-human')
+    : selectedForCallback ? 'qatar-coordinator-callback'
+      : courseSelection?.unlisted && leadInfo?.senderIsQatar ? 'course-details-need-coordinator' : null;
+  if (handoffReason) {
+    const handoffCourse = selectedForCallback?.nameEn || selectedForCallback?.nameAr || courseSelection?.topic || leadInfo?.courseInterest;
+    handoffClaim = await handoffConversation(ctx, chatId, channelKind, sessionId, handoffReason, profile, uid,
+      { courseInterest: handoffCourse, qatarContactNumber: leadInfo?.qatarContactNumber }, { pause: false }).catch(error => {
+      console.warn('[chatbot] guided handoff queue unavailable', error.code || 'GUIDED_HANDOFF_FAILED');
+      return null;
+    });
+    const handoffReply = await draftContactAssistant({ ctx, leadInfo, mode: 'handoff',
+      handoffQueued: Boolean(handoffClaim?.id), courseName: handoffCourse });
+    if (reply.handoff) reply.reply = handoffReply;
+    else if (!reply.openingTexts) reply.reply = [String(reply.reply || '').trim(), handoffReply].filter(Boolean).join('\n\n');
+  }
+
   onStage?.('training-authority-check');
   if (!await canSendNow({ ctx, profile, uid, origin, sessionId, chatId, message })) { onStage?.('training-authority-blocked'); return false; }
   if (reply.openingTexts && reply.media.length) {
@@ -636,24 +682,19 @@ async function trainingCenterGuidedTurn({ ctx, profile, uid, message, sessionId,
   onStage?.('training-whatsapp-send');
   const sentId = await sendWaMessage({ origin, sessionId, message, uid, chatId, content: messageContext });
   if (!sentId) { onStage?.('training-whatsapp-send-empty'); return false; }
-  if (reply.handoff) await handoffConversation(ctx, chatId, channelKind, sessionId, reply.handoffReason||'customer-requested-human', profile, uid);
   const timestamp = Math.trunc(Date.now() / 1000);
   const messageData = { type: messageContext.type, metaChatId: sentId, msgContext: messageContext, reaction: '', timestamp, senderName: message.senderName, senderMobile: message.senderMobile, star: 0, route: 'OUTGOING', context: null, origin, sentBy: 'bot' };
   onStage?.('training-conversation-persist');
   await require('./chatbot-conversation-store').persistConversationMessage({ uid, chatId, data: { ...messageData, msgContext: JSON.stringify(messageData.msgContext), context: null } });
   await query(`UPDATE beta_chats SET last_message=? WHERE uid=? AND chat_id=?`, [JSON.stringify(messageData), uid, chatId]);
-  if (selectedForCallback) {
-    const courseName = selectedForCallback.nameEn || selectedForCallback.nameAr || selectedForCallback.code;
-    await handoffConversation(ctx, chatId, channelKind, sessionId, 'qatar-coordinator-callback', profile, uid,
-      { courseInterest: courseName, qatarContactNumber: leadInfo.qatarContactNumber }, { pause: false }).catch(error => {
-      console.warn('[chatbot] Qatar callback handoff unavailable', error.code || 'QATAR_CALLBACK_HANDOFF_FAILED');
-    });
+  if (handoffClaim?.id) {
+    handoffClaim = await handoffConversation(ctx, chatId, channelKind, sessionId, handoffReason, profile, uid,
+      { courseInterest: selectedForCallback?.nameEn || selectedForCallback?.nameAr || courseSelection?.topic || leadInfo?.courseInterest,
+        qatarContactNumber: leadInfo?.qatarContactNumber }, { pause: true });
+    await recordHandoffAcknowledgement(ctx, handoffClaim, message);
   }
-  if (courseSelection?.unlisted && leadInfo?.senderIsQatar) {
-    await handoffConversation(ctx, chatId, channelKind, sessionId, 'course-details-need-coordinator', profile, uid,
-      { courseInterest: courseSelection.topic }, { pause: false }).catch(error => {
-      console.warn('[chatbot] unlisted course coordinator request unavailable', error.code || 'COURSE_COORDINATOR_HANDOFF_FAILED');
-    });
+  if (handoffClaim?.id && leadInfo?.contactPromptPending) {
+    await require('./chatbot-lead-capture').markContactPromptAsked(dbPool, leadInfo, uid);
   }
   let questionLeadInfo = deferLeadQuestion ? null : leadInfo;
   if (reply.openingTexts) {
@@ -668,12 +709,12 @@ async function trainingCenterGuidedTurn({ ctx, profile, uid, message, sessionId,
         return true;
       }
     }
-    if (qatarContactPromptAdded) await require('./chatbot-lead-capture').markQatarContactAsked(dbPool, leadInfo, uid);
+    if (contactPromptAdded) await require('./chatbot-lead-capture').markContactPromptAsked(dbPool, leadInfo, uid);
     if (!require('./chatbot-lead-capture').standaloneNamePrompt(questionLeadInfo)) questionLeadInfo = null;
   }
-  if (qatarContactPromptAdded && !reply.openingTexts) await require('./chatbot-lead-capture').markQatarContactAsked(dbPool, leadInfo, uid);
-  if (qatarContactPromptAdded) questionLeadInfo = null;
-  if (!reply.handoff) await sendCourseReplyFollowups({ ctx, profile, uid, origin, sessionId, chatId, message,
+  if (contactPromptAdded && !reply.openingTexts) await require('./chatbot-lead-capture').markContactPromptAsked(dbPool, leadInfo, uid);
+  if (contactPromptAdded || handoffClaim?.id) questionLeadInfo = null;
+  if (!reply.handoff && !handoffClaim?.id) await sendCourseReplyFollowups({ ctx, profile, uid, origin, sessionId, chatId, message,
     leadInfo: questionLeadInfo, media: reply.openingTexts ? [] : reply.media, state: reply.state });
   return true;
 }
@@ -738,6 +779,23 @@ function coordinatorReply({ language, followUp = false }) {
     : 'I’ve passed your enquiry to the course coordinator so they can contact you soon and help you further.';
 }
 
+async function draftContactAssistant({ ctx, leadInfo = null, mode = 'contact', handoffQueued = false, needsName = null,
+  needsQatarNumber = null, qatarNumberSaved = null, courseName = null }) {
+  const result = await require('./chatbot-contact-assistant').draft({
+    pool: dbPool,
+    tenantId: ctx.tenant.id,
+    mode,
+    language: leadInfo?.language === 'ar' ? 'ar' : 'en',
+    courseName: courseName || leadInfo?.courseInterest || null,
+    nameCandidate: leadInfo?.nameCandidate || null,
+    needsName: needsName == null ? leadInfo?.needsName === true : needsName === true,
+    needsQatarNumber: needsQatarNumber == null ? leadInfo?.qatarContactPending === true : needsQatarNumber === true,
+    qatarNumberSaved: qatarNumberSaved == null ? Boolean(leadInfo?.qatarContactNumber) : qatarNumberSaved === true,
+    handoffQueued,
+  });
+  return String(result.reply || '').replaceAll('{name}', String(leadInfo?.nameCandidate || '').trim()).trim();
+}
+
 function qatarCallbackCourseName(leadInfo) {
   const interest = String(leadInfo?.courseInterest || '').trim();
   if (!interest || /^\+?[\d\s().-]+$/u.test(interest) && interest.replace(/\D/g, '').length >= 7) return null;
@@ -765,7 +823,7 @@ async function sendQatarContactResult({ ctx, profile, uid, message, sessionId, o
       console.warn('[chatbot] Qatar callback handoff unavailable', error.code || 'QATAR_CALLBACK_HANDOFF_FAILED');
     }
   }
-  const body = invalid
+  let body = invalid
     ? (language === 'ar'
       ? 'يرجى إرسال رقم جوال قطري صحيح من 8 أرقام، يبدأ بـ 3 أو 5 أو 6 أو 7. يمكنك كتابته مع ‎+974.'
       : 'Please send a valid Qatar mobile number with 8 digits, beginning with 3, 5, 6 or 7. You can include +974.')
@@ -776,8 +834,21 @@ async function sendQatarContactResult({ ctx, profile, uid, message, sessionId, o
       : (language === 'ar'
         ? 'شكرًا، حفظت رقم التواصل القطري. ما الدورة التي تود معرفة المزيد عنها؟ يمكنني مشاركة التفاصيل المنشورة هنا.'
         : 'Thanks, I’ve saved your Qatar contact number. Which course would you like to know more about? I can share its published details here.');
+  if (!invalid && queued) body = await draftContactAssistant({ ctx, leadInfo, mode: 'handoff',
+    handoffQueued: true, qatarNumberSaved: true, courseName: callbackCourse });
+  else if (!invalid && leadInfo?.needsName) {
+    const namePrompt = await draftContactAssistant({ ctx, leadInfo, mode: 'contact',
+      needsName: true, needsQatarNumber: false });
+    body = [body, namePrompt].filter(Boolean).join('\n\n');
+  }
   if (!await canSendNow({ ctx, profile, uid, origin, sessionId, chatId, message, checkPause: false })) return { paused: true };
   const sent = await sendBotText({ origin, sessionId, message, uid, chatId, body, bypassBotPause: true });
+  if (sent && queued?.id) {
+    const pausedClaim = await handoffConversation(ctx, chatId, channelFor(origin), sessionId, 'qatar-coordinator-callback', profile, uid,
+      { courseInterest: callbackCourse, qatarContactNumber: leadInfo.qatarContactNumber }, { pause: true });
+    await recordHandoffAcknowledgement(ctx, pausedClaim, message);
+    if (leadInfo?.contactPromptPending) await require('./chatbot-lead-capture').markContactPromptAsked(dbPool, leadInfo, uid);
+  }
   return sent ? { sent: true, route: invalid ? 'qatar-contact-validation' : queued ? 'qatar-coordinator-callback' : 'qatar-contact-saved' }
     : { handedOff: true, code: 'CHANNEL_SEND_FAILED' };
 }
@@ -887,6 +958,19 @@ async function generateAiAnswer({ ctx, profile, uid, customerMessage, chatId = n
   const facts = factsOverride || await loadFacts();
   let session = state || (chatId ? await loadDomainGuidedSession({ ctx, profile, chatId, channelKind, channelRef }) : null) || {};
   const courseCertificates = ctx.category.key === 'training_center';
+  if (courseCertificates && session.selectedCourseCode
+    && !facts.some(item => !item.kind && item.code === session.selectedCourseCode)) {
+    session = { ...session, selectedCourseCode: null };
+  }
+  if (courseCertificates && businessContext.isStandalonePriceQuestion(customerMessage) && uid && chatId && channelKind) {
+    const recentHistory = Array.isArray(historyOverride) && historyOverride.length
+      ? historyOverride
+      : await loadConversationHistory({ uid, chatId,
+        origin: channelKind === 'whatsapp_qr' ? 'qr' : channelKind === 'whatsapp_meta' ? 'meta' : null,
+        currentMessage: customerMessage });
+    const recentCourse = businessContext.recentAssistantCourseCode(recentHistory, facts);
+    if (recentCourse) session = { ...session, selectedCourseCode: recentCourse };
+  }
   const courseRoute = courseCertificates ? businessContext.controlRoute(customerMessage, profile.config, session, facts, { courseCertificates }) : null;
   const staffRequested = courseRoute === 'human' || courseRoute === 'handoff';
   let staffReason = courseRoute === 'human' ? 'customer-requested-human' : courseRoute === 'handoff' ? 'customer-requested-specialist' : null;
@@ -914,6 +998,14 @@ async function generateAiAnswer({ ctx, profile, uid, customerMessage, chatId = n
     selectedCourseCode: context.explicitCourses ? context.selectedCourseCode : session.selectedCourseCode || null,
     ...(session.pendingCertificateQuestion ? { pendingCertificateQuestion: null } : {}),
   };
+  if (courseCertificates && businessContext.isStandalonePriceQuestion(customerMessage) && !context.selectedCourseCode) {
+    const reply = context.language === 'ar'
+      ? 'أي دورة تريد معرفة رسومها؟ اكتب اسم الدورة وسأتحقق من السعر المنشور.'
+      : 'Which course’s fee would you like me to check? Tell me the course name and I’ll look up its published price.';
+    return { canAnswer: true, confidence: 1, reply, state: { ...nextState, waitingForCourse: true },
+      route: 'clarification', suppressIntakeQuestion: true,
+      metrics: { inputTokens: 0, outputTokens: 0, cacheHit: false, sources: context.sources } };
+  }
   const repeat = continuity ? businessContext.repeatQuestion(customerMessage, context, session) : null;
   const personalReply = personalUpdateReply(customerMessage, context);
   if (personalReply) return { canAnswer: true, confidence: 1, reply: personalReply,
@@ -976,7 +1068,7 @@ async function generateAiAnswer({ ctx, profile, uid, customerMessage, chatId = n
     return { canAnswer: true, confidence: 1,
       reply: [coordinatorCourseFacts(context, customerMessage), reply].filter(Boolean).join(' '),
       state: { ...nextState, coordinatorFollowUp: !followUp }, route: 'coordinator',
-      staffRequested, staffNotificationQueued, suppressIntakeQuestion: true,
+      staffRequested, staffNotificationQueued, handoffReason: staffReason, suppressIntakeQuestion: true,
       metrics: { inputTokens: 0, outputTokens: 0, cacheHit: false, sources: context.sources } };
   };
   if (coordinatorPolicy && staffReason) return coordinatorAnswer();
@@ -1100,7 +1192,8 @@ async function generateAiAnswer({ ctx, profile, uid, customerMessage, chatId = n
     state: nextState, route: 'safe_fallback', reason: 'BUSINESS_DATA_CHANGED', staffRequested, staffNotificationQueued, metrics };
   const usedCourses = context.evidence.filter(item => item.kind === 'course' && response.sourceIds.includes(item.sourceId));
   if (usedCourses.length === 1 && businessContext.normalized(response.reply).includes(businessContext.normalized(usedCourses[0].name))) nextState.selectedCourseCode = usedCourses[0].code;
-  const answer = { canAnswer: true, confidence: response.confidence, reply: response.reply, state: nextState, route: 'ai', repeat: Boolean(repeat), staffRequested, staffNotificationQueued, metrics };
+  const answer = { canAnswer: true, confidence: response.confidence, reply: response.reply, state: nextState, route: 'ai',
+    repeat: Boolean(repeat), staffRequested, staffNotificationQueued, handoffReason: staffReason, metrics };
   // Cache only answers without customer history or contact/private identifiers.
   if (!staffReason && !staffRequested && !historySafe.length && customerMessage.length <= 180 && /fee|price|duration|schedule|centre|center|location|address|رسوم|سعر|مدة|عنوان|موقع/i.test(customerMessage) && !/[0-9]{7,}|@|my name|اسمي/i.test(customerMessage)) {
     if (replyCache.size >= CACHE_MAX) replyCache.delete(replyCache.keys().next().value);
@@ -1371,7 +1464,16 @@ async function aiTurn({ ctx, profile, uid, message, user, sessionId, origin, cha
           preferredStart: leadInfo.intake.preferredStart || null } : null, continuity, onStage });
   if (leadInfo?.intake && !acknowledgement && !answer.paused) answer = admissions.planReply(answer, leadInfo);
   if (answer.handedOff || answer.paused) return answer;
-  if (leadInfo?.qatarContactSubmitted) {
+  let handoffReasonForTurn = null;
+  if (answer.staffNotificationQueued) {
+    handoffReasonForTurn = answer.handoffReason || 'course-details-need-coordinator';
+    answer.reply = await draftContactAssistant({ ctx, leadInfo, mode: 'handoff', handoffQueued: true });
+  } else if (qatarCallbackClaim?.id) {
+    handoffReasonForTurn = 'qatar-coordinator-callback';
+    const callbackReply = await draftContactAssistant({ ctx, leadInfo, mode: 'handoff',
+      handoffQueued: true, qatarNumberSaved: true });
+    answer.reply = [String(answer.reply || '').trim(), callbackReply].filter(Boolean).join('\n\n');
+  } else if (leadInfo?.qatarContactSubmitted) {
     const callbackNote = qatarCallbackClaim
       ? (leadInfo.language === 'ar'
         ? 'حفظت رقم التواصل القطري وأحلت طلب المتابعة إلى منسقي الدورات. ويمكنني مواصلة مساعدتك هنا.'
@@ -1384,14 +1486,17 @@ async function aiTurn({ ctx, profile, uid, message, user, sessionId, origin, cha
   const pack = getDomainPack(ctx.category.key, ctx.category.version);
   const onboarding = ctx.tenant.categoryKey === 'training_center' && !answer.state?.greeted;
   if (onboarding) answer.state = { ...(answer.state || {}), greeted: true };
-  const questionLeadInfo = answer.staffRequested || answer.staffNotificationQueued
+  const questionLeadInfo = answer.staffNotificationQueued || qatarCallbackClaim?.id
     || answer.suppressIntakeQuestion
     || (answer.route === 'clarification' && (continuity || answer.reason === 'CERTIFICATE_DETAILS_UNVERIFIED'))
     || ((acknowledgement || answer.repeat) && leadInfo?.intake?.state.waiting) ? null : leadInfo?.intake
     ? { ...leadInfo, intake: { ...leadInfo.intake, session: answer.state || {} } }
     : onboarding ? null : leadInfo;
+  const contactPromptInfo = !handoffReasonForTurn && leadInfo?.contactPromptPending
+    ? { ...leadInfo, contactPrompt: await draftContactAssistant({ ctx, leadInfo, mode: 'contact' }) }
+    : null;
   const answerBeforeIntake = answer.reply;
-  answer.reply = require('./chatbot-lead-capture').addQuestion(answer.reply, questionLeadInfo, profile.config, pack.guidedContentDefaults);
+  answer.reply = require('./chatbot-lead-capture').addQuestion(answer.reply, contactPromptInfo || questionLeadInfo, profile.config, pack.guidedContentDefaults);
   onStage?.('reply-authority-check');
   if (!await canSendNow({ ctx, profile, uid, origin, sessionId, chatId, message })) return { paused: true };
   const { sendWaMessage } = require('../../automation/functions');
@@ -1403,11 +1508,20 @@ async function aiTurn({ ctx, profile, uid, message, user, sessionId, origin, cha
   const messageData = { type: 'text', metaChatId: sentId, msgContext: { type: 'text', text: { preview_url: false, body: answer.reply } }, reaction: '', timestamp, senderName: message.senderName, senderMobile: message.senderMobile, star: 0, route: 'OUTGOING', context: null, origin, sentBy: 'bot' };
   await require('./chatbot-conversation-store').persistConversationMessage({ uid, chatId, data: { ...messageData, msgContext: JSON.stringify(messageData.msgContext), context: null } });
   await query(`UPDATE beta_chats SET last_message=? WHERE uid=? AND chat_id=?`, [JSON.stringify(messageData), uid, chatId]);
+  if (handoffReasonForTurn) {
+    const pausedClaim = await handoffConversation(ctx, chatId, channelFor(origin), sessionId, handoffReasonForTurn, profile, uid,
+      { courseInterest: leadInfo?.courseInterest || null, qatarContactNumber: leadInfo?.qatarContactNumber || null }, { pause: true });
+    await recordHandoffAcknowledgement(ctx, pausedClaim, message);
+    if (leadInfo?.contactPromptPending) await require('./chatbot-lead-capture').markContactPromptAsked(dbPool, leadInfo, uid);
+  } else if (contactPromptInfo) {
+    await require('./chatbot-lead-capture').markContactPromptAsked(dbPool, leadInfo, uid);
+  }
   if (answer.state) await saveConversationalState({ ctx, profile, chatId, channelKind: channelFor(origin), channelRef: sessionId, state: { ...answer.state, recentConversation: intakeAnswer ? answer.state.recentConversation || [] : [...(answer.state.recentConversation || []),
     { role: 'user', text: incomingText.slice(0, 400) },
     { role: 'assistant', text: (leadInfo?.intake ? answerBeforeIntake : answer.reply).slice(0, 500) }].slice(-4) } });
-  const media = acknowledgement ? [] : require('./chatbot-course-media').coursePdfs(leadInfo?.facts || [], answer.state?.selectedCourseCode, incomingText, answer.state?.sentCoursePdfIds || []);
-  await sendCourseReplyFollowups({ ctx, profile, uid, origin, sessionId, chatId, message, leadInfo: questionLeadInfo, media, state: answer.state });
+  const media = acknowledgement || handoffReasonForTurn ? [] : require('./chatbot-course-media').coursePdfs(leadInfo?.facts || [], answer.state?.selectedCourseCode, incomingText, answer.state?.sentCoursePdfIds || []);
+  if (!handoffReasonForTurn) await sendCourseReplyFollowups({ ctx, profile, uid, origin, sessionId, chatId, message,
+    leadInfo: contactPromptInfo ? null : questionLeadInfo, media, state: answer.state });
   return { sent: true, route: answer.route, reason: answer.reason, metrics: answer.metrics };
 }
 

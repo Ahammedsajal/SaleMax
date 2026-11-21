@@ -224,6 +224,20 @@ function isStandalonePriceQuestion(message) {
   return text.split(' ').every(word => PRICE_QUESTION_WORDS.has(word));
 }
 
+function recentAssistantCourseCode(history, facts) {
+  const turn = [...(Array.isArray(history) ? history : [])].reverse().find(item => item?.role === 'assistant' && typeof item.text === 'string');
+  if (!turn) return null;
+  const reply = normalized(turn.text);
+  const matches = (Array.isArray(facts) ? facts : []).filter(item => item?.code && !item.kind)
+    .map(item => ({ item, names: [item.nameEn, item.nameAr].filter(Boolean).map(normalized).filter(Boolean) }))
+    .filter(({ names }) => names.some(name => reply.includes(name)));
+  const matchingNames = matches.flatMap(({ item, names }) => names.filter(name => reply.includes(name)).map(name => ({ item, name })));
+  const longest = matchingNames.filter(candidate => !matchingNames.some(other => other !== candidate && other.item.code !== candidate.item.code
+    && other.name.length > candidate.name.length && other.name.includes(candidate.name)));
+  const codes = [...new Set(longest.map(item => item.item.code))];
+  return codes.length === 1 ? codes[0] : null;
+}
+
 function retrieveContext({ facts, knowledgeEntries = [], message, state = {}, profileRevision = 0, referral = null, includeRelatedFaqs = false }) {
   const language = languageFor(message, state);
   const courses = facts.filter(item => item.code && !item.kind);
@@ -237,7 +251,9 @@ function retrieveContext({ facts, knowledgeEntries = [], message, state = {}, pr
   const ranked = courses.map(item => ({ item, score: score(message, [item.code, item.nameEn, item.nameAr, item.descriptionEn, item.descriptionAr, item.outcomesEn, item.outcomesAr].join(' ')) }))
     .sort((a, b) => b.score - a.score);
   const generalBusinessQuestion = /where|location|address|refund|policy|discount|اين|عنوان|موقع|استرداد|استرجاع|سياسة|خصم/i.test(message);
-  let selected = direct.length ? direct.slice(0, 3) : referralCourse ? [referralCourse] : generalBusinessQuestion || genericAdInterest ? [] : ranked.filter(row => row.score >= 3).slice(0, 3).map(row => row.item);
+  let selected = direct.length ? direct.slice(0, 3) : referralCourse ? [referralCourse]
+    : generalBusinessQuestion || genericAdInterest || isStandalonePriceQuestion(message) ? []
+      : ranked.filter(row => row.score >= 3).slice(0, 3).map(row => row.item);
   const selectedPriceQuestion = !direct.length && !referralCourse && !state.waitingForCourse
     && Boolean(state.selectedCourseCode) && isStandalonePriceQuestion(message);
   const followUp = /\b(?:that|this|it|its|the course|how much|how long|when does|when is|certificate|certification|online|offline|in person|face to face|classroom|remote|hybrid|delivery|study mode|course format)\b|هذه|تلك|مدتها|رسومها|موعدها|كم الرسوم|كم مدتها|متى تبدأ|شهادة|الشهادة|اعتماد|اونلاين|عن بعد|حضوري|طريقة الدراسة|طريقة التقديم/iu.test(message);
@@ -502,6 +518,12 @@ function isTrainingGreeting(message) {
 function trainingGreeting({ message, state, facts, welcome }) {
   const language = languageFor(message, state);
   const ar = language === 'ar';
+  const configuredWelcome = String(welcome || '').trim();
+  const identifiedWelcome = /virtual assistant|مساعد افتراضي/iu.test(configuredWelcome)
+    ? configuredWelcome
+    : ar
+      ? `مرحبًا! 👋 أنا المساعد الافتراضي لمركز برو كاتاليست للتدريب. ${configuredWelcome.replace(/^(?:مرحبًا|مرحبا|أهلًا|اهلا)[،,! ]*/u, '').trim()}`.trim()
+      : `Hi! 👋 I’m Pro Catalyst Training Center’s virtual assistant. ${configuredWelcome.replace(/^(?:hi|hello)[,! ]*(?:👋\s*)?/iu, '').trim()}`.trim();
   const course = facts.find(item => !item.kind && item.code === state.selectedCourseCode);
   const name = course && local(course, 'name', language);
   const examples = facts.filter(item => !item.kind && item.code).map(item => local(item, 'name', language)).filter(Boolean).slice(0, 3);
@@ -515,7 +537,7 @@ function trainingGreeting({ message, state, facts, welcome }) {
       ar ? 'ما المهارة التي ترغب في تعلمها؟' : 'What skill would you like to pick up?'];
   const count = Number(state.trainingGreetingNudges) || 0;
   return {
-    reply: state.greeted ? nudges[count % nudges.length] : `${welcome} ${nextQuestion}`,
+    reply: state.greeted ? nudges[count % nudges.length] : `${identifiedWelcome} ${nextQuestion}`,
     state: { ...state, language, greeted: true, trainingGreetingNudges: state.greeted ? count + 1 : 0 },
   };
 }
@@ -719,4 +741,4 @@ function polishGuidedReply({ result, profile, message, state, defaults }) {
   return result;
 }
 
-module.exports = { normalized, fingerprint, languageFor, controlRoute, isScheduleQuestion, hasPublishedSchedule, courseDetailNeedsCoordinator, trainingCenterCoordinatorReason, publishedDurationRange, retrieveContext, validateAnswer, clarification, unavailableReply, publishedTrainingReply, simpleFactualReply, isCourseOverviewRequest, shouldSkipApprovedFaq, isGenericAdInterest, shouldClarifyGenericCourseInterest, isCourseDiscoveryFeedback, courseDiscoveryRepairReply, courseDiscoveryReply, ambiguousDiplomaCandidates, diplomaClarificationReply, isBareCourseSelection, courseInquiryTopic, previewState, redactCustomerText, polishGuidedReply, qrAdReferral, courseFromVerifiedReferral, isTrainingGreeting, trainingGreeting, repeatQuestion, repeatedCourseFact, isCertificateQuestion, courseCertificateReply, certificateFollowUp };
+module.exports = { normalized, fingerprint, languageFor, controlRoute, isScheduleQuestion, hasPublishedSchedule, courseDetailNeedsCoordinator, trainingCenterCoordinatorReason, publishedDurationRange, retrieveContext, validateAnswer, clarification, unavailableReply, publishedTrainingReply, simpleFactualReply, isCourseOverviewRequest, shouldSkipApprovedFaq, isGenericAdInterest, shouldClarifyGenericCourseInterest, isCourseDiscoveryFeedback, courseDiscoveryRepairReply, courseDiscoveryReply, ambiguousDiplomaCandidates, diplomaClarificationReply, isBareCourseSelection, courseInquiryTopic, previewState, redactCustomerText, polishGuidedReply, qrAdReferral, courseFromVerifiedReferral, isTrainingGreeting, trainingGreeting, repeatQuestion, repeatedCourseFact, isCertificateQuestion, isStandalonePriceQuestion, recentAssistantCourseCode, courseCertificateReply, certificateFollowUp };

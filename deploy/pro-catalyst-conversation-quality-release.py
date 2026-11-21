@@ -1,4 +1,4 @@
-"""Guarded app-only release for Pro Catalyst greeting and conversation recovery."""
+"""Guarded app-only release for Pro Catalyst conversation and contact quality."""
 import copy
 import hashlib
 import json
@@ -20,10 +20,10 @@ SUPPORT = ('salemax-db-1', 'salemax-report-worker-1', 'salemax-libretranslate-1'
            'salemax-recruitment-founder-notification-worker-1', 'salemax-bot-lead-test-db')
 ASSETS = (
     'modules/platform/chatbot-business-context.js',
-    'modules/platform/chatbot-domain-packs.js',
     'modules/platform/chatbot-runtime.js',
-    'modules/platform/chatbot-training-guide.js',
+    'modules/platform/chatbot-lead-capture.js',
 )
+NEW_ASSETS = ('modules/platform/chatbot-contact-assistant.js',)
 GREETING = {
     'en': 'Hi! 👋 I’m Pro Catalyst Training Center’s virtual assistant. I can help you explore our courses and answer your questions.',
     'ar': 'مرحبًا! 👋 أنا المساعد الافتراضي لمركز برو كاتاليست للتدريب. يمكنني مساعدتك في استكشاف دوراتنا والإجابة عن أسئلتك.',
@@ -151,7 +151,7 @@ def deploy(stage, commit):
     require_lock()
     if not re.fullmatch(r'[a-f0-9]{40}', commit):
         raise RuntimeError('invalid source commit')
-    if not stage.is_dir() or not all((stage / asset).is_file() for asset in ASSETS):
+    if not stage.is_dir() or not all((stage / asset).is_file() for asset in (*ASSETS, *NEW_ASSETS)):
         raise RuntimeError('staging directory is missing reviewed runtime assets')
     app = inspect(APP)
     if app['State'].get('Health', {}).get('Status') != 'healthy' or app['Image'] != EXPECTED_IMAGE:
@@ -208,6 +208,17 @@ def deploy(stage, commit):
         changed[target] = data
         prior_hashes[target] = original_hash
         expected_hashes[target] = sha(data)
+    for target in NEW_ASSETS:
+        live_path = '/app/' + target
+        if run('docker', 'exec', APP, 'test', '!', '-e', live_path, check=False).returncode:
+            raise RuntimeError('new runtime file already exists: ' + target)
+        data = (stage / target).read_bytes()
+        output = runtime / target
+        output.parent.mkdir(parents=True, exist_ok=True, mode=0o755)
+        output.write_bytes(data)
+        output.chmod(0o644)
+        changed[target] = data
+        expected_hashes[target] = sha(data)
     (backup / 'preimage-hashes.json').write_text(json.dumps(prior_hashes, indent=2) + '\n')
     (release / 'runtime-hashes.json').write_text(json.dumps(expected_hashes, indent=2) + '\n')
 
@@ -249,7 +260,7 @@ def deploy(stage, commit):
 
     if any(sha(Path(path).read_bytes()) != digest for path, digest in input_hashes.items()) or inspect(APP)['Id'] != app['Id']:
         raise RuntimeError('running app or Compose inputs changed during release preparation')
-    greeting_updated = False
+    greeting_updated = previous_greeting['en'] != GREETING['en'] or previous_greeting['ar'] != GREETING['ar']
     try:
         run(*candidate, 'up', '-d', '--no-deps', '--no-build', '--force-recreate', 'app', env=env)
         current = wait_healthy()
@@ -260,8 +271,9 @@ def deploy(stage, commit):
         for name, data in changed.items():
             if run('docker', 'exec', APP, 'sha256sum', '/app/' + name).stdout.split()[0] != sha(data):
                 raise RuntimeError('runtime file hash mismatch: ' + name)
-        set_greeting(previous_greeting, GREETING)
-        greeting_updated = True
+        if greeting_updated:
+            set_greeting(previous_greeting, GREETING)
+        (backup / 'profile-greeting-updated.json').write_text(json.dumps(greeting_updated) + '\n')
         final_greeting = read_greeting()
         if final_greeting['en'] != GREETING['en'] or final_greeting['ar'] != GREETING['ar']:
             raise RuntimeError('localized virtual-assistant greeting did not read back')
@@ -271,7 +283,7 @@ def deploy(stage, commit):
         result = {'sourceCommit': commit, 'release': str(release), 'rollback': str(backup),
                   'image': current['Image'], 'composeInputs': len(files) + 1,
                   'envInputs': len(env_files), 'mounts': len(current['Mounts']),
-                  'supportServicesUnchanged': True, 'profileGreetingUpdated': True,
+                  'supportServicesUnchanged': True, 'profileGreetingUpdated': greeting_updated,
                   'relayEnabled': final_greeting['relayEnabled'], 'shortCodesEnabled': final_greeting['shortCodesEnabled'],
                   'healthz': 'HTTP 200', 'hashes': expected_hashes}
         (backup / 'result.json').write_text(json.dumps(result, indent=2) + '\n')
@@ -317,12 +329,17 @@ def restore(backup):
         if run('docker', 'exec', APP, 'sha256sum', '/app/' + name).stdout.split()[0] != digest:
             raise RuntimeError('rollback file hash mismatch: ' + name)
     previous_greeting = json.loads((backup / 'profile-greeting.before.json').read_text())
-    restore_greeting(previous_greeting, GREETING)
+    if json.loads((backup / 'profile-greeting-updated.json').read_text()):
+        restore_greeting(previous_greeting, GREETING)
+    for name in NEW_ASSETS:
+        if run('docker', 'exec', APP, 'test', '!', '-e', '/app/' + name, check=False).returncode:
+            raise RuntimeError('new runtime file remains after rollback: ' + name)
     for name, identity in json.loads((backup / 'support-services.json').read_text()).items():
         if inspect(name)['Id'] != identity:
             raise RuntimeError('rollback support service changed')
     print(json.dumps({'rolledBack': str(release), 'appHealthy': True,
-                      'profileGreetingRestored': True, 'supportServicesUnchanged': True}))
+                      'profileGreetingRestored': json.loads((backup / 'profile-greeting-updated.json').read_text()),
+                      'supportServicesUnchanged': True}))
 
 
 if __name__ == '__main__':
