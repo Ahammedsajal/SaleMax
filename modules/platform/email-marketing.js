@@ -459,12 +459,81 @@ async function listCampaigns(db,ctx){
     WHERE c.tenant_id=? GROUP BY c.id ORDER BY c.created_at DESC,c.id LIMIT 200`,[ctx.tenantId]);
   return rows.map(row=>({...row,recipientCount:Number(row.recipientCount),acceptedCount:Number(row.acceptedCount||0),failedCount:Number(row.failedCount||0),suppressedCount:Number(row.suppressedCount||0),unknownCount:Number(row.unknownCount||0)}));
 }
-async function campaignDetail(db,ctx,id){
+async function campaignDetail(db,ctx,id,query={}){
   emailMarketingAccess(ctx.context);if(typeof id!=='string'||!/^[-0-9a-f]{36}$/i.test(id))fail('INVALID_EMAIL_CAMPAIGN_ID');
-  const [[campaign]]=await db.query(`SELECT c.id,c.name,c.status,c.subject,c.text_body AS text,c.reply_to_email AS replyToEmail,c.scheduled_at AS scheduledAt,c.created_at AS createdAt,c.recipient_count AS recipientCount,
-    s.email AS senderEmail FROM sx_email_campaigns c JOIN sx_email_senders s ON s.tenant_id=c.tenant_id AND s.id=c.sender_id WHERE c.tenant_id=? AND c.id=?`,[ctx.tenantId,id]);if(!campaign)fail('EMAIL_CAMPAIGN_NOT_FOUND',404);
-  const [recipients]=await db.query('SELECT id,recipient_email AS email,recipient_name AS name,status,provider_message_id AS providerMessageId,last_error_code AS errorCode,accepted_at AS acceptedAt FROM sx_email_campaign_recipients WHERE tenant_id=? AND campaign_id=? ORDER BY id LIMIT 1000',[ctx.tenantId,id]);
-  return {...campaign,recipients};
+  const [[campaign]]=await db.query(`SELECT c.id,c.name,c.status,c.subject,c.text_body AS text,c.design_json AS design,c.reply_to_email AS replyToEmail,
+      c.scheduled_at AS scheduledAt,c.created_at AS createdAt,c.recipient_count AS recipientCount,c.phonebook_id AS phonebookId,
+      s.email AS senderEmail FROM sx_email_campaigns c JOIN sx_email_senders s ON s.tenant_id=c.tenant_id AND s.id=c.sender_id
+    WHERE c.tenant_id=? AND c.id=?`,[ctx.tenantId,id]);if(!campaign)fail('EMAIL_CAMPAIGN_NOT_FOUND',404);
+
+  const eventsJoin=`LEFT JOIN (SELECT tenant_id,campaign_id,recipient_id,
+      MAX(event_type='Delivery') AS delivered,MIN(IF(event_type='Delivery',created_at,NULL)) AS deliveredAt,
+      MAX(event_type='Open') AS opened,MIN(IF(event_type='Open',created_at,NULL)) AS openedAt,
+      MAX(event_type='Click') AS clicked,MIN(IF(event_type='Click',created_at,NULL)) AS clickedAt,
+      MAX(event_type='Bounce') AS bounced,MIN(IF(event_type='Bounce',created_at,NULL)) AS bouncedAt,
+      MAX(event_type='Reject') AS rejected,MIN(IF(event_type='Reject',created_at,NULL)) AS rejectedAt,
+      MAX(event_type='Complaint') AS complained
+    FROM sx_email_provider_events WHERE tenant_id=? AND campaign_id=? GROUP BY tenant_id,campaign_id,recipient_id) ev
+    ON ev.tenant_id=r.tenant_id AND ev.campaign_id=r.campaign_id AND ev.recipient_id=r.id`;
+  const repliesJoin=`LEFT JOIN (SELECT t.tenant_id,t.campaign_id,t.recipient_id,COUNT(DISTINCT m.id) AS replyCount,
+      MIN(m.created_at) AS repliedAt FROM sx_email_threads t JOIN sx_email_messages m
+        ON m.tenant_id=t.tenant_id AND m.thread_id=t.id AND m.direction='inbound'
+    WHERE t.tenant_id=? AND t.campaign_id=? GROUP BY t.tenant_id,t.campaign_id,t.recipient_id) rep
+    ON rep.tenant_id=r.tenant_id AND rep.campaign_id=r.campaign_id AND rep.recipient_id=r.id`;
+  const rollupParams=[ctx.tenantId,id,ctx.tenantId,id];
+  const [[rawSummary]]=await db.query(`SELECT COUNT(*) AS recipients,
+      SUM(r.status='accepted') AS sent,SUM(COALESCE(ev.delivered,0)>0) AS delivered,
+      SUM(COALESCE(ev.opened,0)>0) AS opened,SUM(COALESCE(ev.clicked,0)>0) AS clicked,
+      SUM(COALESCE(rep.replyCount,0)>0) AS replied,SUM(COALESCE(ev.bounced,0)>0) AS bounced,
+      SUM(r.status='failed' OR COALESCE(ev.rejected,0)>0) AS failed,SUM(r.status='suppressed') AS suppressed,
+      SUM(r.status IN ('pending','sending','unknown')) AS inProgress,
+      SUM(COALESCE(ev.bounced,0)>0) AS outcomeBounced,
+      SUM(COALESCE(ev.bounced,0)=0 AND (r.status='failed' OR COALESCE(ev.rejected,0)>0)) AS outcomeFailed,
+      SUM(COALESCE(ev.bounced,0)=0 AND r.status<>'failed' AND COALESCE(ev.rejected,0)=0 AND r.status='suppressed') AS outcomeSuppressed,
+      SUM(COALESCE(ev.bounced,0)=0 AND r.status<>'failed' AND COALESCE(ev.rejected,0)=0 AND r.status<>'suppressed' AND COALESCE(ev.delivered,0)>0) AS outcomeDelivered,
+      SUM(COALESCE(ev.bounced,0)=0 AND r.status<>'failed' AND COALESCE(ev.rejected,0)=0 AND r.status<>'suppressed' AND COALESCE(ev.delivered,0)=0 AND r.status='accepted') AS outcomeSent,
+      SUM(COALESCE(ev.bounced,0)=0 AND r.status<>'failed' AND COALESCE(ev.rejected,0)=0 AND r.status<>'suppressed' AND COALESCE(ev.delivered,0)=0 AND r.status<>'accepted') AS outcomeInProgress
+    FROM sx_email_campaign_recipients r ${eventsJoin} ${repliesJoin}
+    WHERE r.tenant_id=? AND r.campaign_id=?`,[...rollupParams,ctx.tenantId,id]);
+  const summary=Object.fromEntries(Object.entries(rawSummary||{}).map(([key,value])=>[key,Number(value||0)]));
+
+  const statuses=new Set(['sent','delivered','read','replied','clicked','bounced','failed','suppressed','pending']);
+  const status=String(query?.status||'all');
+  const statusSql={
+    sent:"r.status='accepted'",delivered:'COALESCE(ev.delivered,0)>0',read:'COALESCE(ev.opened,0)>0',
+    replied:'COALESCE(rep.replyCount,0)>0',clicked:'COALESCE(ev.clicked,0)>0',bounced:'COALESCE(ev.bounced,0)>0',
+    failed:"(r.status='failed' OR COALESCE(ev.rejected,0)>0)",suppressed:"r.status='suppressed'",
+    pending:"r.status IN ('pending','sending','unknown')"
+  };
+  const selectedStatus=statuses.has(status)?status:'all';
+  const search=String(query?.search||'').trim().slice(0,120);
+  const where=['r.tenant_id=?','r.campaign_id=?'],filterParams=[ctx.tenantId,id];
+  if(search){where.push('(r.recipient_email LIKE ? OR r.recipient_name LIKE ?)');filterParams.push(`%${search}%`,`%${search}%`);}
+  if(selectedStatus!=='all')where.push(statusSql[selectedStatus]);
+  const whereSql=where.join(' AND ');
+  const requestedLimit=Number(query?.limit),limit=[25,50,100].includes(requestedLimit)?requestedLimit:50;
+  const requestedPage=Number(query?.page),page=Number.isSafeInteger(requestedPage)&&requestedPage>0?Math.min(requestedPage,100000):1;
+  const [[countRow]]=await db.query(`SELECT COUNT(*) AS total FROM sx_email_campaign_recipients r ${eventsJoin} ${repliesJoin} WHERE ${whereSql}`,[...rollupParams,...filterParams]);
+  const total=Number(countRow?.total||0),pages=Math.max(1,Math.ceil(total/limit)),currentPage=Math.min(page,pages),offset=(currentPage-1)*limit;
+  const [recipients]=await db.query(`SELECT r.id,r.recipient_email AS email,r.recipient_name AS name,r.status AS sendStatus,
+      r.provider_message_id AS providerMessageId,r.last_error_code AS errorCode,r.accepted_at AS sentAt,
+      COALESCE(ev.delivered,0) AS delivered,ev.deliveredAt,COALESCE(ev.opened,0) AS opened,ev.openedAt,
+      COALESCE(ev.clicked,0) AS clicked,ev.clickedAt,COALESCE(rep.replyCount,0) AS replyCount,rep.repliedAt,
+      COALESCE(ev.bounced,0) AS bounced,ev.bouncedAt,COALESCE(ev.rejected,0) AS rejected,ev.rejectedAt,COALESCE(ev.complained,0) AS complained,
+      CASE WHEN COALESCE(ev.bounced,0)>0 THEN 'bounced'
+        WHEN r.status='failed' OR COALESCE(ev.rejected,0)>0 THEN 'failed'
+        WHEN r.status='suppressed' THEN 'suppressed'
+        WHEN COALESCE(ev.delivered,0)>0 THEN 'delivered'
+        WHEN r.status='accepted' THEN 'sent'
+        WHEN r.status='unknown' THEN 'unknown'
+        WHEN r.status='sending' THEN 'sending' ELSE 'pending' END AS status
+    FROM sx_email_campaign_recipients r ${eventsJoin} ${repliesJoin}
+    WHERE ${whereSql} ORDER BY r.created_at DESC,r.recipient_name,r.id LIMIT ? OFFSET ?`,[...rollupParams,...filterParams,limit,offset]);
+  const [attachments]=await db.query(`SELECT a.file_name AS fileName,a.content_type AS contentType,a.size_bytes AS size
+    FROM sx_email_campaign_attachments x JOIN sx_email_attachments a ON a.tenant_id=x.tenant_id AND a.id=x.attachment_id
+    WHERE x.tenant_id=? AND x.campaign_id=? ORDER BY a.file_name`,[ctx.tenantId,id]);
+  return {...campaign,summary,recipients:recipients.map(row=>({...row,replyCount:Number(row.replyCount||0)})),attachments,
+    pagination:{page:currentPage,limit,total,pages},filters:{search,status:selectedStatus}};
 }
 
 async function analytics(db,ctx,requestedDays=30){
@@ -496,6 +565,10 @@ async function analytics(db,ctx,requestedDays=30){
   const [unsubscribeRows]=await db.query(`SELECT COUNT(DISTINCT normalized_email) AS unsubscribed
     FROM sx_email_consent_events WHERE tenant_id=? AND consented=0 AND source='one_click'
       AND created_at>=DATE_SUB(UTC_TIMESTAMP(3),INTERVAL ? DAY)`,[ctx.tenantId,days]);
+  const [replyRows]=await db.query(`SELECT COUNT(DISTINCT t.recipient_id) AS replied
+    FROM sx_email_threads t JOIN sx_email_messages m ON m.tenant_id=t.tenant_id AND m.thread_id=t.id
+    WHERE t.tenant_id=? AND t.campaign_id IS NOT NULL AND m.direction='inbound'
+      AND m.created_at>=DATE_SUB(UTC_TIMESTAMP(3),INTERVAL ? DAY)`,[ctx.tenantId,days]);
   const [campaigns]=await db.query(`SELECT c.id,c.name,c.subject,c.status,c.recipient_count AS recipients,c.accepted_count AS accepted,
       c.suppressed_count AS suppressed,c.created_at AS createdAt,
       COUNT(DISTINCT IF(r.status='failed' OR e.event_type='Reject',r.id,NULL)) AS failed,
@@ -504,28 +577,46 @@ async function analytics(db,ctx,requestedDays=30){
       COUNT(DISTINCT IF(e.event_type='Click',e.recipient_id,NULL)) AS clicked,
       COUNT(DISTINCT IF(e.event_type='Bounce',e.recipient_id,NULL)) AS bounced,
       COUNT(DISTINCT IF(e.event_type='Complaint',e.recipient_id,NULL)) AS complained,
-      COUNT(DISTINCT IF(e.event_type='Reject',e.recipient_id,NULL)) AS rejected
+      COUNT(DISTINCT IF(e.event_type='Reject',e.recipient_id,NULL)) AS rejected,
+      MAX(COALESCE(reply_stats.replied,0)) AS replied
     FROM sx_email_campaigns c
     LEFT JOIN sx_email_campaign_recipients r ON r.tenant_id=c.tenant_id AND r.campaign_id=c.id
     LEFT JOIN sx_email_provider_events e ON e.tenant_id=r.tenant_id AND e.campaign_id=r.campaign_id AND e.recipient_id=r.id
+    LEFT JOIN (SELECT t.tenant_id,t.campaign_id,COUNT(DISTINCT t.recipient_id) AS replied
+      FROM sx_email_threads t JOIN sx_email_messages m ON m.tenant_id=t.tenant_id AND m.thread_id=t.id
+      WHERE t.campaign_id IS NOT NULL AND m.direction='inbound'
+        AND m.created_at>=DATE_SUB(UTC_TIMESTAMP(3),INTERVAL ? DAY)
+      GROUP BY t.tenant_id,t.campaign_id) AS reply_stats
+      ON reply_stats.tenant_id=c.tenant_id AND reply_stats.campaign_id=c.id
     WHERE c.tenant_id=? AND c.created_at>=DATE_SUB(UTC_TIMESTAMP(3),INTERVAL ? DAY)
-    GROUP BY c.id ORDER BY c.created_at DESC,c.id DESC LIMIT 100`,[ctx.tenantId,days]);
-  return {days,totals:{...(campaignRows[0]||{}),...(recipientRows[0]||{}),...(eventRows[0]||{}),...(unsubscribeRows[0]||{}),...(failureRows[0]||{})},campaigns};
+    GROUP BY c.id ORDER BY c.created_at DESC,c.id DESC LIMIT 100`,[days,ctx.tenantId,days]);
+  return {days,totals:{...(campaignRows[0]||{}),...(recipientRows[0]||{}),...(eventRows[0]||{}),...(unsubscribeRows[0]||{}),...(failureRows[0]||{}),...(replyRows[0]||{})},campaigns};
 }
 
 async function inbox(db,ctx){
   emailMarketingAccess(ctx.context);
-  const [rows]=await db.query(`SELECT id,campaign_id AS campaignId,recipient_id AS recipientId,recipient_email AS email,recipient_name AS name,subject,last_message_at AS lastMessageAt,unread_count AS unreadCount
-    FROM sx_email_threads WHERE tenant_id=? ORDER BY last_message_at DESC,id DESC LIMIT 200`,[ctx.tenantId]);
+  const [rows]=await db.query(`SELECT t.id,t.campaign_id AS campaignId,t.recipient_id AS recipientId,COALESCE(t.sender_id,c.sender_id) AS senderId,
+      t.recipient_email AS email,t.recipient_name AS name,t.subject,t.last_message_at AS lastMessageAt,t.unread_count AS unreadCount,
+      (SELECT COUNT(*) FROM sx_email_messages d WHERE d.tenant_id=t.tenant_id AND d.thread_id=t.id AND d.delivery_status='draft') AS draftCount
+    FROM sx_email_threads t LEFT JOIN sx_email_campaigns c ON c.tenant_id=t.tenant_id AND c.id=t.campaign_id
+    WHERE t.tenant_id=? ORDER BY t.last_message_at DESC,t.id DESC LIMIT 200`,[ctx.tenantId]);
   const [[receiving]]=await db.query("SELECT COUNT(*) AS total FROM sx_email_inbound_domains WHERE tenant_id=? AND receiving_status='active'",[ctx.tenantId]);
-  return {items:rows.map(row=>({...row,unreadCount:Number(row.unreadCount||0)})),receivingReady:Number(receiving?.total||0)>0};
+  return {items:rows.map(row=>({...row,unreadCount:Number(row.unreadCount||0),draftCount:Number(row.draftCount||0)})),receivingReady:Number(receiving?.total||0)>0};
 }
 async function threadMessages(db,ctx,id){
   emailMarketingAccess(ctx.context);if(typeof id!=='string'||!/^[-0-9a-f]{36}$/i.test(id))fail('INVALID_EMAIL_THREAD_ID');
   await db.query('UPDATE sx_email_threads SET unread_count=0 WHERE tenant_id=? AND id=?',[ctx.tenantId,id]);
-  const [[thread]]=await db.query('SELECT id,subject,recipient_email AS email,recipient_name AS name FROM sx_email_threads WHERE tenant_id=? AND id=?',[ctx.tenantId,id]);if(!thread)fail('EMAIL_THREAD_NOT_FOUND',404);
-  const [messages]=await db.query(`SELECT id,direction,from_email AS fromEmail,subject,text_body AS text,provider_message_id AS providerMessageId,sent_at AS sentAt,created_at AS createdAt
+  const [[thread]]=await db.query(`SELECT t.id,t.campaign_id AS campaignId,t.recipient_id AS recipientId,COALESCE(t.sender_id,c.sender_id) AS senderId,
+      t.subject,t.recipient_email AS email,t.recipient_name AS name FROM sx_email_threads t
+    LEFT JOIN sx_email_campaigns c ON c.tenant_id=t.tenant_id AND c.id=t.campaign_id WHERE t.tenant_id=? AND t.id=?`,[ctx.tenantId,id]);if(!thread)fail('EMAIL_THREAD_NOT_FOUND',404);
+  const [messages]=await db.query(`SELECT id,direction,from_email AS fromEmail,sender_email AS senderEmail,subject,text_body AS text,
+      provider_message_id AS providerMessageId,delivery_status AS deliveryStatus,draft_revision AS draftRevision,sent_at AS sentAt,created_at AS createdAt
     FROM sx_email_messages WHERE tenant_id=? AND thread_id=? ORDER BY COALESCE(sent_at,created_at),id LIMIT 500`,[ctx.tenantId,id]);
+  const [attachments]=await db.query(`SELECT x.message_id AS messageId,a.id,a.file_name AS fileName,a.content_type AS contentType,a.size_bytes AS size
+    FROM sx_email_message_attachments x JOIN sx_email_attachments a ON a.tenant_id=x.tenant_id AND a.id=x.attachment_id
+    WHERE x.tenant_id=? AND x.message_id IN (?) ORDER BY x.message_id,a.file_name`,[ctx.tenantId,messages.length?messages.map(message=>message.id):[0]]);
+  const attachmentsByMessage=new Map();for(const file of attachments){const items=attachmentsByMessage.get(String(file.messageId))||[];items.push({id:file.id,fileName:file.fileName,contentType:file.contentType,size:Number(file.size)});attachmentsByMessage.set(String(file.messageId),items);}
+  for(const message of messages){message.id=String(message.id);message.draftRevision=Number(message.draftRevision||0);message.attachments=attachmentsByMessage.get(message.id)||[];}
   const [[receiving]]=await db.query("SELECT COUNT(*) AS total FROM sx_email_inbound_domains WHERE tenant_id=? AND receiving_status='active'",[ctx.tenantId]);
   return {thread,messages,receivingReady:Number(receiving?.total||0)>0};
 }

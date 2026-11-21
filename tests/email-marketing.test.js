@@ -34,7 +34,7 @@ test('one-click tokens bind to UUID tenant, campaign and recipient scopes',()=>{
   assert.throws(()=>email.decodeToken(key,malformed),{code:'INVALID_UNSUBSCRIBE_TOKEN'});
 });
 
-test('audience preview requires valid address and explicit consent',()=>{
+test('audience preview requires valid addresses and excludes suppressed or unsubscribed contacts',()=>{
   const result=email.summarizeAudience([
     {id:1,email:'Sales@Example.com',email_marketing_consent:1},
     {id:2,email:'sales@example.com',email_marketing_consent:1},
@@ -44,8 +44,8 @@ test('audience preview requires valid address and explicit consent',()=>{
     {id:6,email:'stop@example.com',email_marketing_consent:1,email_unsubscribed_at:'2026-01-01'},
     {id:7,email:'bounce@example.com',email_marketing_consent:1,suppressed_email:'bounce@example.com'}
   ]);
-  assert.deepEqual(result.summary,{total:7,eligible:1,missingEmail:1,invalidEmail:1,noConsent:1,unsubscribed:1,suppressed:1,duplicate:1});
-  assert.deepEqual(result.eligible.map(row=>row.normalizedEmail),['sales@example.com']);
+  assert.deepEqual(result.summary,{total:7,eligible:2,missingEmail:1,invalidEmail:1,noConsent:1,unsubscribed:1,suppressed:1,duplicate:1});
+  assert.deepEqual(result.eligible.map(row=>row.normalizedEmail),['sales@example.com','none@example.com']);
   const changed=email.fingerprint([{id:1,email:'sales@example.com',email_marketing_consent:1}])!==email.fingerprint([{id:1,email:'sales@example.com',email_marketing_consent:0}]);
   assert.equal(changed,true);
 });
@@ -81,10 +81,33 @@ test('SES feedback handlers classify recipient events and restrict SNS URLs to t
 test('email analytics scopes every aggregate and campaign join to the current tenant',async()=>{
   const tenantId='aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
   const context={audience:'tenant',tenant:{id:tenantId,status:'active',categoryKey:'7network_sales',categoryVersion:1},membership:{id:'member',tenantId,role:'owner',status:'active'},category:{key:'7network_sales',version:1,capabilities:['email.marketing']},subscription:{status:'active',capabilities:[]}};
-  const calls=[];const db={query:async(sql,args)=>{calls.push({sql,args});if(sql.includes('FROM sx_email_campaigns WHERE'))return [[{campaigns:1,recipients:3,accepted:3,failed:0,suppressed:0}]];if(sql.includes('FROM sx_email_campaign_recipients'))return [[{accepted:3,failed:0,suppressed:0,unknownCount:0}]];if(sql.includes('FROM sx_email_provider_events WHERE'))return [[{delivered:2,bounced:1,complained:0,opened:1,clicked:1,rejected:0,delayed:0}]];return [[{id:'campaign',name:'Synthetic',recipients:3,delivered:2,opened:1,clicked:1}]];}};
+  const calls=[];const db={query:async(sql,args)=>{calls.push({sql,args});if(sql.includes('FROM sx_email_campaigns WHERE'))return [[{campaigns:1,recipients:3,accepted:3,failed:0,suppressed:0}]];if(sql.includes('FROM sx_email_campaign_recipients'))return [[{accepted:3,failed:0,suppressed:0,unknownCount:0}]];if(sql.includes('FROM sx_email_provider_events WHERE'))return [[{delivered:2,bounced:1,complained:0,opened:1,clicked:1,rejected:0,delayed:0}]];if(sql.startsWith('SELECT COUNT(DISTINCT t.recipient_id) AS replied'))return [[{replied:1}]];return [[{id:'campaign',name:'Synthetic',recipients:3,delivered:2,opened:1,clicked:1,replied:1}]];}};
   const result=await email.analytics(db,{context,tenantId},30);
-  assert.equal(result.days,30);assert.equal(result.totals.delivered,2);assert.equal(result.campaigns[0].name,'Synthetic');
-  assert.equal(calls.length,4);for(const call of calls){assert.equal(call.args[0],tenantId);assert.match(call.sql,/tenant_id/);}
+  assert.equal(result.days,30);assert.equal(result.totals.delivered,2);assert.equal(result.totals.replied,1);assert.equal(result.campaigns[0].name,'Synthetic');
+  assert.equal(calls.length,7);for(const call of calls){assert.ok(call.args.includes(tenantId));assert.match(call.sql,/tenant_id/);}
+  assert.deepEqual(calls[6].args,[30,tenantId,30]);assert.match(calls[6].sql,/reply_stats\.tenant_id=c\.tenant_id/);
+});
+
+test('campaign report joins scoped recipient events and paginates searchable reply statuses',async()=>{
+  const tenantId='aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
+  const campaignId='bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb';
+  const context={audience:'tenant',tenant:{id:tenantId,status:'active',categoryKey:'7network_sales',categoryVersion:1},membership:{id:'member',tenantId,role:'owner',status:'active'},category:{key:'7network_sales',version:1,capabilities:['email.marketing']},subscription:{status:'active',capabilities:[]}};
+  const calls=[];const db={query:async(sql,args)=>{
+    calls.push({sql,args});
+    if(sql.includes('FROM sx_email_campaigns c JOIN sx_email_senders'))return [[{id:campaignId,name:'Synthetic',subject:'Hello',text:'Message',senderEmail:'sender@example.com'}]];
+    if(sql.includes('SELECT COUNT(*) AS recipients'))return [[{recipients:51,sent:50,delivered:42,opened:20,clicked:5,replied:2,bounced:3,failed:1,suppressed:0,inProgress:5,outcomeBounced:3,outcomeFailed:1,outcomeSuppressed:0,outcomeDelivered:42,outcomeSent:3,outcomeInProgress:2}]];
+    if(sql.includes('SELECT COUNT(*) AS total'))return [[{total:26}]];
+    if(sql.includes('FROM sx_email_campaign_recipients r')&&sql.includes('LIMIT ? OFFSET ?'))return [[{id:'recipient-1',email:'alice@example.com',name:'Alice',status:'delivered',sendStatus:'accepted',delivered:1,opened:1,clicked:0,replyCount:1}]];
+    if(sql.includes('FROM sx_email_campaign_attachments'))return [[]];
+    throw new Error('Unexpected campaign report query');
+  }};
+  const result=await email.campaignDetail(db,{context,tenantId},campaignId,{status:'replied',search:'Alice',page:'2',limit:'25'});
+  assert.equal(result.summary.recipients,51);assert.equal(result.summary.replied,2);
+  assert.deepEqual(result.pagination,{page:2,limit:25,total:26,pages:2});
+  assert.deepEqual(result.filters,{search:'Alice',status:'replied'});assert.equal(result.recipients[0].email,'alice@example.com');
+  assert.ok(calls.every(call=>call.args.includes(tenantId)&&call.args.includes(campaignId)));
+  assert.match(calls.find(call=>call.sql.includes('SELECT COUNT(*) AS total')).sql,/rep\.replyCount/);
+  assert.match(calls.find(call=>call.sql.includes('SELECT COUNT(*) AS total')).sql,/recipient_email LIKE/);
 });
 
 test('platform SES credentials are encrypted, authenticated and never returned by status helpers',()=>{

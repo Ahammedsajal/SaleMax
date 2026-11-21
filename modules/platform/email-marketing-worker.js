@@ -5,6 +5,7 @@ const crypto=require('node:crypto');
 const service=require('./email-marketing');
 const ses=require('./email-marketing-ses');
 const providerSettings=require('./email-marketing-provider-settings');
+const inboxMessaging=require('./email-marketing-inbox');
 const inbound=require('./email-marketing-inbound');
 const emailContent=require('./email-marketing-content');
 const workerId=`email-${os.hostname().replace(/[^A-Za-z0-9._:-]/g,'-').slice(0,60)}-${process.pid}`;
@@ -169,11 +170,37 @@ async function finish(pool,item,result){
 }
 
 async function tick(pool,{key,origin,limit=8}={}){
-  const items=await claim(pool,{limit}),providerCache=new Map();let providerConfig,providerErrorCode=null,sent=0,failed=0,suppressed=0,unknown=0,retried=0;
-  try{const db=await pool.getConnection();try{providerConfig=await providerSettings.read(db,key);}finally{db.release();}if(!providerConfig.configured)providerErrorCode='AWS_CREDENTIALS_REQUIRED';}
-  catch{providerConfig=null;providerErrorCode='AWS_CREDENTIALS_UNAVAILABLE';}
-  for(const item of items){try{const result=await dispatch(pool,item,{key,origin,providerCache,credentials:providerConfig?.credentials||null,providerErrorCode,configurationSetName:providerConfig?.configurationSetName||null});if(result.status==='accepted')sent++;else if(result.status==='failed')failed++;else if(result.status==='suppressed')suppressed++;else if(result.status==='unknown')unknown++;else if(result.status==='retry')retried++;}catch{await finish(pool,item,{status:'unknown',errorCode:'DELIVERY_OUTCOME_UNKNOWN'}).catch(()=>{});unknown++;}}
-  return {claimed:items.length,sent,failed,suppressed,unknown,retried};
+  const items=await claim(pool,{limit}),providerCache=new Map();
+  let providerConfig,providerErrorCode=null,sent=0,failed=0,suppressed=0,unknown=0,retried=0;
+  try{
+    const db=await pool.getConnection();
+    try{providerConfig=await providerSettings.read(db,key);}finally{db.release();}
+    if(!providerConfig.configured)providerErrorCode='AWS_CREDENTIALS_REQUIRED';
+  }catch{providerConfig=null;providerErrorCode='AWS_CREDENTIALS_UNAVAILABLE';}
+  let outboundMessages={claimed:0,sent:0,failed:0,uncertain:0,retried:0};
+  if(providerConfig?.configured){
+    outboundMessages=await inboxMessaging.processQueue(pool,{
+      credentials:providerConfig.credentials,
+      configurationSetName:providerConfig.configurationSetName,
+      limit,
+      accountCache:providerCache
+    });
+  }
+  for(const item of items){
+    try{
+      const result=await dispatch(pool,item,{key,origin,providerCache,credentials:providerConfig?.credentials||null,
+        providerErrorCode,configurationSetName:providerConfig?.configurationSetName||null});
+      if(result.status==='accepted')sent++;
+      else if(result.status==='failed')failed++;
+      else if(result.status==='suppressed')suppressed++;
+      else if(result.status==='unknown')unknown++;
+      else if(result.status==='retry')retried++;
+    }catch{
+      await finish(pool,item,{status:'unknown',errorCode:'DELIVERY_OUTCOME_UNKNOWN'}).catch(()=>{});
+      unknown++;
+    }
+  }
+  return {claimed:items.length,sent,failed,suppressed,unknown,retried,outboundMessages};
 }
 function start(pool,{key,origin,logger=console,setIntervalImpl=setInterval,clearIntervalImpl=clearInterval}={}){
   if(!pool||!Buffer.isBuffer(key)||key.length!==32||process.env.LOCAL_ONLY_MODE==='true')return ()=>{};

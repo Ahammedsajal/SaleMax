@@ -1,6 +1,7 @@
 'use strict';
 
 const service=require('./email-marketing');
+const inboxMessaging=require('./email-marketing-inbox');
 
 function createEmailMarketingRouter({pool:injectedPool,authenticate,origin,key}={}){
   const express=require('express'),router=express.Router(),pool=injectedPool||require('../../database/config').promise();
@@ -60,8 +61,11 @@ function createEmailMarketingRouter({pool:injectedPool,authenticate,origin,key}=
   router.get('/campaigns',run(async(db,ctx)=>({items:await service.listCampaigns(db,ctx)})));
   router.get('/analytics',run(async(db,ctx,req)=>service.analytics(db,ctx,req.query?.days)));
   router.post('/campaigns',run(async(db,ctx,req)=>service.createCampaign(db,ctx,req.body,key)));
-  router.get('/campaigns/:id',run(async(db,ctx,req)=>service.campaignDetail(db,ctx,req.params.id)));
+  router.get('/campaigns/:id',run(async(db,ctx,req)=>service.campaignDetail(db,ctx,req.params.id,req.query)));
   router.get('/inbox',run(async(db,ctx)=>service.inbox(db,ctx)));
+  router.post('/inbox/drafts',run(async(db,ctx,req)=>inboxMessaging.saveDraft(db,ctx,req.body)));
+  router.delete('/inbox/drafts/:id',run(async(db,ctx,req)=>inboxMessaging.deleteDraft(db,ctx,req.params.id)));
+  router.post('/inbox/drafts/:id/send',run(async(db,ctx,req)=>inboxMessaging.sendDraft(db,ctx,req.params.id,key)));
   router.get('/inbox/:id/messages',run(async(db,ctx,req)=>service.threadMessages(db,ctx,req.params.id)));
   router.use((req,res)=>res.status(404).json({success:false,code:'EMAIL_ROUTE_NOT_FOUND'}));
   router.use((error,req,res,next)=>{
