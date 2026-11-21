@@ -5099,3 +5099,22 @@ sudo -n /opt/salemax/shared/with-production-lock.sh python3 /opt/salemax/release
 ```
 
 The guarded restore rejects a later app chain, changed runtime files, or a subsequent greeting edit. Owner acceptance remains to verify a new greeting, “I’m a beginner” and a repetition complaint through the controlled WhatsApp test chat. No staff handoffs or existing conversation state were reset.
+
+## 2026-11-21 — Training chatbot keeps standalone fee questions on the selected course
+
+Source commit `90befc867faf9ed1ae1bbef2aa3348b5d0fd8811` on `Ahammedsajal/SaleMax` main. The active app overlay is `/opt/salemax/releases/pro-catalyst-course-price-followup-90befc867faf-20261121`, applied to the Compose chain on base `/opt/salemax/releases/training-pipeline-correction-v3-9867ca72-20261104`. App container start was 09:55:46 UTC. App image `sha256:753d77d421b3160872df0812e7b38505a1db7104cdb9d6c8b17415b2420de667`. The guarded helper verified 305 Compose inputs, 11 environment inputs, 279 mounts, the prior runtime hashes and supporting service identities.
+
+Standalone fee questions in English and Arabic use the selected published course and skip the hybrid course matcher. A new named course still takes precedence. Registration fees, instalments, objections, comparisons and questions of duration remain eligible for their existing routes. Updated the existing test expectations for the previously released virtual-assistant greeting and discovery copy. No migration or business configuration update was required. Only the following two runtime mounts changed.
+
+| Runtime file under /app | Deployed SHA-256 |
+|---|---|
+| modules/platform/chatbot-business-context.js | e3ed07c03d1d0a2caaf20c79ce0a556ef4d1aa44a7e41c0cce6331535c6ad51d |
+| modules/platform/chatbot-runtime.js | 3beea86c4f44ec1cce6087610e67ed14ddbf9eabda3f3ec80b1a20b509c32599 |
+
+Verified 238 focused tests. The release helper verified the mounted file hashes and Compose configuration. The production app and database were healthy, the app restart count was zero, and the public health endpoint returned HTTP 200. Independent synthetic requests using the live profile and catalogue reached the factual answer path in both languages. The private Hybrid inbox preview preserved the selected course and returned its published fee. An explicit request naming a different course selected that course. An in-process check detected zero provider-settings lookups during these pricing checks. No WhatsApp verification message was sent. Organic customer delivery following the change and broader conversational quality require subsequent observation.
+
+The protected rollback snapshot is `/opt/salemax/shared/rollback-pro-catalyst-course-price-followup-90befc867faf-20261121`. While this overlay is the latest, the following restores the prior app Compose chain and verifies the original hashes. The server retains its environment and tenant data outside the checkout.
+
+```sh
+sudo -n /opt/salemax/shared/with-production-lock.sh python3 /opt/salemax/releases/pro-catalyst-course-price-followup-90befc867faf-20261121/deploy/pro-catalyst-course-price-followup-release.py restore /opt/salemax/shared/rollback-pro-catalyst-course-price-followup-90befc867faf-20261121
+```
