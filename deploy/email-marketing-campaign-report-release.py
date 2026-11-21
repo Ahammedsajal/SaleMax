@@ -167,6 +167,14 @@ def wait_healthy():
     raise RuntimeError('App did not return to healthy state')
 
 
+def container_has(path):
+    result = subprocess.run(['docker', 'exec', APP, 'test', '-e', '/app/' + path],
+                            capture_output=True, text=True)
+    if result.returncode not in (0, 1):
+        raise RuntimeError('Container path probe failed')
+    return result.returncode == 0
+
+
 def require_lock():
     if os.geteuid() != 0 or os.environ.get('SALEMAX_DEPLOY_LOCK_HELD') != '1':
         raise RuntimeError('Protected production lock required')
