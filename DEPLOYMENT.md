@@ -5177,3 +5177,31 @@ sudo -n /opt/salemax/shared/with-production-lock.sh python3 /opt/salemax/release
 ```
 
 This rollback changes no database rows. Restoring the prior runtime would again treat legacy system `staff-replied` rows with NULL deadlines as unbounded pauses; normalize those rows under a separately reviewed, backed-up data change before reverting if that legacy behavior is unacceptable.
+
+## 2026-11-21 — Pro Catalyst callback handoff asks for name and number
+
+Source commit `49811a72b9c7ba2d1b1c57f5174b5512557023da` is pushed to `Ahammedsajal/SaleMax` `main`. The app-only release is `/opt/salemax/releases/pro-catalyst-conversation-quality-49811a72b9c7-20261121T142751Z`, layered over `/opt/salemax/releases/training-pipeline-correction-v3-9867ca72-20261104`; the app image remains `sha256:753d77d421b3160872df0812e7b38505a1db7104cdb9d6c8b17415b2420de667`. The guarded helper verified 308 Compose inputs, 11 environment inputs, 280 mounts, a healthy database, zero app restarts after rollout, and unchanged non-app service identities. No migration ran. The Pro Catalyst greeting/profile settings were read and left unchanged; no customer conversation, handoff, or WhatsApp message was changed.
+
+Coordinator callback acknowledgements now use one deterministic script: the customer is told the course coordinator will call soon; an unknown name is requested, while an unverified WhatsApp name is offered for confirmation; a valid Qatar sender number is shown for callback confirmation; and an international sender is asked for a Qatar mobile number (+974, 8 digits). The same copy is used by guided training-center handoffs. This path uses no AI provider request or tokens. The existing one-acknowledgement-per-handoff guard and staff pause behavior are preserved.
+
+Verification: changed JavaScript passed `node --check`, `git diff --check` passed, and a production in-container preview showed the intended English, Arabic, local-Qatar-number, and international-number wording. All seven runtime hashes matched the staged commit; the public health endpoint returned HTTP 200. No automated test suite, WhatsApp test message, or paid AI call was run. Actual delivery and customer replies remain owner-acceptance gates.
+
+| Mounted runtime file | SHA-256 |
+|---|---|
+| `modules/platform/chatbot-business-context.js` | `04e15b41b9b078a5e6851e72f6e589de5cbd4f86c184dd41ea2048e70daafb8d` |
+| `modules/platform/chatbot-runtime.js` | `6c3dca0d54defe8b230235166bfa981607362c5d899c2cd97dfb6bf4a7e3bca8` |
+| `modules/platform/chatbot-lead-capture.js` | `0c6e7dcec3ed2b0cc6f37d2a10371ce817b8e36b5d6d20b6a66d418830b675f8` |
+| `modules/platform/chatbot-conversation-control.js` | `dbdeccc170c1bdf517eac08ec21225c0001d65f81c6530ade5e33f4c7b419fca` |
+| `modules/platform/chatbot-handoff-claims.js` | `a80f7c72a11dc72a853bfc708658b9be1f2fbd8690c1a2c0716d30a11323b144` |
+| `modules/platform/chatbot-router.js` | `11bd363778476bea152a55368dc016a32674c7feb1623bc44db7032f013305d5` |
+| `modules/platform/chatbot-contact-assistant.js` | `3f49f4eb6ed8907a9aad99de6d29ec324fb0403fadcf8981e996d5b90c98ee60` |
+
+The previously recorded helper path under the 12:00 release was absent when this rollout began; that first invocation stopped before changing production. The same tracked helper from the source commit was staged privately and executed under the production lock. The new release contains its helper copy for subsequent guarded rollbacks.
+
+Protected rollback snapshot: `/opt/salemax/shared/rollback-pro-catalyst-conversation-quality-49811a72b9c7-20261121T142751Z`. Restore the prior Compose chain only if this remains the latest app overlay; first restore any later overlays:
+
+```sh
+sudo -n /opt/salemax/shared/with-production-lock.sh python3 /opt/salemax/releases/pro-catalyst-conversation-quality-49811a72b9c7-20261121T142751Z/deploy/pro-catalyst-conversation-quality-release.py restore /opt/salemax/shared/rollback-pro-catalyst-conversation-quality-49811a72b9c7-20261121T142751Z
+```
+
+Rollback is app-only; no migration or database rollback applies.

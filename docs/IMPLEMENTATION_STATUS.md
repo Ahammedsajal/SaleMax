@@ -1,3 +1,7 @@
+## Pro Catalyst callback handoff asks for name and number — deployed, 21 November 2026
+
+The coordinator callback acknowledgement now says the course coordinator will call soon, asks for the customer's name (or asks them to confirm an unverified WhatsApp name), and confirms the Qatar WhatsApp number when available. International senders are asked for a Qatar mobile number (+974, eight digits). The copy is deterministic and uses no GPT tokens. The existing one-acknowledgement-per-handoff guard remains in place, and staff handoff pause behavior is unchanged. Production release, hashes, rollback and verification are recorded in `DEPLOYMENT.md`; organic WhatsApp acceptance remains open because no customer message was sent for verification.
+
 ## Email Marketing visual template builder — deployed, 19 November 2026
 
 The existing Email Marketing Templates tab is wired to a visual builder with a reusable header, headings, text, inline image, button, divider and spacing blocks; a block inspector; image upload and preview; and a live sample email. It retains a plain-text alternative and template attachments. Campaigns copy the design as a snapshot and send HTML plus text, with uploaded images embedded by CID. No email or campaign was sent during release.
