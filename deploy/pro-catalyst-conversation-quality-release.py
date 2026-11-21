@@ -25,8 +25,9 @@ ASSETS = (
     'modules/platform/chatbot-conversation-control.js',
     'modules/platform/chatbot-handoff-claims.js',
     'modules/platform/chatbot-router.js',
+    'modules/platform/chatbot-contact-assistant.js',
 )
-NEW_ASSETS = ('modules/platform/chatbot-contact-assistant.js',)
+NEW_ASSETS = ()
 GREETING = {
     'en': 'Hi! 👋 I’m Pro Catalyst Training Center’s virtual assistant. I can help you explore our courses and answer your questions.',
     'ar': 'مرحبًا! 👋 أنا المساعد الافتراضي لمركز برو كاتاليست للتدريب. يمكنني مساعدتك في استكشاف دوراتنا والإجابة عن أسئلتك.',
