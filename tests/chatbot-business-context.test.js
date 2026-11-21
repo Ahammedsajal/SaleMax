@@ -375,6 +375,22 @@ test('informal training greetings continue discovery and preserve known course a
  assert.equal(known.state.selectedCourseCode, 'ENG');
 });
 
+test('discovery complaints use the beginner context and suggest published beginner courses', () => {
+ const { isCourseDiscoveryFeedback, courseDiscoveryRepairReply } = require('../modules/platform/chatbot-business-context');
+ const beginnerFacts = [
+  { code: 'ENG', nameEn: 'Business English', difficultyLevel: 'beginner' },
+  { code: 'EXCEL', nameEn: 'Excel Essentials', difficultyLevel: 'beginner' },
+ ];
+ const history = [{ role: 'user', text: 'I am a beginner' },
+  { role: 'assistant', text: 'Which course are you interested in?' }];
+ for (const message of ['I said I’m a beginner, to start you need tell me', 'Why keep on sending this?', 'You’re not serious']) {
+  assert.equal(isCourseDiscoveryFeedback(message, { waitingForCourse: true }), true, message);
+  const reply = courseDiscoveryRepairReply({ message, state: { waitingForCourse: true }, history, facts: beginnerFacts });
+  assert.match(reply.reply, /beginner-level courses include Business English and Excel Essentials/);
+  assert.doesNotMatch(reply.reply, /Which course are you interested in\?/);
+ }
+});
+
 test('repeat fee and duration questions use fresh phrasing with the same published values', () => {
  const { repeatQuestion, repeatedCourseFact } = require('../modules/platform/chatbot-business-context');
  const state = { selectedCourseCode: 'ENG', language: 'en',

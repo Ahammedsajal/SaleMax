@@ -22,6 +22,9 @@ ASSETS = (
     'modules/platform/chatbot-business-context.js',
     'modules/platform/chatbot-runtime.js',
     'modules/platform/chatbot-lead-capture.js',
+    'modules/platform/chatbot-conversation-control.js',
+    'modules/platform/chatbot-handoff-claims.js',
+    'modules/platform/chatbot-router.js',
 )
 NEW_ASSETS = ('modules/platform/chatbot-contact-assistant.js',)
 GREETING = {

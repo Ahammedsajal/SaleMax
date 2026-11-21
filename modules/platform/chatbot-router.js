@@ -343,8 +343,18 @@ function createChatbotRouter({ pool, origin, userGuard, canonicalGuard }) {
     const { channelKind, channelRef } = req.query;
     const data = await withDb(async db => {
       await requireConversation(db, ctx, req, req.params.conversationId, channelKind, channelRef);
-      const [[row]] = await db.query(`SELECT c.mode,c.pause_until AS pauseUntil,c.reason,c.revision,c.updated_at AS updatedAt,c.updated_by_kind AS updatedByKind,i.display_name AS updatedBy,
-          (c.mode='paused' AND (c.pause_until IS NULL OR c.pause_until>UTC_TIMESTAMP(3))) AS isActive
+      const [[row]] = await db.query(`SELECT c.mode,
+          CASE WHEN c.reason='staff-replied' AND c.updated_by_kind='system'
+            THEN COALESCE(c.pause_until,TIMESTAMPADD(HOUR,24,c.updated_at))
+            ELSE c.pause_until END AS pauseUntil,
+          c.reason,c.revision,c.updated_at AS updatedAt,c.updated_by_kind AS updatedByKind,i.display_name AS updatedBy,
+          (c.mode='paused' AND (
+            CASE WHEN c.reason='staff-replied' AND c.updated_by_kind='system'
+              THEN COALESCE(c.pause_until,TIMESTAMPADD(HOUR,24,c.updated_at))
+              ELSE c.pause_until END IS NULL
+            OR CASE WHEN c.reason='staff-replied' AND c.updated_by_kind='system'
+              THEN COALESCE(c.pause_until,TIMESTAMPADD(HOUR,24,c.updated_at))
+              ELSE c.pause_until END>UTC_TIMESTAMP(3))) AS isActive
         FROM sx_chatbot_conversation_controls c LEFT JOIN sx_identities i ON i.id=c.updated_by_identity_id
         WHERE c.tenant_id=? AND c.channel_kind=? AND c.channel_ref=? AND c.conversation_id=?`, [ctx.tenant.id, channelKind, channelRef, req.params.conversationId]);
       const active = Boolean(row?.isActive);

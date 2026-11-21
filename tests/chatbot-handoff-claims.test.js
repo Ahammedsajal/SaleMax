@@ -22,6 +22,26 @@ test('claim codes require six alphanumeric characters and cannot accept trailing
   assert.deepEqual(claims.parseYes('YES ZZ19Q2'), { code: 'ZZ19Q2' });
 });
 
+test('customer handoff acknowledgement can be reserved only once for an open claim', async () => {
+  let acknowledged = false;
+  let sqlSeen = '';
+  const pool = { getConnection: async () => ({
+    query: async sql => {
+      sqlSeen = sql;
+      if (acknowledged) return [{ affectedRows: 0 }];
+      acknowledged = true;
+      return [{ affectedRows: 1 }];
+    },
+    release() {},
+  }) };
+  const args = { tenantId: 'tenant', claimId: 'claim', inboundId: 'message-1' };
+  assert.equal(await claims.reserveCustomerAcknowledgement(pool, args), true);
+  assert.equal(await claims.reserveCustomerAcknowledgement(pool, { ...args, inboundId: 'message-2' }), false);
+  assert.match(sqlSeen, /last_customer_ack_at IS NULL/);
+  assert.match(sqlSeen, /status='open'/);
+  assert.doesNotMatch(sqlSeen, /cooldown|DATE_SUB/);
+});
+
 test('concurrent eligible YES replies assign an open conversation exactly once', async () => {
   const qr = require('../modules/platform/business-whatsapp');
   const assignment = require('../modules/platform/team-conversation-assignment');

@@ -165,12 +165,14 @@ async function sendCustomerHandoffNotice({ ctx, profile, uid, message, origin, s
   const claims = require('./chatbot-handoff-claims');
   const pending = await claims.findOpen(dbPool, { tenantId: ctx.tenant.id, uid, channelKind, channelRef: sessionId, chatId });
   if (!pending) return false;
-  const once = coordinatorHandoffReasons.has(pending.reason);
-  if (!await claims.reserveCustomerAcknowledgement(dbPool, { tenantId: ctx.tenant.id, claimId: pending.id, inboundId, once })) return false;
+  // A handoff acknowledgement belongs to the handoff, not to each inbound
+  // message. Keep the bot from repeating the same notice while staff claim it.
+  const coordinatorHandoff = coordinatorHandoffReasons.has(pending.reason);
+  if (!await claims.reserveCustomerAcknowledgement(dbPool, { tenantId: ctx.tenant.id, claimId: pending.id, inboundId })) return false;
   const language = businessContext.languageFor(textOf(message));
   const body = ['student-class-support','existing-student-support'].includes(pending.reason)
     ? studentSupportReply(pending.reason, language)
-    : once ? await draftContactAssistant({ ctx, leadInfo: { language }, mode: 'handoff',
+    : coordinatorHandoff ? await draftContactAssistant({ ctx, leadInfo: { language }, mode: 'handoff',
       handoffQueued: true, needsName: false, needsQatarNumber: false })
     : !accepted && ctx.category.key === 'training_center' && origin === 'qr' && mockup.ownsInbox(uid, origin)
     ? coordinatorReply({ language: businessContext.languageFor(textOf(message)), followUp: Boolean(pending.lastCustomerAckAt) })
@@ -184,7 +186,7 @@ async function recordHandoffAcknowledgement(ctx, claim, message) {
   if (!claim?.id) return;
   const inboundId = String(message?.metaChatId || `handoff-ack:${message?.timestamp || Date.now()}`).slice(0, 191);
   await require('./chatbot-handoff-claims').reserveCustomerAcknowledgement(dbPool, {
-    tenantId: ctx.tenant.id, claimId: claim.id, inboundId, once: true,
+    tenantId: ctx.tenant.id, claimId: claim.id, inboundId,
   }).catch(() => false);
 }
 
@@ -293,11 +295,8 @@ async function processHandoffPriorityForProfile({ ctx, profile, uid, message, us
   if (pause.reason === 'staff-replied') return { handled: true, paused: true };
   let pending = await claims.findOpen(dbPool, { tenantId: ctx.tenant.id, uid, channelKind, channelRef: sessionId, chatId });
   if (pause.updatedByKind === 'system' && pending && pause.reason === pending.reason) {
-    await query(`UPDATE sx_chatbot_conversation_controls SET mode='inherit',pause_until=NULL,reason=NULL,
-        revision=revision+1,updated_by_kind='system',updated_by_identity_id=NULL
-      WHERE tenant_id=? AND channel_kind=? AND channel_ref=? AND conversation_id=? AND mode='paused'
-        AND updated_by_kind='system' AND reason=?`, [ctx.tenant.id, channelKind, sessionId, chatId, pending.reason]);
-    return { handled: false, resumedLegacyHandoff: true };
+    await sendCustomerHandoffNotice({ ctx, profile, uid, message, origin, sessionId, chatId });
+    return { handled: true, paused: true, handedOff: true, handoffClaim: 'open' };
   }
   if (pause.updatedByKind !== 'system' || pause.failClosed || pause.ambiguous) return { handled: true, paused: true };
   if (!pending) {
@@ -335,8 +334,6 @@ async function handleHandoffPriorityMessage({ uid, message, user, sessionId, ori
   if (mockup.ownsInbox(uid, origin) && !mockup.liveQrMessageAllowed(profile.config, message)) {
     return { handled: true, mockupQueueAllowed: true };
   }
-  const staffPause = await require('./chatbot-conversation-control').readPause(uid, chatId, channelFor(origin), sessionId);
-  if (staffPause?.reason === 'staff-replied' || coordinatorHandoffReasons.has(staffPause?.reason)) return { handled: true, paused: true };
   if (claims.parseYes(textOf(message))) {
     const result = await processHandoffPriorityForProfile({ ctx, profile, uid, message, user, sessionId, origin, chatId });
     if (result.handled) return result;
@@ -352,6 +349,8 @@ async function handleHandoffPriorityMessage({ uid, message, user, sessionId, ori
       return { handled: true, paused: true };
     }
   }
+  const staffPause = await require('./chatbot-conversation-control').readPause(uid, chatId, channelFor(origin), sessionId);
+  if (staffPause?.reason === 'staff-replied' || coordinatorHandoffReasons.has(staffPause?.reason)) return { handled: true, paused: true };
   const pause = await require('./chatbot-conversation-control').readPause(uid, chatId, channelFor(origin), sessionId);
   if (!pause) return { handled: false };
   return processHandoffPriorityForProfile({ ctx, profile, uid, message, user, sessionId, origin, chatId });
