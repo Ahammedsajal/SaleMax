@@ -28,7 +28,7 @@ test('course lists show every configured course at once and support both languag
   let result = run('courses');
   assert.match(result.reply, /• Program 1/);
   assert.match(result.reply, /• Program 9/);
-  assert.match(result.reply, /Tell me the course name/);
+  assert.ok(result.reply.endsWith(pack.guidedContentDefaults.messages.courseListPrompt.en));
   assert.doesNotMatch(result.reply, /\b(?:Reply|send) 0|course number|\d+\. Program/i);
   assert.ok(result.reply.split('\n').length <= 15, result.reply);
   const selected = run('3', result.state);
@@ -38,6 +38,6 @@ test('course lists show every configured course at once and support both languag
   const arabic = run('الدورات', undefined);
   assert.match(arabic.reply, /• برنامج 1/);
   assert.match(arabic.reply, /• برنامج 9/);
-  assert.match(arabic.reply, /أرسل اسم الدورة/);
+  assert.ok(arabic.reply.endsWith(pack.guidedContentDefaults.messages.courseListPrompt.ar));
   assert.doesNotMatch(arabic.reply, /رقم الدورة|أرسل 0|\d+\. برنامج/u);
 });

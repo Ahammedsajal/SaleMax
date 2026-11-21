@@ -405,3 +405,23 @@ test('attestation questions ask for the course and use only that course’s save
  assert.equal(controlRoute(arabic, config, {}, catalogue, options), 'certificate');
  assert.match(courseCertificateReply(arabic, contextFor(arabic, { selectedCourseCode: 'ENG' })).reply, /شهادة إتمام/);
 });
+
+test('a standalone price follow-up uses the selected course even when other descriptions match its words', () => {
+  const courses = facts.map(course => course.code === 'EXCEL'
+    ? { ...course, descriptionEn: 'This course will cover total cost and tuition pricing.' } : course);
+  const lookup = (message, state = { selectedCourseCode: 'ENG' }) => retrieveContext({ message, facts: courses, state });
+  for (const message of ['How much will it cost please?', 'Total course fee?', 'كم سعر الدورة؟', 'بكم؟']) {
+    const context = lookup(message);
+    assert.equal(context.courseContextSource, 'selected_course_price');
+    assert.equal(context.selectedCourseCode, 'ENG');
+    assert.match(simpleFactualReply(message, context).reply, /350\.00/);
+  }
+  assert.equal(lookup('How much is Excel Essentials?').selectedCourseCode, 'EXCEL');
+  for (const message of ['fees for welding?', 'Can I pay in installments?', 'The fee is too high',
+    'How much time does it take?', 'What is the registration fee?', 'How much for both courses?']) {
+    assert.notEqual(lookup(message).courseContextSource, 'selected_course_price');
+  }
+  for (const state of [{}, { selectedCourseCode: 'retired' }, { selectedCourseCode: 'ENG', waitingForCourse: true }]) {
+    assert.notEqual(lookup('How much will it cost?', state).courseContextSource, 'selected_course_price');
+  }
+});

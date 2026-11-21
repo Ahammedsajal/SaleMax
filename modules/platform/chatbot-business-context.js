@@ -212,6 +212,18 @@ function decodeURIComponentSafe(value) {
   try { return decodeURIComponent(value.replace(/\+/g, ' ')); } catch { return value; }
 }
 
+// A fee-only follow-up refers to the selected course. Leave named courses,
+// comparisons, payment terms and other new subjects to their own routes.
+const PRICE_QUESTION_WORDS = new Set(('how much money what s is are the a an it its this that your will would does do i have to pay ' +
+  'for of me please pls kindly tell can you current total full course training fee fees price cost costs tuition ' +
+  'كم ما هي هو سعر السعر رسوم الرسوم تكلفة التكلفة تكلف تكلفتها سعرها رسومها بكم الدورة الدوره دورة هذه هذي لو سمحت فضلك من').split(' '));
+
+function isStandalonePriceQuestion(message) {
+  const text = normalized(message);
+  if (!/(?:^| )(?:how much|price|costs?|fees?|tuition|سعر|السعر|سعرها|رسوم|الرسوم|رسومها|تكلفة|التكلفة|تكلف|تكلفتها|بكم)(?: |$)/u.test(text)) return false;
+  return text.split(' ').every(word => PRICE_QUESTION_WORDS.has(word));
+}
+
 function retrieveContext({ facts, knowledgeEntries = [], message, state = {}, profileRevision = 0, referral = null, includeRelatedFaqs = false }) {
   const language = languageFor(message, state);
   const courses = facts.filter(item => item.code && !item.kind);
@@ -226,8 +238,10 @@ function retrieveContext({ facts, knowledgeEntries = [], message, state = {}, pr
     .sort((a, b) => b.score - a.score);
   const generalBusinessQuestion = /where|location|address|refund|policy|discount|اين|عنوان|موقع|استرداد|استرجاع|سياسة|خصم/i.test(message);
   let selected = direct.length ? direct.slice(0, 3) : referralCourse ? [referralCourse] : generalBusinessQuestion || genericAdInterest ? [] : ranked.filter(row => row.score >= 3).slice(0, 3).map(row => row.item);
+  const selectedPriceQuestion = !direct.length && !referralCourse && !state.waitingForCourse
+    && Boolean(state.selectedCourseCode) && isStandalonePriceQuestion(message);
   const followUp = /\b(?:that|this|it|its|the course|how much|how long|when does|when is|certificate|certification|online|offline|in person|face to face|classroom|remote|hybrid|delivery|study mode|course format)\b|هذه|تلك|مدتها|رسومها|موعدها|كم الرسوم|كم مدتها|متى تبدأ|شهادة|الشهادة|اعتماد|اونلاين|عن بعد|حضوري|طريقة الدراسة|طريقة التقديم/iu.test(message);
-  if (!direct.length && !referralCourse && (followUp || certificateQuestion) && state.selectedCourseCode) selected = courses.filter(item => item.code === state.selectedCourseCode);
+  if (!direct.length && !referralCourse && (followUp || certificateQuestion || selectedPriceQuestion) && state.selectedCourseCode) selected = courses.filter(item => item.code === state.selectedCourseCode);
   if (!selected.length && state.selectedCourseCode) selected = courses.filter(item => item.code === state.selectedCourseCode);
   if (certificateQuestion && !direct.length && !referralCourse) selected = selected.filter(item => item.code === state.selectedCourseCode);
   const recommendation = /recommend|compare|difference|best|improve|career|beginner|توصي|تنصح|افضل|مقارن|الفرق|مبتدئ/i.test(message);
@@ -278,7 +292,7 @@ function retrieveContext({ facts, knowledgeEntries = [], message, state = {}, pr
   }
   // Names are a discovery index, never evidence for unpublished prices/policies.
   if (!direct.length) add('catalogue:index', courses.map(item => ({code:item.code,nameEn:item.nameEn,nameAr:item.nameAr})), { kind: 'course_index', names: courses.slice(0, 60).map(item => local(item, 'name', language)), totalCourses: courses.length, complete: courses.length < 500 && courses.length <= 60 });
-  return { evidence, sources, selectedCourseCode: selected.length === 1 ? selected[0].code : null, language, revision: fingerprint({ facts, knowledgeEntries, profileRevision }), explicitCourses: direct.length || (referralCourse ? 1 : 0), courseContextSource: direct.length ? 'message' : referralCourse ? 'meta_referral' : null };
+  return { evidence, sources, selectedCourseCode: selected.length === 1 ? selected[0].code : null, language, revision: fingerprint({ facts, knowledgeEntries, profileRevision }), explicitCourses: direct.length || (referralCourse ? 1 : 0), courseContextSource: direct.length ? 'message' : referralCourse ? 'meta_referral' : selectedPriceQuestion && selected.length === 1 ? 'selected_course_price' : null };
 }
 
 function validateAnswer(response, context, { staffNotificationQueued = false } = {}) {
@@ -595,7 +609,7 @@ function simpleFactualReply(message, context, config = {}) {
       : `${course.name} is listed as ${label}. I don’t have a published breakdown of the sessions; admissions can confirm the details.`;
     return { reply, sourceIds: [course.sourceId] };
   }
-  const asksFee = /\b(?:fee|fees|price|cost|how much)\b|رسوم|سعر|تكلفة/i.test(message);
+  const asksFee = context.courseContextSource === 'selected_course_price' || /\b(?:fee|fees|price|cost|how much)\b|رسوم|سعر|تكلفة/i.test(message);
   const registrationForm = context.evidence.find(item => item.kind === 'published_enquiry_form' && item.purpose === 'registration');
   const courseInterest = /\b(?:interested|would like to join|want to join|want to study|like to enrol|like to enroll)\b|مهتم|ارغب في التسجيل/i.test(message);
   const applicationOffer = courseInterest && registrationForm

@@ -1196,6 +1196,7 @@ async function identifyCourse({ ctx, profile, facts, message, state, referral, r
     return { context: selectedContext };
   };
   if (known) return select(known);
+  if (context.courseContextSource === 'selected_course_price') return null;
   if (exact.length > 1 || (businessContext.isGenericAdInterest(message) && !state.selectedCourseCode)) return { clarify: true };
   const diplomaCandidates = businessContext.ambiguousDiplomaCandidates(message, facts, state);
   if (diplomaCandidates.length > 1) return { clarify: true, family: 'diploma', candidates: diplomaCandidates };
