@@ -37,6 +37,22 @@ function affirmativeReply(value) {
   return /^(?:yes|yes please|yes thats right|thats right|correct|right|yes they can|please do|please call|sure|of course|that is fine|thats fine|نعم|نعم من فضلك|نعم تفضل|بالتأكيد|أكيد|يمكنهم الاتصال|هذا صحيح|صحيح)$/iu.test(text);
 }
 
+function nameConfirmationReply(value) {
+  const text = context.normalized(value).replace(/\b(that|this)\s+s\b/gu, '$1 is');
+  return /^(?:(?:yes|yeah|yep|correct|right)\s+)?(?:(?:that|this)\s+is\s+)?(?:my|the)\s+name(?:\s+is)?$/iu.test(text);
+}
+
+function callbackConsentReply(value) {
+  const text = context.normalized(value).replace(/\b(that|this)\s+s\b/gu, '$1 is');
+  // A name confirmation is not permission to call, even when it starts with "yes".
+  if (/\b(?:my|the)\s+name\b|اسم/iu.test(text)) return false;
+  return affirmativeReply(value)
+    || /^(?:(?:yes|yeah|yep)\s+)?(?:(?:that|this)\s+is\s+)?my\s+number$/iu.test(text)
+    || /^(?:you can call me|please call me|yes please call(?: me)?|call me on(?: this)? number)$/iu.test(text)
+    || /^(?:نعم\s+)?(?:هذا|ذلك)\s+رقمي$/u.test(text)
+    || /^(?:يمكنكم|يمكنك) الاتصال بي$/u.test(text);
+}
+
 function callbackConsentQuestion(value) {
   const text = String(value || '');
   return /\b(?:may|can|could|would)\b.{0,100}\b(?:course )?coordinator\b.{0,100}\bcall you on this number\b/iu.test(text)
@@ -169,11 +185,12 @@ async function captureLead(pool, { ctx, profile, uid, chatId, origin, message, f
       ? text.replace(qatarContactNumber, '').replace(/(?:\+?974[\s().-]*)?[3567](?:[\s().-]*\d){7}/u, '').trim()
       : text;
     const shortAnswer = context.normalized(nameText).replace(/[.!?؟]+$/u, '');
-    const confirmsSavedName = prior.nameConfirmationPending === true && affirmativeReply(shortAnswer);
-    const rejectsSavedName = prior.nameConfirmationPending === true && /^(?:no|no thats wrong|thats wrong|incorrect|not correct|لا|ليس صحيحا|غير صحيح)$/iu.test(shortAnswer);
     const callbackConsentNumber = prior.callbackConsentNumber || qualification.qatarContactNumber || qatarMobile(message.senderMobile);
     const callbackConsentPromptPending = prior.callbackConsentPending === true || legacyCallbackConsentPrompted === true;
-    const callbackConsentIsNew = Boolean(callbackConsentNumber && callbackConsentPromptPending && affirmativeReply(text));
+    const confirmsSavedName = prior.nameConfirmationPending === true
+      && (nameConfirmationReply(shortAnswer) || (!callbackConsentPromptPending && affirmativeReply(shortAnswer)));
+    const rejectsSavedName = prior.nameConfirmationPending === true && /^(?:no|no thats wrong|thats wrong|incorrect|not correct|لا|ليس صحيحا|غير صحيح)$/iu.test(shortAnswer);
+    const callbackConsentIsNew = Boolean(callbackConsentNumber && callbackConsentPromptPending && callbackConsentReply(text));
     const callbackConsentSubmitted = callbackConsentIsNew || Boolean(prior.callbackConsentConfirmed === true && prior.callbackConsentInboundKey === inboundKey);
     const callbackConsentEventKey = callbackConsentIsNew
       ? context.fingerprint([profile.channelKind, profile.channelRef, chatId, inboundKey, 'callback-consent']).slice(0, 24)
@@ -300,6 +317,7 @@ async function captureLead(pool, { ctx, profile, uid, chatId, origin, message, f
     return { leadId: lead.id, uidHash, facts, questionKey, language, nameCaptured: !!name, nameOnly: !!simpleName && !retrieval.explicitCourses,
       courseInterest: qualification.courseInterest || null, intake, senderIsQatar, callbackNumber: callbackConsentNumber || qatarMobile(message.senderMobile),
       name: name || (meta.nameConfirmed ? storedName : null),
+      nameConfirmationSubmitted: Boolean(!alreadyCaptured && confirmsSavedName),
       callbackConsentSubmitted: Boolean(callbackConsentSubmitted && callbackConsentEventKey),
       callbackConsentConfirmed: meta.callbackConsentConfirmed === true,
       callbackConsentEventKey,
@@ -454,5 +472,5 @@ async function markCourseAsked(pool, info, uid) {
 }
 module.exports = { savedContactName, captureLead, captureGenericLead, genericCaptureEnabled, customerName, qualificationFromText,
   qatarMobile, qatarMobileFromText, phoneOnly, qatarCallbackEnabled, addQuestion, addQatarContactQuestion,
-  affirmativeReply, callbackConsentPromptWasAsked, markQatarContactAsked, markContactPromptAsked, markCallbackConsentPromptAsked,
+  affirmativeReply, nameConfirmationReply, callbackConsentReply, callbackConsentPromptWasAsked, markQatarContactAsked, markContactPromptAsked, markCallbackConsentPromptAsked,
   reserveCallbackAcknowledgement, releaseCallbackAcknowledgement, standaloneNamePrompt, markAsked, markCourseAsked, nameCandidateForTurn };

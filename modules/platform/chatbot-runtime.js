@@ -136,7 +136,7 @@ function handoffText(message, language = null, accepted = false) {
   return 'Thanks for explaining. I’ve asked admissions to check this, and I can keep helping with the course details we have here.';
 }
 
-const coordinatorHandoffReasons = new Set(['course-unmatched-after-clarification','student-class-support','existing-student-support','course-details-need-coordinator']);
+const coordinatorHandoffReasons = new Set(['course-unmatched-after-clarification','student-class-support','existing-student-support','course-details-need-coordinator','qatar-coordinator-callback']);
 function needsClassSupport(message) {
   const text = businessContext.normalized(message);
   return /\b(?:miss(?:ed|ing)?|absent|could not attend|couldn t attend|unable to attend|make up|makeup)\b.*\b(?:class(?:es)?|sessions?|lessons?)\b|\b(?:my|our) (?:class|session|lesson)\b.*\b(?:miss(?:ed)?|reschedule|catch up)\b|(?:فاتتني|غيبت|غبت|لم احضر|تعويض).*(?:حص|درس|محاضر|جلس)/u.test(text);
@@ -210,8 +210,11 @@ async function recordHandoffAcknowledgement(ctx, claim, message) {
 
 async function handleCallbackConsent({ ctx, profile, uid, message, sessionId, origin, chatId }) {
   const leadCapture = require('./chatbot-lead-capture');
+  const incomingText = textOf(message);
+  const isNameConfirmation = leadCapture.nameConfirmationReply(incomingText);
+  const isCallbackConsent = leadCapture.callbackConsentReply(incomingText);
   if (ctx?.category?.key !== 'training_center' || !leadCapture.qatarCallbackEnabled(ctx)
-    || !leadCapture.affirmativeReply(textOf(message))) return null;
+    || (!isNameConfirmation && !isCallbackConsent)) return null;
   const prompted = await leadCapture.callbackConsentPromptWasAsked(dbPool, { uid, chatId, origin }).catch(() => false);
   if (!prompted) return null;
   let leadInfo = null;
@@ -223,7 +226,20 @@ async function handleCallbackConsent({ ctx, profile, uid, message, sessionId, or
     finally { db.release(); }
     leadInfo = await leadCapture.captureLead(dbPool, { ctx, profile, uid, chatId, origin, message, facts,
       legacyCallbackConsentPrompted: prompted });
-    if (!leadInfo?.callbackConsentSubmitted) return null;
+    if (!leadInfo?.callbackConsentSubmitted) {
+      if (!leadInfo?.nameConfirmationSubmitted) return null;
+      const callbackNumber = leadInfo.callbackNumber || leadInfo.qatarContactNumber;
+      if (!callbackNumber) return null;
+      const language = leadInfo.language === 'ar' ? 'ar' : 'en';
+      const name = String(leadInfo.name || leadInfo.nameCandidate || '').trim().slice(0, 80);
+      const body = language === 'ar'
+        ? `شكرًا${name ? ` يا ${name}` : ''} على تأكيد الاسم. هل يمكن لمنسق الدورات الاتصال بك على هذا الرقم: ${callbackNumber}؟ يرجى الرد بـ «نعم، يمكنكم الاتصال» للتأكيد.`
+        : `Thanks${name ? `, ${name}` : ''} for confirming your name. May our course coordinator call you on this number: ${callbackNumber}? Reply “Yes, please call” to confirm.`;
+      const sent = await sendBotText({ origin, sessionId, message, uid, chatId, body, bypassBotPause: true }).catch(() => false);
+      if (sent) await leadCapture.markCallbackConsentPromptAsked(dbPool, { ...leadInfo, callbackNumber }, uid).catch(() => {});
+      return { handled: true, sent, paused: true, handedOff: true,
+        route: sent ? 'callback-name-confirmation' : 'callback-consent-follow-up-send-failed' };
+    }
     const callbackNumber = leadInfo.callbackNumber || leadInfo.qatarContactNumber;
     if (!callbackNumber) return null;
     const courseName = leadInfo.courseInterest || null;
@@ -251,9 +267,13 @@ async function handleCallbackConsent({ ctx, profile, uid, message, sessionId, or
   } catch (error) {
     console.warn('[chatbot] callback consent handoff unavailable', error.code || 'CALLBACK_HANDOFF_FAILED');
     const language = leadInfo?.language === 'ar' ? 'ar' : businessContext.languageFor(textOf(message));
-    const body = language === 'ar'
-      ? 'شكرًا على التأكيد. لم أتمكن من إرسال طلب الاتصال إلى الفريق الآن. يرجى مراسلتنا مرة أخرى بعد قليل.'
-      : 'Thanks for confirming. I couldn’t send the callback request to our team just now. Please message us again shortly.';
+    const body = isNameConfirmation && !isCallbackConsent
+      ? (language === 'ar'
+        ? 'شكرًا على تأكيد الاسم. تعذر تحديث تفاصيل معاودة الاتصال الآن، لكن فريقنا سيظل قادرًا على مساعدتك.'
+        : 'Thanks for confirming your name. I couldn’t update the callback details just now, but our team can still help with your enquiry.')
+      : (language === 'ar'
+        ? 'شكرًا على التأكيد. لم أتمكن من إرسال طلب الاتصال إلى الفريق الآن. يرجى مراسلتنا مرة أخرى بعد قليل.'
+        : 'Thanks for confirming. I couldn’t send the callback request to our team just now. Please message us again shortly.');
     const sent = await sendBotText({ origin, sessionId, message, uid, chatId, body, bypassBotPause: true }).catch(() => false);
     return { handled: true, sent, paused: true, code: error.code || 'CALLBACK_HANDOFF_FAILED' };
   }
