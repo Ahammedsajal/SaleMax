@@ -33,7 +33,39 @@ async function readPause(uid, conversationId, channelKind, channelRef) {
   }
   // Any active match pauses the chat. Multiple matches are ambiguous and must
   // also fail closed rather than allowing a reply through.
-  return rows.length === 1 ? rows[0] : rows.length > 1 ? { mode: 'paused', updatedByKind: null, reason: null, ambiguous: true } : null;
+  if (rows.length > 1) return { mode: 'paused', updatedByKind: null, reason: null, ambiguous: true };
+  const savedPause = rows[0] || null;
+  if (savedPause?.updatedByKind === 'identity'
+      || (savedPause?.updatedByKind === 'system' && savedPause?.reason === 'staff-replied')
+      || channelKind !== 'whatsapp_qr') return savedPause;
+
+  // The manager's phone can sync a manual send as a recent QR history append,
+  // or its first echo can lose the race against another persistence path.
+  // In either case the OUTGOING human row is authoritative for the same
+  // connected QR channel. Derive the same 24-hour pause from its provider time.
+  try {
+    const [staffReplies] = await query(`SELECT bc.timestamp AS sentAtSeconds
+      FROM beta_conversation bc JOIN beta_chats ch ON ch.uid=bc.uid AND ch.chat_id=bc.chat_id
+      WHERE bc.uid=? AND bc.chat_id=? AND bc.origin='qr' AND ch.origin_instance_unique_id=?
+        AND bc.route='OUTGOING' AND LOWER(COALESCE(bc.sentBy,'')) IN ('human','user','staff','agent')
+        AND bc.timestamp>=UNIX_TIMESTAMP(UTC_TIMESTAMP(3))-86400
+        AND bc.timestamp<=UNIX_TIMESTAMP(UTC_TIMESTAMP(3))+120
+        AND EXISTS (SELECT 1 FROM user u JOIN sx_legacy_ownership o
+          ON o.source_table='user' AND CAST(o.source_id AS UNSIGNED)=u.id
+          JOIN sx_tenants t ON t.id=o.tenant_id AND t.category_key='training_center'
+          WHERE BINARY u.uid=BINARY bc.uid AND u.role='user')
+      ORDER BY bc.timestamp DESC,bc.id DESC LIMIT 1`, [uid, conversationId, channelRef]);
+    const sentAt = Number(staffReplies[0]?.sentAtSeconds);
+    if (Number.isFinite(sentAt) && sentAt > 0) {
+      const pauseUntil = new Date((sentAt + 24 * 60 * 60) * 1000);
+      if (pauseUntil.getTime() > Date.now()) {
+        return { mode: 'paused', pauseUntil, reason: 'staff-replied', updatedByKind: 'system', derivedFromQrOutbound: true };
+      }
+    }
+  } catch {
+    // Keep the persisted pause authoritative if this compatibility lookup is unavailable.
+  }
+  return savedPause;
 }
 
 async function shouldPause(uid, conversationId, channelKind, channelRef) {

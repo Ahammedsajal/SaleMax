@@ -2650,3 +2650,7 @@ The live CRM uses light mode for returning and new users. The signed-in dashboar
 ### Pro Catalyst callback consent and staff follow-up — production, 21 November 2026
 
 An affirmative reply such as “Yes please” now confirms a callback only when the bot’s preceding message explicitly asked permission to call the displayed Qatar number. The bot records a `callback_requested` lead activity, adds the callback number/course and consent to the existing handoff, notifies staff or refreshes the still-open notification, reuses any existing staff task/code, thanks the customer once, and keeps the bot paused. Confirming consent is deterministic and makes no AI provider call. Production deployment and health evidence are in `DEPLOYMENT.md`; a real customer-channel reply remains owner acceptance and was not sent as a deployment test.
+
+### Pro Catalyst pause after manager-phone replies — production, 22 November 2026
+
+Recent manual messages sent from the paired manager phone are now treated as staff replies whether Baileys delivers them live or as a recent history append. The conversation store also applies the pause when a duplicate echo is already saved. Before generating a reply, Hybrid can derive the same 24-hour staff pause from a recent saved human QR outbound on that exact training-center channel. Automated bot echoes are excluded. This closes the gap where a synced message appeared in Inbox as human but never created a pause. Production release and verification evidence are in `DEPLOYMENT.md`; a real handset/customer acceptance check remains open.

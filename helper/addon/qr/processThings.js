@@ -499,7 +499,11 @@ async function processBaileysMsg({ sessionId, live, body, uid, userFromMysql, ch
 
     const automated = body.key.fromMe && require('../../../modules/platform/chatbot-conversation-control').automatedQrSender(body.key.id);
     if (body.key.fromMe) newMessage.sentBy = automated || 'human';
-    const staffReply = live && body.key.fromMe && !automated && !groupMessage
+    const messageTime = Number(body.messageTimestamp);
+    const nowSeconds = Math.floor(Date.now() / 1000);
+    const recentPhoneSend = Number.isFinite(messageTime)
+      && messageTime >= nowSeconds - 15 * 60 && messageTime <= nowSeconds + 120;
+    const staffReply = body.key.fromMe && !automated && !groupMessage && (live || recentPhoneSend)
       ? { channelKind: 'whatsapp_qr', channelRef: sessionId } : null;
 
     const inserted = await saveMessageToConversation({

@@ -5288,3 +5288,32 @@ sudo -n /opt/salemax/shared/with-production-lock.sh python3 /opt/salemax/release
 ```
 
 Rollback is app-only; no migration or database rollback applies.
+
+## 2026-11-22 — Pro Catalyst pause after manager-phone QR replies
+
+Source commit `a94a49e0bc3bd24b0b4101f544f4ae413e0bd1f2` is pushed to `Ahammedsajal/SaleMax` `main`. The app-only release is `/opt/salemax/releases/pro-catalyst-conversation-quality-a94a49e0bc3b-20261122T084922Z`, layered over `/opt/salemax/releases/training-pipeline-correction-v3-9867ca72-20261104`. The app image remains `sha256:753d77d421b3160872df0812e7b38505a1db7104cdb9d6c8b17415b2420de667`; no migration ran.
+
+The QR message listener processes both live `notify` and history `append` events. It now marks recent non-automated direct sends from the paired phone as staff replies. Persistence applies the pause even if the same provider message was saved by another path first, while excluding rows already identified as bot/automation. The runtime also recognizes a recent saved human QR outbound on the same training-center channel and derives its 24-hour staff pause before replying. Older history is not treated as a new manual reply; the fallback uses the provider timestamp and exact channel assignment. No AI call was added.
+
+The guarded release verified 311 Compose inputs, 11 environment inputs, a healthy database, a healthy app with zero restarts after rollout, unchanged support-service identities, and the public `https://7network.live/healthz` endpoint returning HTTP 200. The active overlay and all ten mounted asset hashes were read back. The Pro Catalyst greeting/profile and staff relay/short-code settings were left unchanged. No customer conversation was edited and no WhatsApp test message or paid AI call was sent. Changed JavaScript passed `node --check`, the release helper passed Python AST parsing, and `git diff --check` passed; no automated test suite was run. Owner acceptance remains: send a manual message from the paired phone, receive a customer reply, and confirm Hybrid stays paused for 24 hours then resumes.
+
+| Mounted runtime file | SHA-256 |
+|---|---|
+| `modules/platform/chatbot-business-context.js` | `759b086a15864496025167a50117698cac64c0cfe1076c42eeef85eeef34628f` |
+| `modules/platform/chatbot-ai-prompt.js` | `927698a4345c5d09f842cd5a00e58e8e3df7e5dc3751493d4e1283581a3e9ea4` |
+| `modules/platform/chatbot-runtime.js` | `88934de1d207d253a12f22b82339e985840ef1c0790787aa8bbd172785612439` |
+| `modules/platform/chatbot-lead-capture.js` | `58ba76fa80b8d28e6a2c137ba2b2a3bf053b5db205790a668cfb21a8c29885c8` |
+| `modules/platform/chatbot-conversation-control.js` | `9e4124788e1f3c3bab2db520b48b6b3a093dbdeb83c15b3d10b6e002aaa35629` |
+| `modules/platform/chatbot-handoff-claims.js` | `56211c6b6e42348fe19fa7c4cf651e63ec64abd78ac48f96a9b42b95bdb0f32e` |
+| `modules/platform/chatbot-router.js` | `11bd363778476bea152a55368dc016a32674c7feb1623bc44db7032f013305d5` |
+| `modules/platform/chatbot-contact-assistant.js` | `bb8fe28d96f41925a17d894075bd4dd7746ad3b11f295027508d9c88226e2a44` |
+| `modules/platform/chatbot-conversation-store.js` | `d9ac5d199361c705367751818b963bf09df87db58c7e9dd8117673957f2c75b0` |
+| `helper/addon/qr/processThings.js` | `9e6c64cc1409d55dbb8f66689b8d4b98c673dd708d66b2754a75235b6fe8a1dc` |
+
+Protected rollback snapshot: `/opt/salemax/shared/rollback-pro-catalyst-conversation-quality-a94a49e0bc3b-20261122T084922Z`. Restore the prior Compose chain only if this is still the latest app overlay; restore any later overlays first:
+
+```sh
+sudo -n /opt/salemax/shared/with-production-lock.sh python3 /opt/salemax/releases/pro-catalyst-conversation-quality-a94a49e0bc3b-20261122T084922Z/deploy/pro-catalyst-conversation-quality-release.py restore /opt/salemax/shared/rollback-pro-catalyst-conversation-quality-a94a49e0bc3b-20261122T084922Z
+```
+
+Rollback is app-only; no migration or database rollback applies.
