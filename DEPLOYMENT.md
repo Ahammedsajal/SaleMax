@@ -5370,3 +5370,7 @@ Rollback is app-only; no migration or database rollback applies.
 ## 22 November 2026 — Pro Catalyst post-send and phone pause repair
 
 Source `be2dc017fa39eb7922981b2f305c7ffe87ebf0f8`. App-only overlay `/opt/salemax/releases/pro-catalyst-conversation-quality-be2dc017fa39-20261122T150819Z`. No migration or profile change. Restore the guarded snapshot `/opt/salemax/shared/rollback-pro-catalyst-conversation-quality-be2dc017fa39-20261122T150819Z` using this overlay's deploy helper with `restore` under the production lock, after removing later overlays. All three source hashes verified in the running app, public health HTTP 200, five supporting services retained their identities. Thirteen focused tests passed. Physical handset acceptance remains open.
+
+## 22 November 2026 — Pro Catalyst conversation context and QR wrappers
+
+Source `56b680996835801b39a6ef5987c6a8fe96e7614e`. App-only overlay `/opt/salemax/releases/pro-catalyst-conversation-quality-56b680996835-20261122T151805Z`. No migration or profile change. Restore with the overlay's deploy helper under the production lock using snapshot `/opt/salemax/shared/rollback-pro-catalyst-conversation-quality-56b680996835-20261122T151805Z` after removing any newer overlays. Running file hashes verified, public health HTTP 200, support service identities unchanged. The 238 focused tests cover grounded course lookup, AI context, staff pause and wrapped QR messages. Live phone and customer-message acceptance remain open.
