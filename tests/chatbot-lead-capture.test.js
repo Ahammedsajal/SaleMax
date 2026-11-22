@@ -1,7 +1,7 @@
 'use strict';
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { customerName, qualificationFromText, addQuestion, standaloneNamePrompt } = require('../modules/platform/chatbot-lead-capture');
+const { customerName, qualificationFromText, addQuestion, nameCandidateForTurn, standaloneNamePrompt } = require('../modules/platform/chatbot-lead-capture');
 const { coursePdfs } = require('../modules/platform/chatbot-course-media');
 const { getDomainPack } = require('../modules/platform/chatbot-domain-packs');
 test('English and Arabic names are captured from declarations or a requested name response',()=>{
@@ -36,6 +36,15 @@ test('only the selected course PDF is shared once, with explicit requests allowi
 test('a certificate follow-up is not captured as a customer name after the bot greeting', () => {
   assert.equal(customerName('which certificate i will get', true), null);
 });
+test('natural first person names are captured while beginner statements are not treated as names', () => {
+  assert.equal(customerName("I'm Amina", true), 'Amina');
+  assert.equal(customerName('I said I am a beginner to start', true), null);
+});
+test('a rejected saved profile name is not offered again on the next turn', () => {
+  assert.equal(nameCandidateForTurn({ nameCandidateRejected: true }, 'aadhilsaiotp'), null);
+  assert.equal(nameCandidateForTurn({ nameCandidate: 'Amina Saleh' }, 'Other Contact'), 'Amina Saleh');
+  assert.equal(nameCandidateForTurn({}, 'Amina Saleh'), 'Amina Saleh');
+});
 test('Arabic certificate questions are not captured as customer names', () => {
   assert.equal(customerName('ما الشهادة التي سأحصل عليها', true), null);
 });
@@ -52,4 +61,10 @@ test('Pro Catalyst sends name questions and confirmations as standalone text', (
   const start = { courseInterest: 'Marine Deckhand', intake: { key: 'start', prompt: 'When would you like to start?', session: {} } };
   assert.equal(standaloneNamePrompt(start), null);
   assert.equal(addQuestion(body, start, {}, {}), body + '\n\nWhen would you like to start?');
+});
+
+test('contact prompts preserve the course discovery question and replace an unverified profile name safely', () => {
+  assert.equal(addQuestion('Which course would you like to know about?',
+    { contactPrompt: 'I can see {name} on WhatsApp. Is that the name you prefer?', nameCandidate: 'Amina Saleh' }, {}, {}),
+  'Which course would you like to know about?\n\nI can see Amina Saleh on WhatsApp. Is that the name you prefer?');
 });

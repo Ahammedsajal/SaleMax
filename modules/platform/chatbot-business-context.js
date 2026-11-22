@@ -8,6 +8,10 @@ const { findApprovedFaq, keywords: faqKeywords } = require('./chatbot-faq');
 const normalized = value => normalizeDigits(value).toLowerCase().normalize('NFKC').replace(/[أإآ]/g, 'ا').replace(/ى/g, 'ي').replace(/[^\p{L}\p{N}]+/gu, ' ').replace(/\bcare\s+givers?\b/gu, 'caregiver').trim();
 const STOP_WORDS = new Set('the for your our are can you what how want would like tell about course courses training please help certificate certification professional class classes session sessions certificates certifications accreditation accredited attestation attested certified شهادة الشهادة شهادات الشهادات اعتماد معتمدة تصديق مصدقة احترافي اريد دورة الدورات التدريب ماهي ممكن لو سمحت'.split(' '));
 const tokens = value => normalized(value).split(' ').filter(word => word.length > 2 && !STOP_WORDS.has(word));
+const BEGINNER_TEXT = /\b(?:beginner|beginners|new to this|no experience|just starting|starting from zero)\b/u;
+const BEGINNER_TEXT_AR = /(?:مبتدئ|مبتدئة|مبتدئين|لا املك خبرة|ابدأ من الصفر)/u;
+const DISCOVERY_COMPLAINT = /\b(?:why keep(?: on)? (?:sending|asking)|why do you keep (?:sending|asking|repeating)|keep on (?:sending|asking)|keep (?:sending|asking) the same|same question|repeat(?:ing)? (?:yourself|the same)|not serious|not listening|you do not listen|you don t listen|i said .*beginner)\b/u;
+const DISCOVERY_COMPLAINT_AR = /ليش تكرر|تكرر نفس السؤال|لا تكرر السؤال|مش جاد/u;
 function courseInquiryTopic(message, state = null) {
   const raw = String(message || '').normalize('NFKC').replace(/\s+/g, ' ').trim();
   if (!raw || raw.length > 200) return null;
@@ -208,6 +212,32 @@ function decodeURIComponentSafe(value) {
   try { return decodeURIComponent(value.replace(/\+/g, ' ')); } catch { return value; }
 }
 
+// A fee-only follow-up refers to the selected course. Leave named courses,
+// comparisons, payment terms and other new subjects to their own routes.
+const PRICE_QUESTION_WORDS = new Set(('how much money what s is are the a an it its this that your will would does do i have to pay ' +
+  'for of me please pls kindly tell can you current total full course training fee fees price cost costs tuition ' +
+  'كم ما هي هو سعر السعر رسوم الرسوم تكلفة التكلفة تكلف تكلفتها سعرها رسومها بكم الدورة الدوره دورة هذه هذي لو سمحت فضلك من').split(' '));
+
+function isStandalonePriceQuestion(message) {
+  const text = normalized(message);
+  if (!/(?:^| )(?:how much|price|costs?|fees?|tuition|سعر|السعر|سعرها|رسوم|الرسوم|رسومها|تكلفة|التكلفة|تكلف|تكلفتها|بكم)(?: |$)/u.test(text)) return false;
+  return text.split(' ').every(word => PRICE_QUESTION_WORDS.has(word));
+}
+
+function recentAssistantCourseCode(history, facts) {
+  const turn = [...(Array.isArray(history) ? history : [])].reverse().find(item => item?.role === 'assistant' && typeof item.text === 'string');
+  if (!turn) return null;
+  const reply = normalized(turn.text);
+  const matches = (Array.isArray(facts) ? facts : []).filter(item => item?.code && !item.kind)
+    .map(item => ({ item, names: [item.nameEn, item.nameAr].filter(Boolean).map(normalized).filter(Boolean) }))
+    .filter(({ names }) => names.some(name => reply.includes(name)));
+  const matchingNames = matches.flatMap(({ item, names }) => names.filter(name => reply.includes(name)).map(name => ({ item, name })));
+  const longest = matchingNames.filter(candidate => !matchingNames.some(other => other !== candidate && other.item.code !== candidate.item.code
+    && other.name.length > candidate.name.length && other.name.includes(candidate.name)));
+  const codes = [...new Set(longest.map(item => item.item.code))];
+  return codes.length === 1 ? codes[0] : null;
+}
+
 function retrieveContext({ facts, knowledgeEntries = [], message, state = {}, profileRevision = 0, referral = null, includeRelatedFaqs = false }) {
   const language = languageFor(message, state);
   const courses = facts.filter(item => item.code && !item.kind);
@@ -221,9 +251,13 @@ function retrieveContext({ facts, knowledgeEntries = [], message, state = {}, pr
   const ranked = courses.map(item => ({ item, score: score(message, [item.code, item.nameEn, item.nameAr, item.descriptionEn, item.descriptionAr, item.outcomesEn, item.outcomesAr].join(' ')) }))
     .sort((a, b) => b.score - a.score);
   const generalBusinessQuestion = /where|location|address|refund|policy|discount|اين|عنوان|موقع|استرداد|استرجاع|سياسة|خصم/i.test(message);
-  let selected = direct.length ? direct.slice(0, 3) : referralCourse ? [referralCourse] : generalBusinessQuestion || genericAdInterest ? [] : ranked.filter(row => row.score >= 3).slice(0, 3).map(row => row.item);
+  let selected = direct.length ? direct.slice(0, 3) : referralCourse ? [referralCourse]
+    : generalBusinessQuestion || genericAdInterest || isStandalonePriceQuestion(message) ? []
+      : ranked.filter(row => row.score >= 3).slice(0, 3).map(row => row.item);
+  const selectedPriceQuestion = !direct.length && !referralCourse && !state.waitingForCourse
+    && Boolean(state.selectedCourseCode) && isStandalonePriceQuestion(message);
   const followUp = /\b(?:that|this|it|its|the course|how much|how long|when does|when is|certificate|certification|online|offline|in person|face to face|classroom|remote|hybrid|delivery|study mode|course format)\b|هذه|تلك|مدتها|رسومها|موعدها|كم الرسوم|كم مدتها|متى تبدأ|شهادة|الشهادة|اعتماد|اونلاين|عن بعد|حضوري|طريقة الدراسة|طريقة التقديم/iu.test(message);
-  if (!direct.length && !referralCourse && (followUp || certificateQuestion) && state.selectedCourseCode) selected = courses.filter(item => item.code === state.selectedCourseCode);
+  if (!direct.length && !referralCourse && (followUp || certificateQuestion || selectedPriceQuestion) && state.selectedCourseCode) selected = courses.filter(item => item.code === state.selectedCourseCode);
   if (!selected.length && state.selectedCourseCode) selected = courses.filter(item => item.code === state.selectedCourseCode);
   if (certificateQuestion && !direct.length && !referralCourse) selected = selected.filter(item => item.code === state.selectedCourseCode);
   const recommendation = /recommend|compare|difference|best|improve|career|beginner|توصي|تنصح|افضل|مقارن|الفرق|مبتدئ/i.test(message);
@@ -274,7 +308,7 @@ function retrieveContext({ facts, knowledgeEntries = [], message, state = {}, pr
   }
   // Names are a discovery index, never evidence for unpublished prices/policies.
   if (!direct.length) add('catalogue:index', courses.map(item => ({code:item.code,nameEn:item.nameEn,nameAr:item.nameAr})), { kind: 'course_index', names: courses.slice(0, 60).map(item => local(item, 'name', language)), totalCourses: courses.length, complete: courses.length < 500 && courses.length <= 60 });
-  return { evidence, sources, selectedCourseCode: selected.length === 1 ? selected[0].code : null, language, revision: fingerprint({ facts, knowledgeEntries, profileRevision }), explicitCourses: direct.length || (referralCourse ? 1 : 0), courseContextSource: direct.length ? 'message' : referralCourse ? 'meta_referral' : null };
+  return { evidence, sources, selectedCourseCode: selected.length === 1 ? selected[0].code : null, language, revision: fingerprint({ facts, knowledgeEntries, profileRevision }), explicitCourses: direct.length || (referralCourse ? 1 : 0), courseContextSource: direct.length ? 'message' : referralCourse ? 'meta_referral' : selectedPriceQuestion && selected.length === 1 ? 'selected_course_price' : null };
 }
 
 function validateAnswer(response, context, { staffNotificationQueued = false } = {}) {
@@ -377,6 +411,56 @@ function shouldClarifyGenericCourseInterest(message, context, state = {}) {
   return isGenericAdInterest(message) && !(context?.selectedCourseCode || state?.selectedCourseCode);
 }
 
+function isCourseDiscoveryOptOut(message) {
+  const text = normalized(message);
+  return /^(?:not interested(?: in (?:this|that|the course|your courses?|any courses?))?|i am not interested|i m not interested|no thanks|no thank you|not for me|stop|unsubscribe|do not contact|لا شكرا(?: لك)?|لست مهتم(?:ة)?|مش مهتم(?:ة)?|غير مهتم(?:ة)?|لا اريد|ما اريد|لا ارغب|ما ارغب)$/u.test(text);
+}
+
+function courseDiscoveryOptOutReply(message, state = {}) {
+  return languageFor(message, state) === 'ar'
+    ? 'أفهم ذلك، شكرًا لإخباري. سأتوقف هنا، ويمكنك مراسلتنا متى احتجت إلى المساعدة.'
+    : 'Understood, thanks for letting me know. I’ll leave it there. If you need help later, just message us.';
+}
+
+function isCourseDiscoveryFeedback(message, state = {}) {
+  const text = normalized(message);
+  const complaint = DISCOVERY_COMPLAINT.test(text) || DISCOVERY_COMPLAINT_AR.test(text);
+  const beginner = BEGINNER_TEXT.test(text) || BEGINNER_TEXT_AR.test(text);
+  return complaint || (beginner && (state?.waitingForCourse === true || !state?.selectedCourseCode));
+}
+
+function courseDiscoveryRepairReply({ message, state = {}, history = [], facts = [] } = {}) {
+  const language = languageFor(message, state);
+  const ar = language === 'ar';
+  const text = normalized(message);
+  const complaint = DISCOVERY_COMPLAINT.test(text) || DISCOVERY_COMPLAINT_AR.test(text);
+  const turns = Array.isArray(history) ? history : [];
+  const currentBeginner = BEGINNER_TEXT.test(text) || BEGINNER_TEXT_AR.test(text);
+  const beginnerMentioned = state?.beginnerPreference === true
+    || currentBeginner
+    || (complaint && turns.some(turn => turn?.role === 'user'
+      && (BEGINNER_TEXT.test(normalized(turn.text)) || BEGINNER_TEXT_AR.test(normalized(turn.text)))));
+  if (!complaint && !currentBeginner) return null;
+
+  const beginnerCourses = (Array.isArray(facts) ? facts : [])
+    .filter(course => !course?.kind && course?.code && normalized(course.difficultyLevel) === 'beginner')
+    .slice(0, 3)
+    .map(course => local(course, 'name', language))
+    .filter(Boolean);
+  if (ar) {
+    const apology = complaint ? 'أعتذر، كررت السؤال ولم أجب على ما ذكرته.' : 'شكرًا لإخباري أنك مبتدئ.';
+    if (beginnerMentioned && beginnerCourses.length) {
+      return { reply: `${apology} الدورات المنشورة للمبتدئين تشمل ${beginnerCourses.join(' و')}. هل تود معرفة تفاصيل إحداها، أم تبحث عن مجال آخر؟`, beginnerMentioned: true };
+    }
+    return { reply: `${apology} أخبرني بالمجال الذي تريد تعلمه، وسأقترح لك دورة مناسبة من الدورات المتاحة.`, beginnerMentioned };
+  }
+  const apology = complaint ? 'Sorry—I repeated myself instead of responding to what you told me.' : 'Thanks for telling me you’re a beginner.';
+  if (beginnerMentioned && beginnerCourses.length) {
+    return { reply: `${apology} Our published beginner-level courses include ${beginnerCourses.join(' and ')}. Would you like details about one of these, or are you interested in another subject?`, beginnerMentioned: true };
+  }
+  return { reply: `${apology} What subject would you like to learn? I’ll suggest suitable options from our available courses.`, beginnerMentioned };
+}
+
 function ambiguousDiplomaCandidates(message, facts, state = {}) {
   const text = normalized(message);
   if (!/\bdiplomas?\b/u.test(text) || isCourseCatalogueRequest(message)
@@ -445,6 +529,12 @@ function isTrainingGreeting(message) {
 function trainingGreeting({ message, state, facts, welcome }) {
   const language = languageFor(message, state);
   const ar = language === 'ar';
+  const configuredWelcome = String(welcome || '').trim();
+  const identifiedWelcome = /virtual assistant|مساعد افتراضي/iu.test(configuredWelcome)
+    ? configuredWelcome
+    : ar
+      ? `مرحبًا! 👋 أنا المساعد الافتراضي لمركز برو كاتاليست للتدريب. ${configuredWelcome.replace(/^(?:مرحبًا|مرحبا|أهلًا|اهلا)[،,! ]*/u, '').trim()}`.trim()
+      : `Hi! 👋 I’m Pro Catalyst Training Center’s virtual assistant. ${configuredWelcome.replace(/^(?:hi|hello)[,! ]*(?:👋\s*)?/iu, '').trim()}`.trim();
   const course = facts.find(item => !item.kind && item.code === state.selectedCourseCode);
   const name = course && local(course, 'name', language);
   const examples = facts.filter(item => !item.kind && item.code).map(item => local(item, 'name', language)).filter(Boolean).slice(0, 3);
@@ -458,7 +548,7 @@ function trainingGreeting({ message, state, facts, welcome }) {
       ar ? 'ما المهارة التي ترغب في تعلمها؟' : 'What skill would you like to pick up?'];
   const count = Number(state.trainingGreetingNudges) || 0;
   return {
-    reply: state.greeted ? nudges[count % nudges.length] : `${welcome} ${nextQuestion}`,
+    reply: state.greeted ? nudges[count % nudges.length] : `${identifiedWelcome} ${nextQuestion}`,
     state: { ...state, language, greeted: true, trainingGreetingNudges: state.greeted ? count + 1 : 0 },
   };
 }
@@ -552,7 +642,7 @@ function simpleFactualReply(message, context, config = {}) {
       : `${course.name} is listed as ${label}. I don’t have a published breakdown of the sessions; admissions can confirm the details.`;
     return { reply, sourceIds: [course.sourceId] };
   }
-  const asksFee = /\b(?:fee|fees|price|cost|how much)\b|رسوم|سعر|تكلفة/i.test(message);
+  const asksFee = context.courseContextSource === 'selected_course_price' || /\b(?:fee|fees|price|cost|how much)\b|رسوم|سعر|تكلفة/i.test(message);
   const registrationForm = context.evidence.find(item => item.kind === 'published_enquiry_form' && item.purpose === 'registration');
   const courseInterest = /\b(?:interested|would like to join|want to join|want to study|like to enrol|like to enroll)\b|مهتم|ارغب في التسجيل/i.test(message);
   const applicationOffer = courseInterest && registrationForm
@@ -662,4 +752,4 @@ function polishGuidedReply({ result, profile, message, state, defaults }) {
   return result;
 }
 
-module.exports = { normalized, fingerprint, languageFor, controlRoute, isScheduleQuestion, hasPublishedSchedule, courseDetailNeedsCoordinator, trainingCenterCoordinatorReason, publishedDurationRange, retrieveContext, validateAnswer, clarification, unavailableReply, publishedTrainingReply, simpleFactualReply, isCourseOverviewRequest, shouldSkipApprovedFaq, isGenericAdInterest, shouldClarifyGenericCourseInterest, courseDiscoveryReply, ambiguousDiplomaCandidates, diplomaClarificationReply, isBareCourseSelection, courseInquiryTopic, previewState, redactCustomerText, polishGuidedReply, qrAdReferral, courseFromVerifiedReferral, isTrainingGreeting, trainingGreeting, repeatQuestion, repeatedCourseFact, isCertificateQuestion, courseCertificateReply, certificateFollowUp };
+module.exports = { normalized, fingerprint, languageFor, controlRoute, isScheduleQuestion, hasPublishedSchedule, courseDetailNeedsCoordinator, trainingCenterCoordinatorReason, publishedDurationRange, retrieveContext, validateAnswer, clarification, unavailableReply, publishedTrainingReply, simpleFactualReply, isCourseOverviewRequest, shouldSkipApprovedFaq, isGenericAdInterest, shouldClarifyGenericCourseInterest, isCourseDiscoveryOptOut, courseDiscoveryOptOutReply, isCourseDiscoveryFeedback, courseDiscoveryRepairReply, courseDiscoveryReply, ambiguousDiplomaCandidates, diplomaClarificationReply, isBareCourseSelection, courseInquiryTopic, previewState, redactCustomerText, polishGuidedReply, qrAdReferral, courseFromVerifiedReferral, isTrainingGreeting, trainingGreeting, repeatQuestion, repeatedCourseFact, isCertificateQuestion, isStandalonePriceQuestion, recentAssistantCourseCode, courseCertificateReply, certificateFollowUp };

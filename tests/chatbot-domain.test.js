@@ -21,8 +21,8 @@ const courseFacts = [
 test('training-center pack exposes versioned, editable bilingual guided content', () => {
   assert.equal(pack.key, 'training_center');
   assert.equal(pack.version, 1);
-  assert.match(pack.guidedContentDefaults.messages.greeting.en, /Welcome to Pro Catalyst Training Center/);
-  assert.match(pack.guidedContentDefaults.messages.greeting.ar, /مرحباً بك في مركز برو كاتاليست للتدريب/);
+  assert.match(pack.guidedContentDefaults.messages.greeting.en, /Pro Catalyst Training Center’s virtual assistant/);
+  assert.match(pack.guidedContentDefaults.messages.greeting.ar, /المساعد الافتراضي لمركز برو كاتاليست للتدريب/);
   assert.ok(pack.guidedContentSchema.groups.some(group => group.id === 'course-list'));
 });
 
@@ -88,7 +88,7 @@ test('guided-content validation rejects wrong types and overlong text', () => {
 test('training guide localizes the welcome/menu and conditionally lists the published enquiry form', () => {
   const facts = [...courseFacts, { kind: 'published_enquiry_form', url: 'https://crm.example/forms/enquiry' }];
   const result = trainingCenterGuidedReply({ message: 'السلام عليكم', state: null, facts, defaults: pack.guidedContentDefaults });
-  assert.match(result.reply, /مرحباً بك في مركز برو كاتاليست/);
+  assert.match(result.reply, /المساعد الافتراضي لمركز برو كاتاليست/);
   assert.match(result.reply, /ما الدورة التي تهمك/);
   assert.doesNotMatch(result.reply, /\[1\]|\[2\]|\[3\]|\[0\]|أرسل رقم/);
   assert.equal(result.state.language, 'ar');
@@ -113,7 +113,7 @@ test('guided training conversation greets once, keeps menu navigation concise, a
   assert.match(list.reply, /Programs open for enrolment/);
   const details = trainingCenterGuidedReply({ message: '1', state: list.state, facts: courseFacts, config: settings, defaults: pack.guidedContentDefaults });
   const repeatedDetails = trainingCenterGuidedReply({ message: 'more', state: details.state, facts: courseFacts, config: settings, defaults: pack.guidedContentDefaults });
-  assert.equal((repeatedDetails.reply.match(/Would you like to know anything else about this course\?/g) || []).length, 1);
+  assert.equal(repeatedDetails.reply.split(pack.guidedContentDefaults.messages.courseDetailsPrompt.en).length - 1, 1);
 });
 
 test('the first specific course question includes the editable greeting only once', () => {
@@ -202,7 +202,7 @@ test('hybrid routes menu and course choices deterministically and leaves ordinar
 });
 
 test('Hybrid starts the deterministic welcome menu for evening greetings in both languages', () => {
-  for (const [message, expected] of [['Good evening', 'Hi! 👋 Welcome to Pro Catalyst'], ['مساء الخير', 'مرحباً بك في مركز برو كاتاليست']]) {
+  for (const [message, expected] of [['Good evening', pack.guidedContentDefaults.messages.greeting.en], ['مساء الخير', pack.guidedContentDefaults.messages.greeting.ar]]) {
     assert.equal(shouldStartGuided(message), true);
     const plan = hybridTurnPlan({ hasSession: false, isChoice: false, aiFallback: true, domainDefault: true, shouldStartGuided: shouldStartGuided(message) });
     assert.equal(plan.runGuided, true);

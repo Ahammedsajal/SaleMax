@@ -314,6 +314,86 @@ async function queue(db, tenantId, claim) {
   });
 }
 
+async function appendCallbackTask(db, { tenantId, taskId, callbackNumber, courseName, requestKey }) {
+  if (!tenantId || !taskId || !callbackNumber || !requestKey) return false;
+  const [[task]] = await db.query(`SELECT description,status,revision FROM sx_tasks
+    WHERE tenant_id=? AND id=? AND task_type='chatbot_handoff' AND deleted_at IS NULL FOR UPDATE`, [tenantId, taskId]);
+  if (!task) return false;
+  const marker = `Callback request confirmed [${requestKey}]`;
+  if (String(task.description || '').includes(marker)) return false;
+  const line = `${marker}: customer agreed to a coordinator call at ${callbackNumber}${courseName ? ` about ${courseName}` : ''}.`;
+  const priorDescription = String(task.description || '').replace(
+    /The assistant continues helping while staff are notified\. After a staff reply in Inbox, it pauses for the bot’s selected interval and resumes automatically\./u,
+    'The assistant is paused while this handoff is active.');
+  const description = [priorDescription.trim(), line].filter(Boolean).join('\n\n').slice(0, 60000);
+  const revision = Number(task.revision || 0) + 1;
+  const [updated] = await db.query(`UPDATE sx_tasks SET description=?,revision=? WHERE tenant_id=? AND id=? AND revision=? AND deleted_at IS NULL`,
+    [description, revision, tenantId, taskId, task.revision]);
+  if (updated.affectedRows !== 1) return false;
+  await db.query(`INSERT INTO sx_task_events(tenant_id,task_id,revision,actor_type,actor_id,event_type,from_status,to_status,details_json)
+    VALUES (?,?,?,'system',NULL,'callback_requested',?,?,?)`,
+  [tenantId, taskId, revision, task.status, task.status, JSON.stringify({ callbackNumber, courseName: courseName || null, requestKey })]);
+  return true;
+}
+
+async function confirmCallback(db, { ctx, profile, uid, chatId, channelKind, channelRef, brief = {}, callbackNumber, courseName, requestKey }) {
+  if (!callbackNumber || !/^[+]974[3567]\d{7}$/.test(callbackNumber) || !/^[a-f0-9]{24}$/i.test(String(requestKey || ''))) {
+    fail('CALLBACK_CONFIRMATION_INVALID');
+  }
+  const ownerHash = crypto.createHash('sha256').update(uid).digest('hex');
+  const [[existing]] = await db.query(`SELECT id,claim_code AS claimCode,status,revision,reason,
+      notification_event_key AS notificationEventKey,handoff_task_id AS handoffTaskId,
+      (COALESCE(expires_at,DATE_ADD(created_at,INTERVAL 24 HOUR))>UTC_TIMESTAMP(3)) AS isActive
+    FROM sx_chatbot_handoff_claims WHERE tenant_id=? AND channel_kind=? AND channel_ref=? AND conversation_id=?
+      AND owner_uid_hash=? FOR UPDATE`, [ctx.tenant.id, channelKind, channelRef, chatId, ownerHash]);
+  const marker = `Callback confirmed: customer agreed to a coordinator call at ${callbackNumber}${courseName ? ` for ${courseName}` : ''}.`;
+  const latestEnquiry = [String(brief.latestEnquiry || '').trim(), marker].filter(Boolean).join('\n').slice(0, 1000);
+  const summary = `The customer confirmed a course coordinator callback to ${callbackNumber}${courseName ? ` about ${courseName}` : ''}. Please call the customer to follow up.`.slice(0, 580);
+  let claim = existing && Number(existing.isActive) && ['open', 'claimed'].includes(existing.status)
+    ? { ...existing, created: false } : await open(db, { ctx, profile, uid, chatId, channelKind, channelRef,
+      reason: 'qatar-coordinator-callback', brief: { ...brief, latestEnquiry } });
+  if (!claim?.id) fail('CALLBACK_HANDOFF_UNAVAILABLE');
+  const eventKey = `chatbot-handoff:${claim.id}:callback:${requestKey}`;
+  const details = JSON.stringify(brief.courseDetails || []);
+  if (claim.created) {
+    await db.query(`UPDATE sx_chatbot_handoff_claims SET notification_event_key=?,customer_name=COALESCE(?,customer_name),
+      customer_phone=COALESCE(?,customer_phone),course_details=IF(JSON_LENGTH(?)>0,?,course_details),latest_enquiry=?,
+      summary_context=NULL,ai_summary=?,ai_summary_status='fallback',ai_summary_lease_until=NULL
+      WHERE tenant_id=? AND id=?`, [eventKey, brief.customerName || null, brief.customerPhone || null, details, details,
+      latestEnquiry, summary, ctx.tenant.id, claim.id]);
+  } else {
+    if (claim.status === 'open' && claim.notificationEventKey && claim.notificationEventKey !== eventKey) {
+      await db.query(`UPDATE sx_business_notification_deliveries d JOIN sx_business_notification_events e
+          ON e.tenant_id=d.tenant_id AND e.id=d.event_id
+        SET d.status='suppressed',d.error_code='HANDOFF_UPDATED_WITH_CALLBACK_CONSENT'
+        WHERE e.tenant_id=? AND e.event_key=? AND e.kind='chatbot_handoff' AND d.status IN ('queued','blocked')`,
+      [ctx.tenant.id, claim.notificationEventKey]);
+      await db.query(`UPDATE sx_business_notification_events SET status='failed',last_error_code='HANDOFF_UPDATED_WITH_CALLBACK_CONSENT'
+        WHERE tenant_id=? AND event_key=? AND kind='chatbot_handoff' AND status IN ('queued','prepared')`,
+      [ctx.tenant.id, claim.notificationEventKey]);
+    }
+    await db.query(`UPDATE sx_chatbot_handoff_claims SET reason='qatar-coordinator-callback',notification_event_key=?,
+      customer_name=COALESCE(?,customer_name),customer_phone=COALESCE(?,customer_phone),
+      course_details=IF(JSON_LENGTH(?)>0,?,course_details),latest_enquiry=?,summary_context=NULL,
+      ai_summary=?,ai_summary_status='fallback',ai_summary_lease_until=NULL
+      WHERE tenant_id=? AND id=? AND status IN ('open','claimed')`,
+    [eventKey, brief.customerName || null, brief.customerPhone || null, details, details, latestEnquiry,
+      summary, ctx.tenant.id, claim.id]);
+  }
+  const [[current]] = await db.query(`SELECT id,claim_code AS claimCode,status,revision,handoff_task_id AS handoffTaskId
+    FROM sx_chatbot_handoff_claims WHERE tenant_id=? AND id=?`, [ctx.tenant.id, claim.id]);
+  const notificationQueued = current.status === 'open';
+  if (notificationQueued) await queue(db, ctx.tenant.id, { ...current, notificationEventKey: eventKey });
+  if (current.handoffTaskId) await appendCallbackTask(db, { tenantId: ctx.tenant.id, taskId: current.handoffTaskId,
+    callbackNumber, courseName, requestKey });
+  await db.query(`INSERT INTO sx_audit_events(id,tenant_id,actor_identity_id,actor_kind,action,resource_type,resource_id,changes,correlation_id)
+    VALUES (?,?,NULL,'system','chatbot.callback-consent-confirmed','chatbot-handoff',?,?,?)`,
+  [crypto.randomUUID(), ctx.tenant.id, claim.id, JSON.stringify({ requestKey, callbackNumber, courseName: courseName || null,
+    notificationQueued, alreadyAssigned: current.status === 'claimed' }), crypto.randomUUID()]);
+  return { ...claim, ...current, notificationEventKey: eventKey, callbackNotificationQueued: notificationQueued,
+    callbackAssigned: current.status === 'claimed' };
+}
+
 async function findOpen(db, { tenantId, uid, channelKind, channelRef, chatId }) {
   const [[row]] = await db.query(`SELECT id,claim_code AS claimCode,status,reason,notification_event_key AS notificationEventKey,
       last_customer_ack_at AS lastCustomerAckAt,last_customer_ack_inbound_id AS lastCustomerAckInboundId
@@ -323,14 +403,14 @@ async function findOpen(db, { tenantId, uid, channelKind, channelRef, chatId }) 
   return row || null;
 }
 
-async function reserveCustomerAcknowledgement(pool, { tenantId, claimId, inboundId, cooldownSeconds = 120, once = false }) {
+async function reserveCustomerAcknowledgement(pool, { tenantId, claimId, inboundId }) {
   const db = await pool.getConnection();
   try {
     const [result] = await db.query(`UPDATE sx_chatbot_handoff_claims SET last_customer_ack_at=UTC_TIMESTAMP(3),last_customer_ack_inbound_id=?
       WHERE tenant_id=? AND id=? AND status='open' AND COALESCE(expires_at,DATE_ADD(created_at,INTERVAL 24 HOUR))>UTC_TIMESTAMP(3)
         AND (last_customer_ack_inbound_id IS NULL OR last_customer_ack_inbound_id<>?)
-        AND (last_customer_ack_at IS NULL OR (?=0 AND last_customer_ack_at<=DATE_SUB(UTC_TIMESTAMP(3),INTERVAL ? SECOND)))`,
-    [inboundId, tenantId, claimId, inboundId, once ? 1 : 0, cooldownSeconds]);
+        AND last_customer_ack_at IS NULL`,
+    [inboundId, tenantId, claimId, inboundId]);
     return result.affectedRows === 1;
   } finally { db.release(); }
 }
@@ -497,4 +577,4 @@ async function recordStaffReply(pool, { tenantId, uid, identityId, chatId, chann
   } finally { db.release(); }
 }
 
-module.exports = { parseYes, phone, open, queue, findOpen, reserveCustomerAcknowledgement, releaseCustomerAcknowledgement, handleStaffClaim, recordStaffReply, expireDue, resetForCustomerGreeting, holdMinutes, staffRoles };
+module.exports = { parseYes, phone, open, queue, confirmCallback, appendCallbackTask, findOpen, reserveCustomerAcknowledgement, releaseCustomerAcknowledgement, handleStaffClaim, recordStaffReply, expireDue, resetForCustomerGreeting, holdMinutes, staffRoles };

@@ -1,8 +1,12 @@
-## Email Marketing campaign reports and reply inbox — deployed, 21 November 2026
+## Pro Catalyst repeat-discovery and refusal handling — deployed, 21 November 2026
 
-The existing Campaigns list and Analytics campaign links now open a tenant-scoped report with campaign/sender details, performance summaries, delivery and engagement charts, message/attachment details, and searchable recipient outcomes with event times and paginated status rows. Replies are included in campaign analytics. The existing Email Inbox can now save/edit/delete drafts and queue a reply or composed message through the outbound worker. The report was opened in authenticated production Edge and showed its charts, recipient status table and pagination. No email was sent during this release.
+The repeat happened because the opening greeting already asked which course the customer wanted, but that question was not saved as asked. The next inbound still received the generic `collectCourseMessage` prompt, even when the customer said “not interested.” The runtime now records a discovery question after it is actually sent, avoids appending a second course question when the reply already asks one, and gives clear refusals a brief acknowledgment without a course, name or callback prompt. Ambiguous follow-ups remain in the existing GPT-6 Luna conversation-aware path; clear opt-outs use zero AI tokens. The live Pro Catalyst provider setting was read as OpenAI `gpt-6-luna`.
 
-Source commit `baa6e9023f1c45f6b93b0b4f47177bbcae469c5e` is live. The additive inbox/composer schema migration is applied. Authenticated visual acceptance covered English/light desktop; mobile/tablet, Arabic/RTL, standalone PWA, actual inbound replies and actual composed-email delivery remain open. The broader 42-ticket upgrade and provider/deliverability gates remain in progress. See `DEPLOYMENT.md` for runtime hashes, migration, rollback and release evidence.
+Source commit `c7b5cab254242a292c65ee633ef6e39f626f5d1b` is pushed to `main` and live in app-only overlay `/opt/salemax/releases/pro-catalyst-conversation-quality-c7b5cab25424-20261121T144905Z` on the existing app image. The release applied under the production lock, with no migration or customer-data/profile write. The app is healthy with zero restarts, public `/healthz` returned HTTP 200, all eight mounted runtime hashes matched the source release, and supporting services were unchanged. Syntax and whitespace checks passed; no automated test suite or WhatsApp message was run. Fresh-chat WhatsApp acceptance remains open. Release and rollback details are in `DEPLOYMENT.md`.
+
+## Pro Catalyst callback handoff asks for name and number — deployed, 21 November 2026
+
+The coordinator callback acknowledgement now says the course coordinator will call soon, asks for the customer's name (or asks them to confirm an unverified WhatsApp name), and confirms the Qatar WhatsApp number when available. International senders are asked for a Qatar mobile number (+974, eight digits). The copy is deterministic and uses no GPT tokens. The existing one-acknowledgement-per-handoff guard remains in place, and staff handoff pause behavior is unchanged. Production release, hashes, rollback and verification are recorded in `DEPLOYMENT.md`; organic WhatsApp acceptance remains open because no customer message was sent for verification.
 
 ## Email Marketing visual template builder — deployed, 19 November 2026
 
@@ -2635,6 +2639,14 @@ New handoffs use a simple one-letter/one-digit code (for example, `A1`): claim w
 
 Codes are never reused, preventing an old unread WhatsApp alert from targeting a different customer. There are 260 two-character combinations per tenant; the system safely falls back to six characters after they are all issued. The additive registry migration backfilled the 55 existing codes. Production is healthy, the migration is applied, the profile flag is true, and all deployed asset/health/support-service checks passed. No WhatsApp test message was sent. Owner acceptance and the guarded rollback are documented in `DEPLOYMENT.md`.
 
+### Pro Catalyst virtual-assistant greeting and conversational recovery — production, 21 November 2026
+
+The opening greeting now identifies the bot as Pro Catalyst Training Center’s virtual assistant in English and Arabic. First course-specific replies include the introduction too. Hybrid recovery now recognizes beginner disclosures and feedback about repeated prompts before course-name extraction; it apologizes, recalls the beginner preference from recent chat when needed, and lists the published beginner-level courses. This deterministic recovery uses no AI tokens and suppresses the generic repeat question. Production is healthy, the greeting was read back at profile revision 21, and the staff relay/short-code settings remain enabled. No WhatsApp test message was sent; owner acceptance should check a new greeting, a beginner response and a complaint in a controlled chat. Release hashes and guarded rollback are in `DEPLOYMENT.md`.
+
 ## CRM appearance — 20 November 2026
 
 The live CRM uses light mode for returning and new users. The signed-in dashboard, sidebar and top navigation were visually checked after reloading a session previously in dark mode. Source `8452f9a`; release and rollback details are in `DEPLOYMENT.md`.
+
+### Pro Catalyst callback consent and staff follow-up — production, 21 November 2026
+
+An affirmative reply such as “Yes please” now confirms a callback only when the bot’s preceding message explicitly asked permission to call the displayed Qatar number. The bot records a `callback_requested` lead activity, adds the callback number/course and consent to the existing handoff, notifies staff or refreshes the still-open notification, reuses any existing staff task/code, thanks the customer once, and keeps the bot paused. Confirming consent is deterministic and makes no AI provider call. Production deployment and health evidence are in `DEPLOYMENT.md`; a real customer-channel reply remains owner acceptance and was not sent as a deployment test.

@@ -77,7 +77,7 @@ function deepFreeze(value) {
 const TRAINING_CENTER_GUIDED_DEFAULTS = {
   version: 1,
   messages: {
-    greeting: { en: 'Hi! 👋 Welcome to Pro Catalyst Training Center. I’m happy to help you find a course that fits what you’re looking for.', ar: 'مرحباً بك في مركز برو كاتاليست للتدريب 👋 يسعدني مساعدتك في اختيار الدورة المناسبة لك.' },
+    greeting: { en: 'Hi! 👋 I’m Pro Catalyst Training Center’s virtual assistant. I can help you explore our courses and answer your questions.', ar: 'مرحبًا! 👋 أنا المساعد الافتراضي لمركز برو كاتاليست للتدريب. يمكنني مساعدتك في استكشاف دوراتنا والإجابة عن أسئلتك.' },
     menuPrompt: { en: 'Which course are you interested in, and what would you like to know about it?', ar: 'ما الدورة التي تهمك، وما الذي ترغب في معرفته عنها؟' },
     admissionsLabel: { en: 'Chat with our team', ar: 'التواصل مع فريقنا' },
     coursesLabel: { en: 'View courses', ar: 'عرض الدورات' },

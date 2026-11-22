@@ -295,8 +295,7 @@ function trainingCenterGuidedReply({ message, state, facts, config, defaults }) 
   const settings = mergeDefaults(defaults || {}, config || {});
   const language = result.state?.language || languageFor(message, state, config);
   const greeting = copy(settings, 'greeting', language, language === 'ar' ? 'أهلاً بك!' : 'Welcome!');
-  const courseSpecificReply = result.state?.step === 'course_detail' && Boolean(result.state?.selectedCourseCode);
-  if (!state?.greeted && !result.handoff && !courseSpecificReply && !result.reply.startsWith(greeting)) {
+  if (!state?.greeted && !result.handoff && !result.reply.includes(greeting)) {
     result.reply = `${greeting} ${result.reply}`;
   }
   const configuredPrompt = copy(settings, 'menuPrompt', language);
