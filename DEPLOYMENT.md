@@ -5366,3 +5366,7 @@ sudo -n /opt/salemax/shared/with-production-lock.sh python3 /opt/salemax/release
 ```
 
 Rollback is app-only; no migration or database rollback applies.
+
+## 22 November 2026 — Pro Catalyst post-send and phone pause repair
+
+Source `be2dc017fa39eb7922981b2f305c7ffe87ebf0f8`. App-only overlay `/opt/salemax/releases/pro-catalyst-conversation-quality-be2dc017fa39-20261122T150819Z`. No migration or profile change. Restore the guarded snapshot `/opt/salemax/shared/rollback-pro-catalyst-conversation-quality-be2dc017fa39-20261122T150819Z` using this overlay's deploy helper with `restore` under the production lock, after removing later overlays. All three source hashes verified in the running app, public health HTTP 200, five supporting services retained their identities. Thirteen focused tests passed. Physical handset acceptance remains open.
