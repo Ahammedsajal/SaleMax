@@ -84,10 +84,10 @@ async function pauseForStaffReply(uid, conversationId, channelKind, channelRef, 
       AND t.category_key='training_center'
     LIMIT 1
     ON DUPLICATE KEY UPDATE
-      mode=IF(updated_by_kind='identity',mode,'paused'),
-      pause_until=IF(updated_by_kind='identity',pause_until,VALUES(pause_until)),
-      reason=IF(updated_by_kind='identity',reason,'staff-replied'),
-      revision=IF(updated_by_kind='identity',revision,revision+1)`,
+      mode=IF(sx_chatbot_conversation_controls.updated_by_kind='identity',sx_chatbot_conversation_controls.mode,'paused'),
+      pause_until=IF(sx_chatbot_conversation_controls.updated_by_kind='identity',sx_chatbot_conversation_controls.pause_until,VALUES(pause_until)),
+      reason=IF(sx_chatbot_conversation_controls.updated_by_kind='identity',sx_chatbot_conversation_controls.reason,'staff-replied'),
+      revision=IF(sx_chatbot_conversation_controls.updated_by_kind='identity',sx_chatbot_conversation_controls.revision,sx_chatbot_conversation_controls.revision+1)`,
   [crypto.randomUUID(), channelKind, channelRef, conversationId, uidHash, uid]);
 }
 

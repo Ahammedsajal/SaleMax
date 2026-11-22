@@ -36,9 +36,9 @@ test('system staff-reply pauses have a 24-hour deadline and do not replace ident
       return [{ affectedRows: 1 }];
     });
     assert.match(statement, /TIMESTAMPADD\(HOUR,24,UTC_TIMESTAMP\(3\)\)/);
-    assert.match(statement, /mode=IF\(updated_by_kind='identity',mode,'paused'\)/);
-    assert.match(statement, /pause_until=IF\(updated_by_kind='identity',pause_until,VALUES\(pause_until\)\)/);
-    assert.match(statement, /reason=IF\(updated_by_kind='identity',reason,'staff-replied'\)/);
+    assert.match(statement, /mode=IF\(sx_chatbot_conversation_controls\.updated_by_kind='identity',sx_chatbot_conversation_controls\.mode,'paused'\)/);
+    assert.match(statement, /pause_until=IF\(sx_chatbot_conversation_controls\.updated_by_kind='identity',sx_chatbot_conversation_controls\.pause_until,VALUES\(pause_until\)\)/);
+    assert.match(statement, /reason=IF\(sx_chatbot_conversation_controls\.updated_by_kind='identity',sx_chatbot_conversation_controls\.reason,'staff-replied'\)/);
   } finally { loaded.restore(); }
 });
 

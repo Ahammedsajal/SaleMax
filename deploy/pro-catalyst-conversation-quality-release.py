@@ -18,7 +18,7 @@ TENANT_ID = '2301ea04-8acd-493e-a582-b9e527294005'
 PROFILE_ID = '51f11d68-1b77-4d73-9d28-96e36a80631f'
 SUPPORT = ('salemax-db-1', 'salemax-report-worker-1', 'salemax-libretranslate-1',
            'salemax-recruitment-founder-notification-worker-1', 'salemax-bot-lead-test-db')
-BASE_HASHES = {'helper/addon/qr/processThings.js': '42e701dbabf94b893cab539ac05d087bb1c03d147b82da3b5d304e682952b506'}
+BASE_HASHES = {'modules/platform/chatbot-conversation-control.js': '4fc177b80479aebaf7a82a62a89ea56003e95795ed243316933817f7b461fbe9'}
 ASSETS = tuple(BASE_HASHES)
 NEW_ASSETS = ()
 GREETING = {
