@@ -1,6 +1,7 @@
 'use strict';
 
 const {normalizeEmail}=require('./email-marketing');
+const bouncePrivacy=require('./email-marketing-bounce-privacy');
 
 const EVENT_TYPES=new Set(['Bounce','Complaint','Delivery','Send','Reject','Rendering Failure','DeliveryDelay','Subscription','Open','Click']);
 const UUID=/^[-0-9a-f]{36}$/i;
@@ -21,7 +22,7 @@ function suppressionReason(event,type){
   return null;
 }
 
-async function persist(pool,{envelope,event}){
+async function persist(pool,{envelope,event,key}){
   const snsId=String(envelope?.MessageId||'').trim();
   if(!/^[A-Za-z0-9-]{1,128}$/.test(snsId))throw Object.assign(Error('SNS_MESSAGE_INVALID'),{code:'SNS_MESSAGE_INVALID',status:400});
   const type=eventKind(event);
@@ -43,17 +44,30 @@ async function persist(pool,{envelope,event}){
 
     let matched=null;
     if(EVENT_TYPES.has(type)&&hasScopedTags){
-      const [[row]]=await db.query('SELECT id,tenant_id,campaign_id,recipient_email,provider_message_id FROM sx_email_campaign_recipients WHERE id=? AND campaign_id=? LIMIT 1 FOR UPDATE',[recipientId,campaignId]);
+      const [[row]]=await db.query('SELECT id,tenant_id,campaign_id,recipient_email,normalized_email,email_fingerprint,provider_message_id FROM sx_email_campaign_recipients WHERE id=? AND campaign_id=? LIMIT 1 FOR UPDATE',[recipientId,campaignId]);
       if(row&&(!messageId||!row.provider_message_id||row.provider_message_id===messageId)){
         matched=row;
-        if(reason&&(!reportedEmails.size||reportedEmails.has(normalizeEmail(row.recipient_email)))){
-          await db.query(`INSERT INTO sx_email_suppressions(tenant_id,normalized_email,reason,source)
-            VALUES(?,?,?,'ses-event')
-            ON DUPLICATE KEY UPDATE reason=CASE
-              WHEN reason='unsubscribe' THEN reason
-              WHEN VALUES(reason)='complaint' THEN 'complaint'
-              ELSE reason END,source=IF(reason='unsubscribe',source,VALUES(source))`,
-            [row.tenant_id,normalizeEmail(row.recipient_email),reason]);
+        const storedEmail=normalizeEmail(row.recipient_email||row.normalized_email||'');
+        const reportedMatches=!reportedEmails.size||[...reportedEmails].some(email=>
+          (storedEmail&&email===storedEmail)||(row.email_fingerprint&&bouncePrivacy.emailFingerprint(key,row.tenant_id,email)===row.email_fingerprint));
+        if(reason&&reportedMatches){
+          if(reason==='bounce'){
+            const bounceType=['Permanent','Undetermined'].includes(String(event?.bounce?.bounceType||''))?String(event.bounce.bounceType):'Undetermined';
+            if(storedEmail)await bouncePrivacy.scrubBouncedAddress(db,{key,tenantId:row.tenant_id,email:storedEmail,bounceType});
+            else if(row.email_fingerprint){
+              await db.query(`INSERT INTO sx_email_bounce_suppressions(tenant_id,email_fingerprint,bounce_type,source)
+                VALUES(?,?,?,'ses-event') ON DUPLICATE KEY UPDATE bounce_type=IF(VALUES(bounce_type)='Permanent','Permanent',bounce_type),source='ses-event'`,
+                [row.tenant_id,row.email_fingerprint,bounceType]);
+            }
+          }else if(storedEmail){
+            await db.query(`INSERT INTO sx_email_suppressions(tenant_id,normalized_email,reason,source)
+              VALUES(?,?,?,'ses-event')
+              ON DUPLICATE KEY UPDATE reason=CASE
+                WHEN reason='unsubscribe' THEN reason
+                WHEN VALUES(reason)='complaint' THEN 'complaint'
+                ELSE reason END,source=IF(reason='unsubscribe',source,VALUES(source))`,
+              [row.tenant_id,storedEmail,reason]);
+          }
         }
       }
     }

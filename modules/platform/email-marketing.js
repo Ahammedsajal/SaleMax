@@ -5,6 +5,7 @@ const ses=require('./email-marketing-ses');
 const providerSettings=require('./email-marketing-provider-settings');
 const inbound=require('./email-marketing-inbound');
 const emailContent=require('./email-marketing-content');
+const bouncePrivacy=require('./email-marketing-bounce-privacy');
 const fail=(code,status=400)=>{throw Object.assign(Error(code),{code,status});};
 const uuid=()=>crypto.randomUUID();
 const sha=value=>crypto.createHash('sha256').update(String(value)).digest('hex');
@@ -356,13 +357,20 @@ async function saveTemplate(db,ctx,input,id=null){
   }catch(error){try{await db.rollback();}catch{}throw error;}
 }
 
-async function audienceRows(db,tenantId,ownerUid,phonebookId,{lock=false}={}){
+async function audienceRows(db,tenantId,ownerUid,phonebookId,{lock=false,key}={}){
   const [rows]=await db.query(`SELECT c.id,c.name,c.mobile,c.email,c.email_marketing_consent,c.email_marketing_consent_at,c.email_unsubscribed_at,
     s.normalized_email AS suppressed_email FROM contact c JOIN phonebook p ON p.uid=c.uid AND p.id=c.phonebook_id
     LEFT JOIN sx_email_suppressions s ON s.tenant_id=? AND s.normalized_email=LOWER(TRIM(c.email))
     WHERE c.uid=? AND c.phonebook_id=? ORDER BY c.id LIMIT ?${lock?' FOR UPDATE':''}`,[tenantId,ownerUid,phonebookId,MAX_RECIPIENTS+1]);
   if(rows.length>MAX_RECIPIENTS)fail('EMAIL_AUDIENCE_TOO_LARGE',413);
-  return rows;
+  const fingerprints=[...new Set(rows.map(row=>normalizeEmail(row.email)).filter(validEmail).map(email=>bouncePrivacy.emailFingerprint(key,tenantId,email)))];
+  if(!fingerprints.length)return rows;
+  const [suppressed]=await db.query('SELECT email_fingerprint FROM sx_email_bounce_suppressions WHERE tenant_id=? AND email_fingerprint IN (?)',[tenantId,fingerprints]);
+  const blocked=new Set(suppressed.map(row=>row.email_fingerprint));
+  return rows.map(row=>{
+    const email=normalizeEmail(row.email),emailHash=validEmail(email)?bouncePrivacy.emailFingerprint(key,tenantId,email):null;
+    return {...row,bounce_suppressed:Boolean(emailHash&&blocked.has(emailHash))};
+  });
 }
 function summarizeAudience(rows){
   const result={total:rows.length,eligible:0,missingEmail:0,invalidEmail:0,noConsent:0,unsubscribed:0,suppressed:0,duplicate:0};
@@ -372,14 +380,14 @@ function summarizeAudience(rows){
     if(!email){result.missingEmail++;continue;}
     if(!validEmail(email)){result.invalidEmail++;continue;}
     if(row.email_unsubscribed_at){result.unsubscribed++;continue;}
-    if(row.suppressed_email){result.suppressed++;continue;}
+    if(row.suppressed_email||row.bounce_suppressed){result.suppressed++;continue;}
     if(seen.has(email)){result.duplicate++;continue;}
     if(Number(row.email_marketing_consent)!==1)result.noConsent++;
     seen.add(email);eligible.push({...row,normalizedEmail:email});
   }
   result.eligible=eligible.length;return {summary:result,eligible};
 }
-function fingerprint(rows){return sha(JSON.stringify(rows.map(row=>[Number(row.id),normalizeEmail(row.email),Number(row.email_marketing_consent),row.email_marketing_consent_at||null,row.email_unsubscribed_at||null,row.suppressed_email||null])));}
+function fingerprint(rows){return sha(JSON.stringify(rows.map(row=>[Number(row.id),normalizeEmail(row.email),Number(row.email_marketing_consent),row.email_marketing_consent_at||null,row.email_unsubscribed_at||null,row.suppressed_email||null,Boolean(row.bounce_suppressed)])));}
 function makePreviewToken(key,ctx,phonebookId,hashValue){
   const payload=base64url(JSON.stringify({v:1,tenantId:ctx.tenantId,owner:sha(ctx.ownerUid),phonebookId:Number(phonebookId),fingerprint:hashValue,expiresAt:Date.now()+10*60*1000}));
   return payload+'.'+crypto.createHmac('sha256',key).update(payload).digest('base64url');
@@ -398,7 +406,7 @@ async function previewAudience(db,ctx,input,key){
   const page=input?.page==null?0:Number(input.page);if(!Number.isSafeInteger(page)||page<0||page>Math.floor(MAX_RECIPIENTS/AUDIENCE_PREVIEW_PAGE_SIZE))fail('INVALID_AUDIENCE_PREVIEW_PAGE');
   const priorToken=input?.previewToken?readPreviewToken(key,input.previewToken,ctx,phonebookId):null;if(page>0&&!priorToken)fail('INVALID_AUDIENCE_PREVIEW');
   const [[book]]=await db.query('SELECT id,name FROM phonebook WHERE uid=? AND id=?',[ctx.ownerUid,phonebookId]);if(!book)fail('PHONEBOOK_NOT_FOUND',404);
-  const rows=await audienceRows(db,ctx.tenantId,ctx.ownerUid,phonebookId),audience=summarizeAudience(rows),hashValue=fingerprint(rows);
+  const rows=await audienceRows(db,ctx.tenantId,ctx.ownerUid,phonebookId,{key}),audience=summarizeAudience(rows),hashValue=fingerprint(rows);
   if(priorToken&&priorToken.fingerprint!==hashValue)fail('AUDIENCE_CHANGED',409);
   const pageCount=Math.ceil(audience.eligible.length/AUDIENCE_PREVIEW_PAGE_SIZE);if(pageCount&&page>=pageCount)fail('INVALID_AUDIENCE_PREVIEW_PAGE');
   const start=page*AUDIENCE_PREVIEW_PAGE_SIZE,recipients=audience.eligible.slice(start,start+AUDIENCE_PREVIEW_PAGE_SIZE).map(row=>({
@@ -435,7 +443,7 @@ async function createCampaign(db,ctx,input,key){
     if(/[\r\n]/.test(mailSubject))fail('INVALID_EMAIL_SUBJECT');
     const attachments=await campaignAttachments(db,ctx,input,template);if(attachments.reduce((sum,item)=>sum+item.size,0)>MAX_TOTAL_ATTACHMENT_BYTES)fail('ATTACHMENT_TOTAL_TOO_LARGE');
     const design=template?.design?emailContent.cleanDesign(template.design,attachments):null;
-    const audienceRowsValue=await audienceRows(db,ctx.tenantId,ctx.ownerUid,phonebookId,{lock:true}),audience=summarizeAudience(audienceRowsValue),currentFingerprint=fingerprint(audienceRowsValue);
+    const audienceRowsValue=await audienceRows(db,ctx.tenantId,ctx.ownerUid,phonebookId,{lock:true,key}),audience=summarizeAudience(audienceRowsValue),currentFingerprint=fingerprint(audienceRowsValue);
     if(currentFingerprint!==preview.fingerprint)fail('AUDIENCE_CHANGED',409);
     if(!audience.eligible.length)fail('NO_ELIGIBLE_RECIPIENTS',409);
     const [[replySettings]]=await db.query('SELECT reply_to_email AS replyToEmail FROM sx_email_marketing_settings WHERE tenant_id=? FOR UPDATE',[ctx.tenantId]);
@@ -444,8 +452,8 @@ async function createCampaign(db,ctx,input,key){
     await db.query(`INSERT INTO sx_email_campaigns(id,tenant_id,sender_id,reply_to_email,template_id,name,subject,text_body,design_json,phonebook_id,audience_hash,status,scheduled_at,recipient_count,created_by_identity_id)
       VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,[id,ctx.tenantId,senderId,replyToEmail,templateId,name,mailSubject,body,design?JSON.stringify(design):null,phonebookId,currentFingerprint,status,scheduledAt,audience.eligible.length,ctx.identityId]);
     for(const attachment of attachments){await db.query('INSERT INTO sx_email_campaign_attachments(tenant_id,campaign_id,attachment_id) VALUES(?,?,?)',[ctx.tenantId,id,attachment.id]);await db.query('UPDATE sx_email_attachments SET expires_at=NULL WHERE tenant_id=? AND id=?',[ctx.tenantId,attachment.id]);}
-    const recipientRows=audience.eligible.map(row=>{const recipientId=uuid(),token=tokenFor(key,ctx.tenantId,id,recipientId);return [recipientId,ctx.tenantId,id,row.id,row.email,normalizeEmail(row.email),String(row.name||'').slice(0,200),sha(token)];});
-    for(let start=0;start<recipientRows.length;start+=500){const batch=recipientRows.slice(start,start+500);await db.query('INSERT INTO sx_email_campaign_recipients(id,tenant_id,campaign_id,contact_id,recipient_email,normalized_email,recipient_name,unsubscribe_token_hash) VALUES ?',[batch]);}
+    const recipientRows=audience.eligible.map(row=>{const recipientId=uuid(),token=tokenFor(key,ctx.tenantId,id,recipientId),normalized=normalizeEmail(row.email);return [recipientId,ctx.tenantId,id,row.id,row.email,normalized,bouncePrivacy.emailFingerprint(key,ctx.tenantId,normalized),String(row.name||'').slice(0,200),sha(token)];});
+    for(let start=0;start<recipientRows.length;start+=500){const batch=recipientRows.slice(start,start+500);await db.query('INSERT INTO sx_email_campaign_recipients(id,tenant_id,campaign_id,contact_id,recipient_email,normalized_email,email_fingerprint,recipient_name,unsubscribe_token_hash) VALUES ?',[batch]);}
     await audit(db,ctx,'email.campaign.created','email-campaign',id,{name,status,recipientCount:audience.eligible.length,withoutRecordedOptInCount:audience.noConsent,phonebookId});
     await db.commit();return {id,name,status,scheduledAt,recipientCount:audience.eligible.length,acceptedCount:0,failedCount:0,suppressedCount:0,createdAt:new Date().toISOString()};
   }catch(error){try{await db.rollback();}catch{}throw error;}
@@ -515,7 +523,7 @@ async function campaignDetail(db,ctx,id,query={}){
   const requestedPage=Number(query?.page),page=Number.isSafeInteger(requestedPage)&&requestedPage>0?Math.min(requestedPage,100000):1;
   const [[countRow]]=await db.query(`SELECT COUNT(*) AS total FROM sx_email_campaign_recipients r ${eventsJoin} ${repliesJoin} WHERE ${whereSql}`,[...rollupParams,...filterParams]);
   const total=Number(countRow?.total||0),pages=Math.max(1,Math.ceil(total/limit)),currentPage=Math.min(page,pages),offset=(currentPage-1)*limit;
-  const [recipients]=await db.query(`SELECT r.id,r.recipient_email AS email,r.recipient_name AS name,r.status AS sendStatus,
+    const [recipients]=await db.query(`SELECT r.id,r.recipient_email AS email,(r.recipient_email='') AS addressRemoved,r.recipient_name AS name,r.status AS sendStatus,
       r.provider_message_id AS providerMessageId,r.last_error_code AS errorCode,r.accepted_at AS sentAt,
       COALESCE(ev.delivered,0) AS delivered,ev.deliveredAt,COALESCE(ev.opened,0) AS opened,ev.openedAt,
       COALESCE(ev.clicked,0) AS clicked,ev.clickedAt,COALESCE(rep.replyCount,0) AS replyCount,rep.repliedAt,
@@ -639,20 +647,20 @@ async function testSend(db,ctx,input,key){
 async function applyUnsubscribe(db,key,token){
   const parsed=decodeToken(key,token),tokenHash=sha(token);await db.beginTransaction();
   try{
-    const [[recipient]]=await db.query('SELECT contact_id AS contactId,normalized_email AS email,unsubscribe_token_hash AS tokenHash,status FROM sx_email_campaign_recipients WHERE tenant_id=? AND campaign_id=? AND id=? FOR UPDATE',[parsed.tenantId,parsed.campaignId,parsed.recipientId]);
+    const [[recipient]]=await db.query('SELECT contact_id AS contactId,normalized_email AS email,email_fingerprint AS emailFingerprint,unsubscribe_token_hash AS tokenHash,status FROM sx_email_campaign_recipients WHERE tenant_id=? AND campaign_id=? AND id=? FOR UPDATE',[parsed.tenantId,parsed.campaignId,parsed.recipientId]);
     if(!recipient||recipient.tokenHash!==tokenHash)fail('INVALID_UNSUBSCRIBE_TOKEN',404);
     const [contacts]=await db.query(`SELECT c.uid,c.id,c.email FROM sx_legacy_ownership o JOIN sx_memberships m ON m.id=o.membership_id AND m.tenant_id=o.tenant_id AND m.role='owner' AND m.status='active'
       JOIN user u ON BINARY CAST(u.id AS CHAR)=BINARY o.source_id AND BINARY SHA2(u.uid,256)=BINARY o.legacy_uid_hash
       JOIN contact c ON c.uid=u.uid AND c.id=? WHERE o.tenant_id=? AND o.source_table='user' LIMIT 2 FOR UPDATE`,[recipient.contactId,parsed.tenantId]);
     if(contacts.length>1)fail('EMAIL_OWNER_LINK_INVALID',409);
-    if(contacts.length===1&&normalizeEmail(contacts[0].email)===recipient.email){
+    if(recipient.email&&contacts.length===1&&normalizeEmail(contacts[0].email)===recipient.email){
       await db.query("UPDATE contact SET email_marketing_consent=0,email_unsubscribed_at=UTC_TIMESTAMP(3),email_marketing_consent_source='one_click' WHERE uid=? AND id=?",[contacts[0].uid,recipient.contactId]);
       await db.query("INSERT INTO sx_email_consent_events(tenant_id,contact_id,normalized_email,consented,source,actor_identity_id) VALUES(?,?,?,0,'one_click',NULL)",[parsed.tenantId,recipient.contactId,recipient.email]);
     }
-    await db.query("INSERT INTO sx_email_suppressions(tenant_id,normalized_email,reason,source) VALUES(?,?,'unsubscribe','one_click') ON DUPLICATE KEY UPDATE reason='unsubscribe',source='one_click'",[parsed.tenantId,recipient.email]);
-    await db.query("UPDATE sx_email_campaign_recipients SET status='suppressed',last_error_code='UNSUBSCRIBED',lease_owner=NULL,lease_expires_at=NULL WHERE tenant_id=? AND normalized_email=? AND status='pending'",[parsed.tenantId,recipient.email]);
+    if(recipient.email)await db.query("INSERT INTO sx_email_suppressions(tenant_id,normalized_email,reason,source) VALUES(?,?,'unsubscribe','one_click') ON DUPLICATE KEY UPDATE reason='unsubscribe',source='one_click'",[parsed.tenantId,recipient.email]);
+    await db.query("UPDATE sx_email_campaign_recipients SET status='suppressed',last_error_code='UNSUBSCRIBED',lease_owner=NULL,lease_expires_at=NULL WHERE tenant_id=? AND campaign_id=? AND id=? AND status='pending'",[parsed.tenantId,parsed.campaignId,parsed.recipientId]);
     await db.commit();return {unsubscribed:true};
   }catch(error){try{await db.rollback();}catch{}throw error;}
 }
 
-module.exports={MAX_RECIPIENTS,MAX_ATTACHMENT_BYTES,MAX_TOTAL_ATTACHMENT_BYTES,MAX_ATTACHMENTS,normalizeEmail,validEmail,cleanDomain,cleanRegion,cleanEmail,tokenFor,decodeToken,safeFilename,sniffAttachment,summarizeAudience,fingerprint,emailMarketingAccess,sessionContext,providerStatus,setup,saveReplyTo,addDomain,refreshDomain,deleteDomain,addSender,refreshSender,enableReplies,refreshReplies,audit,saveAttachment,previewAttachment,loadAttachments,listTemplates,saveTemplate,previewAudience,createCampaign,listCampaigns,campaignDetail,analytics,inbox,threadMessages,testSend,applyUnsubscribe};
+module.exports={MAX_RECIPIENTS,MAX_ATTACHMENT_BYTES,MAX_TOTAL_ATTACHMENT_BYTES,MAX_ATTACHMENTS,normalizeEmail,validEmail,cleanDomain,cleanRegion,cleanEmail,tokenFor,decodeToken,safeFilename,sniffAttachment,summarizeAudience,fingerprint,bounceSuppressed:bouncePrivacy.isSuppressed,emailMarketingAccess,sessionContext,providerStatus,setup,saveReplyTo,addDomain,refreshDomain,deleteDomain,addSender,refreshSender,enableReplies,refreshReplies,audit,saveAttachment,previewAttachment,loadAttachments,listTemplates,saveTemplate,previewAudience,createCampaign,listCampaigns,campaignDetail,analytics,inbox,threadMessages,testSend,applyUnsubscribe};

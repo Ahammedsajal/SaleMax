@@ -3,9 +3,13 @@
 const service=require('./email-marketing');
 const inboxMessaging=require('./email-marketing-inbox');
 
-function createEmailMarketingRouter({pool:injectedPool,authenticate,origin,key}={}){
+function createEmailMarketingRouter({pool:injectedPool,authenticate,origin,key,bouncePrivacyReady=Promise.resolve()}={}){
   const express=require('express'),router=express.Router(),pool=injectedPool||require('../../database/config').promise();
   router.use(authenticate||((req,res)=>res.status(401).json({success:false,code:'AUTH_REQUIRED'})));
+  router.use(async(req,res,next)=>{
+    try{await bouncePrivacyReady;next();}
+    catch{res.status(503).json({success:false,code:'EMAIL_BOUNCE_PRIVACY_UNAVAILABLE'});}
+  });
   router.use(express.json({limit:'128kb',strict:true}));
   const run=fn=>async(req,res)=>{
     let db;
@@ -76,7 +80,7 @@ function createEmailMarketingRouter({pool:injectedPool,authenticate,origin,key}=
   return router;
 }
 
-function createPublicEmailRouter({pool:injectedPool,key,topicArn=process.env.SALEMAX_EMAIL_SES_SNS_TOPIC_ARN}={}){
+function createPublicEmailRouter({pool:injectedPool,key,topicArn=process.env.SALEMAX_EMAIL_SES_SNS_TOPIC_ARN,bouncePrivacyReady=Promise.resolve()}={}){
   const express=require('express'),router=express.Router(),pool=injectedPool||require('../../database/config').promise();
   router.use(express.urlencoded({extended:false,limit:'8kb'}));
   const tokenOf=req=>String(req.params.token||'');
@@ -105,7 +109,7 @@ function createPublicEmailRouter({pool:injectedPool,key,topicArn=process.env.SAL
       const settings=require('./email-marketing-provider-settings');
       const currentTopic=await settings.snsTopic(pool)||topicArn;
       const parsed=await sns.parseAndVerify(req.body,currentTopic);
-      if(parsed.type==='Notification')return res.status(200).json(await events.persist(pool,parsed));
+      if(parsed.type==='Notification'){await bouncePrivacyReady;return res.status(200).json(await events.persist(pool,{...parsed,key}));}
       return res.status(200).json({accepted:true,confirmed:parsed.confirmation?.confirmed===true,ignored:parsed.ignored===true});
     }catch(error){
       const status=Number.isInteger(error?.status)?error.status:500;
@@ -119,6 +123,7 @@ function createPublicEmailRouter({pool:injectedPool,key,topicArn=process.env.SAL
   router.post('/unsubscribe/:token',async(req,res)=>{
     let db;
     try{
+      await bouncePrivacyReady;
       db=await pool.getConnection();await service.applyUnsubscribe(db,key,tokenOf(req));
       res.set({'Cache-Control':'no-store, max-age=0','Referrer-Policy':'no-referrer','X-Content-Type-Options':'nosniff'});
       if(String(req.get('List-Unsubscribe')||'').toLowerCase()==='one-click'||req.body?.['List-Unsubscribe']==='One-Click')return res.status(200).json({success:true,unsubscribed:true});

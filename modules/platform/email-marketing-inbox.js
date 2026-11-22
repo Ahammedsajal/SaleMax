@@ -71,6 +71,7 @@ async function saveDraft(db,ctx,input){
     const effectiveSenderId=thread?.campaignSenderId||thread?.senderId||String(input.senderId||'');
     const sender=await senderFor(db,ctx.tenantId,effectiveSenderId);
     let recipient=requestedTo||thread?.email;
+    if(thread&&!thread.email)fail('EMAIL_RECIPIENT_REMOVED',409);
     if(thread&&(!recipient||service.cleanEmail(recipient,true)!==service.cleanEmail(thread.email,true)))fail('EMAIL_THREAD_RECIPIENT_LOCKED',409);
     recipient=service.cleanEmail(recipient,true);
     const recipientName=thread?.name||name;
@@ -148,7 +149,9 @@ async function sendDraft(db,ctx,messageId,key){
     cleanSubject(row.subject);
     const senderId=row.campaignSenderId||row.threadSenderId;
     const sender=await senderFor(db,ctx.tenantId,senderId);
+    if(!row.recipientEmail)fail('EMAIL_RECIPIENT_REMOVED',409);
     const recipient=service.cleanEmail(row.recipientEmail,true);
+    if(await service.bounceSuppressed(db,key,ctx.tenantId,recipient))fail('EMAIL_RECIPIENT_BOUNCED',409);
     if(!row.campaignId){
       const [[suppressed]]=await db.query('SELECT id FROM sx_email_suppressions WHERE tenant_id=? AND normalized_email=? LIMIT 1',[ctx.tenantId,recipient]);
       if(suppressed)fail('EMAIL_RECIPIENT_SUPPRESSED',409);

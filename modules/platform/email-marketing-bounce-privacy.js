@@ -1,0 +1,95 @@
+'use strict';
+
+const crypto=require('node:crypto');
+
+function normalizedAddress(value){return String(value||'').trim().toLowerCase();}
+function emailFingerprint(key,tenantId,email){
+  if(!Buffer.isBuffer(key)||key.length!==32)throw Object.assign(Error('EMAIL_SUPPRESSION_KEY_UNAVAILABLE'),{code:'EMAIL_SUPPRESSION_KEY_UNAVAILABLE',status:503});
+  const normalized=normalizedAddress(email);
+  if(!normalized||!String(tenantId||''))throw Object.assign(Error('EMAIL_SUPPRESSION_INPUT_INVALID'),{code:'EMAIL_SUPPRESSION_INPUT_INVALID',status:400});
+  const scopedKey=crypto.createHmac('sha256',key).update('7network/email-bounce-suppression:v1').digest();
+  return crypto.createHmac('sha256',scopedKey).update(String(tenantId)+'\0'+normalized).digest('hex');
+}
+function redactAddress(value,email){
+  const address=normalizedAddress(email);
+  if(!address)return String(value||'');
+  const escaped=address.replace(/[.*+?^${}()|[\]\\]/g,'\\$&');
+  return String(value||'').replace(new RegExp(escaped,'gi'),'[email removed after bounce]');
+}
+
+async function isSuppressed(db,key,tenantId,email){
+  const address=normalizedAddress(email);
+  if(!address)return false;
+  const fingerprint=emailFingerprint(key,tenantId,address);
+  const [[row]]=await db.query('SELECT 1 AS blocked FROM sx_email_bounce_suppressions WHERE tenant_id=? AND email_fingerprint=? LIMIT 1',[tenantId,fingerprint]);
+  return Boolean(row);
+}
+
+async function scrubBouncedAddress(db,{key,tenantId,email,bounceType='Permanent'}){
+  const address=normalizedAddress(email);
+  if(!address||!['Permanent','Undetermined'].includes(bounceType))return false;
+  const fingerprint=emailFingerprint(key,tenantId,address);
+  await db.query(`INSERT INTO sx_email_bounce_suppressions(tenant_id,email_fingerprint,bounce_type,source)
+    VALUES(?,?,?,'ses-event')
+    ON DUPLICATE KEY UPDATE bounce_type=IF(VALUES(bounce_type)='Permanent','Permanent',bounce_type),source='ses-event'`,
+    [tenantId,fingerprint,bounceType]);
+
+  await db.query(`UPDATE sx_email_messages m JOIN sx_email_threads t
+      ON t.tenant_id=m.tenant_id AND t.id=m.thread_id
+    SET m.delivery_status='failed',m.last_error_code='EMAIL_RECIPIENT_BOUNCED',m.updated_at=UTC_TIMESTAMP(3)
+    WHERE m.tenant_id=? AND m.direction='outbound' AND m.delivery_status IN ('draft','queued')
+      AND LOWER(TRIM(COALESCE(t.recipient_email,'')))=?`,[tenantId,address]);
+  const [messages]=await db.query(`SELECT m.id,m.subject,m.text_body AS body
+    FROM sx_email_messages m JOIN sx_email_threads t ON t.tenant_id=m.tenant_id AND t.id=m.thread_id
+    LEFT JOIN sx_email_campaign_recipients r ON r.tenant_id=t.tenant_id AND r.campaign_id=t.campaign_id AND r.id=t.recipient_id
+    WHERE m.tenant_id=? AND (LOWER(TRIM(COALESCE(t.recipient_email,'')))=? OR r.normalized_email=?)`,[tenantId,address,address]);
+  for(const message of messages){
+    const subject=redactAddress(message.subject,address),body=redactAddress(message.body,address);
+    if(subject!==message.subject||body!==message.body)await db.query('UPDATE sx_email_messages SET subject=?,text_body=? WHERE tenant_id=? AND id=?',[subject,body,tenantId,message.id]);
+  }
+  await db.query(`UPDATE sx_email_outbound_queue q JOIN sx_email_messages m
+      ON m.tenant_id=q.tenant_id AND m.id=q.message_id
+    JOIN sx_email_threads t ON t.tenant_id=m.tenant_id AND t.id=m.thread_id
+    SET q.status='failed',q.last_error_code='EMAIL_RECIPIENT_BOUNCED',q.lease_expires_at=NULL
+    WHERE q.tenant_id=? AND q.status IN ('queued','sending')
+      AND LOWER(TRIM(COALESCE(t.recipient_email,'')))=?`,[tenantId,address]);
+  await db.query(`UPDATE sx_email_threads SET recipient_email=''
+    WHERE tenant_id=? AND LOWER(TRIM(COALESCE(recipient_email,'')))=?`,[tenantId,address]);
+  await db.query(`UPDATE sx_email_messages SET from_email=''
+    WHERE tenant_id=? AND direction='inbound' AND LOWER(TRIM(COALESCE(from_email,'')))=?`,[tenantId,address]);
+  await db.query(`UPDATE sx_email_consent_events SET normalized_email=''
+    WHERE tenant_id=? AND normalized_email=?`,[tenantId,address]);
+  await db.query(`UPDATE contact c
+    JOIN user u ON u.uid=c.uid
+    JOIN sx_legacy_ownership o ON o.source_table='user' AND o.tenant_id=? AND BINARY CAST(u.id AS CHAR)=BINARY o.source_id AND BINARY SHA2(u.uid,256)=BINARY o.legacy_uid_hash
+    JOIN sx_memberships m ON m.id=o.membership_id AND m.tenant_id=o.tenant_id AND m.role='owner' AND m.status='active'
+    SET c.email='',c.email_marketing_consent=0,c.email_marketing_consent_at=NULL,c.email_marketing_consent_source=NULL
+    WHERE LOWER(TRIM(COALESCE(c.email,'')))=?`,[tenantId,address]);
+  await db.query(`UPDATE sx_email_campaign_recipients
+    SET email_fingerprint=?,recipient_email='',normalized_email='',
+        last_error_code=IF(status IN ('pending','sending'),'EMAIL_BOUNCED',last_error_code),
+        status=IF(status IN ('pending','sending'),'suppressed',status),
+        lease_owner=NULL,lease_expires_at=NULL
+    WHERE tenant_id=? AND (normalized_email=? OR email_fingerprint=?)`,
+    [fingerprint,tenantId,address,fingerprint]);
+  await db.query('DELETE FROM sx_email_suppressions WHERE tenant_id=? AND normalized_email=?',[tenantId,address]);
+  return true;
+}
+
+async function migrateLegacyBounces(pool,key){
+  const db=await pool.getConnection();
+  try{
+    for(;;){
+      await db.beginTransaction();
+      try{
+        const [rows]=await db.query(`SELECT tenant_id AS tenantId,normalized_email AS email
+          FROM sx_email_suppressions WHERE reason='bounce' ORDER BY tenant_id,normalized_email LIMIT 100 FOR UPDATE`);
+        if(!rows.length){await db.commit();return {migrated:true};}
+        for(const row of rows)await scrubBouncedAddress(db,{key,tenantId:row.tenantId,email:row.email,bounceType:'Undetermined'});
+        await db.commit();
+      }catch(error){try{await db.rollback();}catch{}throw error;}
+    }
+  }finally{db.release();}
+}
+
+module.exports={normalizedAddress,emailFingerprint,redactAddress,isSuppressed,scrubBouncedAddress,migrateLegacyBounces};

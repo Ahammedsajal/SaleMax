@@ -9,6 +9,7 @@ const policy=require('../modules/platform/policy');
 const navigation=require('../modules/platform/navigation');
 const providerSettings=require('../modules/platform/email-marketing-provider-settings');
 const emailEvents=require('../modules/platform/email-marketing-events');
+const bouncePrivacy=require('../modules/platform/email-marketing-bounce-privacy');
 const sns=require('../modules/platform/email-marketing-sns');
 
 test('email normalization and domain inputs are bounded',()=>{
@@ -76,6 +77,17 @@ test('SES feedback handlers classify recipient events and restrict SNS URLs to t
   assert.equal(emailEvents.suppressionReason({bounce:{bounceType:'Transient'}},'Bounce'),null);
   assert.equal(sns.trustedSnsUrl('https://sns.eu-central-1.amazonaws.com/SimpleNotificationService-abcdefgh.pem','arn:aws:sns:eu-central-1:123456789012:events',{certificate:true}).hostname,'sns.eu-central-1.amazonaws.com');
   assert.throws(()=>sns.trustedSnsUrl('https://169.254.169.254/latest/meta-data/','arn:aws:sns:eu-central-1:123456789012:events',{certificate:true}),{code:'SNS_URL_UNTRUSTED'});
+});
+
+test('bounce suppression stores a tenant-scoped keyed fingerprint instead of the address',()=>{
+  const key=Buffer.alloc(32,9),address='Bounced.Person@example.com';
+  const a=bouncePrivacy.emailFingerprint(key,'tenant-a',address);
+  assert.match(a,/^[a-f0-9]{64}$/);
+  assert.equal(a,bouncePrivacy.emailFingerprint(key,'tenant-a','bounced.person@example.com'));
+  assert.notEqual(a,bouncePrivacy.emailFingerprint(key,'tenant-b',address));
+  assert.notEqual(a,bouncePrivacy.emailFingerprint(Buffer.alloc(32,8),'tenant-a',address));
+  assert.ok(!a.includes('bounced.person@example.com'));
+  assert.equal(bouncePrivacy.redactAddress('Contact BOUNCED.person@example.com now','bounced.person@example.com'),'Contact [email removed after bounce] now');
 });
 
 test('email analytics scopes every aggregate and campaign join to the current tenant',async()=>{

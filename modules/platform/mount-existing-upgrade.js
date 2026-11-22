@@ -39,6 +39,7 @@ function mountExistingUpgrade(app,{pool,key,origin,insecureLoopback=false,legacy
   agentIdentity.get('/me',(req,res,next)=>req.get('X-Salemax-Actor')==='agent'?agentIdentityGuard(req,res,next):next());
   app.use('/api/user/business-auth',agentIdentity,businessBoundary.router);
   const featureSession=require('./business-feature-session').createBusinessFeatureSession({pool,origin,userGuard,agentGuard:require('../../middlewares/agent'),canonicalGuard:businessBoundary.guard,resolveBusinessContext:businessBoundary.resolveContext});
+  const bouncePrivacyReady=require('./email-marketing-bounce-privacy').migrateLegacyBounces(pool,key);
   app.use('/api/workspace/chatbots/mockup',require('./chatbot-mockup').createRouter({pool,authenticate:featureSession.guard}));
   app.use('/api/workspace/chatgpt',require('./chatgpt-mcp/workspace-router').createWorkspaceRouter({pool,sessionGuard:featureSession.guard,origin:require('./chatgpt-mcp/oauth').publicOrigin()}));
   const featureAccess=require('express').Router();featureAccess.use(featureSession.guard);
@@ -53,9 +54,9 @@ function mountExistingUpgrade(app,{pool,key,origin,insecureLoopback=false,legacy
   app.use('/api/user/chatbots/settings/provider',aiSettings);
   const phonebook=require('./phonebook-workspace-router')({pool,authenticate:featureSession.guard});
   app.use(['/api/workspace/phonebook','/api/phonebook/workspace','/api/agent/phonebook'],phonebook);
-  app.use('/api/workspace/email-marketing',require('./email-marketing-router').createEmailMarketingRouter({pool,authenticate:featureSession.guard,origin,key}));
-  app.use('/api/public/email',require('./email-marketing-router').createPublicEmailRouter({pool,key}));
-  require('./email-marketing-worker').start(pool,{key,origin});
+  app.use('/api/workspace/email-marketing',require('./email-marketing-router').createEmailMarketingRouter({pool,authenticate:featureSession.guard,origin,key,bouncePrivacyReady}));
+  app.use('/api/public/email',require('./email-marketing-router').createPublicEmailRouter({pool,key,bouncePrivacyReady}));
+  require('./email-marketing-worker').start(pool,{key,origin,ready:bouncePrivacyReady});
   require('./chatbot-handoff-relay').start(pool);
   const courseReplies=require('./course-quick-reply-router')({pool,origin,authenticate:featureSession.guard});
   const inboxGroups=require('./qr-inbox-groups-router')({pool,origin,authenticate:featureSession.guard});
