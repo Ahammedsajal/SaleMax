@@ -601,6 +601,7 @@ async function trainingCenterGuidedTurn({ ctx, profile, uid, message, sessionId,
   let contactPromptAdded = false;
   let handoffReason = null;
   let handoffClaim = null;
+  let openingGreeting = false;
   try {
     onStage?.('training-course-facts');
     facts = leadInfo?.facts || (pack.requiresDatabase
@@ -640,7 +641,7 @@ async function trainingCenterGuidedTurn({ ctx, profile, uid, message, sessionId,
     }
     const pilotGreeting = !intent && mockup.ownsInbox(uid, origin) && !profile.config?.flowId && !profile.config?.introFlowId
       && businessContext.isTrainingGreeting(textOf(message));
-    const openingGreeting = pilotGreeting || isOpeningGreeting(intent || textOf(message));
+    openingGreeting = pilotGreeting || isOpeningGreeting(intent || textOf(message));
     const courseOptOut = ctx.category.key === 'training_center' && businessContext.isCourseDiscoveryOptOut(textOf(message));
     deferLeadQuestion = openingGreeting || !priorState?.greeted || courseDiscoveryFeedback || courseOptOut;
     if(cvSubmission){
@@ -1967,7 +1968,11 @@ async function runConfiguredBot({ uid, message, user, sessionId, origin, chatId 
   }
   if (turn.duplicate) return { handled: true, duplicate: true };
   let activeStage = 'turn-processing';
-  const setStage = stage => { activeStage = stage; };
+  let replyAccepted = false;
+  const setStage = stage => {
+    activeStage = stage;
+    if (stage === 'training-conversation-persist' || stage === 'conversation-persist') replyAccepted = true;
+  };
   try {
     if (testReset) {
       setStage('test-reset');
@@ -2005,6 +2010,12 @@ async function runConfiguredBot({ uid, message, user, sessionId, origin, chatId 
     const diagnosticCode = typeof error.code === 'string' && /^[A-Z0-9_]{1,64}$/.test(error.code) ? error.code : `UNCLASSIFIED_${diagnosticName}`;
     const failure = ['AI_PROVIDER_NOT_CONFIGURED','AI_PROVIDER_TIMEOUT','AI_PROVIDER_REQUEST_FAILED','AI_PROVIDER_INVALID_OUTPUT'].includes(error.code) ? error.code : 'runtime-error';
     console.warn('[chatbot] inbound turn failed', JSON.stringify({ stage: activeStage, code: diagnosticCode }));
+    if (replyAccepted) {
+      // The channel already accepted the answer. Keep the diagnostic for
+      // reconciliation and prevent an unrelated customer-facing handoff.
+      await finishTurn(turn, 'sent', 'accepted-needs-reconciliation', { stage: activeStage, code: diagnosticCode });
+      return { handled: true, sent: true, code: 'ACCEPTED_NEEDS_RECONCILIATION' };
+    }
     const claim = await handoffConversation(ctx, chatId, channelKind, sessionId, failure, profile, uid).catch(() => null);
     if (claim) await sendCustomerHandoffNotice({ ctx, profile, uid, message, origin, sessionId, chatId, leadInfo }).catch(() => false);
     await finishTurn(turn, 'handed_off', failure, { stage: activeStage, code: diagnosticCode }).catch(() => {});

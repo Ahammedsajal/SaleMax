@@ -62,3 +62,14 @@ test('inbox bot-control reports the same effective expiry for legacy staff-reply
   assert.match(source, /c\.reason='staff-replied' AND c\.updated_by_kind='system'/);
   assert.match(source, /COALESCE\(c\.pause_until,TIMESTAMPADD\(HOUR,24,c\.updated_at\)\)/);
 });
+
+test('a persisted phone send pauses the matching QR chat even without a control row', async () => {
+  const now = Math.floor(Date.now() / 1000);
+  const loaded = loadConversationControl(async sql => sql.includes('FROM beta_conversation')
+    ? [{ sentAtSeconds: now }] : []);
+  try {
+    const pause = await loaded.control.readPause('owner', 'conversation', 'whatsapp_qr', 'qr-channel');
+    assert.equal(pause.reason, 'staff-replied');
+    assert.equal(pause.derivedFromQrOutbound, true);
+  } finally { loaded.restore(); }
+});

@@ -44,7 +44,7 @@ async function readPause(uid, conversationId, channelKind, channelRef) {
   // In either case the OUTGOING human row is authoritative for the same
   // connected QR channel. Derive the same 24-hour pause from its provider time.
   try {
-    const [staffReplies] = await query(`SELECT bc.timestamp AS sentAtSeconds
+    const staffReplies = await query(`SELECT bc.timestamp AS sentAtSeconds
       FROM beta_conversation bc JOIN beta_chats ch ON ch.uid=bc.uid AND ch.chat_id=bc.chat_id
       WHERE bc.uid=? AND bc.chat_id=? AND bc.origin='qr' AND ch.origin_instance_unique_id=?
         AND bc.route='OUTGOING' AND LOWER(COALESCE(bc.sentBy,'')) IN ('human','user','staff','agent')

@@ -18,18 +18,8 @@ TENANT_ID = '2301ea04-8acd-493e-a582-b9e527294005'
 PROFILE_ID = '51f11d68-1b77-4d73-9d28-96e36a80631f'
 SUPPORT = ('salemax-db-1', 'salemax-report-worker-1', 'salemax-libretranslate-1',
            'salemax-recruitment-founder-notification-worker-1', 'salemax-bot-lead-test-db')
-ASSETS = (
-    'modules/platform/chatbot-business-context.js',
-    'modules/platform/chatbot-ai-prompt.js',
-    'modules/platform/chatbot-runtime.js',
-    'modules/platform/chatbot-lead-capture.js',
-    'modules/platform/chatbot-conversation-control.js',
-    'modules/platform/chatbot-handoff-claims.js',
-    'modules/platform/chatbot-router.js',
-    'modules/platform/chatbot-contact-assistant.js',
-    'modules/platform/chatbot-conversation-store.js',
-    'helper/addon/qr/processThings.js',
-)
+BASE_HASHES = {'modules/platform/chatbot-runtime.js': 'c649de38f84fc4770a5c3398ad6b4a2d32147dd6b3768312c31fe93544a849ad', 'modules/platform/chatbot-conversation-control.js': '9e4124788e1f3c3bab2db520b48b6b3a093dbdeb83c15b3d10b6e002aaa35629', 'modules/platform/chatbot-handoff-claims.js': '56211c6b6e42348fe19fa7c4cf651e63ec64abd78ac48f96a9b42b95bdb0f32e'}
+ASSETS = tuple(BASE_HASHES)
 NEW_ASSETS = ()
 GREETING = {
     'en': 'Hi! 👋 I’m Pro Catalyst Training Center’s virtual assistant. I can help you explore our courses and answer your questions.',
@@ -205,7 +195,7 @@ def deploy(stage, commit):
         run('docker', 'cp', f'{APP}:{live_path}', str(saved))
         original = saved.read_bytes()
         original_hash = run('docker', 'exec', APP, 'sha256sum', live_path).stdout.split()[0]
-        if sha(original) != original_hash:
+        if sha(original) != original_hash or original_hash != BASE_HASHES[target]:
             raise RuntimeError('live file changed during rollback snapshot: ' + target)
         data = (stage / target).read_bytes()
         output = runtime / target
@@ -267,7 +257,7 @@ def deploy(stage, commit):
 
     if any(sha(Path(path).read_bytes()) != digest for path, digest in input_hashes.items()) or inspect(APP)['Id'] != app['Id']:
         raise RuntimeError('running app or Compose inputs changed during release preparation')
-    greeting_updated = previous_greeting['en'] != GREETING['en'] or previous_greeting['ar'] != GREETING['ar']
+    greeting_updated = False
     try:
         run(*candidate, 'up', '-d', '--no-deps', '--no-build', '--force-recreate', 'app', env=env)
         current = wait_healthy()
@@ -282,7 +272,7 @@ def deploy(stage, commit):
             set_greeting(previous_greeting, GREETING)
         (backup / 'profile-greeting-updated.json').write_text(json.dumps(greeting_updated) + '\n')
         final_greeting = read_greeting()
-        if final_greeting['en'] != GREETING['en'] or final_greeting['ar'] != GREETING['ar']:
+        if final_greeting != previous_greeting:
             raise RuntimeError('localized virtual-assistant greeting did not read back')
         health = run('python3', '-c', "import urllib.request; r=urllib.request.urlopen('https://crm.salemax.qa/healthz',timeout=20); print(r.status)").stdout.strip()
         if health != '200':

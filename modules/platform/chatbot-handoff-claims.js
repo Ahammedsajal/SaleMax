@@ -186,11 +186,11 @@ async function resetForCustomerGreeting(pool, { tenantId, uid, channelKind, chan
       FROM sx_chatbot_handoff_claims WHERE tenant_id=? AND channel_kind=? AND channel_ref=?
         AND conversation_id=? AND owner_uid_hash=? AND status='open' FOR UPDATE`,
     [tenantId, channelKind, channelRef, conversationId, ownerUidHash]);
-    const [[control]] = await db.query(`SELECT mode,updated_by_kind AS updatedByKind,
+    const [[control]] = await db.query(`SELECT mode,reason,updated_by_kind AS updatedByKind,
         (pause_until IS NULL OR pause_until>UTC_TIMESTAMP(3)) AS isActive
       FROM sx_chatbot_conversation_controls WHERE tenant_id=? AND channel_kind=? AND channel_ref=?
         AND conversation_id=? FOR UPDATE`, [tenantId, channelKind, channelRef, conversationId]);
-    const activeSystemPause = control?.mode === 'paused' && control.updatedByKind === 'system' && Number(control.isActive) === 1;
+    const activeSystemPause = control?.mode === 'paused' && control.updatedByKind === 'system' && control.reason !== 'staff-replied' && Number(control.isActive) === 1;
     if (!activeSystemPause) {
       await db.commit();
       return false;
