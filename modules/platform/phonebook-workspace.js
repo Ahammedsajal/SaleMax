@@ -1,5 +1,6 @@
 'use strict';
 const crypto=require('node:crypto');
+const bouncePrivacy=require('./email-marketing-bounce-privacy');
 const hash=value=>crypto.createHash('sha256').update(String(value)).digest('hex');
 const fail=(code,status=400)=>{throw Object.assign(new Error(code),{code,status});};
 const fields=['name','mobile','phonebook_name','var1','var2','var3','var4','var5','var6','createdAt'];
@@ -83,14 +84,27 @@ async function phonebookWritable(db,ctx,bookId,amount=0){
  if(plan?.contact_limit!=null&&Number(count.count)+amount>Number(plan.contact_limit))fail('CONTACT_LIMIT',403);
  return books[0];
 }
-async function addContacts(db,ctx,input){
+
+async function stripBouncedEmails(db,ctx,rows,key){
+ if(!ctx.emailMarketing||!ctx.tenantId)return 0;
+ const emails=[...new Set(rows.map(row=>normalizeEmail(row.email)).filter(Boolean))];if(!emails.length)return 0;
+ if(!Buffer.isBuffer(key)||key.length!==32)fail('EMAIL_SUPPRESSION_KEY_UNAVAILABLE',503);
+ const [tenant]=await db.query('SELECT id FROM sx_tenants WHERE id=? FOR UPDATE',[ctx.tenantId]);if(!tenant.length)fail('TENANT_NOT_FOUND',404);
+ const fingerprints=[...new Set(emails.map(email=>bouncePrivacy.emailFingerprint(key,ctx.tenantId,email)))];
+ const [suppressed]=await db.query('SELECT email_fingerprint FROM sx_email_bounce_suppressions WHERE tenant_id=? AND email_fingerprint IN (?)',[ctx.tenantId,fingerprints]);
+ const blocked=new Set(suppressed.map(row=>row.email_fingerprint));let removed=0;
+ for(const row of rows){const email=normalizeEmail(row.email);if(email&&blocked.has(bouncePrivacy.emailFingerprint(key,ctx.tenantId,email))){row.email='';row.consent=false;removed++;}}
+ return removed;
+}
+
+async function addContacts(db,ctx,input,key){
  manage(ctx);const bookId=input?.bookId;let rows;
  if(input?.manual){const r=input.manual;if(!r||typeof r!=='object')fail('INVALID_CONTACT');
   const contact={name:String(r.name??'').trim(),mobile:String(r.mobile??'').trim(),vars:[r.var1,r.var2,r.var3,r.var4,r.var5].map(v=>String(v??'').trim()),email:ctx.emailMarketing?normalizeEmail(r.email):'',consent:ctx.emailMarketing&&input.emailMarketingConsent===true};
   if((!contact.mobile&&!(ctx.emailMarketing&&contact.email))||!validEmail(contact.email)||contact.consent&&!contact.email)fail('INVALID_CONTACT');
   rows=[contact];if([contact.name,contact.mobile,...contact.vars,contact.email].some(v=>v.length>999))fail('CONTACT_FIELD_TOO_LONG');
  }else {if(!Array.isArray(input?.rows)||input.rows.length>5000)fail('INVALID_CONTACT_IMPORT');try{rows=require('./phonebook-import').normalizeImportRows(input.rows,{emailMarketing:ctx.emailMarketing,consentConfirmed:input.emailConsentConfirmed===true}).map(row=>({name:row[0],mobile:row[1]||'',vars:row.slice(2,7),email:row[7]||'',consent:row[8]===1}));}catch(e){e.status=400;throw e;}}
- await db.beginTransaction();try{const book=await phonebookWritable(db,ctx,bookId,rows.length);
+ await db.beginTransaction();try{const bouncedEmailsRemoved=await stripBouncedEmails(db,ctx,rows,key);const skippedWithoutContact=rows.filter(row=>!row.mobile&&!row.email).length;rows=rows.filter(row=>row.mobile||row.email);if(!rows.length){await db.commit();return {imported:0,withoutMobile:0,bouncedEmailsRemoved,skippedWithoutContact};}const book=await phonebookWritable(db,ctx,bookId,rows.length);
   const source=input?.manual?'phonebook_manual':'phonebook_csv',marker=ctx.emailMarketing?'pb:'+crypto.randomUUID():null;
   if(ctx.emailMarketing){
    const values=rows.map(row=>{const consent=row.consent&&!!row.email;return [ctx.uid,book.id,book.name,row.name,row.mobile||null,...row.vars.slice(0,5),row.email||null,consent?1:0,consent?new Date():null,consent?marker:null];});
@@ -100,7 +114,7 @@ async function addContacts(db,ctx,input){
    await db.query('INSERT INTO contact (uid,phonebook_id,phonebook_name,name,mobile,var1,var2,var3,var4,var5) VALUES ?',[values]);
   }
   if(marker){const [consented]=await db.query('SELECT id,email FROM contact WHERE uid=? AND phonebook_id=? AND email_marketing_consent_source=? AND email_marketing_consent=1',[ctx.uid,book.id,marker]);if(consented.length){const events=consented.map(row=>[ctx.tenantId,row.id,normalizeEmail(row.email),source,ctx.identityId]);await db.query("INSERT INTO sx_email_consent_events(tenant_id,contact_id,normalized_email,consented,source,actor_identity_id) VALUES ?",[events.map(row=>[row[0],row[1],row[2],1,row[3],row[4]])]);await db.query('UPDATE contact SET email_marketing_consent_source=? WHERE uid=? AND phonebook_id=? AND email_marketing_consent_source=?',[source,ctx.uid,book.id,marker]);}}
-  await db.commit();return {imported:rows.length,withoutMobile:rows.filter(r=>!r.mobile).length};
+  await db.commit();return {imported:rows.length,withoutMobile:rows.filter(r=>!r.mobile).length,bouncedEmailsRemoved,skippedWithoutContact};
  }catch(e){await db.rollback();throw e;}
 }
 async function parseContactCsv(file,{emailMarketing=false}={}){
@@ -124,14 +138,20 @@ async function deleteBook(db,ctx,input){
   await db.query('DELETE FROM phonebook WHERE uid=? AND id=?',[ctx.uid,id]);await db.commit();return {deleted:true,contactsDeleted:Number(count.count)};
  }catch(e){await db.rollback();throw e;}
 }
-async function edit(db,ctx,input){
+async function edit(db,ctx,input,key){
  manage(ctx);const id=ids([input?.contactId])[0],keys=['name','mobile','var1','var2','var3','var4','var5','var6'];
  if(keys.some(key=>input[key]!=null&&(typeof input[key]!=='string'||input[key].length>999)))fail('INVALID_CONTACT');
  const values=keys.map(key=>input[key]??'');await db.beginTransaction();try{
+  let emailRemovedAfterBounce=false;
+  if(ctx.emailMarketing&&ctx.tenantId)await db.query('SELECT id FROM sx_tenants WHERE id=? FOR UPDATE',[ctx.tenantId]);
   const [[current]]=await db.query('SELECT email,email_marketing_consent,email_marketing_consent_at FROM contact WHERE uid=? AND id=? FOR UPDATE',[ctx.uid,id]);if(!current)fail('CONTACT_NOT_FOUND',404);
   if(ctx.emailMarketing){
-   const oldEmail=normalizeEmail(current.email),oldConsent=Number(current.email_marketing_consent)===1,email=input.email===undefined?oldEmail:normalizeEmail(input.email),consent=input.emailMarketingConsent===undefined?oldConsent:input.emailMarketingConsent===true,emailChanged=oldEmail!==email;
+   let oldEmail=normalizeEmail(current.email);const oldConsent=Number(current.email_marketing_consent)===1;
+   if(oldEmail){if(!Buffer.isBuffer(key)||key.length!==32)fail('EMAIL_SUPPRESSION_KEY_UNAVAILABLE',503);const oldFingerprint=bouncePrivacy.emailFingerprint(key,ctx.tenantId,oldEmail);const [[oldBlocked]]=await db.query('SELECT 1 AS blocked FROM sx_email_bounce_suppressions WHERE tenant_id=? AND email_fingerprint=? LIMIT 1',[ctx.tenantId,oldFingerprint]);if(oldBlocked){oldEmail='';emailRemovedAfterBounce=true;}}
+   let email=input.email===undefined?normalizeEmail(current.email):normalizeEmail(input.email),consent=input.emailMarketingConsent===undefined?oldConsent:input.emailMarketingConsent===true;
    if(!validEmail(email)||consent&&!email)fail('INVALID_EMAIL_ADDRESS');
+   if(email){if(!Buffer.isBuffer(key)||key.length!==32)fail('EMAIL_SUPPRESSION_KEY_UNAVAILABLE',503);const fingerprint=bouncePrivacy.emailFingerprint(key,ctx.tenantId,email);const [[blocked]]=await db.query('SELECT 1 AS blocked FROM sx_email_bounce_suppressions WHERE tenant_id=? AND email_fingerprint=? LIMIT 1',[ctx.tenantId,fingerprint]);if(blocked){email='';consent=false;emailRemovedAfterBounce=true;}}
+   const emailChanged=oldEmail!==email;
    if(!String(input.mobile||'').trim()&&!email)fail('INVALID_CONTACT');
    if(oldEmail&&emailChanged&&oldConsent){await db.query("INSERT INTO sx_email_consent_events(tenant_id,contact_id,normalized_email,consented,source,actor_identity_id) VALUES(?,?,?,0,'phonebook_email_changed',?)",[ctx.tenantId,id,oldEmail,ctx.identityId]);await db.query("INSERT INTO sx_email_suppressions(tenant_id,normalized_email,reason,source) VALUES(?,?,'unsubscribe','phonebook_email_changed') ON DUPLICATE KEY UPDATE reason=IF(reason IN ('bounce','complaint'),'reason','unsubscribe'),source=IF(reason IN ('bounce','complaint'),source,'phonebook_email_changed')",[ctx.tenantId,oldEmail]);}
    if(email&&consent){if(emailChanged||!oldConsent)await db.query("INSERT INTO sx_email_consent_events(tenant_id,contact_id,normalized_email,consented,source,actor_identity_id) VALUES(?,?,?,1,'phonebook_edit',?)",[ctx.tenantId,id,email,ctx.identityId]);await db.query("DELETE FROM sx_email_suppressions WHERE tenant_id=? AND normalized_email=? AND reason='unsubscribe'",[ctx.tenantId,email]);}
@@ -139,7 +159,7 @@ async function edit(db,ctx,input){
    await db.query('UPDATE contact SET name=?,mobile=?,var1=?,var2=?,var3=?,var4=?,var5=?,var6=?,email=?,email_marketing_consent=?,email_marketing_consent_at=?,email_marketing_consent_source=?,email_unsubscribed_at=? WHERE uid=? AND id=?',
     [...values,email||null,consent?1:0,consent?(oldConsent&&!emailChanged?current.email_marketing_consent_at||new Date():new Date()):null,consent?'phonebook_edit':null,email&&oldConsent&&!consent&&!emailChanged?new Date():null,ctx.uid,id]);
   }else{if(!String(input.mobile||'').trim())fail('INVALID_CONTACT');const [result]=await db.query('UPDATE contact SET name=?,mobile=?,var1=?,var2=?,var3=?,var4=?,var5=?,var6=? WHERE uid=? AND id=?',[...values,ctx.uid,id]);if(!result.affectedRows)fail('CONTACT_NOT_FOUND',404);}
-  await db.commit();return {updated:true};
+  await db.commit();return {updated:true,...(emailRemovedAfterBounce?{emailRemovedAfterBounce:true}:{})};
  }catch(error){await db.rollback();throw error;}
 }
 async function remove(db,ctx,input){manage(ctx);const selected=ids(input?.selected);const [result]=await db.query('DELETE FROM contact WHERE uid=? AND id IN (?)',[ctx.uid,selected]);return {count:result.affectedRows};}

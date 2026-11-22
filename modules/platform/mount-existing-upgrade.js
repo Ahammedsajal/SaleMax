@@ -52,7 +52,7 @@ function mountExistingUpgrade(app,{pool,key,origin,insecureLoopback=false,legacy
   app.use('/api/workspace/ai/settings',aiSettings);
   // Keep cached chatbot clients working while sharing the tenant-wide settings store.
   app.use('/api/user/chatbots/settings/provider',aiSettings);
-  const phonebook=require('./phonebook-workspace-router')({pool,authenticate:featureSession.guard});
+  const phonebook=require('./phonebook-workspace-router')({pool,authenticate:featureSession.guard,key});
   app.use(['/api/workspace/phonebook','/api/phonebook/workspace','/api/agent/phonebook'],phonebook);
   app.use('/api/workspace/email-marketing',require('./email-marketing-router').createEmailMarketingRouter({pool,authenticate:featureSession.guard,origin,key,bouncePrivacyReady}));
   app.use('/api/public/email',require('./email-marketing-router').createPublicEmailRouter({pool,key,bouncePrivacyReady}));

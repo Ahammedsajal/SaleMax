@@ -1,6 +1,6 @@
 'use strict';
 const service=require('./phonebook-workspace');
-module.exports=function createRouter({agent=false,pool:injectedPool,authenticate}={}){
+module.exports=function createRouter({agent=false,pool:injectedPool,authenticate,key}={}){
  const router=require('express').Router(),pool=injectedPool||require('../../database/config').promise();
  router.use(require('express').json({limit:'32kb',strict:true}));
  router.use((req,res,next)=>{if(!['GET','HEAD','OPTIONS'].includes(req.method)&&!(req.path==='/import'&&req.is('multipart/form-data'))&&(!req.body||typeof req.body!=='object'||Array.isArray(req.body)))return res.status(400).json({success:false,code:'INVALID_BODY'});next();});
@@ -10,8 +10,8 @@ module.exports=function createRouter({agent=false,pool:injectedPool,authenticate
  router.get('/bootstrap',handle(async(db,ctx)=>({config:await service.settings(db,ctx),books:await service.books(db,ctx),manage:ctx.manage,category:ctx.category,emailMarketing:ctx.emailMarketing===true})));
  router.post('/books',handle((db,ctx,req)=>service.createBook(db,ctx,req.body)));
  router.post('/books/delete',handle((db,ctx,req)=>service.deleteBook(db,ctx,req.body)));
- router.post('/add-contacts',handle((db,ctx,req)=>service.addContacts(db,ctx,req.body)));
- router.post('/import',(req,res,next)=>req.phonebookContext.manage?next():res.status(403).json({success:false,code:'READ_ONLY_SHARE'}),require('express-fileupload')({limits:{fileSize:2*1024*1024},abortOnLimit:true}),handle(async(db,ctx,req)=>service.addContacts(db,ctx,{bookId:req.body?.bookId,emailConsentConfirmed:req.body?.emailConsentConfirmed==='true',rows:await service.parseContactCsv(req.files?.file,{emailMarketing:ctx.emailMarketing===true})})));
+ router.post('/add-contacts',handle((db,ctx,req)=>service.addContacts(db,ctx,req.body,key)));
+ router.post('/import',(req,res,next)=>req.phonebookContext.manage?next():res.status(403).json({success:false,code:'READ_ONLY_SHARE'}),require('express-fileupload')({limits:{fileSize:2*1024*1024},abortOnLimit:true}),handle(async(db,ctx,req)=>service.addContacts(db,ctx,{bookId:req.body?.bookId,emailConsentConfirmed:req.body?.emailConsentConfirmed==='true',rows:await service.parseContactCsv(req.files?.file,{emailMarketing:ctx.emailMarketing===true})},key)));
  router.post('/contacts',handle(async(db,ctx,req)=>service.list(db,ctx,req.body)));
  router.post('/contact-matches',handle(async(db,ctx,req)=>service.contactsByMobile(db,ctx,req.body)));
  router.post('/values',handle(async(db,ctx,req)=>service.unique(db,ctx,req.body)));
@@ -19,7 +19,7 @@ module.exports=function createRouter({agent=false,pool:injectedPool,authenticate
  router.post('/move',handle((db,ctx,req)=>service.move(db,ctx,req.body)));
  router.get('/recipients',handle(async(db,ctx)=>({recipients:await service.recipients(db,ctx),shares:await service.shares(db,ctx)})));
  router.post('/share',handle((db,ctx,req)=>service.share(db,ctx,req.body)));
- router.put('/edit_contact',handle((db,ctx,req)=>service.edit(db,ctx,req.body)));
+ router.put('/edit_contact',handle((db,ctx,req)=>service.edit(db,ctx,req.body,key)));
  router.post('/del_contacts',handle((db,ctx,req)=>service.remove(db,ctx,req.body)));
  return router;
 };

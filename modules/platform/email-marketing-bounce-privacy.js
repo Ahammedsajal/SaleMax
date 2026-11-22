@@ -27,8 +27,10 @@ async function isSuppressed(db,key,tenantId,email){
 
 async function scrubBouncedAddress(db,{key,tenantId,email,bounceType='Permanent'}){
   const address=normalizedAddress(email);
-  if(!address||!['Permanent','Undetermined'].includes(bounceType))return false;
+  if(!address||!['Permanent','Undetermined'].includes(bounceType))return {removed:false};
   const fingerprint=emailFingerprint(key,tenantId,address);
+  await db.query('SELECT id FROM sx_tenants WHERE id=? FOR UPDATE',[tenantId]);
+  const counts={removed:true,contactsCleared:0,recipientRowsCleared:0,threadsRedacted:0,messagesRedacted:0};
   await db.query(`INSERT INTO sx_email_bounce_suppressions(tenant_id,email_fingerprint,bounce_type,source)
     VALUES(?,?,?,'ses-event')
     ON DUPLICATE KEY UPDATE bounce_type=IF(VALUES(bounce_type)='Permanent','Permanent',bounce_type),source='ses-event'`,
@@ -45,7 +47,7 @@ async function scrubBouncedAddress(db,{key,tenantId,email,bounceType='Permanent'
     WHERE m.tenant_id=? AND (LOWER(TRIM(COALESCE(t.recipient_email,'')))=? OR r.normalized_email=?)`,[tenantId,address,address]);
   for(const message of messages){
     const subject=redactAddress(message.subject,address),body=redactAddress(message.body,address);
-    if(subject!==message.subject||body!==message.body)await db.query('UPDATE sx_email_messages SET subject=?,text_body=? WHERE tenant_id=? AND id=?',[subject,body,tenantId,message.id]);
+    if(subject!==message.subject||body!==message.body){await db.query('UPDATE sx_email_messages SET subject=?,text_body=? WHERE tenant_id=? AND id=?',[subject,body,tenantId,message.id]);counts.messagesRedacted++;}
   }
   await db.query(`UPDATE sx_email_outbound_queue q JOIN sx_email_messages m
       ON m.tenant_id=q.tenant_id AND m.id=q.message_id
@@ -53,43 +55,51 @@ async function scrubBouncedAddress(db,{key,tenantId,email,bounceType='Permanent'
     SET q.status='failed',q.last_error_code='EMAIL_RECIPIENT_BOUNCED',q.lease_expires_at=NULL
     WHERE q.tenant_id=? AND q.status IN ('queued','sending')
       AND LOWER(TRIM(COALESCE(t.recipient_email,'')))=?`,[tenantId,address]);
-  await db.query(`UPDATE sx_email_threads SET recipient_email=''
-    WHERE tenant_id=? AND LOWER(TRIM(COALESCE(recipient_email,'')))=?`,[tenantId,address]);
+  const [threads]=await db.query(`UPDATE sx_email_threads SET recipient_email='',
+      recipient_name=REPLACE(recipient_name,?,'[email removed after bounce]'),
+      subject=REPLACE(subject,?,'[email removed after bounce]')
+    WHERE tenant_id=? AND LOWER(TRIM(COALESCE(recipient_email,'')))=?`,[address,address,tenantId,address]);
+  counts.threadsRedacted=Number(threads.affectedRows||0);
   await db.query(`UPDATE sx_email_messages SET from_email=''
     WHERE tenant_id=? AND direction='inbound' AND LOWER(TRIM(COALESCE(from_email,'')))=?`,[tenantId,address]);
   await db.query(`UPDATE sx_email_consent_events SET normalized_email=''
     WHERE tenant_id=? AND normalized_email=?`,[tenantId,address]);
-  await db.query(`UPDATE contact c
+  const [contacts]=await db.query(`UPDATE contact c
     JOIN user u ON u.uid=c.uid
     JOIN sx_legacy_ownership o ON o.source_table='user' AND o.tenant_id=? AND BINARY CAST(u.id AS CHAR)=BINARY o.source_id AND BINARY SHA2(u.uid,256)=BINARY o.legacy_uid_hash
-    JOIN sx_memberships m ON m.id=o.membership_id AND m.tenant_id=o.tenant_id AND m.role='owner' AND m.status='active'
-    SET c.email='',c.email_marketing_consent=0,c.email_marketing_consent_at=NULL,c.email_marketing_consent_source=NULL
-    WHERE LOWER(TRIM(COALESCE(c.email,'')))=?`,[tenantId,address]);
-  await db.query(`UPDATE sx_email_campaign_recipients
-    SET email_fingerprint=?,recipient_email='',normalized_email='',
+    SET c.email='',c.name=REPLACE(c.name,?,'[email removed after bounce]'),c.email_marketing_consent=0,c.email_marketing_consent_at=NULL,c.email_marketing_consent_source=NULL
+    WHERE LOWER(TRIM(COALESCE(c.email,'')))=?`,[tenantId,address,address]);
+  counts.contactsCleared=Number(contacts.affectedRows||0);
+  const [recipients]=await db.query(`UPDATE sx_email_campaign_recipients
+    SET email_fingerprint=?,recipient_email='',normalized_email='',recipient_name=REPLACE(recipient_name,?,'[email removed after bounce]'),
         last_error_code=IF(status IN ('pending','sending'),'EMAIL_BOUNCED',last_error_code),
         status=IF(status IN ('pending','sending'),'suppressed',status),
         lease_owner=NULL,lease_expires_at=NULL
     WHERE tenant_id=? AND (normalized_email=? OR email_fingerprint=?)`,
-    [fingerprint,tenantId,address,fingerprint]);
+    [fingerprint,address,tenantId,address,fingerprint]);
+  counts.recipientRowsCleared=Number(recipients.affectedRows||0);
   await db.query('DELETE FROM sx_email_suppressions WHERE tenant_id=? AND normalized_email=?',[tenantId,address]);
-  return true;
+  return counts;
 }
 
 async function migrateLegacyBounces(pool,key){
   const db=await pool.getConnection();
+  const totals={migrated:true,legacyRowsProcessed:0,contactsCleared:0,recipientRowsCleared:0,threadsRedacted:0,messagesRedacted:0};
   try{
     for(;;){
       await db.beginTransaction();
       try{
         const [rows]=await db.query(`SELECT tenant_id AS tenantId,normalized_email AS email
-          FROM sx_email_suppressions WHERE reason='bounce' ORDER BY tenant_id,normalized_email LIMIT 100 FOR UPDATE`);
-        if(!rows.length){await db.commit();return {migrated:true};}
-        for(const row of rows)await scrubBouncedAddress(db,{key,tenantId:row.tenantId,email:row.email,bounceType:'Undetermined'});
+          FROM sx_email_suppressions WHERE reason='bounce' ORDER BY tenant_id,normalized_email LIMIT 25 FOR UPDATE`);
+        if(!rows.length){await db.commit();return totals;}
+        for(const row of rows){
+          const result=await scrubBouncedAddress(db,{key,tenantId:row.tenantId,email:row.email,bounceType:'Undetermined'});
+          totals.legacyRowsProcessed++;
+          for(const name of ['contactsCleared','recipientRowsCleared','threadsRedacted','messagesRedacted'])totals[name]+=result[name]||0;
+        }
         await db.commit();
       }catch(error){try{await db.rollback();}catch{}throw error;}
     }
   }finally{db.release();}
 }
-
 module.exports={normalizedAddress,emailFingerprint,redactAddress,isSuppressed,scrubBouncedAddress,migrateLegacyBounces};
