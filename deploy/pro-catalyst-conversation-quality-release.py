@@ -27,6 +27,8 @@ ASSETS = (
     'modules/platform/chatbot-handoff-claims.js',
     'modules/platform/chatbot-router.js',
     'modules/platform/chatbot-contact-assistant.js',
+    'modules/platform/chatbot-conversation-store.js',
+    'helper/addon/qr/processThings.js',
 )
 NEW_ASSETS = ()
 GREETING = {

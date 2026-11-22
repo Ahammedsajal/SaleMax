@@ -1,5 +1,17 @@
 'use strict';
 const crypto = require('node:crypto');
+const automatedSenders = new Set(['bot', 'ai', 'automation', 'chatbot']);
+
+function isAutomated(sender) {
+  return automatedSenders.has(String(sender || '').trim().toLowerCase());
+}
+
+async function pauseForStaff(db, staffReply, route, sender) {
+  if (!staffReply?.channelKind || !staffReply?.channelRef || route !== 'OUTGOING' || isAutomated(sender)) return false;
+  await require('./chatbot-conversation-control').pauseForStaffReply(staffReply.uid, staffReply.chatId,
+    staffReply.channelKind, staffReply.channelRef, (sql, values) => db.query(sql, values));
+  return true;
+}
 
 // The QR echo and the bot's own persistence race on the same provider ID.
 // An advisory lock gives both writers one atomic insert without rewriting or
@@ -14,15 +26,15 @@ async function persistConversationMessage({ uid, chatId, data, pool = null, staf
       const [[row]] = await db.query('SELECT GET_LOCK(?,5) AS acquired', [lock]);
       if (Number(row.acquired) !== 1) throw Object.assign(new Error('CONVERSATION_STORE_BUSY'), { code: 'CONVERSATION_STORE_BUSY' });
       held = true;
-      const [[existing]] = await db.query('SELECT 1 AS found FROM beta_conversation WHERE uid=? AND chat_id=? AND metaChatId=? LIMIT 1', [uid, chatId, id]);
-      if (existing) return { inserted: false };
+      const [[existing]] = await db.query('SELECT route,sentBy FROM beta_conversation WHERE uid=? AND chat_id=? AND metaChatId=? LIMIT 1', [uid, chatId, id]);
+      if (existing) {
+        const staffPaused = await pauseForStaff(db, staffReply ? { ...staffReply, uid, chatId } : null, existing.route, existing.sentBy);
+        return { inserted: false, staffPaused };
+      }
     }
-    if (staffReply) {
-      await require('./chatbot-conversation-control').pauseForStaffReply(uid, chatId,
-        staffReply.channelKind, staffReply.channelRef, (sql, values) => db.query(sql, values));
-    }
+    const staffPaused = await pauseForStaff(db, staffReply ? { ...staffReply, uid, chatId } : null, data.route, data.sentBy);
     await db.query('INSERT INTO beta_conversation SET ?', { ...data, uid, chat_id: chatId });
-    return { inserted: true };
+    return { inserted: true, staffPaused };
   } finally {
     if (held) await db.query('SELECT RELEASE_LOCK(?)', [lock]).catch(() => {});
     db.release();
