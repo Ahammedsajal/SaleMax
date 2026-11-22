@@ -653,11 +653,12 @@ async function applyUnsubscribe(db,key,token){
       JOIN user u ON BINARY CAST(u.id AS CHAR)=BINARY o.source_id AND BINARY SHA2(u.uid,256)=BINARY o.legacy_uid_hash
       JOIN contact c ON c.uid=u.uid AND c.id=? WHERE o.tenant_id=? AND o.source_table='user' LIMIT 2 FOR UPDATE`,[recipient.contactId,parsed.tenantId]);
     if(contacts.length>1)fail('EMAIL_OWNER_LINK_INVALID',409);
-    if(recipient.email&&contacts.length===1&&normalizeEmail(contacts[0].email)===recipient.email){
+    const storedRecipientEmail=recipient.email&&!String(recipient.email).startsWith('!bounced:')?recipient.email:'';
+    if(storedRecipientEmail&&contacts.length===1&&normalizeEmail(contacts[0].email)===storedRecipientEmail){
       await db.query("UPDATE contact SET email_marketing_consent=0,email_unsubscribed_at=UTC_TIMESTAMP(3),email_marketing_consent_source='one_click' WHERE uid=? AND id=?",[contacts[0].uid,recipient.contactId]);
-      await db.query("INSERT INTO sx_email_consent_events(tenant_id,contact_id,normalized_email,consented,source,actor_identity_id) VALUES(?,?,?,0,'one_click',NULL)",[parsed.tenantId,recipient.contactId,recipient.email]);
+      await db.query("INSERT INTO sx_email_consent_events(tenant_id,contact_id,normalized_email,consented,source,actor_identity_id) VALUES(?,?,?,0,'one_click',NULL)",[parsed.tenantId,recipient.contactId,storedRecipientEmail]);
     }
-    if(recipient.email)await db.query("INSERT INTO sx_email_suppressions(tenant_id,normalized_email,reason,source) VALUES(?,?,'unsubscribe','one_click') ON DUPLICATE KEY UPDATE reason='unsubscribe',source='one_click'",[parsed.tenantId,recipient.email]);
+    if(storedRecipientEmail)await db.query("INSERT INTO sx_email_suppressions(tenant_id,normalized_email,reason,source) VALUES(?,?,'unsubscribe','one_click') ON DUPLICATE KEY UPDATE reason='unsubscribe',source='one_click'",[parsed.tenantId,storedRecipientEmail]);
     await db.query("UPDATE sx_email_campaign_recipients SET status='suppressed',last_error_code='UNSUBSCRIBED',lease_owner=NULL,lease_expires_at=NULL WHERE tenant_id=? AND campaign_id=? AND id=? AND status='pending'",[parsed.tenantId,parsed.campaignId,parsed.recipientId]);
     await db.commit();return {unsubscribed:true};
   }catch(error){try{await db.rollback();}catch{}throw error;}

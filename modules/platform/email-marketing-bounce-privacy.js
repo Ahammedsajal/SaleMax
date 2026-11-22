@@ -71,12 +71,13 @@ async function scrubBouncedAddress(db,{key,tenantId,email,bounceType='Permanent'
     WHERE LOWER(TRIM(COALESCE(c.email,'')))=?`,[tenantId,address,address]);
   counts.contactsCleared=Number(contacts.affectedRows||0);
   const [recipients]=await db.query(`UPDATE sx_email_campaign_recipients
-    SET email_fingerprint=?,recipient_email='',normalized_email='',recipient_name=REPLACE(recipient_name,?,'[email removed after bounce]'),
+    /* The table's unique address key requires a distinct non-email placeholder per bounced address. */
+    SET email_fingerprint=?,recipient_email='',normalized_email=CONCAT('!bounced:',?),recipient_name=REPLACE(recipient_name,?,'[email removed after bounce]'),
         last_error_code=IF(status IN ('pending','sending'),'EMAIL_BOUNCED',last_error_code),
         status=IF(status IN ('pending','sending'),'suppressed',status),
         lease_owner=NULL,lease_expires_at=NULL
     WHERE tenant_id=? AND (normalized_email=? OR email_fingerprint=?)`,
-    [fingerprint,address,tenantId,address,fingerprint]);
+    [fingerprint,fingerprint,address,tenantId,address,fingerprint]);
   counts.recipientRowsCleared=Number(recipients.affectedRows||0);
   await db.query('DELETE FROM sx_email_suppressions WHERE tenant_id=? AND normalized_email=?',[tenantId,address]);
   return counts;

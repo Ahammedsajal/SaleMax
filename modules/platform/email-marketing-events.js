@@ -47,7 +47,8 @@ async function persist(pool,{envelope,event,key}){
       const [[row]]=await db.query('SELECT id,tenant_id,campaign_id,recipient_email,normalized_email,email_fingerprint,provider_message_id FROM sx_email_campaign_recipients WHERE id=? AND campaign_id=? LIMIT 1 FOR UPDATE',[recipientId,campaignId]);
       if(row&&(!messageId||!row.provider_message_id||row.provider_message_id===messageId)){
         matched=row;
-        const storedEmail=normalizeEmail(row.recipient_email||row.normalized_email||'');
+        const storedValue=String(row.recipient_email||row.normalized_email||'');
+        const storedEmail=storedValue.startsWith('!bounced:')?'':normalizeEmail(storedValue);
         const reportedMatches=!reportedEmails.size||[...reportedEmails].some(email=>
           (storedEmail&&email===storedEmail)||(row.email_fingerprint&&bouncePrivacy.emailFingerprint(key,row.tenant_id,email)===row.email_fingerprint));
         if(reason&&reportedMatches){
