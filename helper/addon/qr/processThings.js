@@ -253,20 +253,25 @@ async function saveMessageToConversation({ uid, chatId, messageData, staffReply 
   }
 }
 
+function unwrapMessageContent(content) {
+  for (let depth = 0; depth < 5; depth++) {
+    const wrapped = content?.ephemeralMessage?.message
+      || content?.viewOnceMessage?.message
+      || content?.viewOnceMessageV2?.message
+      || content?.viewOnceMessageV2Extension?.message
+      || content?.documentWithCaptionMessage?.message
+      || content?.deviceSentMessage?.message;
+    if (!wrapped) break;
+    content = wrapped;
+  }
+  return content;
+}
+
 async function processBaileysMsg({ sessionId, live, body, uid, userFromMysql, chatId }) {
   try {
     if (!body) return null;
     const groupMessage = groups.isGroupJid(body.key?.remoteJid);
-    const mockupQr = !groupMessage && !body.key?.fromMe && require('../../../modules/platform/chatbot-mockup').ownsInbox(uid, 'qr');
-    if ((groupMessage || mockupQr) && body.message) {
-      let content = body.message;
-      for (let depth = 0; depth < 5; depth++) {
-        const wrapped = content.ephemeralMessage?.message;
-        if (!wrapped) break;
-        content = wrapped;
-      }
-      body = { ...body, message: content };
-    }
+    if (body.message) body = { ...body, message: unwrapMessageContent(body.message) };
 
     // Status Update Handling
     if (body.update && typeof body.update.status === "number") {
@@ -630,4 +635,5 @@ async function processMessageQr({
 
 module.exports = {
   processMessageQr,
+  unwrapMessageContent,
 };

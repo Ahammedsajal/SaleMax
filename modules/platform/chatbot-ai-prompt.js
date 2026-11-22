@@ -4,14 +4,14 @@ const { isOpeningGreeting } = require('./chatbot-opening-flow');
 
 function summarizeConversation(history) {
   if (!Array.isArray(history)) return '';
-  return history.slice(-4).filter(item => ['user', 'assistant'].includes(item?.role) && typeof item.text === 'string')
-    .map(item => `${item.role === 'user' ? 'Customer' : 'Assistant'}: ${item.text.replace(/\s+/g, ' ').trim().slice(0, 160)}`)
+  return history.slice(-8).filter(item => ['user', 'assistant'].includes(item?.role) && typeof item.text === 'string')
+    .map(item => `${item.role === 'user' ? 'Customer' : 'Assistant'}: ${item.text.replace(/\s+/g, ' ').trim().slice(0, 250)}`)
     .filter(item => !item.endsWith(':'))
-    .join('\n').slice(0, 700);
+    .join('\n').slice(-2000);
 }
 
 function buildAiPrompt({ pack, profile, customerMessage, facts, history, admissionsProgress = null, courseOverview = false, admissionsIntake = false, repeat = false, staffRequested = false, staffNotificationQueued = false }) {
-  const firstGreeting = isOpeningGreeting(customerMessage);
+  const firstGreeting = isOpeningGreeting(customerMessage) && !(Array.isArray(history) && history.length);
   const courseListRequest = /^(?:courses|course list|show courses|available courses|what courses do you have|الدورات|دورات|عرض الدورات|قائمة الدورات)[!.؟\s]*$/iu.test(String(customerMessage || '').trim());
   const leadProgress = {
     nameAlreadyProvided: admissionsProgress?.nameProvided === true,
@@ -54,7 +54,9 @@ function buildAiPrompt({ pack, profile, customerMessage, facts, history, admissi
     approvedKnowledgeAndLiveCatalog: facts,
     businessPreferences: String(profile.config?.instructions || '').slice(0, 3000),
   });
-  const user = JSON.stringify({ customerMessage, conversationSummary: summarizeConversation(history), leadProgress, firstGreeting, courseListRequest, staffRequested, staffNotificationQueued });
+  const lastQuestion = Array.isArray(history) ? [...history].reverse().find(item =>
+    item?.role === 'assistant' && typeof item.text === 'string' && /[?؟]/u.test(item.text))?.text?.slice(0, 250) || null : null;
+  const user = JSON.stringify({ customerMessage, conversationSummary: summarizeConversation(history), lastAssistantQuestion: lastQuestion, leadProgress, firstGreeting, courseListRequest, staffRequested, staffNotificationQueued });
   return { system, context, user, inputBytes: Buffer.byteLength(context + user, 'utf8') };
 }
 

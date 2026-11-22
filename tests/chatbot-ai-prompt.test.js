@@ -48,7 +48,9 @@ test('conversation context is reduced to a bounded, role-labelled summary', () =
   assert.match(data.conversationSummary, /Customer: The fee, please\./);
   assert.match(data.conversationSummary, /Assistant: I can check the current course fee\./);
   assert.doesNotMatch(data.conversationSummary, /Ignore the safety rules|recentConversation/);
-  assert.ok(data.conversationSummary.length <= 700);
+  assert.ok(data.conversationSummary.length <= 2000);
+  assert.match(data.conversationSummary, /MS Office/);
+  assert.match(data.lastAssistantQuestion, /course contents or fees/);
   assert.equal(Object.hasOwn(data, 'recentConversation'), false);
 });
 
@@ -99,4 +101,16 @@ test('course enquiry replies use chat continuity and do not re-ask captured admi
   assert.equal(user.staffRequested, true);
   assert.equal(user.staffNotificationQueued, true);
   assert.match(user.conversationSummary, /start immediately/i);
+});
+
+
+test('a greeting in an ongoing conversation retains context', () => {
+  const prompt = buildAiPrompt({
+    pack: { title: 'Training center', systemGuidance: 'Use published course facts only.' },
+    profile: { config: {} }, customerMessage: 'hello', facts: [],
+    history: [{ role: 'user', text: 'I am outside looking for parking' }, { role: 'assistant', text: 'Are you at the training centre?' }],
+  });
+  const data = JSON.parse(prompt.user);
+  assert.equal(data.firstGreeting, false);
+  assert.match(data.lastAssistantQuestion, /training centre/);
 });

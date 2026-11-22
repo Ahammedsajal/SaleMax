@@ -667,7 +667,7 @@ function simpleFactualReply(message, context, config = {}) {
     return { reply: template.replaceAll('{course}', course.name).replaceAll('{duration}', course.duration || ''), sourceIds: [course.sourceId] };
   }
   if (asksFee) {
-    if (!course.offer?.priceAmount) return null;
+    if (course.offer?.priceAmount == null || !course.offer?.currency) return null;
     const fee = `${course.offer.priceAmount} ${course.offer.currency}`;
     const label = config.guidedContent?.messages?.registrationFeeLabel?.[ar ? 'ar' : 'en'] || (ar ? 'رسوم التسجيل' : 'Registration fee');
     const extra = Number(course.offer.registrationFeeAmount) > 0 ? ` ${label}: ${course.offer.registrationFeeAmount} ${course.offer.currency}.` : '';

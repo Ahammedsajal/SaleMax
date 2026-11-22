@@ -460,3 +460,11 @@ test('a standalone price follow-up uses the selected course even when other desc
     assert.notEqual(lookup('How much will it cost?', state).courseContextSource, 'selected_course_price');
   }
 });
+
+
+test('a published zero course fee remains a valid amount', () => {
+  const freeCourses = facts.map(course => course.code === 'ENG'
+    ? { ...course, offer: { currency: 'QAR', priceAmount: 0, registrationFeeAmount: 0 } } : course);
+  const context = retrieveContext({ facts: freeCourses, message: 'How much?', state: { selectedCourseCode: 'ENG' } });
+  assert.match(simpleFactualReply('How much?', context).reply, /0 QAR/);
+});
