@@ -5264,6 +5264,29 @@ sudo -n /opt/salemax/shared/with-production-lock.sh python3 /opt/salemax/release
 
 Rollback is app-only; no migration or database rollback applies.
 
+## 2026-11-22 — Pro Catalyst callback confirmation repetition fix
+
+Source commit `ec0d43cdae9aa76b888b03f360a14b0df77a0e4c` is pushed to `Ahammedsajal/SaleMax` `main`. The app-only release is `/opt/salemax/releases/pro-catalyst-conversation-quality-ec0d43cdae9a-20261122T100844Z`, on base `/opt/salemax/releases/training-pipeline-correction-v3-9867ca72-20261104`, using the existing app image `sha256:753d77d421b3160872df0812e7b38505a1db7104cdb9d6c8b17415b2420de667`. No migration ran.
+
+A read-only review of the reported conversation showed that the bot’s combined name/callback prompt was followed by a name confirmation and then a number confirmation, but both remained pending in lead-capture state. The parser accepted only narrow exact affirmative phrases. In addition, `qatar-coordinator-callback` was missing from the coordinator-pause reason set, so later inbound turns could reach the generic handoff-notice path and repeat that prompt.
+
+The runtime now recognizes name-specific confirmations without treating them as call consent. A name confirmation advances to one focused call-permission question; a number-confirming “yes” is accepted as consent only while that permission prompt is pending. The callback handoff now stays paused and suppresses repeated handoff notices for unrelated turns while staff follow up. The path is deterministic and makes no AI-provider call. The production profile, customer conversations and lead records were not changed by deployment.
+
+Verification: the changed JavaScript files passed `node --check`, `git diff --check` passed, and the guarded release verified all ten staged runtime hashes. The active app is healthy with zero restarts, MariaDB is healthy, public `https://7network.live/healthz` returned HTTP 200, all support-service identities are unchanged, and the app image was preserved. The release used 314 Compose inputs, 11 environment inputs and 282 app mounts. No automated suite, WhatsApp test message or paid AI request was run. A real handset/customer confirmation is still needed for owner acceptance.
+
+| Changed runtime file | SHA-256 |
+|---|---|
+| `modules/platform/chatbot-runtime.js` | `c649de38f84fc4770a5c3398ad6b4a2d32147dd6b3768312c31fe93544a849ad` |
+| `modules/platform/chatbot-lead-capture.js` | `04e209ae718faa2e703feaf2ca496c1a83a92e118d6b787ede2ba608faddadfc` |
+
+Protected rollback snapshot: `/opt/salemax/shared/rollback-pro-catalyst-conversation-quality-ec0d43cdae9a-20261122T100844Z`. If this remains the latest app overlay, restore the prior Compose chain under the production lock with:
+
+```sh
+sudo -n /opt/salemax/shared/with-production-lock.sh python3 /opt/salemax/releases/pro-catalyst-conversation-quality-ec0d43cdae9a-20261122T100844Z/deploy/pro-catalyst-conversation-quality-release.py restore /opt/salemax/shared/rollback-pro-catalyst-conversation-quality-ec0d43cdae9a-20261122T100844Z
+```
+
+Rollback is app-only; there is no migration or database rollback.
+
 ## 2026-11-21 — Pro Catalyst context-aware discovery and refusal handling
 
 - Source commit `c7b5cab254242a292c65ee633ef6e39f626f5d1b` is pushed to `Ahammedsajal/SaleMax` `main`. The app-only release is `/opt/salemax/releases/pro-catalyst-conversation-quality-c7b5cab25424-20261121T144905Z`, layered on `/opt/salemax/releases/training-pipeline-correction-v3-9867ca72-20261104`. The app image remains `sha256:753d77d421b3160872df0812e7b38505a1db7104cdb9d6c8b17415b2420de667`. No migration ran and no customer conversation, lead, provider setting or profile greeting was changed.

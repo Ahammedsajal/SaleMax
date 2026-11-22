@@ -2658,3 +2658,7 @@ An affirmative reply such as “Yes please” now confirms a callback only when 
 ### Pro Catalyst pause after manager-phone replies — production, 22 November 2026
 
 Recent manual messages sent from the paired manager phone are now treated as staff replies whether Baileys delivers them live or as a recent history append. The conversation store also applies the pause when a duplicate echo is already saved. Before generating a reply, Hybrid can derive the same 24-hour staff pause from a recent saved human QR outbound on that exact training-center channel. Automated bot echoes are excluded. This closes the gap where a synced message appeared in Inbox as human but never created a pause. Production release and verification evidence are in `DEPLOYMENT.md`; a real handset/customer acceptance check remains open.
+
+### Pro Catalyst callback confirmation repeat fix — production, 22 November 2026
+
+The callback flow now understands explicit name confirmations such as “Yes, that is my name” separately from callback permission. After a name confirmation, it asks only whether the coordinator may call the saved Qatar number. “Yes, that is my number” is accepted as consent only while that call-permission prompt is pending. The callback handoff reason is now treated as a paused coordinator handoff, so other messages cannot replay the same callback prompt. This is deterministic and uses no AI tokens. Source, release, rollback and health evidence are recorded in `DEPLOYMENT.md`; no WhatsApp test message was sent, so real handset acceptance remains open.
