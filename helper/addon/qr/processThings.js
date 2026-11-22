@@ -1,5 +1,4 @@
 const randomstring = require("randomstring");
-const moment = require("moment");
 const { query } = require("../../../database/dbpromise");
 const mime = require("mime-types");
 const { fetchProfileUrl } = require("./control");
@@ -181,14 +180,9 @@ async function updateChatInMysql({
   }
 }
 
-function getCurrentTimestampInTimeZone(timezone) {
-  if (typeof timezone === "number") {
-    return timezone;
-  } else if (typeof timezone === "string") {
-    const currentTimeInZone = moment.tz(timezone);
-    return Math.round(currentTimeInZone.valueOf() / 1000);
-  }
-  return Math.round(Date.now() / 1000);
+function getMessageTimestamp(timestamp) {
+  const seconds = Number(timestamp);
+  return Number.isFinite(seconds) && seconds > 0 ? Math.trunc(seconds) : Math.floor(Date.now() / 1000);
 }
 
 function saveImageToFile(imageBuffer, filePath, mimetype) {
@@ -271,6 +265,7 @@ async function processBaileysMsg({ sessionId, live, body, uid, userFromMysql, ch
   try {
     if (!body) return null;
     const groupMessage = groups.isGroupJid(body.key?.remoteJid);
+    const mockupQr = !groupMessage && !body.key?.fromMe && require('../../../modules/platform/chatbot-mockup').ownsInbox(uid, 'qr');
     if (body.message) body = { ...body, message: unwrapMessageContent(body.message) };
 
     // Status Update Handling
@@ -489,9 +484,7 @@ async function processBaileysMsg({ sessionId, live, body, uid, userFromMysql, ch
       metaChatId: body.key.id,
       msgContext,
       reaction: "",
-      timestamp: groupMessage ? Number(body.messageTimestamp) || Math.floor(Date.now() / 1000) : getCurrentTimestampInTimeZone(
-        userFromMysql?.timezone || body.messageTimestamp
-      ),
+      timestamp: getMessageTimestamp(body.messageTimestamp),
       senderName: groupMessage ? msgContext.group.participantName : body.pushName || "NA",
       senderMobile: groupMessage ? msgContext.group.participantJid
         : require('../../../modules/platform/chatbot-mockup').senderMobileFromQrJid(body.key?.remoteJid),
@@ -635,5 +628,6 @@ async function processMessageQr({
 
 module.exports = {
   processMessageQr,
+  processBaileysMsg,
   unwrapMessageContent,
 };
