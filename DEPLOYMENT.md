@@ -1,3 +1,29 @@
+# 2026-11-22 — Email Marketing bounced-address deletion and suppression — production
+
+Source commit `f885a6374ff81195db6075180542b80e3b655d70` is deployed and pushed to `Ahammedsajal/SaleMax`; the source and this deployment record are included on `main`. The first app-only rollout (`488d738bd7a02007c7231807845b8c49f89d10cb`) applied the additive migration, then the app entered a restart loop: several recipient rows in one campaign were being cleared to the same empty normalized address, which conflicts with the existing unique key `(tenant_id, campaign_id, normalized_email)`. A forward fix now clears the plaintext recipient address and stores a distinct non-email `!bounced:<tenant-scoped HMAC>` placeholder. The unique suppression table retains only the keyed fingerprint needed to block future sends. The worker and new SES event/unsubscribe paths recognize the placeholder and do not treat it as an address.
+
+The recovered app is healthy at `/opt/salemax/releases/email-marketing-bounce-privacy-recovery-f885a6374ff8-20261122T093439Z`, appended to the existing Compose chain through `compose.email-marketing-bounce-privacy-recovery.json`. The original additive migration `20270209_email_bounce_privacy.sql` remained applied and checksum matched (`aa36341fed23a59ca8e4c9d2b17f1b0bf22167b13e1dbd334bdc346f5cd1d84b`); recovery did not rerun or alter it. The image is unchanged (`sha256:753d77d421b3160872df0812e7b38505a1db7104cdb9d6c8b17415b2420de667`). The app is healthy with zero restarts; the database is healthy; seven non-app containers are unchanged. The active base symlink remains `/opt/salemax/releases/training-pipeline-correction-v3-9867ca72-20261104`. The guarded release verified 313 Compose inputs, 11 environment inputs and 282 app mounts.
+
+The pre-release audit found 4 legacy bounce rows, 7 matching Phonebook email copies, 4 matching recipient rows and 4 matching threads. The post-release audit found zero legacy bounce rows and zero matching plaintext copies in contacts, recipients or threads; four keyed suppression fingerprints remain. No email address values were included in logs or this record. `/healthz` and the Email Marketing workspace return HTTP 200, both versioned assets match source hashes, and the email runtime modules load. No email was sent. The initial rollout required one app restart recovery; only the app container was recreated.
+
+| Mounted runtime file | SHA-256 |
+|---|---|
+| `modules/platform/email-marketing.js` | `fac470911b3ae6d19c10a14952ced7d690dbabc275ffdb94370e3a7cddeb4458` |
+| `modules/platform/email-marketing-events.js` | `bdea64f55fa9a63b9fda873209cb7a8a2542e17861b526aaf49f0548f6f6be59` |
+| `modules/platform/email-marketing-router.js` | `52c1b518a0496dac2caae39fa8d5803cde6a75fb8726e77b5825849cc604ddbb` |
+| `modules/platform/email-marketing-worker.js` | `a697ff8cf7c675c631d716dc0368b85bfae58a5de27f85e15fc96420388209a7` |
+| `modules/platform/email-marketing-inbox.js` | `c64ba55bcc10785ce4188d4e0b273748e771fb7fc5dd998c43e9b93e7f3905ef` |
+| `modules/platform/email-marketing-bounce-privacy.js` | `bbd6e309a54107a585370b6ce075c62f61862d8b2e282457b7c084671f443e9d` |
+| `modules/platform/phonebook-workspace.js` | `81e5dcefc4d6bcf26f47a728764abb4bc0ede7f236c8b02c24238d9c436fd095` |
+| `modules/platform/phonebook-workspace-router.js` | `3d9a1b2c1eb09d7ecc1d114f5b2c3f51132f073679fe463588ad181af0279d16` |
+| `modules/platform/mount-existing-upgrade.js` | `d9eaaf6f98f7e91bac065d43540d519f2b4dd48643ddd05b0c738c11afb54e27` |
+| `client/public/email-marketing-workspace.css` | `1336092ccaddf487460bb24745173fd1971276ef02a1dfc6cefb2d74e91345b9` |
+| `client/public/email-marketing-workspace.js` | `8d0e2760a6b0ad31f908f5908aba3e841695c7ddf05d5f8c1f059fdae96dd326` |
+| `client/public/index.html` | `40e4769e6db964913202b9b9cd6bacad7ead84089641d856fe1265bf81caaa0b` |
+| `database/migrations/20270209_email_bounce_privacy.sql` | `aa36341fed23a59ca8e4c9d2b17f1b0bf22167b13e1dbd334bdc346f5cd1d84b` |
+
+JavaScript syntax, recovery-helper AST/manifest, and `git diff --check` passed. No automated tests were run. Protected forward-fix snapshot: `/opt/salemax/shared/forward-fix-email-bounce-privacy-recovery-f885a6374ff8-20261122T093439Z`. Do not restore the pre-scrub application: it does not enforce keyed bounce suppression and could send to a removed address. If a regression appears, deploy a forward fix. The feature is scoped to the affected tenant; other tenants' contacts and data are not modified. Email delivery/provider acceptance and the full 42-ticket upgrade remain separate open gates.
+
 # 2026-11-19 — Sales Finance itemized invoice composer — production
 
 - Source commit `1a6668fc1fae0882a66fa2967f556a783ac776f8` is pushed to `Ahammedsajal/SaleMax` `main`. The Create Invoice flow now supports up to 10 catalog or custom product/service lines, quantities, unit prices, per-line discounts, a live invoice summary, currency, due date, and a printable itemized description. The server recalculates totals, validates active tenant catalog items and preserves the submitted line snapshot in the invoice description. Existing finance permissions are unchanged.
