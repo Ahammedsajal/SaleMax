@@ -41,7 +41,7 @@ SOURCE_FILES = (*RUNTIME_FILES, HELPER)
 PREIMAGE_SHA256 = {
     'modules/platform/email-marketing.js': '9825cc4a31dd3cc32875d983d87600b43833e51154b4c3354ecc3df25355b9fc',
     'modules/platform/email-marketing-events.js': '7ef3474b91e6cd0f34684b44f01e4decda1c957b5b4cce3b35318359756fced9',
-    'modules/platform/email-marketing-router.js': 'a08eab60ea28fae9027d3cd1a4120d7b2a3c9583260039e7c8c9b8a90de714fc',
+    'modules/platform/email-marketing-router.js': 'a08eab60ea28fae9027d3cd1a4120d7b2a3c9583260039e7c9c8b9a90de714fc',
     'modules/platform/email-marketing-worker.js': '7399cf77676db087fa2b8030a8f2ce0a1a373bc79c801fba8c06b4da26c1e245',
     'modules/platform/email-marketing-inbox.js': '57ac7c9b10e4e6ddf4069ab430cf21864233591c6a15d437a8367e8a6bfae12b',
     'modules/platform/phonebook-workspace.js': '9961fabedb722cec746635224ff8ab9e1964fd5ce0fdaac2913a5c5205a94672',
