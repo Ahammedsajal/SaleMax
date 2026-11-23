@@ -131,6 +131,10 @@ function botInput(input, categoryKey, categoryVersion = 1) {
     if (typeof source.sharedInboxRouting !== 'boolean') throw Object.assign(new Error('INVALID_SHARED_INBOX_ROUTING'), { code: 'INVALID_SHARED_INBOX_ROUTING' });
     config.sharedInboxRouting = source.sharedInboxRouting;
   }
+  if (source.contextualAiPilot != null) {
+    if (typeof source.contextualAiPilot !== 'boolean') throw Object.assign(new Error('INVALID_CONTEXTUAL_AI_PILOT'), { code: 'INVALID_CONTEXTUAL_AI_PILOT' });
+    config.contextualAiPilot = source.contextualAiPilot;
+  }
   if (source.handoffAssigneeIdentityId != null) {
     if (typeof source.handoffAssigneeIdentityId !== 'string' || !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(source.handoffAssigneeIdentityId)) throw Object.assign(new Error('INVALID_HANDOFF_ASSIGNEE'), { code: 'INVALID_HANDOFF_ASSIGNEE' });
     config.handoffAssigneeIdentityId = source.handoffAssigneeIdentityId;

@@ -3,6 +3,19 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const claims = require('../modules/platform/chatbot-handoff-claims');
 
+test('only an open and unclaimed callback may release its system pause', async () => {
+  let statement = '';
+  const pool = { query: async sql => { statement = sql; return [{ affectedRows: 1 }]; } };
+  const args = { tenantId: 'tenant', profileId: 'profile', uid: 'owner', channelKind: 'whatsapp_qr', channelRef: 'channel', chatId: 'chat' };
+  assert.equal(await claims.resumePendingCallback(pool, args), true);
+  assert.match(statement, /c\.updated_by_kind='system'/);
+  assert.match(statement, /c\.reason='qatar-coordinator-callback'/);
+  assert.match(statement, /h\.status='open'/);
+  assert.match(statement, /h\.claimed_identity_id IS NULL/);
+  const blocked = { query: async () => [{ affectedRows: 0 }] };
+  assert.equal(await claims.resumePendingCallback(blocked, args), false);
+});
+
 test('staff claim commands require an explicit handoff code so customer yes replies pass through to the bot', () => {
   for (const text of ['YES', 'available', 'متاح', 'نعم']) assert.equal(claims.parseYes(text), null, text);
   assert.deepEqual(claims.parseYes('Yes ABC123'), { code: 'ABC123' });

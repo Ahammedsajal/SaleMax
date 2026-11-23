@@ -439,7 +439,20 @@ async function handleHandoffPriorityMessage({ uid, message, user, sessionId, ori
     const result = await processHandoffPriorityForProfile({ ctx, profile, uid, message, user, sessionId, origin, chatId });
     if (result.handled) return result;
   }
-  if (ctx.tenant.categoryKey === 'training_center' && isOpeningGreeting(textOf(message))) {
+  const pilotCallback = contextualPilotAllowed({ ctx, profile, origin, message });
+  if (pilotCallback) {
+    const pause = await require('./chatbot-conversation-control').readPause(uid, chatId, channelFor(origin), sessionId);
+    if (pause?.updatedByKind === 'system' && pause.reason === 'qatar-coordinator-callback') {
+      const callback = await handleCallbackConsent({ ctx, profile, uid, message, sessionId, origin, chatId });
+      if (callback) return callback;
+      const resumed = await claims.resumePendingCallback(dbPool, {
+        tenantId: ctx.tenant.id, profileId: profile.id, uid,
+        channelKind: channelFor(origin), channelRef: sessionId, chatId,
+      });
+      if (resumed) return { handled: false, pendingCallback: true };
+    }
+  }
+  if (!pilotCallback && ctx.tenant.categoryKey === 'training_center' && isOpeningGreeting(textOf(message))) {
     try {
       const restarted = await claims.resetForCustomerGreeting(dbPool, {
         tenantId: ctx.tenant.id, uid, channelKind: channelFor(origin), channelRef: sessionId, conversationId: chatId,
@@ -838,6 +851,13 @@ function aiAvailableForProfile(profile) {
     && profile.config?.aiDataProcessingConfirmed === true);
 }
 
+function contextualPilotAllowed({ ctx, profile, origin, message }) {
+  const identity = origin === 'qr' && mockup.qrRecipientIdentity(message);
+  return Boolean(profile.config?.contextualAiPilot === true && aiAvailableForProfile(profile)
+    && ctx.category.key === 'training_center' && identity?.kind === 'phone'
+    && mockup.testRecipientAllowed(profile.config, origin, identity.phone));
+}
+
 function aiHandlesStaffRoute(profile, route) {
   return aiAvailableForProfile(profile) && ['human', 'handoff', 'certificate'].includes(route);
 }
@@ -1066,7 +1086,7 @@ function certificateTurn(message, context, state, route) {
   };
 }
 
-async function generateAiAnswer({ ctx, profile, uid, customerMessage, chatId = null, channelKind = null, channelRef = null, state = null, factsOverride = null, referral = null, intakeCourse = null, admissionsIntake = false, admissionsProgress = null, historyOverride = null, continuity = false, simulateStaffNotificationQueued = false, onStage = null }) {
+async function generateAiAnswer({ ctx, profile, uid, customerMessage, chatId = null, channelKind = null, channelRef = null, state = null, factsOverride = null, referral = null, intakeCourse = null, admissionsIntake = false, admissionsProgress = null, contactProgress = null, historyOverride = null, continuity = false, simulateStaffNotificationQueued = false, contextualPilot = false, onStage = null }) {
   if (uid && chatId && await shouldPause(uid, chatId, channelKind, channelRef)) return { paused: true };
   if (!customerMessage) return { handedOff: true, code: 'UNSUPPORTED_MESSAGE_TYPE' };
   const pack = getDomainPack(ctx.category.key, ctx.category.version);
@@ -1111,7 +1131,16 @@ async function generateAiAnswer({ ctx, profile, uid, customerMessage, chatId = n
   }
   onStage?.('approved-faqs');
   const knowledgeEntries = mergeKnowledgeEntries(profile.config?.knowledgeEntries || [], await loadApprovedFaqs(ctx.tenant.id));
-  const context = businessContext.retrieveContext({ facts, knowledgeEntries, message: customerMessage, state: session, profileRevision: profile.revision, referral, includeRelatedFaqs: admissionsIntake });
+  let context = businessContext.retrieveContext({ facts, knowledgeEntries, message: customerMessage, state: session, profileRevision: profile.revision, referral, includeRelatedFaqs: admissionsIntake });
+  if (contextualPilot && session.selectedCourseCode && !context.explicitCourses) {
+    const selected = facts.find(item => !item.kind && item.code === session.selectedCourseCode);
+    const selectedName = selected?.nameEn || selected?.nameAr;
+    if (selectedName) {
+      const selectedContext = businessContext.retrieveContext({ facts, knowledgeEntries, message: selectedName,
+        state: session, profileRevision: profile.revision, includeRelatedFaqs: admissionsIntake });
+      context = require('./chatbot-turn-understanding').retainSelectedCourse(context, selectedContext, session.selectedCourseCode);
+    }
+  }
   const nextState = {
     ...session,
     language: context.language,
@@ -1141,7 +1170,7 @@ async function generateAiAnswer({ ctx, profile, uid, customerMessage, chatId = n
     state: { ...nextState, greeted: true }, route: 'empathy', suppressIntakeQuestion: true,
     metrics: { inputTokens: 0, outputTokens: 0, cacheHit: false, sources: [] } };
   const discoveryState = { ...session, selectedCourseCode: context.selectedCourseCode || session.selectedCourseCode || null };
-  if (businessContext.isCourseDiscoveryFeedback(customerMessage, discoveryState)) {
+  if (!contextualPilot && businessContext.isCourseDiscoveryFeedback(customerMessage, discoveryState)) {
     let discoveryHistory = Array.isArray(historyOverride) && historyOverride.length
       ? historyOverride : Array.isArray(session.recentConversation) ? session.recentConversation : [];
     if (!discoveryHistory.length && uid && chatId && channelKind) {
@@ -1171,7 +1200,7 @@ async function generateAiAnswer({ ctx, profile, uid, customerMessage, chatId = n
   const published = admissionsIntake ? businessContext.publishedTrainingReply(customerMessage, context) : null;
   if (published && !staffRequested) return { canAnswer: true, confidence: 1, reply: published.reply, state: nextState, route: 'facts', repeat: Boolean(repeat),
     metrics: { inputTokens: 0, outputTokens: 0, cacheHit: false, sources: context.sources.filter(source => published.sourceIds.includes(source.id)) } };
-  if (ctx.category.key === 'training_center') {
+  if (ctx.category.key === 'training_center' && !contextualPilot) {
     const handoffReason = businessContext.trainingCenterCoordinatorReason(customerMessage, facts, context.selectedCourseCode || session.selectedCourseCode);
     if (handoffReason) staffReason ||= handoffReason;
   }
@@ -1186,7 +1215,7 @@ async function generateAiAnswer({ ctx, profile, uid, customerMessage, chatId = n
     // they never create a handoff, pause a chat, or send a WhatsApp message.
     staffNotificationQueued = true;
   }
-  const coordinatorPolicy = courseCertificates && continuity;
+  const coordinatorPolicy = courseCertificates && continuity && !contextualPilot;
   const coordinatorAnswer = () => {
     const variants = [false, true].map(followUp => coordinatorReply({ language: context.language, followUp }));
     const previous = (session.recentConversation || []).filter(turn => turn.role === 'assistant').at(-1)?.text || '';
@@ -1237,8 +1266,8 @@ async function generateAiAnswer({ ctx, profile, uid, customerMessage, chatId = n
   }
   const historySafe = Array.isArray(conversationHistory) ? conversationHistory.slice(-8)
     .map(item => ({ role: item.role, text: businessContext.redactCustomerText(item.text) })) : [];
-  const key = businessContext.fingerprint({ tenant: ctx.tenant.id, profile: profile.id, revision: context.revision, model: settings.model, provider: settings.provider, question: businessContext.normalized(customerMessage), language: context.language, history: historySafe, selected: session.selectedCourseCode, staffRequested, staffNotificationQueued });
-  const cached = replyCache.get(key);
+  const key = businessContext.fingerprint({ tenant: ctx.tenant.id, profile: profile.id, revision: context.revision, model: settings.model, provider: settings.provider, question: businessContext.normalized(customerMessage), language: context.language, history: historySafe, selected: session.selectedCourseCode, staffRequested, staffNotificationQueued, contextualPilot });
+  const cached = contextualPilot ? null : replyCache.get(key);
   if (cached && cached.expiresAt > Date.now()) return { ...cached.answer, state: nextState, metrics: { ...cached.answer.metrics, cacheHit: true, inputTokens: 0, outputTokens: 0, cachedInputTokens: 0, cacheWriteTokens: 0 } };
   const sourceAliases = new Map();
   const aiEvidence = courseOverview
@@ -1264,16 +1293,59 @@ async function generateAiAnswer({ ctx, profile, uid, customerMessage, chatId = n
   let response;
   let succeeded = false;
   let failedUsage = null;
+  let contextualQuestion = null;
+  let contextualValidated = false;
   onStage?.('provider-request');
   try {
-    response = await provider.generate({ provider: settings.provider, model: settings.model, apiKey: settings.apiKey, system, context: promptContext, user: input, cacheScope: `${ctx.tenant.id}:chatbot`, requireSources: true, maxOutputTokens: courseOverview ? 90 : admissionsIntake ? 145 : 250 });
-    if (Array.isArray(response.sourceIds)) response.sourceIds = response.sourceIds.map(id => sourceAliases.get(id) || 'invalid:' + id);
+    if (contextualPilot) {
+      const result = await require('./chatbot-turn-understanding').understandTurn({
+        provider, settings, tenantId: ctx.tenant.id, text: customerMessage,
+        history: historySafe, state: { ...session, ...(contactProgress || {}) }, context,
+        showFees: profile.config?.guidedContent?.display?.showFees !== false,
+      });
+      if (!result.ok) {
+        response = result.usage;
+        failedUsage = result.usage ? (result.usage.inputTokens || 0) + (result.usage.outputTokens || 0) : null;
+        const socialFallback = require('./chatbot-turn-understanding').safeSocialFallback(customerMessage, context.language);
+        if (socialFallback) return { canAnswer: true, confidence: 1, reply: socialFallback,
+          state: nextState, route: 'social_fallback', reason: result.reason,
+          suppressIntakeQuestion: true, suppressContactPrompt: true,
+          metrics: { ...result.usage, cacheHit: false, sources: [] } };
+        return factualOverviewFallback(context) || {
+          canAnswer: true, confidence: 0,
+          reply: safeConversationalReply({ language: context.language, context, message: customerMessage, state: session, staffRequested, staffNotificationQueued }),
+          state: nextState, route: 'safe_fallback', reason: result.reason, staffRequested, staffNotificationQueued,
+          suppressIntakeQuestion: true, suppressContactPrompt: true,
+          metrics: { ...result.usage, cacheHit: false, sources: context.sources },
+        };
+      }
+      const deferredReply = require('./chatbot-turn-understanding').safeSocialFallback(customerMessage, context.language);
+      if (deferredReply && (/[?؟]/u.test(result.proposal.reply) || !['acknowledge', 'decline', 'defer'].includes(result.proposal.action))) {
+        response = result.usage;
+        succeeded = true;
+        return { canAnswer: true, confidence: 1, reply: deferredReply, state: nextState, route: 'social_fallback',
+          suppressIntakeQuestion: true, suppressContactPrompt: true,
+          metrics: { ...result.usage, cacheHit: false, sources: [] } };
+      }
+      contextualQuestion = result.proposal.next_question;
+      contextualValidated = true;
+      response = { canAnswer: true, confidence: result.proposal.confidence,
+        reply: result.proposal.reply, sourceIds: result.proposal.source_ids, ...result.usage };
+    } else {
+      response = await provider.generate({ provider: settings.provider, model: settings.model, apiKey: settings.apiKey, system, context: promptContext, user: input, cacheScope: `${ctx.tenant.id}:chatbot`, requireSources: true, maxOutputTokens: courseOverview ? 90 : admissionsIntake ? 145 : 250 });
+      if (Array.isArray(response.sourceIds)) response.sourceIds = response.sourceIds.map(id => sourceAliases.get(id) || 'invalid:' + id);
+    }
     if (courseOverview && typeof response.reply === 'string') response.reply = response.reply.replace(/\s*\[s\d+\]/gi, '').trim();
     succeeded = true;
   } catch (error) {
     if (error.usage) response = error.usage;
     if (Number.isSafeInteger(error.tokensUsed)) failedUsage = error.tokensUsed;
     else if (Number.isInteger(error.status)) failedUsage = 0;
+    const socialFallback = contextualPilot && require('./chatbot-turn-understanding').safeSocialFallback(customerMessage, context.language);
+    if (socialFallback) return { canAnswer: true, confidence: 1, reply: socialFallback,
+      state: nextState, route: 'social_fallback', reason: error.code || 'AI_PROVIDER_ERROR',
+      suppressIntakeQuestion: true, suppressContactPrompt: true,
+      metrics: { inputTokens: 0, outputTokens: 0, cacheHit: false, sources: [] } };
     if (courseOverview && !staffRequested && !staffNotificationQueued && factualOverviewFallback(context)) return factualOverviewFallback(context);
     if (admissionsIntake) {
       if (!staffNotificationQueued && uid && chatId) {
@@ -1297,7 +1369,7 @@ async function generateAiAnswer({ ctx, profile, uid, customerMessage, chatId = n
   }
   const metrics = { inputTokens: response.inputTokens || 0, outputTokens: response.outputTokens || 0, cachedInputTokens: response.cachedInputTokens || 0, cacheWriteTokens: response.cacheWriteTokens || 0, cacheHit: false, latencyMs: Date.now() - providerStarted, sources: context.sources, provider: settings.provider, model: settings.model };
   onStage?.('answer-validation');
-  const validation = businessContext.validateAnswer(response, context, { staffNotificationQueued });
+  const validation = contextualValidated ? { valid: true } : businessContext.validateAnswer(response, context, { staffNotificationQueued });
   const threshold = Number(profile.config?.confidenceThreshold ?? 0.72);
   const unconfirmed = coordinatorPolicy && /\b(?:i (?:don['’]t|do not) have|i (?:can['’]t|cannot) confirm|(?:is|are) not confirmed|not (?:currently )?published)\b|لا أملك|غير مؤكد|لم يتم تأكيد/iu.test(response.reply || '');
   if (!validation.valid || response.confidence < threshold || unconfirmed) {
@@ -1321,10 +1393,15 @@ async function generateAiAnswer({ ctx, profile, uid, customerMessage, chatId = n
     state: nextState, route: 'safe_fallback', reason: 'BUSINESS_DATA_CHANGED', staffRequested, staffNotificationQueued, metrics };
   const usedCourses = context.evidence.filter(item => item.kind === 'course' && response.sourceIds.includes(item.sourceId));
   if (usedCourses.length === 1 && businessContext.normalized(response.reply).includes(businessContext.normalized(usedCourses[0].name))) nextState.selectedCourseCode = usedCourses[0].code;
+  if (contextualPilot && contextualQuestion) nextState.pendingQuestion = contextualQuestion;
   const answer = { canAnswer: true, confidence: response.confidence, reply: response.reply, state: nextState, route: 'ai',
-    repeat: Boolean(repeat), staffRequested, staffNotificationQueued, handoffReason: staffReason, metrics };
+    repeat: Boolean(repeat), staffRequested, staffNotificationQueued, handoffReason: staffReason, metrics,
+    // The contextual model has already chosen the next conversational action.
+    // Appending the legacy intake prompt can turn a thank-you into a repeated
+    // discovery question or contradict the customer's request to stop.
+    ...(contextualPilot ? { suppressIntakeQuestion: true, suppressContactPrompt: true } : {}) };
   // Cache only answers without customer history or contact/private identifiers.
-  if (!staffReason && !staffRequested && !historySafe.length && customerMessage.length <= 180 && /fee|price|duration|schedule|centre|center|location|address|رسوم|سعر|مدة|عنوان|موقع/i.test(customerMessage) && !/[0-9]{7,}|@|my name|اسمي/i.test(customerMessage)) {
+  if (!contextualPilot && !staffReason && !staffRequested && !historySafe.length && customerMessage.length <= 180 && /fee|price|duration|schedule|centre|center|location|address|رسوم|سعر|مدة|عنوان|موقع/i.test(customerMessage) && !/[0-9]{7,}|@|my name|اسمي/i.test(customerMessage)) {
     if (replyCache.size >= CACHE_MAX) replyCache.delete(replyCache.keys().next().value);
     replyCache.set(key, { expiresAt: Date.now() + 5 * 60 * 1000, answer });
   }
@@ -1476,6 +1553,9 @@ async function aiTurn({ ctx, profile, uid, message, user, sessionId, origin, cha
   onStage?.('bot-routing');
   const incomingText = textOf(message);
   const continuity = mockup.ownsInbox(uid, origin);
+  const contextualPilot = contextualPilotAllowed({ ctx, profile, origin, message });
+  const contextualContinuation = contextualPilot && businessContext.isTrainingGreeting(incomingText)
+    && Boolean((await loadDomainGuidedSession({ ctx, profile, chatId, channelKind: channelFor(origin), channelRef: sessionId }))?.greeted);
   const aiAvailableForTurn = aiAvailableForProfile(profile);
   const leadCapture = require('./chatbot-lead-capture');
   if (leadInfo?.qatarContactPhoneOnly) {
@@ -1498,11 +1578,11 @@ async function aiTurn({ ctx, profile, uid, message, user, sessionId, origin, cha
   const supportReason = continuity && ctx.category.key === 'training_center' && studentSupportReason(incomingText);
   if (supportReason) return { handedOff: true, code: supportReason };
   if (ctx.category.key === 'training_center' && continuity && !profile.config?.flowId && !profile.config?.introFlowId
-    && businessContext.isTrainingGreeting(incomingText)) {
+    && !contextualContinuation && businessContext.isTrainingGreeting(incomingText)) {
     const dispatched = await trainingCenterGuidedTurn({ ctx, profile, uid, message, sessionId, origin, chatId, leadInfo, onStage });
     return dispatched ? { flowDispatched: true, route: 'greeting' } : { handedOff: true, code: 'OPENING_GREETING_UNAVAILABLE' };
   }
-  if (ctx.category.key === 'training_center' && isOpeningGreeting(incomingText)) {
+  if (ctx.category.key === 'training_center' && !contextualContinuation && isOpeningGreeting(incomingText)) {
     onStage?.('opening-greeting-reset');
     try {
       await resetOpeningGreetingState({ ctx, profile, uid, chatId, sessionId, origin, senderMobile: message.senderMobile });
@@ -1533,7 +1613,7 @@ async function aiTurn({ ctx, profile, uid, message, user, sessionId, origin, cha
     .some(name => name && businessContext.normalized(name) === businessContext.normalized(leadInfo?.courseInterest || '')));
   const immediateStartNeedsReview = leadInfo?.intake?.start?.window === 'asap'
     && !businessContext.hasPublishedSchedule(leadInfo.facts || [], intakeCourse?.code || leadInfo.intake.session?.selectedCourseCode || null);
-  const intakeAnswer = leadInfo?.intake && (leadInfo.intake.answerOnly || acknowledgement) && safetyRoute === 'answer' && !immediateStartNeedsReview;
+  const intakeAnswer = !contextualPilot && leadInfo?.intake && (leadInfo.intake.answerOnly || acknowledgement) && safetyRoute === 'answer' && !immediateStartNeedsReview;
   if ((!intakeAnswer || (continuity && !acknowledgement)) && (profile.config.guidedMode === 'domain_default' || (profile.engine === 'ai' && ctx.category.key === 'training_center'))) {
     onStage?.('guided-route-check');
     const channelKind = channelFor(origin);
@@ -1563,7 +1643,7 @@ async function aiTurn({ ctx, profile, uid, message, user, sessionId, origin, cha
     }
     const applicationAccepted = acceptsRegistrationForm(session, incoming);
     const routeUsesAi = aiHandlesStaffRoute(profile, route);
-    if (courseDiscoveryFeedback || courseSelection || (!intakeAnswer && ((route !== 'answer' && !routeUsesAi) || leadInfo?.nameOnly || applicationAccepted || bareCourseSelection || fullCourseOpening || (profile.engine === 'hybrid' && profile.config.aiFallback === false)))) {
+    if ((!contextualPilot && courseDiscoveryFeedback) || courseSelection || (!intakeAnswer && ((route !== 'answer' && !routeUsesAi) || leadInfo?.nameOnly || applicationAccepted || bareCourseSelection || fullCourseOpening || (profile.engine === 'hybrid' && profile.config.aiFallback === false)))) {
       onStage?.('training-center-guided-reply');
       const handoffIntent = route === 'human' || route === 'handoff'
         ? (businessContext.languageFor(incoming, session || {}) === 'ar' ? 'موظف' : 'agent')
@@ -1588,10 +1668,16 @@ async function aiTurn({ ctx, profile, uid, message, user, sessionId, origin, cha
     : await generateAiAnswer({ ctx, profile, uid, customerMessage: incomingText, chatId, channelKind: channelFor(origin),
         channelRef: sessionId, factsOverride: leadInfo?.facts, referral: message?.msgContext?.referral || null,
         admissionsIntake: !!leadInfo?.intake, intakeCourse: leadInfo?.intake ? leadInfo.courseInterest : null,
+        contextualPilot,
+        contactProgress: {
+          nameProvided: Boolean(leadInfo?.name || leadInfo?.nameCaptured || leadInfo?.intake?.state?.nameConfirmed),
+          qatarNumberProvided: Boolean(leadInfo?.senderIsQatar || leadInfo?.qatarContactNumber),
+          callbackConsentConfirmed: leadInfo?.callbackConsentConfirmed === true,
+        },
         admissionsProgress: leadInfo?.intake ? { nameProvided: leadInfo.intake.state?.nameConfirmed === true,
           nameConfirmationPending: leadInfo.intake.state?.waiting === 'confirmName',
           preferredStart: leadInfo.intake.preferredStart || null } : null, continuity, onStage });
-  if (leadInfo?.intake && !acknowledgement && !answer.paused) answer = admissions.planReply(answer, leadInfo);
+  if (!contextualPilot && leadInfo?.intake && !acknowledgement && !answer.paused) answer = admissions.planReply(answer, leadInfo);
   if (answer.handedOff || answer.paused) return answer;
   let handoffReasonForTurn = null;
   if (answer.staffNotificationQueued) {
@@ -1627,6 +1713,14 @@ async function aiTurn({ ctx, profile, uid, message, user, sessionId, origin, cha
   const answerBeforeIntake = answer.reply;
   answer.reply = require('./chatbot-lead-capture').addQuestion(answer.reply, contactPromptInfo || questionLeadInfo, profile.config, pack.guidedContentDefaults);
   onStage?.('reply-authority-check');
+  if (contextualPilot) {
+    const latest = await query(`SELECT metaChatId FROM beta_conversation
+      WHERE uid=? AND chat_id=? AND origin=? AND route='INCOMING' ORDER BY id DESC LIMIT 1`, [uid, chatId, origin]);
+    if (!latest.length) throw Object.assign(new Error('CHAT_CONTEXT_UNAVAILABLE'), { code: 'CHAT_CONTEXT_UNAVAILABLE' });
+    if (String(latest[0].metaChatId || '') !== String(message.metaChatId || '')) {
+      return { superseded: true, route: 'newer-customer-message' };
+    }
+  }
   if (!await canSendNow({ ctx, profile, uid, origin, sessionId, chatId, message })) return { paused: true };
   const { sendWaMessage } = require('../../automation/functions');
   onStage?.('whatsapp-send');
@@ -1679,7 +1773,8 @@ async function previewConfiguredBot({ ctx, profile, uid, message, state = null }
     businessContext.polishGuidedReply({ result, profile, message, state: prior, defaults: pack.guidedContentDefaults });
     return { canAnswer: true, confidence: 1, reply: result.reply, wouldHandoff: !!result.handoff, reason: result.handoff ? 'customer-requested-human' : null, route, state: result.state, metrics: { inputTokens: 0, outputTokens: 0 } };
   }
-  const answer = await generateAiAnswer({ ctx, profile, uid: null, customerMessage: message, state: prior });
+  const answer = await generateAiAnswer({ ctx, profile, uid: null, customerMessage: message, state: prior,
+    contextualPilot: profile.config?.contextualAiPilot === true && aiAvailableForProfile(profile) && ctx.category.key === 'training_center' });
   if (answer.state) answer.state.recentConversation = [...(prior.recentConversation || []), { role: 'user', text: message.slice(0, 400) }, { role: 'assistant', text: (answer.reply || '').slice(0, 500) }].slice(-4);
   if (answer.handedOff) return { canAnswer: false, confidence: answer.confidence || 0, reply: '', wouldHandoff: true, reason: answer.code || 'LOW_CONFIDENCE' };
   return { canAnswer: true, confidence: answer.confidence, reply: answer.reply, wouldHandoff: false, reason: answer.reason || null, route: answer.route, state: answer.state, metrics: answer.metrics };
@@ -1992,7 +2087,8 @@ async function runConfiguredBot({ uid, message, user, sessionId, origin, chatId 
     else result = await aiTurn({ ctx, profile, uid, message, user, sessionId, origin, chatId, leadInfo, onStage: setStage });
     setStage('turn-metrics');
     if (result?.metrics) await query(`INSERT INTO sx_audit_events(id,tenant_id,actor_identity_id,actor_kind,action,resource_type,resource_id,changes,correlation_id) VALUES (?,?,NULL,'system','chatbot.turn-measured','chatbot-turn',?,?,?)`, [crypto.randomUUID(), ctx.tenant.id, turn.id, JSON.stringify({ route: result.route, reason: result.reason || null, ...result.metrics }), crypto.randomUUID()]);
-    if (result?.sent || result?.flowDispatched) await finishTurn(turn, 'sent', result?.flowDispatched ? 'guided-flow-dispatched' : 'reply-sent');
+    if (result?.superseded) await finishTurn(turn, 'sent', 'superseded-by-newer-inbound');
+    else if (result?.sent || result?.flowDispatched) await finishTurn(turn, 'sent', result?.flowDispatched ? 'guided-flow-dispatched' : 'reply-sent');
     else if (result?.paused) await finishTurn(turn, 'handed_off', 'human-paused');
     else {
       const claim = await handoffConversation(ctx, chatId, channelKind, sessionId, result?.code || 'human-review', profile, uid, leadInfo?.intake ? { ...leadInfo.intake, courseInterest: leadInfo.courseInterest } : null);

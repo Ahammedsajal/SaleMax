@@ -18,9 +18,9 @@ TENANT_ID = '2301ea04-8acd-493e-a582-b9e527294005'
 PROFILE_ID = '51f11d68-1b77-4d73-9d28-96e36a80631f'
 SUPPORT = ('salemax-db-1', 'salemax-report-worker-1', 'salemax-libretranslate-1',
            'salemax-recruitment-founder-notification-worker-1', 'salemax-bot-lead-test-db')
-BASE_HASHES = {'modules/platform/chatbot-conversation-control.js': '4fc177b80479aebaf7a82a62a89ea56003e95795ed243316933817f7b461fbe9'}
+BASE_HASHES = {'modules/platform/chatbot-runtime.js': '54f1dce3b44db95882e2337e619cfe7c5e84af81ba8b1c54a47b5c6c0bbc9c9b', 'modules/platform/chatbot-handoff-claims.js': 'bf91a10bcb07783d99e1afbcb5073d13f608f0b9b3757c25abd7381df19f2ba5', 'modules/platform/chatbot-config.js': '527e1ac2f4365eefc43a3aa7f7143ffbcbf74fe25f8f771deadbb174da572126', 'modules/platform/chatbot-provider.js': 'b5239fbffd63254b75fc513336bc137f81b024ec0e8d7107e730392172e51563'}
 ASSETS = tuple(BASE_HASHES)
-NEW_ASSETS = ()
+NEW_ASSETS = ('modules/platform/chatbot-turn-understanding.js',)
 GREETING = {
     'en': 'Hi! 👋 I’m Pro Catalyst Training Center’s virtual assistant. I can help you explore our courses and answer your questions.',
     'ar': 'مرحبًا! 👋 أنا المساعد الافتراضي لمركز برو كاتاليست للتدريب. يمكنني مساعدتك في استكشاف دوراتنا والإجابة عن أسئلتك.',

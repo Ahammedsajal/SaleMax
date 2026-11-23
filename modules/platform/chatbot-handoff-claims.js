@@ -403,6 +403,26 @@ async function findOpen(db, { tenantId, uid, channelKind, channelRef, chatId }) 
   return row || null;
 }
 
+async function resumePendingCallback(pool, { tenantId, profileId, uid, channelKind, channelRef, chatId }) {
+  if (!tenantId || !profileId || !uid || !chatId || !channelRef || !['whatsapp_qr', 'whatsapp_meta'].includes(channelKind)) return false;
+  const ownerHash = crypto.createHash('sha256').update(uid).digest('hex');
+  // A staff claim or manual takeover wins the row lock and cannot be released
+  // here. An open callback remains open so staff can still claim it.
+  const [result] = await pool.query(`UPDATE sx_chatbot_conversation_controls c
+    JOIN sx_chatbot_handoff_claims h ON h.tenant_id=c.tenant_id
+      AND h.channel_kind=c.channel_kind AND h.channel_ref=c.channel_ref
+      AND h.conversation_id=c.conversation_id
+    SET c.mode='inherit',c.pause_until=NULL,c.reason=NULL,c.revision=c.revision+1,
+      c.updated_by_kind='system',c.updated_by_identity_id=NULL
+    WHERE c.tenant_id=? AND c.channel_kind=? AND c.channel_ref=? AND c.conversation_id=?
+      AND c.mode='paused' AND c.updated_by_kind='system' AND c.reason='qatar-coordinator-callback'
+      AND h.profile_id=? AND h.owner_uid_hash=? AND h.status='open'
+      AND h.reason='qatar-coordinator-callback' AND h.claimed_identity_id IS NULL
+      AND COALESCE(h.expires_at,DATE_ADD(h.created_at,INTERVAL 24 HOUR))>UTC_TIMESTAMP(3)`,
+  [tenantId, channelKind, channelRef, chatId, profileId, ownerHash]);
+  return Number(result.affectedRows) === 1;
+}
+
 async function reserveCustomerAcknowledgement(pool, { tenantId, claimId, inboundId }) {
   const db = await pool.getConnection();
   try {
@@ -577,4 +597,4 @@ async function recordStaffReply(pool, { tenantId, uid, identityId, chatId, chann
   } finally { db.release(); }
 }
 
-module.exports = { parseYes, phone, open, queue, confirmCallback, appendCallbackTask, findOpen, reserveCustomerAcknowledgement, releaseCustomerAcknowledgement, handleStaffClaim, recordStaffReply, expireDue, resetForCustomerGreeting, holdMinutes, staffRoles };
+module.exports = { parseYes, phone, open, queue, confirmCallback, appendCallbackTask, findOpen, resumePendingCallback, reserveCustomerAcknowledgement, releaseCustomerAcknowledgement, handleStaffClaim, recordStaffReply, expireDue, resetForCustomerGreeting, holdMinutes, staffRoles };

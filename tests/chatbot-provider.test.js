@@ -3,6 +3,21 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const { generate, generateConversation } = require('../modules/platform/chatbot-provider');
 
+test('conversation caching marks stable evidence and leaves the changing customer turn outside the breakpoint', async () => {
+  let body;
+  await generateConversation({
+    provider: 'openai', model: 'gpt-6-luna', apiKey: 'synthetic-key',
+    messages: [{ role: 'system', content: 'Rules' }, { role: 'user', content: 'Stable evidence' }, { role: 'user', content: 'Current question' }],
+    stablePrefixIndex: 1, cacheScope: 'synthetic',
+    fetchImpl: async (_url, options) => {
+      body = JSON.parse(options.body);
+      return response({ choices: [{ message: { content: 'Hello' } }], usage: { prompt_tokens: 1, completion_tokens: 1 } });
+    },
+  });
+  assert.equal(body.messages[1].content[0].prompt_cache_breakpoint.mode, 'explicit');
+  assert.equal(body.messages[2].content, 'Current question');
+});
+
 function response(payload, { status = 200, contentLength } = {}) {
   const text = typeof payload === 'string' ? payload : JSON.stringify(payload);
   return { ok: status >= 200 && status < 300, status, headers: { get(name) { return name === 'content-length' ? (contentLength ?? String(Buffer.byteLength(text))) : null; } }, async text() { return text; } };

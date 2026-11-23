@@ -102,7 +102,7 @@ function geminiSchema(schema) {
   return result;
 }
 
-async function generateConversation({ provider, model, apiKey, messages, cacheScope, functions = [], maxOutputTokens = 350, fetchImpl = fetch }) {
+async function generateConversation({ provider, model, apiKey, messages, cacheScope, stablePrefixIndex = null, functions = [], maxOutputTokens = 350, fetchImpl = fetch }) {
   const spec = PROVIDERS[provider];
   if (!spec) throw Object.assign(new Error('AI_PROVIDER_UNSUPPORTED'), { code: 'AI_PROVIDER_UNSUPPORTED' });
   if (typeof model !== 'string' || !/^[A-Za-z0-9._:-]{1,80}$/.test(model)) throw Object.assign(new Error('AI_MODEL_INVALID'), { code: 'AI_MODEL_INVALID' });
@@ -128,7 +128,9 @@ async function generateConversation({ provider, model, apiKey, messages, cacheSc
         else body.reasoning_effort = 'none';
       }
       const firstUser = messages.findIndex(message => message.role !== 'system');
-      promptCache.configure(body, { provider, model, cacheScope, stablePrefixIndex: firstUser > 0 ? firstUser - 1 : -1, conversation: true });
+      const prefixIndex = Number.isInteger(stablePrefixIndex) && stablePrefixIndex >= 0 && stablePrefixIndex < messages.length
+        ? stablePrefixIndex : firstUser > 0 ? firstUser - 1 : -1;
+      promptCache.configure(body, { provider, model, cacheScope, stablePrefixIndex: prefixIndex, conversation: true });
     } else {
       url += `${encodeURIComponent(model)}:generateContent`;
       headers['x-goog-api-key'] = apiKey;
