@@ -27,13 +27,16 @@ async function isSuppressed(db,key,tenantId,email){
 
 async function scrubBouncedAddress(db,{key,tenantId,email,bounceType='Permanent'}){
   const address=normalizedAddress(email);
-  if(!address||!['Permanent','Undetermined'].includes(bounceType))return {removed:false};
+  if(!address||!['Permanent','Transient','Undetermined'].includes(bounceType))return {removed:false};
   const fingerprint=emailFingerprint(key,tenantId,address);
   await db.query('SELECT id FROM sx_tenants WHERE id=? FOR UPDATE',[tenantId]);
   const counts={removed:true,contactsCleared:0,recipientRowsCleared:0,threadsRedacted:0,messagesRedacted:0};
   await db.query(`INSERT INTO sx_email_bounce_suppressions(tenant_id,email_fingerprint,bounce_type,source)
     VALUES(?,?,?,'ses-event')
-    ON DUPLICATE KEY UPDATE bounce_type=IF(VALUES(bounce_type)='Permanent','Permanent',bounce_type),source='ses-event'`,
+    ON DUPLICATE KEY UPDATE bounce_type=CASE
+      WHEN bounce_type='Permanent' OR VALUES(bounce_type)='Permanent' THEN 'Permanent'
+      WHEN bounce_type='Undetermined' OR VALUES(bounce_type)='Undetermined' THEN 'Undetermined'
+      ELSE 'Transient' END,source='ses-event'`,
     [tenantId,fingerprint,bounceType]);
 
   await db.query(`UPDATE sx_email_messages m JOIN sx_email_threads t
@@ -85,17 +88,26 @@ async function scrubBouncedAddress(db,{key,tenantId,email,bounceType='Permanent'
 
 async function migrateLegacyBounces(pool,key){
   const db=await pool.getConnection();
-  const totals={migrated:true,legacyRowsProcessed:0,contactsCleared:0,recipientRowsCleared:0,threadsRedacted:0,messagesRedacted:0};
+  const totals={migrated:true,legacyRowsProcessed:0,providerBounceRowsProcessed:0,contactsCleared:0,recipientRowsCleared:0,threadsRedacted:0,messagesRedacted:0};
   try{
     for(;;){
       await db.beginTransaction();
       try{
         const [rows]=await db.query(`SELECT tenant_id AS tenantId,normalized_email AS email
           FROM sx_email_suppressions WHERE reason='bounce' ORDER BY tenant_id,normalized_email LIMIT 25 FOR UPDATE`);
-        if(!rows.length){await db.commit();return totals;}
-        for(const row of rows){
+        const providerRows=rows.length?[]:await db.query(`SELECT r.tenant_id AS tenantId,r.recipient_email AS email
+          FROM sx_email_campaign_recipients r
+          WHERE r.recipient_email<>'' AND r.email_fingerprint IS NOT NULL
+            AND EXISTS (SELECT 1 FROM sx_email_provider_events e
+              WHERE e.tenant_id=r.tenant_id AND e.campaign_id=r.campaign_id AND e.recipient_id=r.id AND e.event_type='Bounce')
+          ORDER BY r.tenant_id,r.campaign_id,r.id LIMIT 25 FOR UPDATE`).then(result=>result[0]);
+        const batch=rows.length?rows:providerRows;
+        if(!batch.length){await db.commit();return totals;}
+        for(const row of batch){
+          // Old provider-event rows did not retain SES bounceType; record those as undetermined.
           const result=await scrubBouncedAddress(db,{key,tenantId:row.tenantId,email:row.email,bounceType:'Undetermined'});
-          totals.legacyRowsProcessed++;
+          if(rows.length)totals.legacyRowsProcessed++;
+          else totals.providerBounceRowsProcessed++;
           for(const name of ['contactsCleared','recipientRowsCleared','threadsRedacted','messagesRedacted'])totals[name]+=result[name]||0;
         }
         await db.commit();

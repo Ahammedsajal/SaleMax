@@ -18,8 +18,12 @@ function eventRecipients(event,type){
 }
 function suppressionReason(event,type){
   if(type==='Complaint')return 'complaint';
-  if(type==='Bounce'&&['Permanent','Undetermined'].includes(String(event?.bounce?.bounceType||'')))return 'bounce';
+  if(type==='Bounce')return 'bounce';
   return null;
+}
+function normalizedBounceType(event){
+  const value=String(event?.bounce?.bounceType||'');
+  return ['Permanent','Transient','Undetermined'].includes(value)?value:'Undetermined';
 }
 
 async function persist(pool,{envelope,event,key}){
@@ -51,13 +55,18 @@ async function persist(pool,{envelope,event,key}){
         const storedEmail=storedValue.startsWith('!bounced:')?'':normalizeEmail(storedValue);
         const reportedMatches=!reportedEmails.size||[...reportedEmails].some(email=>
           (storedEmail&&email===storedEmail)||(row.email_fingerprint&&bouncePrivacy.emailFingerprint(key,row.tenant_id,email)===row.email_fingerprint));
-        if(reason&&reportedMatches){
+        // Authenticated SES tags plus the provider message ID bind Bounce to this
+        // individual recipient row; some valid DSNs report an alias address.
+        if(reason==='bounce'||(reason==='complaint'&&reportedMatches)){
           if(reason==='bounce'){
-            const bounceType=['Permanent','Undetermined'].includes(String(event?.bounce?.bounceType||''))?String(event.bounce.bounceType):'Undetermined';
+            const bounceType=normalizedBounceType(event);
             if(storedEmail)await bouncePrivacy.scrubBouncedAddress(db,{key,tenantId:row.tenant_id,email:storedEmail,bounceType});
             else if(row.email_fingerprint){
               await db.query(`INSERT INTO sx_email_bounce_suppressions(tenant_id,email_fingerprint,bounce_type,source)
-                VALUES(?,?,?,'ses-event') ON DUPLICATE KEY UPDATE bounce_type=IF(VALUES(bounce_type)='Permanent','Permanent',bounce_type),source='ses-event'`,
+                VALUES(?,?,?,'ses-event') ON DUPLICATE KEY UPDATE bounce_type=CASE
+                  WHEN bounce_type='Permanent' OR VALUES(bounce_type)='Permanent' THEN 'Permanent'
+                  WHEN bounce_type='Undetermined' OR VALUES(bounce_type)='Undetermined' THEN 'Undetermined'
+                  ELSE 'Transient' END,source='ses-event'`,
                 [row.tenant_id,row.email_fingerprint,bounceType]);
             }
           }else if(storedEmail){

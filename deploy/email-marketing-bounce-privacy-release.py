@@ -21,6 +21,7 @@ IMAGE_ID = 'sha256:753d77d421b3160872df0812e7b38505a1db7104cdb9d6c8b17415b2420de
 IMAGE = 'salemax-app:email-marketing-21a07cc41fa9-20261112'
 VERSION = '20261122-email-bounce-privacy1'
 MIGRATION = 'database/migrations/20270209_email_bounce_privacy.sql'
+BOUNCE_MIGRATION = 'database/migrations/20270210_email_bounce_transient_privacy.sql'
 RUNTIME_FILES = (
     'modules/platform/email-marketing.js',
     'modules/platform/email-marketing-events.js',
@@ -35,6 +36,12 @@ RUNTIME_FILES = (
     'client/public/email-marketing-workspace.js',
     'client/public/index.html',
     MIGRATION,
+    BOUNCE_MIGRATION,
+)
+FORWARD_RUNTIME_FILES = (
+    'modules/platform/email-marketing-events.js',
+    'modules/platform/email-marketing-bounce-privacy.js',
+    BOUNCE_MIGRATION,
 )
 HELPER = 'deploy/email-marketing-bounce-privacy-release.py'
 SOURCE_FILES = (*RUNTIME_FILES, HELPER)
@@ -59,6 +66,21 @@ PREVIOUS_RUNTIME_SHA256 = {
     'modules/platform/email-marketing-worker.js': 'a697ff8cf7c675c631d716dc0368b85bfae58a5de27f85e15fc96420388209a7',
     'modules/platform/email-marketing-inbox.js': 'c64ba55bcc10785ce4188d4e0b273748e771fb7fc5dd998c43e9b93e7f3905ef',
     'modules/platform/email-marketing-bounce-privacy.js': '414e0038aef8a63d6d806b9d57f8ffdf15a6906d9c46044c8d716fc9a10facbc',
+    'modules/platform/phonebook-workspace.js': '81e5dcefc4d6bcf26f47a728764abb4bc0ede7f236c8b02c24238d9c436fd095',
+    'modules/platform/phonebook-workspace-router.js': '3d9a1b2c1eb09d7ecc1d114f5b2c3f51132f073679fe463588ad181af0279d16',
+    'modules/platform/mount-existing-upgrade.js': 'd9eaaf6f98f7e91bac065d43540d519f2b4dd48643ddd05b0c738c11afb54e27',
+    'client/public/email-marketing-workspace.css': '1336092ccaddf487460bb24745173fd1971276ef02a1dfc6cefb2d74e91345b9',
+    'client/public/email-marketing-workspace.js': '8d0e2760a6b0ad31f908f5908aba3e841695c7ddf05d5f8c1f059fdae96dd326',
+    'client/public/index.html': '40e4769e6db964913202b9b9cd6bacad7ead84089641d856fe1265bf81caaa0b',
+    'database/migrations/20270209_email_bounce_privacy.sql': 'aa36341fed23a59ca8e4c9d2b17f1b0bf22167b13e1dbd334bdc346f5cd1d84b',
+}
+ACTIVE_BOUNCE_RUNTIME_SHA256 = {
+    'modules/platform/email-marketing.js': 'fac470911b3ae6d19c10a14952ced7d690dbabc275ffdb94370e3a7cddeb4458',
+    'modules/platform/email-marketing-events.js': 'bdea64f55fa9a63b9fda873209cb7a8a2542e17861b526aaf49f0548f6f6be59',
+    'modules/platform/email-marketing-router.js': '52c1b518a0496dac2caae39fa8d5803cde6a75fb8726e77b5825849cc604ddbb',
+    'modules/platform/email-marketing-worker.js': 'a697ff8cf7c675c631d716dc0368b85bfae58a5de27f85e15fc96420388209a7',
+    'modules/platform/email-marketing-inbox.js': 'c64ba55bcc10785ce4188d4e0b273748e771fb7fc5dd998c43e9b93e7f3905ef',
+    'modules/platform/email-marketing-bounce-privacy.js': 'bbd6e309a54107a585370b6ce075c62f61862d8b2e282457b7c084671f443e9d',
     'modules/platform/phonebook-workspace.js': '81e5dcefc4d6bcf26f47a728764abb4bc0ede7f236c8b02c24238d9c436fd095',
     'modules/platform/phonebook-workspace-router.js': '3d9a1b2c1eb09d7ecc1d114f5b2c3f51132f073679fe463588ad181af0279d16',
     'modules/platform/mount-existing-upgrade.js': 'd9eaaf6f98f7e91bac065d43540d519f2b4dd48643ddd05b0c738c11afb54e27',
@@ -320,6 +342,19 @@ console.log(JSON.stringify({tables,columns,ledger}));
     return json.loads(run('docker','exec',APP,'node','-e',script).splitlines()[-1])
 
 
+def transient_bounce_schema_state():
+    script = r"""
+const mysql=require('mysql2/promise');
+(async()=>{const c=await mysql.createConnection({host:process.env.DBHOST,port:Number(process.env.DBPORT||3306),user:process.env.DBUSER,password:process.env.DBPASS,database:process.env.DBNAME});
+try{
+const [[column]]=await c.query("SELECT COLUMN_TYPE AS bounceType FROM information_schema.columns WHERE table_schema=DATABASE() AND table_name='sx_email_bounce_suppressions' AND column_name='bounce_type'");
+const [ledger]=await c.query("SELECT migration_name,status,checksum,statement_count,statements_completed FROM salemax_schema_migrations WHERE migration_name=?",['20270210_email_bounce_transient_privacy.sql']);
+console.log(JSON.stringify({bounceType:column?.bounceType||null,ledger}));
+}finally{await c.end();}})().catch(e=>{console.error(e.code||'bounce-schema-check-failed');process.exitCode=1;});
+"""
+    return json.loads(run('docker','exec',APP,'node','-e',script).splitlines()[-1])
+
+
 def pre_scrub_counts():
     script = r"""
 const mysql=require('mysql2/promise');
@@ -373,6 +408,10 @@ const [[{threadEmailCopies}]]=await c.query(`SELECT COUNT(*) AS threadEmailCopie
  JOIN sx_email_campaign_recipients r ON r.tenant_id=t.tenant_id AND r.campaign_id=t.campaign_id AND r.id=t.recipient_id
  JOIN sx_email_bounce_suppressions s ON s.tenant_id=r.tenant_id AND s.email_fingerprint=r.email_fingerprint
  WHERE COALESCE(t.recipient_email,'')<>''`);
+const [[{unprocessedProviderBounceAddresses}]]=await c.query(`SELECT COUNT(*) AS unprocessedProviderBounceAddresses
+ FROM sx_email_campaign_recipients r WHERE r.recipient_email<>'' AND EXISTS (
+   SELECT 1 FROM sx_email_provider_events e WHERE e.tenant_id=r.tenant_id AND e.campaign_id=r.campaign_id
+     AND e.recipient_id=r.id AND e.event_type='Bounce')`);
 const [suppressed]=await c.query('SELECT tenant_id AS tenantId,email_fingerprint AS fingerprint FROM sx_email_bounce_suppressions');
 const byTenant=new Map();for(const row of suppressed){if(!byTenant.has(row.tenantId))byTenant.set(row.tenantId,new Set());byTenant.get(row.tenantId).add(row.fingerprint);}
 let contactEmailCopies=0;
@@ -382,7 +421,7 @@ for(const [tenantId,fingerprints] of byTenant){
    WHERE COALESCE(c.email,'')<>''`,[tenantId]);
  for(const row of contacts)if(fingerprints.has(privacy.emailFingerprint(key,tenantId,row.email)))contactEmailCopies++;
 }
-console.log(JSON.stringify({legacyBounceRows,fingerprintSuppressions,recipientEmailCopies,threadEmailCopies,contactEmailCopies}));
+console.log(JSON.stringify({legacyBounceRows,fingerprintSuppressions,recipientEmailCopies,threadEmailCopies,contactEmailCopies,unprocessedProviderBounceAddresses}));
 }finally{await c.end();}})().catch(e=>{console.error(e.code||'bounce-postflight-audit-failed');process.exitCode=1;});
 """
     return json.loads(run('docker','exec',APP,'node','-e',script,timeout=900).splitlines()[-1])
@@ -671,6 +710,154 @@ def repair(stage_path, commit):
     print(json.dumps(result))
 
 
+def deploy_all_bounces(stage_path, commit):
+    """Treat every SES Bounce event as a tenant-scoped permanent suppression."""
+    require_lock()
+    stage_path, manifest = validate_stage(stage_path, commit)
+    app, db = inspect(APP), inspect(DB)
+    if (app['State'].get('Health', {}).get('Status') != 'healthy' or
+            app['Image'] != IMAGE_ID or app['Config'].get('Image') != IMAGE):
+        raise RuntimeError('Active app health or image differs from reviewed baseline')
+    if db['State'].get('Health', {}).get('Status') != 'healthy':
+        raise RuntimeError('Database is not healthy')
+    if os.statvfs(ROOT).f_bavail * os.statvfs(ROOT).f_frsize < MINIMUM_FREE_BYTES:
+        raise RuntimeError('Insufficient production disk space')
+    files, env_files, workdir = compose_context(app)
+    input_hashes = {name: sha(Path(name).read_bytes()) for name in files + env_files}
+    env, variables = compose_environment(app, files, env_files)
+    before_inventory = inventory()
+    if before_inventory.get(APP) != app['Id']:
+        raise RuntimeError('App container changed during bounce-suppression preflight')
+    for name, expected in ACTIVE_BOUNCE_RUNTIME_SHA256.items():
+        actual = run('docker', 'exec', APP, 'sha256sum', '/app/' + name).split()[0]
+        if actual != expected:
+            raise RuntimeError('Active Email Marketing runtime differs from the reviewed baseline: ' + name)
+    if container_has(BOUNCE_MIGRATION):
+        raise RuntimeError('Transient bounce migration path already exists in the active app')
+    schema = schema_state()
+    if (schema.get('tables') != 1 or schema.get('columns') != 2 or len(schema.get('ledger') or []) != 1 or
+            schema['ledger'][0].get('status') != 'applied' or
+            schema['ledger'][0].get('checksum') != ACTIVE_BOUNCE_RUNTIME_SHA256[MIGRATION]):
+        raise RuntimeError('Current bounce privacy schema differs from the reviewed preimage')
+    if transient_bounce_schema_state().get('ledger'):
+        raise RuntimeError('Transient bounce privacy migration is already recorded')
+    before_audit = privacy_audit()
+    before = json.loads(run(*(compose_args(files, env_files, workdir) + ['config', '--format', 'json']), env=env))
+    verify_live_compose_app(app, before)
+    changed = {name: (stage_path / 'source' / name).read_bytes() for name in FORWARD_RUNTIME_FILES}
+    hashes = {name: sha(data) for name, data in changed.items()}
+    prior = {}
+    for name in FORWARD_RUNTIME_FILES:
+        if name == BOUNCE_MIGRATION:
+            continue
+        prior[name] = run('docker', 'exec', APP, 'cat', '/app/' + name).encode()
+        if sha(prior[name]) != ACTIVE_BOUNCE_RUNTIME_SHA256[name]:
+            raise RuntimeError('Bounce suppression preimage changed during release preparation: ' + name)
+    stamp = datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%SZ')
+    release = ROOT / 'releases' / f'email-marketing-all-bounce-suppression-{commit[:12]}-{stamp}'
+    backup = ROOT / 'shared' / f'forward-fix-email-marketing-all-bounce-suppression-{commit[:12]}-{stamp}'
+    if release.exists() or backup.exists():
+        raise RuntimeError('Bounce suppression release or snapshot path already exists')
+    os.umask(0o077)
+    release.mkdir(mode=0o755)
+    backup.mkdir(mode=0o700)
+    runtime = release / 'runtime'
+    runtime.mkdir(mode=0o755)
+    preimages = backup / 'preimages'
+    preimages.mkdir(mode=0o700)
+    for name, data in prior.items():
+        target = preimages / name
+        target.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
+        target.write_bytes(data)
+        target.chmod(0o600)
+    for name, data in changed.items():
+        target = runtime / name
+        target.parent.mkdir(mode=0o755, parents=True, exist_ok=True)
+        target.write_bytes(data)
+        target.chmod(0o644)
+    mounts = [{'type': 'bind', 'source': str(runtime / name), 'target': '/app/' + name,
+               'read_only': True, 'bind': {'create_host_path': False}} for name in FORWARD_RUNTIME_FILES]
+    overlay = release / 'compose.email-marketing-all-bounce-suppression.json'
+    overlay.write_text(json.dumps({'services': {'app': {'image': IMAGE, 'volumes': mounts}}}, indent=2) + '\n')
+    overlay.chmod(0o644)
+    helper_copy = release / HELPER
+    helper_copy.parent.mkdir(mode=0o755, parents=True, exist_ok=True)
+    helper_copy.write_bytes((stage_path / 'source' / HELPER).read_bytes())
+    helper_copy.chmod(0o644)
+    for name, value in {
+        'app-before.json': json.dumps({'id': app['Id'], 'state': app['State']['Status'], 'restarts': app.get('RestartCount', 0), 'image': app['Config']['Image'], 'imageId': app['Image']}, indent=2) + '\n',
+        'compose-files.before.txt': '\n'.join(files) + '\n',
+        'compose-env-files.before.txt': '\n'.join(env_files) + '\n',
+        'compose-working-dir.txt': workdir + '\n',
+        'compose-vars.json': json.dumps(variables),
+        'compose-input-hashes.json': json.dumps(input_hashes, indent=2) + '\n',
+        'schema-before.json': json.dumps(schema, indent=2) + '\n',
+        'provider-bounce-audit-before.json': json.dumps(before_audit, indent=2) + '\n',
+        'preimage-hashes.json': json.dumps({name: sha(data) for name, data in prior.items()}, indent=2) + '\n',
+        'support-services.json': json.dumps({n: i for n, i in before_inventory.items() if n != APP}, indent=2) + '\n',
+        'source-manifest.json': json.dumps(manifest, indent=2) + '\n',
+        'release-path.txt': str(release) + '\n',
+        'rollback-policy.txt': 'Forward-fix only. Bounce addresses are scrubbed and keyed suppression is required to prevent future sends. Do not restore an application version that predates this protection.\n',
+    }.items():
+        write_private(backup / name, value)
+    candidate = compose_args(files, env_files, workdir) + ['-f', str(overlay)]
+    after = json.loads(run(*(candidate + ['config', '--format', 'json']), env=env))
+    validate_candidate(before, after, mounts)
+    if any(sha(Path(name).read_bytes()) != digest for name, digest in input_hashes.items()):
+        raise RuntimeError('Compose input changed during bounce suppression preparation')
+    if inventory() != before_inventory or inspect(APP)['Id'] != app['Id']:
+        raise RuntimeError('Production container inventory changed during bounce suppression preparation')
+
+    filename = Path(BOUNCE_MIGRATION).name
+    migration_sql = changed[BOUNCE_MIGRATION].decode()
+    migration = apply_migration(filename, migration_sql, {filename: migration_sql})
+    write_private(backup / 'migration.json', migration)
+    run(*(candidate + ['up', '-d', '--no-deps', '--no-build', '--force-recreate', 'app']), env=env, timeout=900)
+    current = wait_healthy()
+    if current['Config']['Labels'].get('com.docker.compose.project.config_files') != ','.join(files + [str(overlay)]):
+        raise RuntimeError('Unexpected active Compose chain after bounce-suppression release')
+    if current['Image'] != app['Image'] or current['Config']['Image'] != app['Config']['Image']:
+        raise RuntimeError('App image changed unexpectedly during bounce-suppression release')
+    after_inventory = inventory()
+    if {n: i for n, i in after_inventory.items() if n != APP} != {n: i for n, i in before_inventory.items() if n != APP}:
+        raise RuntimeError('A non-app production container changed during bounce-suppression release')
+    for name, digest in hashes.items():
+        if run('docker', 'exec', APP, 'sha256sum', '/app/' + name).split()[0] != digest:
+            raise RuntimeError('Bounce suppression runtime file hash mismatch: ' + name)
+    run('docker', 'exec', APP, 'node', '-e',
+        "require('/app/modules/platform/email-marketing-events');require('/app/modules/platform/email-marketing-worker');require('/app/modules/platform/email-marketing-bounce-privacy');require('/app/modules/platform/phonebook-workspace');console.log('email-bounce-runtime-load=ok')")
+    if inspect(DB)['State'].get('Health', {}).get('Status') != 'healthy':
+        raise RuntimeError('Database did not remain healthy during bounce-suppression release')
+    new_schema = transient_bounce_schema_state()
+    row = new_schema['ledger'][0] if len(new_schema.get('ledger') or []) == 1 else {}
+    if ("'Transient'" not in str(new_schema.get('bounceType') or '') or row.get('status') != 'applied' or
+            row.get('checksum') != hashes[BOUNCE_MIGRATION] or
+            int(row.get('statement_count', 0)) != int(row.get('statements_completed', -1)) or
+            migration.get('checksum') != hashes[BOUNCE_MIGRATION]):
+        raise RuntimeError('Transient bounce schema or migration verification failed')
+
+    cleanup = cleanup_legacy_bounces()
+    audit = privacy_audit()
+    if (audit['legacyBounceRows'] != 0 or audit['recipientEmailCopies'] != 0 or
+            audit['threadEmailCopies'] != 0 or audit['contactEmailCopies'] != 0 or
+            audit['unprocessedProviderBounceAddresses'] != 0):
+        raise RuntimeError('Provider bounce privacy audit found retained email addresses')
+    public = public_check({**ACTIVE_BOUNCE_RUNTIME_SHA256, **hashes})
+    result = {'sourceCommit': commit, 'release': str(release), 'deploymentSnapshot': str(backup),
+              'rollbackPolicy': 'forward-fix-only-after-data-scrub',
+              'image': current['Image'], 'imageReference': current['Config']['Image'],
+              'composeInputs': len(files) + 1, 'environmentInputs': len(env_files),
+              'appMounts': len(current['Mounts']), 'runtimeHashes': hashes,
+              'activeRuntimePreimages': {name: sha(data) for name, data in prior.items()},
+              'nonAppContainersUnchanged': len(after_inventory) - 1,
+              'appHealthy': True, 'databaseHealthy': True, 'migration': migration,
+              'bounceCountsBefore': before_audit, 'cleanupSummary': cleanup,
+              'postCleanupCounts': audit, 'emailWorkerLoad': 'passed',
+              'publicChecks': public, 'emailSent': False}
+    write_private(backup / 'result.json', result)
+    print(json.dumps(result))
+
+
 def restore(backup_path):
     require_lock()
     backup = Path(backup_path).resolve()
@@ -690,10 +877,12 @@ def main(args):
         deploy(args[1], args[2])
     elif len(args) == 3 and args[0] == 'repair':
         repair(args[1], args[2])
+    elif len(args) == 3 and args[0] == 'deploy-all-bounces':
+        deploy_all_bounces(args[1], args[2])
     elif len(args) == 2 and args[0] == 'restore':
         restore(args[1])
     else:
-        raise SystemExit('Usage: helper.py stage <source-root> <stage-path> <commit> | deploy <stage> <commit> | repair <stage> <commit> | restore <snapshot>')
+        raise SystemExit('Usage: helper.py stage <source-root> <stage-path> <commit> | deploy <stage> <commit> | repair <stage> <commit> | deploy-all-bounces <stage> <commit> | restore <snapshot>')
 
 
 if __name__ == '__main__':
