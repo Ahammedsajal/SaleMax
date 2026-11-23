@@ -5447,3 +5447,26 @@ sudo -n /opt/salemax/shared/with-production-lock.sh python3 /opt/salemax/release
 ```
 
 Rollback is app-only; there is no migration or database rollback. The full 42-ticket upgrade remains in progress.
+
+
+## 7Network install control in the business dashboard — production, 23 November 2026
+
+Source commit `1fecadba41b60013137ec29e4032f6530ecb88fd` is pushed to `Ahammedsajal/SaleMax` `main`. The production-generated workspace shell now loads `pwa-install.css` and `pwa-install.js`; the JavaScript mounts the `Install 7Network` control only on the `/user` business workspace route and invokes the browser's native install API or captured install prompt from the user click. The public marketing homepage is a separate page and remains unchanged. The existing production manifest has `id: /user`, `start_url: /user?page=dashboard`, and `display: standalone`, so the installed app opens the business dashboard. The prompt remains subject to the browser's install confirmation.
+
+The app-only overlay is `/opt/salemax/releases/pwa-install-dashboard-1fecadba41b6-20261123T093444Z/compose.pwa-install-dashboard.json`, layered over base `/opt/salemax/releases/training-pipeline-correction-v3-9867ca72-20261104`. The app image remained `sha256:753d77d421b3160872df0812e7b38505a1db7104cdb9d6c8b17415b2420de667`; the active Compose chain now has 323 inputs, 11 environment-file inputs and 286 app mounts. Only the app service was recreated. Four running non-app service container identities remained unchanged. No migration, database/customer-data update, image build or public-homepage change occurred.
+
+Protected rollback snapshot `/opt/salemax/shared/rollback-pwa-install-dashboard-1fecadba41b6-20261123T093444Z` has mode `0700` and records the pre-deploy app, Compose inputs, manifest, generated workspace shell and hashes. If this remains the latest app overlay, restore the previous Compose chain under the production lock:
+
+```sh
+sudo -n /opt/salemax/shared/with-production-lock.sh python3 /opt/salemax/releases/pwa-install-dashboard-1fecadba41b6-20261123T093444Z/deploy/pwa-user-dashboard-install-release.py restore /opt/salemax/shared/rollback-pwa-install-dashboard-1fecadba41b6-20261123T093444Z
+```
+
+Verification: app health is `healthy` with zero restarts; `https://crm.salemax.qa/healthz`, `/user?page=dashboard`, `/user/login`, and both cache-busted install assets returned HTTP 200. The served CSS/JS hashes match the release. The workspace HTML includes each install reference once; the public marketing homepage does not load the install bundle. The live manifest reads `/user?page=dashboard`. Signed-in Edge review of `/user?page=dashboard` showed the `Install 7Network` button in the dashboard. The native install dialog was not opened or accepted on the live user browser; mobile-width, Arabic and dark-theme visual acceptance remain open. No email, WhatsApp message, or customer action was performed.
+
+| Mounted runtime file | SHA-256 |
+|---|---|
+| `client/public/index.html` (production-derived shell) | `4424e56891f70c42277486dd6400a0254273d65b741dc2eeb20136e10cdf5a9b` |
+| `client/public/pwa-install.css` | `3ea8219412a9cbcd39b7a40abb8437e1d3c9f8a331aebb97c04049d1ea76953f` |
+| `client/public/pwa-install.js` | `23f63b9ad6e0f6bca44609779d10d2db44163c637c1626d2f738de8a6b2429f6` |
+
+No database rollback applies. The full 42-ticket upgrade remains in progress.
