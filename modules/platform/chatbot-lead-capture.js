@@ -5,6 +5,136 @@ const admissions = require('./chatbot-admissions-intake');
 const { recipientAllowed } = require('./chatbot-audience');
 const parse = value => typeof value === 'string' ? JSON.parse(value) : value || {};
 const normalizedDigits = value => require('./chatbot-training-guide').normalizeDigits(value);
+function cleanCourseHistory(value) {
+  const entries = Array.isArray(value) ? value : [];
+  const result = [];
+  const keys = new Set();
+  for (const entry of entries) {
+    if (!entry || typeof entry !== 'object') continue;
+    const code = typeof entry.code === 'string' ? entry.code.trim().slice(0, 100) : '';
+    const name = typeof entry.name === 'string' ? entry.name.trim().slice(0, 180) : '';
+    const key = code ? `code:${code}` : `name:${context.normalized(name)}`;
+    if (!name || key === 'name:' || keys.has(key)) continue;
+    keys.add(key);
+    result.push({ code: code || null, name,
+      firstAskedAt: typeof entry.firstAskedAt === 'string' ? entry.firstAskedAt : null,
+      lastAskedAt: typeof entry.lastAskedAt === 'string' ? entry.lastAskedAt : null });
+  }
+  return result;
+}
+
+function courseFactByName(facts, name) {
+  const key = context.normalized(name);
+  return (facts || []).find(item => !item.kind && item.code
+    && [item.nameEn, item.nameAr, item.code].some(value => value && context.normalized(value) === key));
+}
+
+function rememberCourseInterests(qualification, courses, primaryCourseCode = null, { facts = [], askedAt = new Date().toISOString() } = {}) {
+  const history = cleanCourseHistory(qualification.courseInterestHistory);
+  const historyIndex = new Map(history.map((entry, index) => [entry.code ? `code:${entry.code}` : `name:${context.normalized(entry.name)}`, index]));
+  const add = (course, updateAskedAt) => {
+    const name = String(course?.name || '').trim().slice(0, 180);
+    const code = typeof course?.code === 'string' ? course.code.trim().slice(0, 100) : '';
+    if (!name || phoneOnly(name)) return;
+    const key = code ? `code:${code}` : `name:${context.normalized(name)}`;
+    const index = historyIndex.get(key);
+    if (index === undefined) {
+      history.push({ code: code || null, name, firstAskedAt: askedAt, lastAskedAt: askedAt });
+      historyIndex.set(key, history.length - 1);
+    } else {
+      const old = history[index];
+      history[index] = { ...old, name, code: code || old.code || null,
+        firstAskedAt: old.firstAskedAt || askedAt,
+        lastAskedAt: updateAskedAt ? askedAt : old.lastAskedAt || old.firstAskedAt || askedAt };
+    }
+  };
+
+  // Migrate existing scalar lead interest into the durable history before a
+  // newly asked course becomes primary.
+  const oldPrimaryName = String(qualification.primaryCourseName || '').trim();
+  const oldPrimaryCode = String(qualification.primaryCourseCode || '').trim();
+  const oldNames = String(qualification.courseInterest || '').split(/[;；]/u).map(value => value.trim()).filter(Boolean);
+  if (oldPrimaryName) add({ code: oldPrimaryCode, name: oldPrimaryName }, false);
+  for (const name of oldNames) {
+    const fact = courseFactByName(facts, name);
+    add({ code: fact?.code || (name === oldPrimaryName ? oldPrimaryCode : null), name: fact?.nameEn || fact?.nameAr || name }, false);
+  }
+
+  const usable = (Array.isArray(courses) ? courses : []).map(course => {
+    const code = typeof course?.code === 'string' ? course.code.trim() : '';
+    const fact = facts.find(item => !item.kind && item.code === code);
+    return { code: code || null, name: String(course?.name || fact?.nameEn || fact?.nameAr || '').trim() };
+  }).filter(course => course.name && !phoneOnly(course.name));
+  for (const course of usable) add(course, true);
+  if (!usable.length) {
+    qualification.courseInterestHistory = history;
+    return qualification;
+  }
+  const primary = usable.find(course => course.code && course.code === primaryCourseCode) || usable[0];
+  qualification.primaryCourseCode = primary.code || null;
+  qualification.primaryCourseName = primary.name;
+  qualification.courseInterest = usable.map(course => course.name).join('; ').slice(0, 500);
+  qualification.courseInterestHistory = history;
+  return qualification;
+}
+
+function restoreCourseMemory(qualification, facts = []) {
+  if (!qualification || typeof qualification !== 'object') return qualification;
+  const names = String(qualification.courseInterest || '').split(/[;；]/u).map(value => value.trim()).filter(Boolean);
+  const primaryName = String(qualification.primaryCourseName || names[0] || '').trim();
+  const primary = courseFactByName(facts, primaryName);
+  if (!qualification.primaryCourseCode && primary?.code) qualification.primaryCourseCode = primary.code;
+  if (!qualification.primaryCourseName && primaryName) qualification.primaryCourseName = primary?.nameEn || primary?.nameAr || primaryName;
+  const history = cleanCourseHistory(qualification.courseInterestHistory);
+  const known = new Set(history.map(item => item.code ? `code:${item.code}` : `name:${context.normalized(item.name)}`));
+  for (const name of names) {
+    if (phoneOnly(name)) continue;
+    const course = courseFactByName(facts, name);
+    const entry = { code: course?.code || null, name: course?.nameEn || course?.nameAr || name };
+    const key = entry.code ? `code:${entry.code}` : `name:${context.normalized(entry.name)}`;
+    if (!known.has(key)) {
+      history.push({ ...entry, firstAskedAt: null, lastAskedAt: null });
+      known.add(key);
+    }
+  }
+  qualification.courseInterestHistory = history;
+  return qualification;
+}
+
+async function persistCourseSelectionInTransaction(db, { uidHash, uid, leadId, course = null, courses = null, primaryCourseCode = null, facts = [], profileId = null }) {
+  const selected = Array.isArray(courses) && courses.length ? courses : course ? [course] : [];
+  if (!db || !uidHash || !uid || !leadId || !selected.some(item => item?.name)) return false;
+  const [[lead]] = await db.query('SELECT qualification_data FROM pipeline_leads WHERE uid_hash=? AND uid=? AND id=? FOR UPDATE', [uidHash, uid, leadId]);
+  if (!lead) return false;
+  const qualification = restoreCourseMemory(parse(lead.qualification_data), facts);
+  const before = JSON.stringify(qualification);
+  rememberCourseInterests(qualification, selected, primaryCourseCode || selected[0]?.code || null, { facts });
+  if (JSON.stringify(qualification) === before) return false;
+  await db.query('UPDATE pipeline_leads SET qualification_data=?,last_activity_at=UTC_TIMESTAMP(3) WHERE uid_hash=? AND uid=? AND id=?',
+    [JSON.stringify(qualification), uidHash, uid, leadId]);
+  const old = parse(lead.qualification_data);
+  if (qualification.primaryCourseCode !== old.primaryCourseCode || qualification.primaryCourseName !== old.primaryCourseName) {
+    await db.query(`INSERT INTO pipeline_activity(uid_hash,lead_id,actor_type,activity_type,summary,details,created_at)
+      VALUES (?,?,'system','lead_updated','Bot updated the learner’s primary course interest',?,UTC_TIMESTAMP(3))`,
+    [uidHash, leadId, JSON.stringify({ origin: 'chatbot', profileId, fields: ['primaryCourseCode','primaryCourseName','courseInterestHistory'],
+      primaryCourseCode: qualification.primaryCourseCode, primaryCourseName: qualification.primaryCourseName,
+      courseHistoryCount: qualification.courseInterestHistory.length })]);
+  }
+  return qualification;
+}
+
+async function persistCourseSelection(pool, options) {
+  const db = await pool.getConnection();
+  try {
+    await db.beginTransaction();
+    const result = await persistCourseSelectionInTransaction(db, options);
+    await db.commit();
+    return result;
+  } catch (error) {
+    await db.rollback().catch(() => {});
+    throw error;
+  } finally { db.release(); }
+}
 
 function qatarMobile(value) {
   const digits = normalizedDigits(value).replace(/\D/g, '').replace(/^00/, '');
@@ -162,6 +292,7 @@ async function captureLead(pool, { ctx, profile, uid, chatId, origin, message, f
       const [[session]] = await db.query('SELECT state FROM sx_chatbot_guided_sessions WHERE tenant_id=? AND profile_id=? AND channel_kind=? AND channel_ref=? AND conversation_id=? AND expires_at>UTC_TIMESTAMP(3)', [ctx.tenant.id, profile.id, profile.channelKind, profile.channelRef, chatId]);
       guidedState = parse(session?.state);
     }
+    restoreCourseMemory(qualification, facts);
     if (!courses.length && profile.channelKind && profile.channelRef) {
       const state = guidedState;
       const choice = context.normalized(text);
@@ -201,9 +332,17 @@ async function captureLead(pool, { ctx, profile, uid, chatId, origin, message, f
     const simpleName = name && ['', 'my name is ', 'my name s ', 'call me ', 'اسمي ', 'انا اسمي '].some(prefix => context.normalized(text) === prefix + context.normalized(name));
     const details = qualificationFromText(text, guidedState);
     if (useIntake && !details.courseInterest) details.courseInterest = admissions.courseInterest(text);
-    if (!alreadyCaptured && courses.length) qualification.courseInterest = courses.map(item => item.name).join('; ').slice(0, 180);
-    else if (!alreadyCaptured && details.courseInterest) qualification.courseInterest = details.courseInterest;
-    if (stalePhoneCourseInterest && !(courses.length || details.courseInterest)) delete qualification.courseInterest;
+    if (!alreadyCaptured && courses.length) rememberCourseInterests(qualification, courses, retrieval.selectedCourseCode, { facts });
+    else if (!alreadyCaptured && details.courseInterest) rememberCourseInterests(qualification, [{ name: details.courseInterest }], null, { facts });
+    else if (!alreadyCaptured && !qualification.courseInterest && guidedState.selectedCourseCode) {
+      const selected = facts.find(item => !item.kind && item.code === guidedState.selectedCourseCode);
+      if (selected) rememberCourseInterests(qualification, [{ code: selected.code, name: selected.nameEn || selected.nameAr }], selected.code, { facts });
+    }
+    if (stalePhoneCourseInterest && !(courses.length || details.courseInterest)) {
+      delete qualification.courseInterest;
+      delete qualification.primaryCourseCode;
+      delete qualification.primaryCourseName;
+    }
     if (!alreadyCaptured && qatarContactNumber) qualification.qatarContactNumber = qatarContactNumber;
     for (const key of ['preferredSchedule', 'learningGoal']) if (!alreadyCaptured && details[key]) qualification[key] = details[key];
     let meta = { ...prior };
@@ -304,8 +443,10 @@ async function captureLead(pool, { ctx, profile, uid, chatId, origin, message, f
       await db.query('UPDATE pipeline_leads SET qualification_data=?,learner_name=COALESCE(?,learner_name),contact_name=COALESCE(?,contact_name),last_activity_at=UTC_TIMESTAMP(3) WHERE uid_hash=? AND uid=? AND id=?', [JSON.stringify(qualification), name, name, uidHash, uid, lead.id]);
       if (lead.contact_id && (name || details.email)) await db.query('UPDATE pipeline_contacts SET display_name=COALESCE(?,display_name),normalized_email=COALESCE(?,normalized_email) WHERE uid_hash=? AND uid=? AND id=?', [name, details.email || null, uidHash, uid, lead.contact_id]);
       const old = parse(lead.qualification_data);
-      const fields = [...(name && (name !== lead.learner_name || !prior.nameConfirmed) ? ['learnerName'] : []), ...['courseInterest','qatarContactNumber','preferredSchedule','preferredStartWindow','preferredStartDetail','learningGoal'].filter(key => qualification[key] !== old[key]), ...(details.email ? ['email'] : [])];
-      if (fields.length) await db.query(`INSERT INTO pipeline_activity(uid_hash,lead_id,actor_type,activity_type,summary,details,created_at) VALUES (?,?,'system','lead_updated','Bot saved learner enquiry details',?,UTC_TIMESTAMP(3))`, [uidHash, lead.id, JSON.stringify({ origin: 'chatbot', profileId: profile.id, fields, ...(fields.includes('courseInterest') ? { courseInterest: qualification.courseInterest } : {}) })]);
+      const fields = [...(name && (name !== lead.learner_name || !prior.nameConfirmed) ? ['learnerName'] : []), ...['courseInterest','primaryCourseCode','primaryCourseName','courseInterestHistory','qatarContactNumber','preferredSchedule','preferredStartWindow','preferredStartDetail','learningGoal'].filter(key => JSON.stringify(qualification[key]) !== JSON.stringify(old[key])), ...(details.email ? ['email'] : [])];
+      if (fields.length) await db.query(`INSERT INTO pipeline_activity(uid_hash,lead_id,actor_type,activity_type,summary,details,created_at) VALUES (?,?,'system','lead_updated','Bot saved learner enquiry details',?,UTC_TIMESTAMP(3))`, [uidHash, lead.id, JSON.stringify({ origin: 'chatbot', profileId: profile.id, fields,
+        ...(fields.includes('courseInterest') ? { courseInterest: qualification.courseInterest } : {}),
+        ...(fields.includes('courseInterestHistory') ? { courseHistoryCount: qualification.courseInterestHistory.length } : {}) })]);
     }
     if (!alreadyCaptured && callbackConsentIsNew) {
       await db.query(`INSERT INTO pipeline_activity(uid_hash,lead_id,actor_type,activity_type,summary,details,created_at)
@@ -315,7 +456,9 @@ async function captureLead(pool, { ctx, profile, uid, chatId, origin, message, f
     }
     await db.commit();
     return { leadId: lead.id, uidHash, facts, questionKey, language, nameCaptured: !!name, nameOnly: !!simpleName && !retrieval.explicitCourses,
-      courseInterest: qualification.courseInterest || null, intake, senderIsQatar, callbackNumber: callbackConsentNumber || qatarMobile(message.senderMobile),
+      courseInterest: qualification.courseInterest || null, primaryCourseCode: qualification.primaryCourseCode || null,
+      primaryCourseName: qualification.primaryCourseName || null, courseInterestHistory: qualification.courseInterestHistory || [],
+      intake, senderIsQatar, callbackNumber: callbackConsentNumber || qatarMobile(message.senderMobile),
       name: name || (meta.nameConfirmed ? storedName : null),
       nameConfirmationSubmitted: Boolean(!alreadyCaptured && confirmsSavedName),
       callbackConsentSubmitted: Boolean(callbackConsentSubmitted && callbackConsentEventKey),
@@ -471,6 +614,8 @@ async function markCourseAsked(pool, info, uid) {
   } finally { db.release(); }
 }
 module.exports = { savedContactName, captureLead, captureGenericLead, genericCaptureEnabled, customerName, qualificationFromText,
+  rememberCourseInterests, restoreCourseMemory, persistCourseSelectionInTransaction,
+  persistCourseSelection,
   qatarMobile, qatarMobileFromText, phoneOnly, qatarCallbackEnabled, addQuestion, addQatarContactQuestion,
   affirmativeReply, nameConfirmationReply, callbackConsentReply, callbackConsentPromptWasAsked, markQatarContactAsked, markContactPromptAsked, markCallbackConsentPromptAsked,
   reserveCallbackAcknowledgement, releaseCallbackAcknowledgement, standaloneNamePrompt, markAsked, markCourseAsked, nameCandidateForTurn };

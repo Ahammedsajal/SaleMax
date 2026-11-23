@@ -34,7 +34,7 @@ const SYSTEM = [
   'When a detail is missing, say you cannot confirm it and offer a useful clarification. Do not repeat a customer’s phone number or other private details.',
   'Answer the current question naturally and concisely. Ask at most one relevant question.',
   'When the customer thanks you after receiving details, acknowledge them without restarting discovery. If they say not now or they will return later, respect their decision and do not ask another question.',
-  'Use the selected course and recent messages for follow-ups; do not ask which course they mean when it is already clear.',
+  'Use primaryCourseName and selectedCourseCode as the customer’s current course. Use courseInterestHistory only when the customer refers to an older interest or asks to compare courses. When one current course is clear, answer follow-ups about it without asking which course they mean. Change the primary course only when the customer clearly asks about a different course; retain prior interests.',
   'Respect a refusal or request to speak later. Do not restart a conversation because the customer says hello again.',
   'Do not claim a person has been notified or a callback arranged unless the server says so.',
   'Do not offer to contact staff or check a detail with them unless the server provides an action to do that; instead explain that the detail is not confirmed.',
@@ -60,6 +60,11 @@ function buildRequest({ text, history = [], state = {}, context = {}, showFees =
     history: turns,
     lastQuestion: null,
     selectedCourseCode: typeof state.selectedCourseCode === 'string' ? state.selectedCourseCode.slice(0, 100) : null,
+    primaryCourseName: typeof state.primaryCourseName === 'string' ? state.primaryCourseName.slice(0, 180) : null,
+    courseInterestHistory: (Array.isArray(state.courseInterestHistory) ? state.courseInterestHistory : [])
+      .filter(item => item && typeof item.name === 'string')
+      .slice(-20).map(item => ({ code: typeof item.code === 'string' ? item.code.slice(0, 100) : null,
+        name: redactCustomerText(item.name).slice(0, 180) })),
     pendingQuestion: QUESTIONS.has(state.pendingQuestion) ? state.pendingQuestion : 'none',
     contactProgress: {
       nameProvided: state.nameProvided === true,
@@ -88,6 +93,12 @@ function validateProposal(proposal, context, { staffNotificationQueued = false, 
     return { valid: false, reason: 'STAFF_ACTION_OFFER_UNAVAILABLE' };
   }
   const normalize = value => String(value || '').toLocaleLowerCase().replace(/[\s\p{P}]+/gu, ' ').trim();
+  const asksForCourse = proposal.next_question === 'course'
+    || /\bwhich\s+(?:course|diploma|programme|program|training)\b|\bwhat\s+(?:course|diploma|programme|program)\s+(?:do you|are you|would you)\b|أي\s+(?:دورة|دبلوم|برنامج)/iu.test(proposal.reply);
+  const customerClearlyChangedCourse = /\b(?:another|different|new|other)\s+(?:course|diploma|programme|program|training)\b|\b(?:also|instead)\s+(?:ask|tell|show|share)\b.{0,40}\b(?:course|diploma|programme|program)\b/iu.test(turnText);
+  if (context?.selectedCourseCode && asksForCourse && !customerClearlyChangedCourse) {
+    return { valid: false, reason: 'COURSE_ALREADY_SELECTED' };
+  }
   if (normalize(proposal.reply) && normalize(proposal.reply) === normalize(lastAssistant)) {
     return { valid: false, reason: 'REPEATED_REPLY' };
   }
@@ -161,6 +172,9 @@ function safeSocialFallback(text, language = 'en') {
     .replace(/[,.!،…]+/gu, ' ').replace(/\s+/gu, ' ').trim();
   if (/^(?:not now|not at the moment|maybe later|another time|ليس الآن|ليس الان|لاحقا|لاحقاً)$/u.test(value)) {
     return language === 'ar' ? 'بالتأكيد، خذ وقتك. يمكنك مراسلتنا عندما يناسبك.' : 'Of course, take your time. You can message us whenever you’re ready.';
+  }
+  if (/^(?:(?:ok|okay|alright|sure)[, ]*)?(?:thank you(?: so much| very much)?|thanks?(?: a lot| so much)?|appreciate it|i appreciate it|got it thanks)(?: for (?:this|the) (?:information|details|help))?(?:[, ]*(?:ma.?am|sir|brother|sister))?$/u.test(value)) {
+    return language === 'ar' ? 'على الرحب والسعة. أنا هنا إذا احتجت إلى أي مساعدة أخرى.' : 'You’re welcome! I’m here if you need anything else.';
   }
   if (/^(?:(?:i am|i m|im) not interested(?: in (?:this|that|the course))?|not interested|no thank you|no thanks)(?:\s+(?:thanks|thank you))?$/u.test(value)) {
     return language === 'ar' ? 'شكرًا لإخباري. يمكنك مراسلتنا إذا احتجت إلى المساعدة لاحقًا.' : 'Understood, thanks for letting me know. You’re welcome to message us if you need help later.';

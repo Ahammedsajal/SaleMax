@@ -413,7 +413,7 @@ function shouldClarifyGenericCourseInterest(message, context, state = {}) {
 
 function isCourseDiscoveryOptOut(message) {
   const text = normalized(message);
-  return /^(?:not interested(?: in (?:this|that|the course|your courses?|any courses?))?|i am not interested|i m not interested|no thanks|no thank you|not for me|stop|unsubscribe|do not contact|لا شكرا(?: لك)?|لست مهتم(?:ة)?|مش مهتم(?:ة)?|غير مهتم(?:ة)?|لا اريد|ما اريد|لا ارغب|ما ارغب)$/u.test(text);
+  return /^(?:not now|not at the moment|maybe later|another time|not interested(?: in (?:this|that|the course|your courses?|any courses?))?|i am not interested|i m not interested|no thanks|no thank you|not for me|stop|unsubscribe|do not contact|لا شكرا(?: لك)?|لست مهتم(?:ة)?|مش مهتم(?:ة)?|غير مهتم(?:ة)?|لا اريد|ما اريد|لا ارغب|ما ارغب)$/u.test(text);
 }
 
 function courseDiscoveryOptOutReply(message, state = {}) {

@@ -707,9 +707,24 @@ async function trainingCenterGuidedTurn({ ctx, profile, uid, message, sessionId,
         ? courseClarification(priorState || {}, textOf(message), courseSelection, facts, profile.config?.guidedContent, pack.guidedContentDefaults)
         : null;
       const selectedState = courseSelection?.context?.selectedCourseCode
-        ? { ...(priorState || {}), selectedCourseCode: courseSelection.context.selectedCourseCode }
+        ? { ...(priorState || {}), selectedCourseCode: courseSelection.context.selectedCourseCode, waitingForCourse: false, pendingQuestion: 'none' }
         : priorState;
       reply = opening || clarification || certificate || pack.guidedReply({ message: guideMessage, state: selectedState, facts, config: { ...(profile.config?.guidedContent || {}), knowledgeEntries } });
+      const selectedCourseCode = courseSelection?.context?.selectedCourseCode
+        || (reply?.state?.selectedCourseCode && reply.state.selectedCourseCode !== priorState?.selectedCourseCode ? reply.state.selectedCourseCode : null);
+      if (selectedCourseCode && reply && typeof reply === 'object') {
+        const selectedCourse = facts.find(item => !item.kind && item.code === selectedCourseCode);
+        if (selectedCourse) {
+          reply.state = { ...(reply.state || {}), selectedCourseCode, waitingForCourse: false, pendingQuestion: 'none' };
+          if (leadInfo?.leadId && leadInfo?.uidHash) {
+            await require('./chatbot-lead-capture').persistCourseSelectionInTransaction(db, {
+              uidHash: leadInfo.uidHash, uid, leadId: leadInfo.leadId,
+              course: { code: selectedCourse.code, name: selectedCourse.nameEn || selectedCourse.nameAr },
+              facts, profileId: profile.id,
+            });
+          }
+        }
+      }
       if (certificate?.route === 'clarification') deferLeadQuestion = true;
       if (opening || clarification) deferLeadQuestion = true;
     }
@@ -852,10 +867,15 @@ function aiAvailableForProfile(profile) {
 }
 
 function contextualPilotAllowed({ ctx, profile, origin, message }) {
-  const identity = origin === 'qr' && mockup.qrRecipientIdentity(message);
-  return Boolean(profile.config?.contextualAiPilot === true && aiAvailableForProfile(profile)
-    && ctx.category.key === 'training_center' && identity?.kind === 'phone'
-    && mockup.testRecipientAllowed(profile.config, origin, identity.phone));
+  if (profile.config?.contextualAiPilot !== true || profile.config?.rolloutPercent !== 100
+    || !aiAvailableForProfile(profile) || ctx.category.key !== 'training_center') return false;
+  if (origin === 'qr') {
+    const identity = mockup.qrRecipientIdentity(message);
+    return Boolean(identity && mockup.liveQrMessageAllowed(profile.config, message));
+  }
+  // Meta messages are direct customer conversations; the profile's existing
+  // 100% audience gate remains authoritative for non-QR channels.
+  return origin === 'meta' && recipientAllowed(profile.config, message?.senderMobile, profile.id);
 }
 
 function aiHandlesStaffRoute(profile, route) {
@@ -1086,7 +1106,7 @@ function certificateTurn(message, context, state, route) {
   };
 }
 
-async function generateAiAnswer({ ctx, profile, uid, customerMessage, chatId = null, channelKind = null, channelRef = null, state = null, factsOverride = null, referral = null, intakeCourse = null, admissionsIntake = false, admissionsProgress = null, contactProgress = null, historyOverride = null, continuity = false, simulateStaffNotificationQueued = false, contextualPilot = false, onStage = null }) {
+async function generateAiAnswer({ ctx, profile, uid, customerMessage, chatId = null, channelKind = null, channelRef = null, state = null, factsOverride = null, referral = null, intakeCourse = null, admissionsIntake = false, admissionsProgress = null, contactProgress = null, historyOverride = null, continuity = false, simulateStaffNotificationQueued = false, contextualPilot = false, leadInfo = null, onStage = null }) {
   if (uid && chatId && await shouldPause(uid, chatId, channelKind, channelRef)) return { paused: true };
   if (!customerMessage) return { handedOff: true, code: 'UNSUPPORTED_MESSAGE_TYPE' };
   const pack = getDomainPack(ctx.category.key, ctx.category.version);
@@ -1103,6 +1123,23 @@ async function generateAiAnswer({ ctx, profile, uid, customerMessage, chatId = n
   if (courseCertificates && session.selectedCourseCode
     && !facts.some(item => !item.kind && item.code === session.selectedCourseCode)) {
     session = { ...session, selectedCourseCode: null };
+  }
+  if (courseCertificates) {
+    const incomingCourse = businessContext.retrieveContext({ facts, message: customerMessage, state: session, referral });
+    const explicitCourseCode = incomingCourse.explicitCourses > 0 || incomingCourse.courseContextSource === 'meta_referral'
+      ? incomingCourse.selectedCourseCode : null;
+    const savedCourse = facts.find(item => !item.kind && item.code === leadInfo?.primaryCourseCode)
+      || facts.find(item => !item.kind && [item.nameEn, item.nameAr, item.code]
+        .some(name => name && businessContext.normalized(name) === businessContext.normalized(leadInfo?.primaryCourseName || leadInfo?.courseInterest || '')));
+    const selectedCourseCode = explicitCourseCode || savedCourse?.code || session.selectedCourseCode || null;
+    const selectedCourse = facts.find(item => !item.kind && item.code === selectedCourseCode);
+    session = {
+      ...session,
+      selectedCourseCode,
+      primaryCourseName: selectedCourse?.nameEn || selectedCourse?.nameAr || leadInfo?.primaryCourseName || null,
+      courseInterestHistory: Array.isArray(leadInfo?.courseInterestHistory) ? leadInfo.courseInterestHistory.slice(-20) : [],
+      ...(selectedCourseCode ? { waitingForCourse: false, pendingQuestion: 'none' } : {}),
+    };
   }
   if (courseCertificates && businessContext.isStandalonePriceQuestion(customerMessage) && uid && chatId && channelKind) {
     const recentHistory = Array.isArray(historyOverride) && historyOverride.length
@@ -1147,6 +1184,10 @@ async function generateAiAnswer({ ctx, profile, uid, customerMessage, chatId = n
     // An explicit multi-course question has no single selected course. Clear
     // the prior single-course context so the next follow-up cannot mix it in.
     selectedCourseCode: context.explicitCourses ? context.selectedCourseCode : session.selectedCourseCode || null,
+    ...(context.explicitCourses > 0 && context.selectedCourseCode
+      ? { primaryCourseName: facts.find(item => !item.kind && item.code === context.selectedCourseCode)?.nameEn
+        || facts.find(item => !item.kind && item.code === context.selectedCourseCode)?.nameAr || session.primaryCourseName,
+        waitingForCourse: false, pendingQuestion: 'none' } : {}),
     ...(session.pendingCertificateQuestion ? { pendingCertificateQuestion: null } : {}),
   };
   if (courseCertificates && businessContext.isCourseDiscoveryOptOut(customerMessage)) {
@@ -1156,6 +1197,12 @@ async function generateAiAnswer({ ctx, profile, uid, customerMessage, chatId = n
       suppressIntakeQuestion: true, suppressContactPrompt: true,
       metrics: { inputTokens: 0, outputTokens: 0, cacheHit: false, sources: context.sources } };
   }
+  const socialTurnReply = contextualPilot
+    ? require('./chatbot-turn-understanding').safeSocialFallback(customerMessage, context.language) : null;
+  if (socialTurnReply) return { canAnswer: true, confidence: 1, reply: socialTurnReply,
+    state: { ...nextState, greeted: true }, route: 'social_fallback',
+    suppressIntakeQuestion: true, suppressContactPrompt: true,
+    metrics: { inputTokens: 0, outputTokens: 0, cacheHit: false, sources: [] } };
   if (courseCertificates && businessContext.isStandalonePriceQuestion(customerMessage) && !context.selectedCourseCode) {
     const reply = context.language === 'ar'
       ? 'أي دورة تريد معرفة رسومها؟ اكتب اسم الدورة وسأتحقق من السعر المنشور.'
@@ -1668,7 +1715,7 @@ async function aiTurn({ ctx, profile, uid, message, user, sessionId, origin, cha
     : await generateAiAnswer({ ctx, profile, uid, customerMessage: incomingText, chatId, channelKind: channelFor(origin),
         channelRef: sessionId, factsOverride: leadInfo?.facts, referral: message?.msgContext?.referral || null,
         admissionsIntake: !!leadInfo?.intake, intakeCourse: leadInfo?.intake ? leadInfo.courseInterest : null,
-        contextualPilot,
+        contextualPilot, leadInfo,
         contactProgress: {
           nameProvided: Boolean(leadInfo?.name || leadInfo?.nameCaptured || leadInfo?.intake?.state?.nameConfirmed),
           qatarNumberProvided: Boolean(leadInfo?.senderIsQatar || leadInfo?.qatarContactNumber),
@@ -1679,6 +1726,35 @@ async function aiTurn({ ctx, profile, uid, message, user, sessionId, origin, cha
           preferredStart: leadInfo.intake.preferredStart || null } : null, continuity, onStage });
   if (!contextualPilot && leadInfo?.intake && !acknowledgement && !answer.paused) answer = admissions.planReply(answer, leadInfo);
   if (answer.handedOff || answer.paused) return answer;
+  if (ctx.category.key === 'training_center' && leadInfo?.leadId && leadInfo?.uidHash) {
+    const currentCourse = businessContext.retrieveContext({ facts: leadInfo.facts || [], message: incomingText,
+      state: answer.state || {}, referral: message?.msgContext?.referral || null });
+    if (currentCourse.explicitCourses > 0 || currentCourse.courseContextSource === 'meta_referral') {
+      const courses = currentCourse.evidence.filter(item => item.kind === 'course' && item.code)
+        .map(item => ({ code: item.code, name: item.name }));
+      const primaryCourseCode = currentCourse.selectedCourseCode || answer.state?.selectedCourseCode
+        || courses[0]?.code || null;
+      const selectedCourse = leadInfo.facts.find(item => !item.kind && item.code === primaryCourseCode);
+      if (selectedCourse && !courses.some(item => item.code === selectedCourse.code)) {
+        courses.unshift({ code: selectedCourse.code, name: selectedCourse.nameEn || selectedCourse.nameAr });
+      }
+      const rememberedCodes = new Set((leadInfo.courseInterestHistory || []).map(item => item?.code).filter(Boolean));
+      const needsCourseMemoryWrite = primaryCourseCode && (leadInfo.primaryCourseCode !== primaryCourseCode
+        || courses.some(item => item.code && !rememberedCodes.has(item.code)));
+      const memory = needsCourseMemoryWrite ? await require('./chatbot-lead-capture').persistCourseSelection(dbPool, {
+        uidHash: leadInfo.uidHash, uid, leadId: leadInfo.leadId, courses, primaryCourseCode,
+        facts: leadInfo.facts, profileId: profile.id,
+      }) : false;
+      if (memory) {
+        leadInfo = { ...leadInfo, courseInterest: memory.courseInterest || null,
+          primaryCourseCode: memory.primaryCourseCode || null, primaryCourseName: memory.primaryCourseName || null,
+          courseInterestHistory: memory.courseInterestHistory || [] };
+        answer.state = { ...(answer.state || {}), selectedCourseCode: memory.primaryCourseCode || primaryCourseCode,
+          primaryCourseName: memory.primaryCourseName || selectedCourse?.nameEn || selectedCourse?.nameAr || null,
+          courseInterestHistory: memory.courseInterestHistory || [], waitingForCourse: false, pendingQuestion: 'none' };
+      }
+    }
+  }
   let handoffReasonForTurn = null;
   if (answer.staffNotificationQueued) {
     handoffReasonForTurn = answer.handoffReason || 'course-details-need-coordinator';
