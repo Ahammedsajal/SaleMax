@@ -24,8 +24,8 @@ ASSETS = {
 }
 
 
-def run(*args, check=True):
-    result = subprocess.run(args, capture_output=True, text=True)
+def run(*args, check=True, env=None):
+    result = subprocess.run(args, capture_output=True, text=True, env=env)
     if check and result.returncode:
         raise RuntimeError('command failed: ' + Path(args[0]).name)
     return result
@@ -75,6 +75,25 @@ def compose_input_state(files, env_files):
     return {name: sha(Path(name).read_bytes()) for name in files + env_files}
 
 
+def load_compose_vars(files, env_files, app):
+    manual_path = ROOT / 'shared/rollback-private-inventory-84644fdfebee/compose-manual-vars.json'
+    manual = json.loads(manual_path.read_text())
+    supplied = {key for name in env_files for key in re.findall(
+        r'^\s*([A-Za-z_][A-Za-z0-9_]*)=', Path(name).read_text(), re.M)}
+    referenced = {key for name in files for key in re.findall(
+        r'\$\{([A-Za-z_][A-Za-z0-9_]*)', Path(name).read_text())}
+    live_env = dict(item.split('=', 1) for item in app['Config']['Env'] if '=' in item)
+    variables = {}
+    for key in referenced - supplied:
+        if key in manual:
+            variables[key] = manual[key]
+        elif key in live_env:
+            variables[key] = live_env[key]
+        else:
+            raise RuntimeError('missing Compose interpolation variable')
+    return dict(os.environ, **variables), variables
+
+
 def support_services():
     names = run('docker', 'ps', '--filter', 'label=com.docker.compose.project=salemax',
                 '--format', '{{.Names}}').stdout.splitlines()
@@ -87,8 +106,8 @@ def verify_support_services(expected):
             raise RuntimeError('non-app service identity changed')
 
 
-def compose_config(args):
-    return json.loads(run(*args, 'config', '--format', 'json').stdout)
+def compose_config(args, env):
+    return json.loads(run(*args, 'config', '--format', 'json', env=env).stdout)
 
 
 def validate_overlay(before, after, mounts):
@@ -149,7 +168,8 @@ def deploy(stage, commit):
         raise RuntimeError('active Compose inputs are incomplete or outside the SaleMaX release root')
 
     compose_before = compose_args(files, env_files, workdir)
-    before = compose_config(compose_before)
+    compose_env, compose_variables = load_compose_vars(files, env_files, app)
+    before = compose_config(compose_before, compose_env)
     if 'app' not in before.get('services', {}):
         raise RuntimeError('active Compose project has no app service')
     services = support_services()
@@ -162,6 +182,7 @@ def deploy(stage, commit):
     os.umask(0o077)
     release.mkdir(mode=0o755)
     backup.mkdir(mode=0o700)
+    write_json(backup / 'compose-vars.json', compose_variables)
     preimages = backup / 'preimages'
     preimages.mkdir(mode=0o700)
     runtime = release / 'runtime'
@@ -233,13 +254,13 @@ def deploy(stage, commit):
     helper.chmod(0o644)
 
     candidate = compose_before + ['-f', str(overlay)]
-    after = compose_config(candidate)
+    after = compose_config(candidate, compose_env)
     validate_overlay(before, after, mounts)
     if (compose_input_state(files, env_files) != input_hashes or inspect(APP)['Id'] != app['Id']):
         raise RuntimeError('running app or Compose inputs changed during release preparation')
 
     try:
-        run(*candidate, 'up', '-d', '--no-deps', '--no-build', '--force-recreate', 'app')
+        run(*candidate, 'up', '-d', '--no-deps', '--no-build', '--force-recreate', 'app', env=compose_env)
         current = wait_healthy()
         current_files = current['Config']['Labels']['com.docker.compose.project.config_files'].split(',')
         if current['Image'] != app['Image'] or current_files != files + [str(overlay)]:
@@ -266,7 +287,8 @@ def deploy(stage, commit):
         active = inspect(APP)
         active_files = active['Config']['Labels'].get('com.docker.compose.project.config_files', '').split(',')
         if str(overlay) in active_files:
-            run(*compose_before, 'up', '-d', '--no-deps', '--no-build', '--force-recreate', 'app', check=False)
+            run(*compose_before, 'up', '-d', '--no-deps', '--no-build', '--force-recreate', 'app',
+                check=False, env=compose_env)
             restored = wait_healthy()
             if restored['Image'] != app['Image']:
                 raise RuntimeError('automatic app rollback image mismatch') from failure
@@ -296,7 +318,8 @@ def restore(backup):
     support = json.loads((backup / 'support-services.json').read_text())
     verify_support_services(support)
     common = compose_args(files, env_files, (backup / 'compose-working-dir.txt').read_text().strip())
-    run(*common, 'up', '-d', '--no-deps', '--no-build', '--force-recreate', 'app')
+    compose_env = dict(os.environ, **json.loads((backup / 'compose-vars.json').read_text()))
+    run(*common, 'up', '-d', '--no-deps', '--no-build', '--force-recreate', 'app', env=compose_env)
     current = wait_healthy()
     prior = json.loads((backup / 'app-before.json').read_text())
     if current['Image'] != prior['image']:
