@@ -1,54 +1,41 @@
+#sevennetwork-install-button,
 .sevennetwork-install-button {
-  position: fixed;
-  inset-inline-end: 18px;
-  bottom: calc(88px + env(safe-area-inset-bottom));
-  z-index: 1200;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 9px;
-  min-width: 48px;
-  min-height: 48px;
-  max-width: calc(100vw - 32px);
-  padding: 0 18px;
-  border: 1px solid rgba(255, 255, 255, 0.24);
-  border-radius: 999px;
-  background: var(--7network-blue, #1768d4);
-  box-shadow: 0 8px 24px rgba(8, 22, 48, 0.24);
-  color: #fff;
+  display: none !important;
+}
+
+[data-sx-pwa-install-nav][hidden] {
+  display: none !important;
+}
+
+[data-sx-pwa-install-nav] .sevennetwork-install-nav-button {
+  box-sizing: border-box;
+  width: 100%;
+  border: 0;
+  appearance: none;
+  background: transparent;
+  color: inherit;
   cursor: pointer;
-  font: 600 14px/1.2 Roboto, Arial, sans-serif;
-  text-align: center;
-  transition: transform 160ms ease, box-shadow 160ms ease, opacity 160ms ease;
+  font: inherit;
+  text-align: inherit;
 }
 
-.sevennetwork-install-button[hidden] {
-  display: none;
+[data-sx-pwa-install-nav] .sevennetwork-install-nav-button:hover:not(:disabled) {
+  background-color: rgba(127, 127, 127, 0.12);
 }
 
-.sevennetwork-install-button:hover:not(:disabled):not([aria-disabled="true"]) {
-  box-shadow: 0 12px 28px rgba(8, 22, 48, 0.3);
-  transform: translateY(-2px);
-}
-
-.sevennetwork-install-button:active:not(:disabled):not([aria-disabled="true"]) {
-  transform: translateY(0);
-}
-
-.sevennetwork-install-button:focus-visible,
+[data-sx-pwa-install-nav] .sevennetwork-install-nav-button:focus-visible,
 .sevennetwork-install-close:focus-visible,
 .sevennetwork-install-done:focus-visible {
   outline: 3px solid #12c9f4;
   outline-offset: 3px;
 }
 
-.sevennetwork-install-button:disabled,
-.sevennetwork-install-button[aria-disabled="true"] {
+[data-sx-pwa-install-nav] .sevennetwork-install-nav-button:disabled {
   cursor: progress;
   opacity: 0.76;
 }
 
-.sevennetwork-install-button svg {
+[data-sx-pwa-install-nav] .MuiListItemIcon-root svg {
   width: 20px;
   height: 20px;
   flex: 0 0 20px;
@@ -173,21 +160,7 @@
 }
 
 @media (max-width: 600px) {
-  .sevennetwork-install-button {
-    inset-inline-end: 14px;
-    bottom: calc(76px + env(safe-area-inset-bottom));
-    min-height: 48px;
-    padding-inline: 15px;
-    font-size: 13px;
-  }
-
   .sevennetwork-install-card {
     padding: 24px 20px 20px;
-  }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .sevennetwork-install-button {
-    transition: none;
   }
 }

@@ -10,6 +10,7 @@
   ]);
   const BUTTON_ID = 'sevennetwork-install-button';
   const DIALOG_ID = 'sevennetwork-install-dialog';
+  const INSTALL_ROW_SELECTOR = '[data-sx-sidebar-list] > li[data-sx-pwa-install-nav]';
 
   if (!PLATFORM_HOSTS.has(window.location.hostname)) return;
 
@@ -21,7 +22,9 @@
   }
 
   let deferredInstallPrompt = null;
-  let button;
+  let activeInstallButton;
+  let installInProgress = false;
+  let appInstalled = false;
   let dialog;
   let themeObserver;
   let routeObserver;
@@ -69,7 +72,7 @@
   };
 
   function isInstalled() {
-    return window.matchMedia('(display-mode: standalone)').matches || navigator.standalone === true;
+    return appInstalled || window.matchMedia('(display-mode: standalone)').matches || navigator.standalone === true;
   }
 
   function supportsWebInstall() {
@@ -127,13 +130,24 @@
   }
 
   function updateButton() {
-    if (!button) return;
     const copy = languageCopy();
-    button.querySelector('[data-install-label]').textContent = copy.button;
-    button.setAttribute('aria-label', copy.button);
-    button.lang = isArabic() ? 'ar' : 'en';
-    button.dir = isArabic() ? 'rtl' : 'ltr';
-    button.hidden = isInstalled() || !canPromptInstall();
+    const visible = !isInstalled() && canPromptInstall();
+    for (const row of document.querySelectorAll(INSTALL_ROW_SELECTOR)) {
+      const button = row.querySelector('.sevennetwork-install-nav-button');
+      const primary = row.querySelector('.MuiListItemText-primary');
+      if (!button || !primary) continue;
+      if (primary.textContent !== copy.button) primary.textContent = copy.button;
+      row.setAttribute('aria-label', copy.button);
+      row.lang = isArabic() ? 'ar' : 'en';
+      row.dir = isArabic() ? 'rtl' : 'ltr';
+      button.setAttribute('aria-label', copy.button);
+      button.setAttribute('title', copy.button);
+      button.lang = row.lang;
+      button.dir = row.dir;
+      button.disabled = installInProgress;
+      button.toggleAttribute('aria-busy', installInProgress);
+      row.hidden = !visible;
+    }
     updateTheme();
   }
 
@@ -166,72 +180,107 @@
   }
 
   function markInstalled() {
+    appInstalled = true;
     deferredInstallPrompt = null;
     closeDialog();
     updateButton();
   }
 
-  function createButton() {
-    if (document.getElementById(BUTTON_ID)) {
-      button = document.getElementById(BUTTON_ID);
+  async function requestInstall(button) {
+    if (installInProgress) return;
+    const installApiAvailable = supportsWebInstall();
+    const installPrompt = deferredInstallPrompt;
+    if (!installApiAvailable && !installPrompt) {
+      updateButton();
       return;
     }
 
-    button = document.createElement('button');
-    button.id = BUTTON_ID;
-    button.className = 'sevennetwork-install-button';
-    button.type = 'button';
-    button.innerHTML = '<svg aria-hidden="true" viewBox="0 0 24 24" focusable="false"><path d="M12 3v11m0 0 4-4m-4 4-4-4M5 16v4h14v-4"/></svg><span data-install-label></span>';
-    button.addEventListener('click', () => {
-      if (button.getAttribute('aria-disabled') === 'true') return;
-      const installApiAvailable = supportsWebInstall();
-      const installPrompt = deferredInstallPrompt;
-      if (!installApiAvailable && !installPrompt) {
-        updateButton();
-        return;
+    activeInstallButton = button;
+    installInProgress = true;
+    updateButton();
+    try {
+      if (installApiAvailable) {
+        // Call directly in the click handler to preserve transient user activation.
+        await navigator.install();
+        markInstalled();
+      } else {
+        deferredInstallPrompt = null;
+        await installPrompt.prompt();
+        const choice = await installPrompt.userChoice;
+        if (choice?.outcome === 'accepted') markInstalled();
       }
+    } catch (error) {
+      if (error?.name !== 'AbortError') showInstructions();
+    } finally {
+      installInProgress = false;
+      updateButton();
+    }
+  }
 
-      button.setAttribute('aria-busy', 'true');
-      button.setAttribute('aria-disabled', 'true');
-      try {
-        let installResult;
-        if (installApiAvailable) {
-          // Call directly in the click handler to preserve transient user activation.
-          installResult = navigator.install();
-        } else {
-          deferredInstallPrompt = null;
-          installResult = installPrompt.prompt();
-        }
+  function cloneSidebarInstallRow(list) {
+    const template = [...list.children].find((row) => row.tagName === 'LI' && !row.hasAttribute('data-sx-nav-section'));
+    if (!template) return null;
 
-        Promise.resolve(installResult)
-          .then(async () => {
-            if (installApiAvailable) {
-              markInstalled();
-              return;
-            }
-            const choice = await installPrompt.userChoice;
-            if (choice?.outcome === 'accepted') markInstalled();
-            else updateButton();
-          })
-          .catch((error) => {
-            updateButton();
-            if (error?.name !== 'AbortError') showInstructions();
-          })
-          .finally(() => {
-            if (button) {
-              button.removeAttribute('aria-busy');
-              button.removeAttribute('aria-disabled');
-            }
-          });
-      } catch (error) {
-        updateButton();
-        button.removeAttribute('aria-busy');
-        button.removeAttribute('aria-disabled');
-        if (error?.name !== 'AbortError') showInstructions();
+    const row = template.cloneNode(true);
+    row.hidden = false;
+    row.removeAttribute('style');
+    row.removeAttribute('aria-label');
+    row.removeAttribute('title');
+    for (const attribute of [...row.attributes]) {
+      if (attribute.name.startsWith('data-sx-') || attribute.name === 'data-salemax-pipeline-link') {
+        row.removeAttribute(attribute.name);
       }
+    }
+    row.querySelectorAll('[id]').forEach((node) => node.removeAttribute('id'));
+    row.querySelectorAll('[data-sx-tenant-label], [data-sx-native-label-hidden]').forEach((node) => {
+      if (node.hasAttribute('data-sx-native-label-hidden')) node.removeAttribute('data-sx-native-label-hidden');
+      else node.remove();
     });
 
-    document.body.appendChild(button);
+    const currentButton = row.querySelector('.MuiListItemButton-root, [role="button"], button, a');
+    if (!currentButton) return null;
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.className = `${currentButton.className} sevennetwork-install-nav-button`;
+    button.removeAttribute('style');
+    while (currentButton.firstChild) button.append(currentButton.firstChild);
+    currentButton.replaceWith(button);
+    button.classList.remove('Mui-selected');
+    button.removeAttribute('aria-current');
+    button.removeAttribute('href');
+    button.setAttribute('aria-label', languageCopy().button);
+    button.setAttribute('title', languageCopy().button);
+
+    const icon = row.querySelector('.MuiListItemIcon-root svg');
+    if (icon) {
+      icon.removeAttribute('data-sx-training-icon');
+      icon.setAttribute('aria-hidden', 'true');
+      icon.setAttribute('focusable', 'false');
+      icon.setAttribute('viewBox', '0 0 24 24');
+      icon.setAttribute('fill', 'none');
+      icon.setAttribute('stroke', 'currentColor');
+      icon.setAttribute('stroke-width', '1.8');
+      icon.setAttribute('stroke-linecap', 'round');
+      icon.setAttribute('stroke-linejoin', 'round');
+      icon.innerHTML = '<path d="M12 3v11m0 0 4-4m-4 4-4-4M5 16v4h14v-4"/>';
+    }
+
+    const primary = row.querySelector('.MuiListItemText-primary');
+    if (!primary || !icon) return null;
+    primary.textContent = languageCopy().button;
+    row.dataset.sxPwaInstallNav = '1';
+    row.dataset.sxCanonicalSalesNav = 'dashboard';
+    row.setAttribute('aria-label', languageCopy().button);
+    return row;
+  }
+
+  function syncSidebarRows() {
+    if (!isUserWorkspace()) return;
+    for (const list of document.querySelectorAll('[data-sx-sidebar-list]')) {
+      if (list.querySelector(':scope > li[data-sx-pwa-install-nav]')) continue;
+      const row = cloneSidebarInstallRow(list);
+      if (row) list.append(row);
+    }
     updateButton();
   }
 
@@ -260,7 +309,9 @@
       if (event.target === dialog) closeDialog();
     });
     dialog.addEventListener('close', () => {
-      if (button && !button.hidden) button.focus();
+      if (activeInstallButton?.isConnected && !activeInstallButton.disabled && !activeInstallButton.closest('li')?.hidden) {
+        activeInstallButton.focus();
+      }
     });
     document.body.appendChild(dialog);
   }
@@ -271,6 +322,15 @@
     deferredInstallPrompt = event;
     updateButton();
   });
+  document.addEventListener('click', (event) => {
+    const target = event.target instanceof Element
+      ? event.target.closest('[data-sx-pwa-install-nav] .sevennetwork-install-nav-button')
+      : null;
+    if (!target) return;
+    event.preventDefault();
+    event.stopPropagation();
+    requestInstall(target);
+  }, true);
   window.addEventListener('appinstalled', markInstalled);
   window.matchMedia('(display-mode: standalone)').addEventListener?.('change', updateButton);
   new MutationObserver(updateButton).observe(document.documentElement, {
@@ -298,14 +358,15 @@
 
     if (!isUserWorkspace()) {
       closeDialog();
-      button?.remove();
+      document.getElementById(BUTTON_ID)?.remove();
+      document.querySelectorAll('[data-sx-pwa-install-nav]').forEach((row) => row.remove());
       dialog?.remove();
-      button = undefined;
+      activeInstallButton = undefined;
       dialog = undefined;
       return;
     }
 
-    createButton();
+    syncSidebarRows();
     createDialog();
     updateButton();
     watchTheme();
@@ -318,8 +379,14 @@
     routeObserver = new MutationObserver(() => {
       const route = `${window.location.pathname}${window.location.search}${window.location.hash}`;
       if (route !== lastRoute) syncRoute();
+      else syncSidebarRows();
     });
-    routeObserver.observe(document.body, { childList: true, subtree: true });
+    routeObserver.observe(document.body, {
+      childList: true,
+      subtree: true,
+      attributes: true,
+      attributeFilter: ['data-sx-sidebar-list'],
+    });
     syncRoute();
   }
 

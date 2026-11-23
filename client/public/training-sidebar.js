@@ -45,6 +45,7 @@
     ['Sales Operations', 'عمليات المبيعات', ['Sales Overview','Organization','Sales Targets','Sales Reports','Sales Deals','My Commissions','Commission Payouts','Commission Policy','Audit Trail','ICP']],
     ['More Tools', 'أدوات أخرى', []]
   ];
+  const FINAL_INSTALL_ROW_ORDER = 2147483647;
   const aliases = {
     'تكاملات الذكاء الاصطناعي':'AI Integrations',
     'المنتجات والخدمات':'Products & services', 'الدورات': 'Courses', 'طلبات المتقدمين': 'Candidate Applications', 'الأسئلة الشائعة': 'FAQs',
@@ -472,7 +473,7 @@
     // The legacy Agent Task opens a different shell route. Keep it available
     // for the existing duplicateTask visibility rule, rather than discarding
     // the maintained Tasks row and its shared-workspace handler.
-    if(name==='Agent Task')return null;
+    if(name==='Agent Task'||row.hasAttribute('data-sx-pwa-install-nav'))return null;
     const marker=Object.keys(navigationMarkers).find(marker=>row.hasAttribute(marker));
     const key=row.dataset.sxCanonicalSalesNav||(marker&&navigationMarkers[marker])||navigationKeys[name];
     if(!key)return null;
@@ -546,6 +547,11 @@
   function applyTenantNavigationLabel(row,key) {
     const native=row.querySelector('.MuiListItemText-primary');
     if(!native)return null;
+    if(row.hasAttribute('data-sx-pwa-install-nav')){
+      native.removeAttribute('data-sx-native-label-hidden');
+      row.querySelector('[data-sx-tenant-label]')?.remove();
+      return null;
+    }
     if(row.hasAttribute('data-salemax-pipeline-link')){
       native.removeAttribute('data-sx-native-label-hidden');
       row.querySelector('[data-sx-tenant-label]')?.remove();
@@ -670,7 +676,9 @@
         }
         if (group < 0) group = groups.length - 1;
         const rank = groups[group][2].indexOf(name);
-        const order = String(group * 100 + 1 + (rank < 0 ? index : rank));
+        const order = row.hasAttribute('data-sx-pwa-install-nav')
+          ? String(FINAL_INSTALL_ROW_ORDER)
+          : String(group * 100 + 1 + (rank < 0 ? index : rank));
         if (row.style.order !== order) row.style.order = order;
         const navKey=row.dataset.sxCanonicalSalesNav||(row.dataset.sxSalesSection?({overview:'sales-targets',targets:'sales-targets',reports:'sales-targets',deals:'sales-deals',commissions:'sales-commissions'})[row.dataset.sxSalesSection]:navigationKeys[name]||navigationKeys[text]);
         const tenantLabel=applyTenantNavigationLabel(row,navKey);
