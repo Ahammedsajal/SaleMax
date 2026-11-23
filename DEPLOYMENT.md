@@ -5470,3 +5470,5 @@ Verification: app health is `healthy` with zero restarts; `https://crm.salemax.q
 | `client/public/pwa-install.js` | `23f63b9ad6e0f6bca44609779d10d2db44163c637c1626d2f738de8a6b2429f6` |
 
 No database rollback applies. The full 42-ticket upgrade remains in progress.
+
+Post-release retention check for `pwa-install-dashboard-1fecadba41b6-20261123T093444Z`: the host helper dry-run found 302 release directories, zero eligible directories and zero estimated reclaimable bytes; six running containers were considered. No release cleanup was applied.
