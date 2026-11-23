@@ -5423,3 +5423,27 @@ Protected rollback snapshot: `/opt/salemax/shared/rollback-pro-catalyst-conversa
 sudo -n /opt/salemax/shared/with-production-lock.sh python3 /opt/salemax/releases/pro-catalyst-conversation-quality-59bc03ce9bcd-20261123T032732Z/deploy/pro-catalyst-contextual-pilot.py restore /opt/salemax/shared/rollback-pro-catalyst-conversation-quality-59bc03ce9bcd-20261123T032732Z
 sudo -n /opt/salemax/shared/with-production-lock.sh python3 /opt/salemax/releases/pro-catalyst-conversation-quality-59bc03ce9bcd-20261123T032732Z/deploy/pro-catalyst-conversation-quality-release.py restore /opt/salemax/shared/rollback-pro-catalyst-conversation-quality-59bc03ce9bcd-20261123T032732Z
 ```
+# 2026-11-23 — Pro Catalyst persistent course context — production
+
+Source commit `f9e2dea3820a0be3af33740725fc1e6556d5a754` is pushed to `Ahammedsajal/SaleMax` `main` and deployed under the production lock as app-only overlay `/opt/salemax/releases/pro-catalyst-course-memory-f9e2dea3820a-20261123T085737Z/compose.pro-catalyst-course-memory.json`. The existing base release remains `/opt/salemax/releases/training-pipeline-correction-v3-9867ca72-20261104`; the app image remains `sha256:753d77d421b3160872df0812e7b38505a1db7104cdb9d6c8b17415b2420de667`. The release adds one Compose input (322 total), uses 11 environment inputs and 284 app mounts, preserves the existing non-app services, and runs no migration.
+
+The Pro Catalyst Hybrid profile was read before and after activation: contextual AI enabled, rollout 100%, AI data-processing confirmation enabled, revision 22; the existing greeting and staff relay/short-code settings were unchanged. Contextual replies now cover every eligible direct QR and Meta customer chat on this profile; the earlier recipient allowlist pilot no longer restricts this enabled 100% rollout. Group chats remain outside the direct-customer route.
+
+The existing pipeline lead `qualification_data` now retains a durable, deduplicated `courseInterestHistory` without an arbitrary course-count cap, including first/last enquiry timestamps. The course identified in the latest enquiry becomes `primaryCourseCode`/`primaryCourseName`; earlier interests remain in the history. Existing saved scalar course interests are folded into the history as leads next enter the capture path. The AI context receives the current primary course and up to 20 recent historical interests, while deterministic guards prevent a new “which course?” prompt when a course is already selected. A short thank-you after course details receives a courtesy acknowledgement, and “not now”/later replies do not restart discovery. These changes require no extra model call for those courtesy/decline turns. Existing history is not backfilled by replaying every archived chat.
+
+Verification: all four mounted runtime hashes matched the pushed source; the app reports healthy with zero restarts; public `https://crm.salemax.qa/healthz` returned HTTP 200; the release confirmed unchanged support-service identities and unchanged Pro Catalyst profile settings. JavaScript syntax checks, deployment-helper AST parsing and `git diff --check` passed. No automated test suite, paid AI request or WhatsApp customer message was run. A new real customer reply is still needed for owner acceptance of the wording and end-to-end course continuity.
+
+| Mounted runtime file | SHA-256 |
+|---|---|
+| `modules/platform/chatbot-runtime.js` | `c501a73a69ae378a5c166b031ea312b38ee3510488159380fc188a35413145b9` |
+| `modules/platform/chatbot-lead-capture.js` | `d0762064a8d905f67e5db4e4bde6ccd325a9f9f5b2dd0fcfd138c318a01741bf` |
+| `modules/platform/chatbot-turn-understanding.js` | `1c0969d95e1cf29f2124d6a07943e913e2d546b9e46af46dda0e1b7599080bca` |
+| `modules/platform/chatbot-business-context.js` | `e8e195df40fcd42c5368c42247d11ae3cc9155f8ed20083a27361b10e0dd3a30` |
+
+Protected rollback snapshot: `/opt/salemax/shared/rollback-pro-catalyst-course-memory-f9e2dea3820a-20261123T085737Z`. If this remains the latest app overlay, restore the previous Compose chain under the production lock with:
+
+```sh
+sudo -n /opt/salemax/shared/with-production-lock.sh python3 /opt/salemax/releases/pro-catalyst-course-memory-f9e2dea3820a-20261123T085737Z/deploy/pro-catalyst-course-memory-release.py restore /opt/salemax/shared/rollback-pro-catalyst-course-memory-f9e2dea3820a-20261123T085737Z
+```
+
+Rollback is app-only; there is no migration or database rollback. The full 42-ticket upgrade remains in progress.
