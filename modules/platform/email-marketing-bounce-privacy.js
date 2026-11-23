@@ -97,7 +97,7 @@ async function migrateLegacyBounces(pool,key){
           FROM sx_email_suppressions WHERE reason='bounce' ORDER BY tenant_id,normalized_email LIMIT 25 FOR UPDATE`);
         const providerRows=rows.length?[]:await db.query(`SELECT r.tenant_id AS tenantId,r.recipient_email AS email
           FROM sx_email_campaign_recipients r
-          WHERE r.recipient_email<>'' AND r.email_fingerprint IS NOT NULL
+          WHERE r.recipient_email<>''
             AND EXISTS (SELECT 1 FROM sx_email_provider_events e
               WHERE e.tenant_id=r.tenant_id AND e.campaign_id=r.campaign_id AND e.recipient_id=r.id AND e.event_type='Bounce')
           ORDER BY r.tenant_id,r.campaign_id,r.id LIMIT 25 FOR UPDATE`).then(result=>result[0]);

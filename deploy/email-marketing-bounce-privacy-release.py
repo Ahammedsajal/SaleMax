@@ -76,11 +76,11 @@ PREVIOUS_RUNTIME_SHA256 = {
 }
 ACTIVE_BOUNCE_RUNTIME_SHA256 = {
     'modules/platform/email-marketing.js': 'fac470911b3ae6d19c10a14952ced7d690dbabc275ffdb94370e3a7cddeb4458',
-    'modules/platform/email-marketing-events.js': 'bdea64f55fa9a63b9fda873209cb7a8a2542e17861b526aaf49f0548f6f6be59',
+    'modules/platform/email-marketing-events.js': 'e4731e4afae0877a0d61a596919c9a5e309d33ad17fe6c9b128a5aa82dfd6245',
     'modules/platform/email-marketing-router.js': '52c1b518a0496dac2caae39fa8d5803cde6a75fb8726e77b5825849cc604ddbb',
     'modules/platform/email-marketing-worker.js': 'a697ff8cf7c675c631d716dc0368b85bfae58a5de27f85e15fc96420388209a7',
     'modules/platform/email-marketing-inbox.js': 'c64ba55bcc10785ce4188d4e0b273748e771fb7fc5dd998c43e9b93e7f3905ef',
-    'modules/platform/email-marketing-bounce-privacy.js': 'bbd6e309a54107a585370b6ce075c62f61862d8b2e282457b7c084671f443e9d',
+    'modules/platform/email-marketing-bounce-privacy.js': 'd02f327d21f6528ccff7214d19bf260270f97a623e4ff4ab616dfc1ab83b4ea0',
     'modules/platform/phonebook-workspace.js': '81e5dcefc4d6bcf26f47a728764abb4bc0ede7f236c8b02c24238d9c436fd095',
     'modules/platform/phonebook-workspace-router.js': '3d9a1b2c1eb09d7ecc1d114f5b2c3f51132f073679fe463588ad181af0279d16',
     'modules/platform/mount-existing-upgrade.js': 'd9eaaf6f98f7e91bac065d43540d519f2b4dd48643ddd05b0c738c11afb54e27',
@@ -88,6 +88,7 @@ ACTIVE_BOUNCE_RUNTIME_SHA256 = {
     'client/public/email-marketing-workspace.js': '8d0e2760a6b0ad31f908f5908aba3e841695c7ddf05d5f8c1f059fdae96dd326',
     'client/public/index.html': '40e4769e6db964913202b9b9cd6bacad7ead84089641d856fe1265bf81caaa0b',
     'database/migrations/20270209_email_bounce_privacy.sql': 'aa36341fed23a59ca8e4c9d2b17f1b0bf22167b13e1dbd334bdc346f5cd1d84b',
+    'database/migrations/20270210_email_bounce_transient_privacy.sql': 'c0ac4c3652b6343025dc2c87b4c9b1e021581cf47d950a027468ff4b954ba31d',
 }
 MINIMUM_FREE_BYTES = 4 * 1024**3
 
@@ -732,15 +733,20 @@ def deploy_all_bounces(stage_path, commit):
         actual = run('docker', 'exec', APP, 'sha256sum', '/app/' + name).split()[0]
         if actual != expected:
             raise RuntimeError('Active Email Marketing runtime differs from the reviewed baseline: ' + name)
-    if container_has(BOUNCE_MIGRATION):
-        raise RuntimeError('Transient bounce migration path already exists in the active app')
     schema = schema_state()
     if (schema.get('tables') != 1 or schema.get('columns') != 2 or len(schema.get('ledger') or []) != 1 or
             schema['ledger'][0].get('status') != 'applied' or
             schema['ledger'][0].get('checksum') != ACTIVE_BOUNCE_RUNTIME_SHA256[MIGRATION]):
         raise RuntimeError('Current bounce privacy schema differs from the reviewed preimage')
-    if transient_bounce_schema_state().get('ledger'):
-        raise RuntimeError('Transient bounce privacy migration is already recorded')
+    existing_transient_schema = transient_bounce_schema_state()
+    existing_transient_rows = existing_transient_schema.get('ledger') or []
+    if existing_transient_rows:
+        row = existing_transient_rows[0] if len(existing_transient_rows) == 1 else {}
+        if (len(existing_transient_rows) != 1 or row.get('status') != 'applied' or
+                row.get('checksum') != ACTIVE_BOUNCE_RUNTIME_SHA256[BOUNCE_MIGRATION] or
+                int(row.get('statement_count', 0)) != int(row.get('statements_completed', -1)) or
+                "'Transient'" not in str(existing_transient_schema.get('bounceType') or '')):
+            raise RuntimeError('Transient bounce migration ledger differs from the reviewed baseline')
     before_audit = privacy_audit()
     before = json.loads(run(*(compose_args(files, env_files, workdir) + ['config', '--format', 'json']), env=env))
     verify_live_compose_app(app, before)
