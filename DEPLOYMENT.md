@@ -5472,3 +5472,28 @@ Verification: app health is `healthy` with zero restarts; `https://crm.salemax.q
 No database rollback applies. The full 42-ticket upgrade remains in progress.
 
 Post-release retention check for `pwa-install-dashboard-1fecadba41b6-20261123T093444Z`: the host helper dry-run found 302 release directories, zero eligible directories and zero estimated reclaimable bytes; six running containers were considered. No release cleanup was applied.
+
+## 7Network install control moved to the final business-sidebar row — production, 23 November 2026
+
+Source commit `ce3cc7179167a1bec5f631869e552623fa0461de` is pushed to `Ahammedsajal/SaleMax` `main`. The floating install bubble is removed. On the signed-in `/user` workspace, `Install 7Network` is now the final row in **More Tools**, after Business Profile. The row uses the existing dashboard navigation permission key and calls the browser's native install API or its captured install prompt from a real button click. The browser still requires the user to accept installation. It does not appear on the public or login route. The manifest remains `id: /user`, `start_url: /user?page=dashboard`, and `display: standalone`.
+
+The app-only overlay is `/opt/salemax/releases/pwa-install-sidebar-ce3cc7179167-20261123T101734Z/compose.pwa-install-sidebar.json`, layered over the prior PWA install overlay and base `/opt/salemax/releases/training-pipeline-correction-v3-9867ca72-20261104`. The app image remained `sha256:753d77d421b3160872df0812e7b38505a1db7104cdb9d6c8b17415b2420de667`; the active Compose chain has 324 inputs, 11 environment-file inputs and 286 app mounts. Only the app service was recreated. Four non-app service identities remained unchanged. No image build, migration, database/customer-data update, or public-homepage change occurred.
+
+The live pre-deploy `training-sidebar.js` hash was `d6d7c73eaa14e7da4fcde58c887b9253a9a7c773b5dcb493f747f0093b5b18d4`, and differed from current Git: it included production-only Retail & Inventory navigation and Cash reconciliation. The release helper patches that exact production asset's identity, label and ordering hooks, preserving those live entries, rather than mounting the older checkout version. The generated production index was also patched in place to bump cache references; its other live content was retained.
+
+Protected rollback snapshot `/opt/salemax/shared/rollback-pwa-install-sidebar-ce3cc7179167-20261123T101734Z` has mode `0700` and records pre-deploy runtime hashes, Compose inputs, app identity, manifest and service identities. If this remains the latest app overlay, restore the prior dashboard-install overlay under the production lock:
+
+```sh
+sudo -n /opt/salemax/shared/with-production-lock.sh python3 /opt/salemax/releases/pwa-install-sidebar-ce3cc7179167-20261123T101734Z/deploy/pwa-user-dashboard-sidebar-install-release.py restore /opt/salemax/shared/rollback-pwa-install-sidebar-ce3cc7179167-20261123T101734Z
+```
+
+Verification: the app is `healthy` with zero restarts; `/healthz`, `/user?page=dashboard`, `/user/login`, and all three cache-busted install/sidebar assets returned HTTP 200. The public homepage returned HTTP 200 and does not load the PWA bundle. The served manifest launches `/user?page=dashboard`. The production asset hashes are:
+
+| Mounted runtime file | SHA-256 |
+|---|---|
+| `client/public/index.html` (production-derived shell) | `217567253e1d5315325b3c6e0d48b3f68a90d84e2159f5067df114fd2bcf1f3a` |
+| `client/public/training-sidebar.js` (production-derived with install-row handling) | `335b14840e619a3c4918fb339ba6854a06eeae67c805d37108f2e99bc18f3fef` |
+| `client/public/pwa-install.css` | `b51d248ba8feac140e3f6ba7b0d5c6c8501ba47bcb4ca25c6de87dbdef11037a` |
+| `client/public/pwa-install.js` | `c96e492dc723e4f069b5dcbb92e12c7d399b3a760d44fad7228e937e069f778c` |
+
+Signed-in Edge accessibility review on the business workspace showed `Install 7Network` as the final sidebar row after Business Profile; no floating install button appeared in the accessibility tree. The source JavaScript and release helper passed syntax checks and `git diff --check`; no automated suite ran. The native install prompt was not opened or accepted; mobile, Arabic and dark-theme visual acceptance remain open. The post-release retention dry-run found 303 release directories, zero eligible and zero reclaimable bytes; no cleanup was applied. No database rollback applies. The full 42-ticket upgrade remains in progress.
