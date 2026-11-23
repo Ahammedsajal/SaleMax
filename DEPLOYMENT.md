@@ -5388,3 +5388,26 @@ Source `f965f992499c2a4b80f6d4ee8937b3efee5480c9`; app-only overlay `/opt/salema
 Public health HTTP 200, runtime hash verified, support service identities unchanged. Four staff-control tests passed. A synthetic ownerless parser check and a synthetic control insert plus duplicate update under a rolled-back transaction passed against MariaDB. Live phone-to-Inbox verification is pending. Messages lost before this release are not recovered.
 
 Live verification following the staff-pause SQL repair: an operator-sent phone text appeared as an outgoing human message in the existing direct chat and became its latest message. The chat's QR instance matched the active connected QR. This verified WhatsApp event ingestion and Inbox data attribution for the operator's account. A Pro Catalyst manager-phone message and its 24-hour chatbot pause remain a separate device acceptance gate.
+
+## 23 November 2026 — Pro Catalyst contextual AI test pilot
+
+Runtime source commit `59bc03ce544359029236f7261179cbf83538a53b`; guarded profile switch helper commit `f06da6163c6e83642c2f15e9202cb5e241f21bc6`, both pushed to `Ahammedsajal/SaleMax` `main`. App-only overlay `/opt/salemax/releases/pro-catalyst-conversation-quality-59bc03ce9bcd-20261123T032732Z` on base `/opt/salemax/releases/training-pipeline-correction-v3-9867ca72-20261104`, image `sha256:753d77d421b3160872df0812e7b38505a1db7104cdb9d6c8b17415b2420de667`. No schema migration ran. Pro Catalyst profile revision 22 enables `contextualAiPilot` for the existing intersection of six approved test/allowed QR phone numbers; unresolved LID identities do not enter the pilot. The profile change does not alter the allowlists, provider, credentials, greeting or other tenants.
+
+**Provenance correction:** the release helper was accidentally passed `59bc03ce9bcd181842307cc25838f39964a65f1c` as its label; that string appears in the directory and result JSON and is not the source commit. The staged assets came from `git archive` of the actual commit above. Their five SHA-256 hashes were independently matched against that commit's files and the running container. Retain the original directory name and the helper's original result for auditability.
+
+| Mounted runtime file | SHA-256 |
+|---|---|
+| `modules/platform/chatbot-runtime.js` | `0afa9ecc64ed6c6af092ad6e6fabaa7440b343b6602b655badc74b952cd5e14d` |
+| `modules/platform/chatbot-handoff-claims.js` | `6907f83de6bd41e06baa83fbf770e4cee0dad9200ce6d07c4eebe0778d964fce` |
+| `modules/platform/chatbot-config.js` | `b38e4b7067e59dca73c9ed8395621e15cc74a6c9f00c1c8655883f5e667562ac` |
+| `modules/platform/chatbot-provider.js` | `7f9e6673a240b4d2a068ba1f8f3073fdf6967b7ad40b90a55389e43ecbe8054c` |
+| `modules/platform/chatbot-turn-understanding.js` | `0171a6bde053f78e101867de1c3d1fa55a788c936c0b163b656cea0b163019bb` |
+
+The guarded release preserved the existing Compose inputs and support-service identities. App health was healthy with zero restarts after rollout and public health returned HTTP 200. The live profile was read back enabled with six eligible numbers. Synthetic previews using the installed code and configured provider returned a polite acknowledgement, respected “Not now,” and returned the verified MS Office fee; a synthetic unapproved phone was rejected by the audience check. No WhatsApp messages were sent in verification. The 275 focused local tests passed. A 50-chat model replay accepted 36 proposals and rejected 14 via safety checks; acceptance is not a relevance or accuracy score. Full inbound-to-delivery pilot validation, the redacted held-out relevance review, and real Pro Catalyst manager-phone takeover remain open. See `docs/PRO_CATALYST_CONTEXTUAL_BOT_EVALUATION.md`.
+
+Protected rollback snapshot: `/opt/salemax/shared/rollback-pro-catalyst-conversation-quality-59bc03ce9bcd-20261123T032732Z`. First restore the profile flag using its compare-and-set revision guard (if the profile has changed since activation, reconcile the current setting manually instead of overwriting later changes), then restore the prior overlay only if no later overlays are active:
+
+```sh
+sudo -n /opt/salemax/shared/with-production-lock.sh python3 /opt/salemax/releases/pro-catalyst-conversation-quality-59bc03ce9bcd-20261123T032732Z/deploy/pro-catalyst-contextual-pilot.py restore /opt/salemax/shared/rollback-pro-catalyst-conversation-quality-59bc03ce9bcd-20261123T032732Z
+sudo -n /opt/salemax/shared/with-production-lock.sh python3 /opt/salemax/releases/pro-catalyst-conversation-quality-59bc03ce9bcd-20261123T032732Z/deploy/pro-catalyst-conversation-quality-release.py restore /opt/salemax/shared/rollback-pro-catalyst-conversation-quality-59bc03ce9bcd-20261123T032732Z
+```

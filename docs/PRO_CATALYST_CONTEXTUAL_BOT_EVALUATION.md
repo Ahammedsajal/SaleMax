@@ -1,6 +1,6 @@
 # Pro Catalyst contextual chatbot: candidate evaluation
 
-Status: development candidate; the new `contextualAiPilot` setting is not enabled in production. The tests below do not establish production readiness or customer-reply quality across all conversations.
+Status: enabled in production for the six previously approved QR test numbers only, as requested by the owner on 23 November 2026. The tests below do not establish customer-reply quality across all conversations. Unverified WhatsApp LIDs do not qualify for the test path.
 
 The candidate asks the configured AI provider to propose an action and reply from a bounded conversation history, the selected course, pending contact questions, and current approved business facts. Server code validates proposed sources and prices, preserves manual or claimed handoffs, and retains control of sends and state changes. It suppresses legacy intake prompts after a contextual AI reply. A pending, unclaimed callback can be resumed without cancelling its staff task. The candidate is restricted to QR phone identities that match both the test and allowed recipient lists; unresolved WhatsApp LIDs do not qualify.
 
@@ -16,4 +16,4 @@ The candidate asks the configured AI provider to propose an action and reply fro
 1. Review a redacted held-out replay for relevance and accuracy, including course switches, mixed intents, replies to callbacks, refusals, fragmented messages, and Arabic. Investigate rejected proposals and verify fallback quality; do not treat validation acceptance as answer quality.
 2. Run integration tests against a disposable database and a mocked WhatsApp channel, including the full inbound handler, verified pilot audience, handoff ownership, customer-message races, and duplicate delivery behavior.
 3. Verify real manager-phone text and voice-note takeover and the pilot channel end to end. Confirm that callbacks remain actionable and that customers are not promised a call before a request is actually recorded.
-4. Enable only the approved test audience after the agreed quality target is met; record the release, monitoring and rollback evidence in `DEPLOYMENT.md`. General rollout requires a separate explicit decision and production evidence.
+4. Review test-audience results against the agreed quality target before general rollout. Release and rollback evidence is in `DEPLOYMENT.md`; general rollout requires a separate explicit decision and production evidence.
