@@ -4,6 +4,7 @@ const plans=require('./plans');
 const assignment=require('./business-contract-assignment');
 const legacy=require('./legacy-plan-assignment');
 const catalogue=require('./catalogue-bridge');
+const standardOffers=require('./standard-plan-offers');
 const {normalize:normalizeLegacyPlan}=require('./legacy-plan-editor');
 const {platformDecision}=require('./policy');
 const {trainingCenter,salemaxSales,getCategory,categoryKeysFor,categoryKeyMatches,canonicalCategoryKey}=require('./categories');
@@ -81,11 +82,16 @@ async function context(db,ctx,userId,{locked=false,categoryKey='training_center'
   if(category.key===salemaxSales.key&&normalizedEmail!=='admin@salemax.qa')fail('DESIGNATED_OWNER_REQUIRED');
   const [[identity]]=await db.query('SELECT id FROM sx_identities WHERE email_normalized=?'+suffix,[normalizedEmail]);if(identity)fail('BUSINESS_IDENTITY_EXISTS');
   const categoryKeys=categoryKeysFor(category.key);
-  const [[version]]=await db.query(`SELECT v.id,v.version,v.category_key AS categoryKey,v.category_version AS categoryVersion,v.capabilities,v.role_limits AS roleLimits,
+  let [[version]]=await db.query(`SELECT v.id,v.version,v.category_key AS categoryKey,v.category_version AS categoryVersion,v.capabilities,v.role_limits AS roleLimits,
       c.legacy_plan_id AS legacyPlanId,c.commercial_snapshot AS commercialSnapshot,c.commercial_hash AS commercialHash
     FROM sx_legacy_plan_contracts c JOIN sx_plan_versions v ON v.id=c.version_id
     WHERE c.legacy_plan_id=? AND v.status='published' AND v.category_key IN (${categoryKeys.map(()=>'?').join(',')}) AND v.category_version=?
     ORDER BY v.version DESC LIMIT 1${suffix}`,[Number(current.plan.id),...categoryKeys,category.version]);
+  if(version){
+    const commercial=typeof version.commercialSnapshot==='string'?JSON.parse(version.commercialSnapshot):version.commercialSnapshot;
+    const [[cataloguePlan]]=await db.query('SELECT * FROM plan WHERE id=?',[Number(current.plan.id)]);
+    if(!cataloguePlan||!standardOffers.matchesCurrent(commercial,cataloguePlan))version=null;
+  }
   if(!version){
     if(!allowMissingContract)fail('PUBLISHED_CONTRACT_REQUIRED');
     const snapshot={id:user.id,uidHash:hash(user.uid),name:user.name,email:normalizedEmail,plan:current.plan,expiresAt:user.plan_expire};

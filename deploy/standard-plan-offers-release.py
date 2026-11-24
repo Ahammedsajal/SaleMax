@@ -20,7 +20,9 @@ DB = 'salemax-db-1'
 EXPECTED_IMAGE = 'sha256:753d77d421b3160872df0812e7b38505a1db7104cdb9d6c8b17415b2420de667'
 FILES = ('modules/platform/existing-business-router.js',
          'modules/platform/business-contract-assignment.js',
-         'modules/platform/standard-plan-offers.js')
+         'modules/platform/standard-plan-offers.js',
+         'modules/platform/business-provisioning.js',
+         'modules/platform/catalogue-bridge.js')
 HELPER = 'deploy/standard-plan-offers-release.py'
 MINIMUM_FREE_BYTES = 4 * 1024**3
 

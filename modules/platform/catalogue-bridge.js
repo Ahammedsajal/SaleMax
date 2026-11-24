@@ -64,4 +64,35 @@ async function publish(db,ctx,input){
     return {id:input.versionId,status:'published',revision:input.revision+1};
   });
 }
-module.exports={snapshot,createDraft,list,updateDraft,publish};
+function sameDefinition(version,definition){
+  const capabilities=parse(version.capabilities),roleLimits=parse(version.roleLimits);
+  return Array.isArray(capabilities)&&JSON.stringify([...capabilities].sort())===JSON.stringify(definition.capabilities)&&
+    roleLimits&&definition.category.seatRoles.every(role=>Number(roleLimits[role])===definition.roleLimits[role]);
+}
+async function ensureDefaultPublished(db,ctx,input){
+  authorize(ctx,'plans.draft');authorize(ctx,'plans.publish');
+  const legacyPlanId=id(input?.legacyPlanId),category=require('./categories').getCategory(input.categoryKey,input.categoryVersion);
+  if(!category?.planable)fail('CATEGORY_UNAVAILABLE');plans.authorizeCategory(ctx,category);
+  const definition=plans.definition({categoryKey:category.key,categoryVersion:category.version,capabilities:input.capabilities,roleLimits:input.roleLimits});
+  const [[catalogueRow]]=await db.query('SELECT * FROM plan WHERE id=?',[legacyPlanId]);if(!catalogueRow)fail('PLAN_NOT_FOUND');
+  const expectedHash=hash(JSON.stringify(snapshot(catalogueRow)));
+  if(typeof input.expectedCommercialHash!=='string'||input.expectedCommercialHash!==expectedHash)fail('STALE_PLAN');
+  const versions=await list(db,ctx,legacyPlanId,category.key,category.version);
+  const matching=versions.find(version=>version.commercialHash===expectedHash&&sameDefinition(version,definition));
+  if(matching?.status==='published')return {id:matching.id,version:Number(matching.version),status:'published',existing:true};
+  let draft=matching?.status==='draft'?matching:null;
+  if(!draft){
+    draft=await createDraft(db,ctx,{legacyPlanId,categoryKey:category.key,categoryVersion:category.version,
+      capabilities:definition.capabilities,roleLimits:definition.roleLimits,requestId:crypto.randomUUID()});
+  }
+  if(draft.commercialHash&&draft.commercialHash!==expectedHash)fail('STALE_PLAN');
+  try{return await publish(db,ctx,{legacyPlanId,versionId:draft.id,revision:Number(draft.revision)});}
+  catch(error){
+    if(!['PUBLISHED_PLAN_IMMUTABLE','STALE_REVISION'].includes(error.code))throw error;
+    const latest=await list(db,ctx,legacyPlanId,category.key,category.version);
+    const published=latest.find(version=>version.status==='published'&&version.commercialHash===expectedHash&&sameDefinition(version,definition));
+    if(!published)throw error;
+    return {id:published.id,version:Number(published.version),status:'published',existing:true};
+  }
+}
+module.exports={snapshot,createDraft,list,updateDraft,publish,ensureDefaultPublished};
