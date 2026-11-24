@@ -2,6 +2,7 @@
 
 const {normalizeEmail}=require('./email-marketing');
 const bouncePrivacy=require('./email-marketing-bounce-privacy');
+const reconciliation=require('./email-marketing-reconciliation');
 
 const EVENT_TYPES=new Set(['Bounce','Complaint','Delivery','Send','Reject','Rendering Failure','DeliveryDelay','Subscription','Open','Click']);
 const UUID=/^[-0-9a-f]{36}$/i;
@@ -84,6 +85,11 @@ async function persist(pool,{envelope,event,key}){
     if(matched){
       await db.query('UPDATE sx_email_provider_events SET tenant_id=?,campaign_id=?,recipient_id=? WHERE sns_message_id=?',
         [matched.tenant_id,matched.campaign_id,matched.id,snsId]);
+      if(type==='Send'||type==='Delivery'){
+        const timestamp=type==='Delivery'?event?.delivery?.timestamp:event?.mail?.timestamp;
+        const parsedAt=timestamp?new Date(timestamp):null,confirmedAt=parsedAt&&!Number.isNaN(parsedAt.getTime())?parsedAt:null;
+        await reconciliation.reconcileConfirmedRecipient(db,{tenantId:matched.tenant_id,campaignId:matched.campaign_id,recipientId:matched.id,providerMessageId:messageId,confirmedAt});
+      }
     }
     await db.commit();
     return {accepted:true,duplicate:false,processed:Boolean(matched),eventType:type};

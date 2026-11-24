@@ -8,6 +8,7 @@ const providerSettings=require('./email-marketing-provider-settings');
 const inboxMessaging=require('./email-marketing-inbox');
 const inbound=require('./email-marketing-inbound');
 const emailContent=require('./email-marketing-content');
+const emailReconciliation=require('./email-marketing-reconciliation');
 const workerId=`email-${os.hostname().replace(/[^A-Za-z0-9._:-]/g,'-').slice(0,60)}-${process.pid}`;
 const id=()=>crypto.randomUUID();
 const interval=5000,leaseSeconds=180;
@@ -17,7 +18,10 @@ async function claim(pool,{limit=8,now=new Date()}={}){
   try{
     await db.beginTransaction();
     await db.query("UPDATE sx_email_campaigns SET status='queued' WHERE status='scheduled' AND scheduled_at<=UTC_TIMESTAMP(3)");
+    const [expiredRows]=await db.query("SELECT tenant_id AS tenantId,campaign_id AS campaignId FROM sx_email_campaign_recipients WHERE status='sending' AND lease_expires_at<=UTC_TIMESTAMP(3)");
     await db.query("UPDATE sx_email_campaign_recipients SET status='unknown',lease_owner=NULL,lease_expires_at=NULL,last_error_code='DELIVERY_OUTCOME_UNKNOWN' WHERE status='sending' AND lease_expires_at<=UTC_TIMESTAMP(3)");
+    const expiredCampaigns=new Map(expiredRows.map(row=>[`${row.tenantId}:${row.campaignId}`,row]));
+    for(const campaign of expiredCampaigns.values())await emailReconciliation.reconcileCampaignFromEvents(db,campaign.tenantId,campaign.campaignId);
     const [rows]=await db.query(`SELECT r.id,r.tenant_id AS tenantId,r.campaign_id AS campaignId,r.contact_id AS contactId,r.recipient_email AS recipientEmail,
       r.normalized_email AS normalizedEmail,r.attempt_count AS attemptCount,c.subject,c.text_body AS textBody,c.design_json AS designJson,c.status AS campaignStatus,
       s.id AS senderId,s.email AS senderEmail,s.verification_status AS senderStatus,d.region,d.domain,d.verification_status AS domainStatus,d.dkim_status AS dkimStatus,
@@ -143,7 +147,7 @@ async function dispatch(pool,item,{key,origin,send=ses.sendSimple,providerCache=
     if(code==='SES_THROTTLED')return finish(pool,item,{status:'retry',errorCode:code,delaySeconds:Math.min(300,15*2**Math.min(item.attempt-1,4))});
     if(code==='SES_DAILY_QUOTA_REACHED'||code==='SES_SENDING_DISABLED')return finish(pool,item,{status:'retry',errorCode:code,delaySeconds:300});
     if(Number(status)>=400&&Number(status)<500)return finish(pool,item,{status:'failed',errorCode:code});
-    return finish(pool,item,{status:'unknown',errorCode:'DELIVERY_OUTCOME_UNKNOWN'});
+    return finish(pool,item,{status:'unknown',errorCode:'DELIVERY_OUTCOME_UNKNOWN',subject,text});
   }
 }
 
@@ -154,16 +158,22 @@ async function finish(pool,item,result){
     await db.beginTransaction();
     const [[row]]=await db.query('SELECT status,lease_owner FROM sx_email_campaign_recipients WHERE tenant_id=? AND campaign_id=? AND id=? FOR UPDATE',[item.tenantId,item.campaignId,item.id]);
     if(!row||row.status!=='sending'||row.lease_owner!==item.workerId){await db.commit();return {status:'stale'};}
+    if(result.status==='unknown'){
+      const [[confirmation]]=await db.query(`SELECT MAX(provider_message_id) AS providerMessageId,MIN(created_at) AS confirmedAt FROM sx_email_provider_events
+        WHERE tenant_id=? AND campaign_id=? AND recipient_id=? AND event_type IN ('Send','Delivery')`,[item.tenantId,item.campaignId,item.id]);
+      if(confirmation?.confirmedAt)result={...result,status:'accepted',errorCode:null,providerMessageId:confirmation.providerMessageId,confirmedAt:confirmation.confirmedAt};
+    }
     if(result.status==='retry'){
       await db.query("UPDATE sx_email_campaign_recipients SET status='pending',available_at=DATE_ADD(UTC_TIMESTAMP(3),INTERVAL ? SECOND),lease_owner=NULL,lease_expires_at=NULL,last_error_code=? WHERE tenant_id=? AND campaign_id=? AND id=?",[Math.min(3600,Math.max(30,Number(result.delaySeconds)||60)),String(result.errorCode||'SES_RETRY').slice(0,64),item.tenantId,item.campaignId,item.id]);
     }else{
       const status=result.status==='accepted'?'accepted':result.status==='suppressed'?'suppressed':result.status==='unknown'?'unknown':'failed';
-      await db.query('UPDATE sx_email_campaign_recipients SET status=?,lease_owner=NULL,lease_expires_at=NULL,last_error_code=?,provider_message_id=?,accepted_at=IF(?=\'accepted\',UTC_TIMESTAMP(3),NULL) WHERE tenant_id=? AND campaign_id=? AND id=?',[status,result.errorCode||null,result.providerMessageId||null,status,item.tenantId,item.campaignId,item.id]);
-      if(status==='accepted'){
+      await db.query('UPDATE sx_email_campaign_recipients SET status=?,lease_owner=NULL,lease_expires_at=NULL,last_error_code=?,provider_message_id=?,accepted_at=IF(?=\'accepted\',COALESCE(?,UTC_TIMESTAMP(3)),NULL) WHERE tenant_id=? AND campaign_id=? AND id=?',[status,result.errorCode||null,result.providerMessageId||null,status,result.confirmedAt||null,item.tenantId,item.campaignId,item.id]);
+      if(typeof result.text==='string'&&(status==='accepted'||status==='unknown')){
         const threadId=id();
         const [[recipient]]=await db.query('SELECT recipient_email,recipient_name,contact_id FROM sx_email_campaign_recipients WHERE tenant_id=? AND campaign_id=? AND id=?',[item.tenantId,item.campaignId,item.id]);
         await db.query('INSERT INTO sx_email_threads(id,tenant_id,campaign_id,recipient_id,contact_id,recipient_email,recipient_name,subject,last_message_at) VALUES(?,?,?,?,?,?,?,?,UTC_TIMESTAMP(3))',[threadId,item.tenantId,item.campaignId,item.id,recipient.contact_id,recipient.recipient_email,recipient.recipient_name,result.subject||item.subject]);
-        await db.query("INSERT INTO sx_email_messages(tenant_id,thread_id,direction,subject,text_body,provider_message_id,sent_at) VALUES(?,?,'outbound',?,?,?,UTC_TIMESTAMP(3))",[item.tenantId,threadId,result.subject||item.subject,result.text||item.textBody,result.providerMessageId||null]);
+        const deliveryStatus=status==='unknown'?'uncertain':null,lastErrorCode=status==='unknown'?(result.errorCode||'DELIVERY_OUTCOME_UNKNOWN'):null,sentAt=status==='accepted'?(result.confirmedAt||new Date()):null;
+        await db.query("INSERT INTO sx_email_messages(tenant_id,thread_id,direction,sender_email,subject,text_body,provider_message_id,delivery_status,last_error_code,sent_at) VALUES(?,?,'outbound',?,?,?,?,?,?,?)",[item.tenantId,threadId,item.senderEmail,result.subject||item.subject,result.text||item.textBody,result.providerMessageId||null,deliveryStatus,lastErrorCode,sentAt]);
       }
     }
     const [[counts]]=await db.query(`SELECT SUM(status='pending') AS pending,SUM(status='sending') AS sending,SUM(status='accepted') AS accepted,

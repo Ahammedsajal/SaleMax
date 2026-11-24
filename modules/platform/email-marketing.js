@@ -6,6 +6,7 @@ const providerSettings=require('./email-marketing-provider-settings');
 const inbound=require('./email-marketing-inbound');
 const emailContent=require('./email-marketing-content');
 const bouncePrivacy=require('./email-marketing-bounce-privacy');
+const emailReconciliation=require('./email-marketing-reconciliation');
 const fail=(code,status=400)=>{throw Object.assign(Error(code),{code,status});};
 const uuid=()=>crypto.randomUUID();
 const sha=value=>crypto.createHash('sha256').update(String(value)).digest('hex');
@@ -528,6 +529,7 @@ async function campaignDetail(db,ctx,id,query={}){
     WHERE c.tenant_id=? AND c.id=?`,[ctx.tenantId,id]);if(!campaign)fail('EMAIL_CAMPAIGN_NOT_FOUND',404);
 
   const eventsJoin=`LEFT JOIN (SELECT tenant_id,campaign_id,recipient_id,
+      MAX(event_type='Send') AS sentEvent,
       MAX(event_type='Delivery') AS delivered,MIN(IF(event_type='Delivery',created_at,NULL)) AS deliveredAt,
       MAX(event_type='Open') AS opened,MIN(IF(event_type='Open',created_at,NULL)) AS openedAt,
       MAX(event_type='Click') AS clicked,MIN(IF(event_type='Click',created_at,NULL)) AS clickedAt,
@@ -553,7 +555,10 @@ async function campaignDetail(db,ctx,id,query={}){
       SUM(COALESCE(ev.bounced,0)=0 AND r.status<>'failed' AND COALESCE(ev.rejected,0)=0 AND r.status='suppressed') AS outcomeSuppressed,
       SUM(COALESCE(ev.bounced,0)=0 AND r.status<>'failed' AND COALESCE(ev.rejected,0)=0 AND r.status<>'suppressed' AND COALESCE(ev.delivered,0)>0) AS outcomeDelivered,
       SUM(COALESCE(ev.bounced,0)=0 AND r.status<>'failed' AND COALESCE(ev.rejected,0)=0 AND r.status<>'suppressed' AND COALESCE(ev.delivered,0)=0 AND r.status='accepted') AS outcomeSent,
-      SUM(COALESCE(ev.bounced,0)=0 AND r.status<>'failed' AND COALESCE(ev.rejected,0)=0 AND r.status<>'suppressed' AND COALESCE(ev.delivered,0)=0 AND r.status<>'accepted') AS outcomeInProgress
+      SUM(COALESCE(ev.bounced,0)=0 AND r.status<>'failed' AND COALESCE(ev.rejected,0)=0 AND r.status<>'suppressed' AND COALESCE(ev.delivered,0)=0 AND r.status<>'accepted') AS outcomeInProgress,
+      SUM(r.status='unknown') AS unknownCount,
+      SUM(r.status='unknown' AND (COALESCE(ev.sentEvent,0)>0 OR COALESCE(ev.delivered,0)>0)) AS unknownConfirmedCount,
+      SUM(r.status='unknown' AND COALESCE(ev.delivered,0)>0) AS unknownDeliveredCount
     FROM sx_email_campaign_recipients r ${eventsJoin} ${repliesJoin}
     WHERE r.tenant_id=? AND r.campaign_id=?`,[...rollupParams,ctx.tenantId,id]);
   const summary=Object.fromEntries(Object.entries(rawSummary||{}).map(([key,value])=>[key,Number(value||0)]));
@@ -584,6 +589,7 @@ async function campaignDetail(db,ctx,id,query={}){
       CASE WHEN COALESCE(ev.bounced,0)>0 THEN 'bounced'
         WHEN r.status='failed' OR COALESCE(ev.rejected,0)>0 THEN 'failed'
         WHEN r.status='suppressed' THEN 'suppressed'
+        WHEN r.status='unknown' THEN 'unknown'
         WHEN COALESCE(ev.delivered,0)>0 THEN 'delivered'
         WHEN r.status='accepted' THEN 'sent'
         WHEN r.status='unknown' THEN 'unknown'
@@ -595,6 +601,17 @@ async function campaignDetail(db,ctx,id,query={}){
     WHERE x.tenant_id=? AND x.campaign_id=? ORDER BY a.file_name`,[ctx.tenantId,id]);
   return {...campaign,summary,recipients:recipients.map(row=>({...row,replyCount:Number(row.replyCount||0)})),attachments,
     pagination:{page:currentPage,limit,total,pages},filters:{search,status:selectedStatus}};
+}
+
+async function reconcileCampaign(db,ctx,id){
+  emailMarketingAccess(ctx.context);if(typeof id!=='string'||!/^[-0-9a-f]{36}$/i.test(id))fail('INVALID_EMAIL_CAMPAIGN_ID');
+  const [[campaign]]=await db.query('SELECT id FROM sx_email_campaigns WHERE tenant_id=? AND id=?',[ctx.tenantId,id]);if(!campaign)fail('EMAIL_CAMPAIGN_NOT_FOUND',404);
+  await db.beginTransaction();
+  try{
+    const result=await emailReconciliation.reconcileCampaignFromEvents(db,ctx.tenantId,id);
+    if(result.reconciled)await audit(db,ctx,'email.campaign.ses-outcomes-reconciled','email-campaign',id,{reconciled:result.reconciled,unresolved:result.unresolved});
+    await db.commit();return result;
+  }catch(error){try{await db.rollback();}catch{}throw error;}
 }
 
 async function analytics(db,ctx,requestedDays=30){
