@@ -1,3 +1,25 @@
+## 2026-11-24 — Pro Catalyst AI centre-visit intent — production
+
+Source commit `86e087721846c38e9508b3bb45b9e3f925a394f9` is pushed to `Ahammedsajal/SaleMax` `main` and deployed under the production lock in app-only overlay `/opt/salemax/releases/pro-catalyst-center-visit-signal-86e087721846-20261124T091657Z/compose.pro-catalyst-center-visit-signal.json`, on base `/opt/salemax/releases/training-pipeline-correction-v3-9867ca72-20261104`. The image remains `sha256:753d77d421b3160872df0812e7b38505a1db7104cdb9d6c8b17415b2420de667`. The Compose chain now has 332 inputs, 11 environment-file inputs and 288 app mounts. All seven non-app containers remained unchanged; the app returned healthy with zero restarts and MariaDB passed its healthy preflight. No migration or production lead/customer record was changed by deployment.
+
+Eligible training-centre chats now use the existing GPT contextual turn when the latest inbound may report a visit, even if broader contextual mode is disabled for that profile. The same model call reads recent conversation and saved course context, drafts the reply and proposes structured lead signals. The server records a customer-reported centre visit, raises an open lead to High priority and moves it from New to Interested when the model identifies likely class-start intent and automation is not paused. It preserves later stages and closed leads. A visit is never treated as confirmed enrolment, payment or attendance. The update is tenant-scoped, stores a hashed event key instead of the raw message, and requires no database migration.
+
+| Runtime file | Previous live SHA-256 | Deployed SHA-256 |
+|---|---|---|
+| `modules/platform/chatbot-runtime.js` | `fe19ba3e5b2009b55995c0505ae9b5594adca56dd8b4c79f8f6dde836937bac2` | `a4ed90d204e37283d1e99162e36ecbead47931ef183a00025f1154590dbf278c` |
+| `modules/platform/chatbot-turn-understanding.js` | `14439a8410a739c19eff99c16acd88a3f61a65d8b796a6826e316f997eabaa3f` | `fdb7a47f45ab7fb8b4c2da2d66c1b273f6597455e9e85369b7ef017c597598bd` |
+| `modules/platform/chatbot-lead-capture.js` | `d0762064a8d905f67e5db4e4bde6ccd325a9f9f5b2dd0fcfd138c318a01741bf` | `c72fb74e178e572ad4f5f32c3915a2eb7bd1f2a55314e1d1d4be17eca294d8c3` |
+
+The guarded release verified the exact live preimages, source hashes, Compose inputs and protected rollback snapshot `/opt/salemax/shared/rollback-pro-catalyst-center-visit-signal-86e087721846-20261124T091657Z`. JavaScript/Python syntax and whitespace checks passed. `/healthz` and the Manage Users shell returned HTTP 200; runtime hashes matched the commit. No WhatsApp test message was sent, so natural-language acceptance for an organic visit report remains open.
+
+Restore only if this remains the latest app overlay; restore any later app overlay first:
+
+```sh
+sudo -n /opt/salemax/shared/with-production-lock.sh python3 /opt/salemax/releases/pro-catalyst-center-visit-signal-86e087721846-20261124T091657Z/deploy/pro-catalyst-center-visit-signal-release.py restore /opt/salemax/shared/rollback-pro-catalyst-center-visit-signal-86e087721846-20261124T091657Z
+```
+
+No database rollback applies. The broader 42-ticket application upgrade remains in progress.
+
 # 2026-11-23 — Email Marketing legacy bounce cleanup backfill — production
 
 Source commit `2f902bef884af382172dcc7995c5c76cfec2cae9` is pushed to `Ahammedsajal/SaleMax` `main` and deployed under the production lock as app-only overlay `/opt/salemax/releases/email-marketing-all-bounce-suppression-2f902bef884a-20261123T054618Z/compose.email-marketing-all-bounce-suppression.json`, on the existing base release `/opt/salemax/releases/training-pipeline-correction-v3-9867ca72-20261104`. It updates the active bounce-privacy runtime and appends the 321st Compose input. The app image remains `sha256:753d77d421b3160872df0812e7b38505a1db7104cdb9d6c8b17415b2420de667`; 11 environment inputs and seven non-app containers were preserved. The app is healthy with zero restarts; MariaDB is healthy.
