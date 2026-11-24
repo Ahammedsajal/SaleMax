@@ -21,8 +21,7 @@ EXPECTED_IMAGE = 'sha256:753d77d421b3160872df0812e7b38505a1db7104cdb9d6c8b17415b
 FILES = ('modules/platform/existing-business-router.js',
          'modules/platform/business-contract-assignment.js',
          'modules/platform/standard-plan-offers.js',
-         'modules/platform/business-provisioning.js',
-         'modules/platform/catalogue-bridge.js')
+         'modules/platform/business-provisioning.js')
 HELPER = 'deploy/standard-plan-offers-release.py'
 MINIMUM_FREE_BYTES = 4 * 1024**3
 
@@ -161,7 +160,7 @@ def git_bytes(source, spec):
     return result.stdout if result.returncode == 0 else None
 
 
-def stage(source_root, stage_path, commit):
+def stage(source_root, stage_path, commit, preimage_commit=None):
     if not re.fullmatch(r'[a-f0-9]{40}', commit):
         raise RuntimeError('Invalid source commit')
     source = Path(source_root).resolve()
@@ -170,9 +169,12 @@ def stage(source_root, stage_path, commit):
         raise RuntimeError('Stage path exists or is inside source checkout')
     if run('git', '-C', str(source), 'rev-parse', 'HEAD').strip() != commit:
         raise RuntimeError('Checkout does not match requested source commit')
-    parent = run('git', '-C', str(source), 'rev-parse', f'{commit}^').strip()
+    preimage = preimage_commit or run('git', '-C', str(source), 'rev-parse', f'{commit}^').strip()
+    if not re.fullmatch(r'[a-f0-9]{40}', preimage):
+        raise RuntimeError('Invalid production preimage commit')
+    run('git', '-C', str(source), 'cat-file', '-e', f'{preimage}^{{commit}}')
     destination.mkdir(mode=0o700, parents=True)
-    manifest = {'sourceCommit': commit, 'parentCommit': parent, 'files': {}, 'preimages': {}}
+    manifest = {'sourceCommit': commit, 'preimageCommit': preimage, 'files': {}, 'preimages': {}}
     try:
         for name in FILES:
             path = source / name
@@ -181,7 +183,7 @@ def stage(source_root, stage_path, commit):
             data = path.read_bytes()
             if data != git_bytes(source, f'{commit}:{name}'):
                 raise RuntimeError('Source differs from committed file: ' + name)
-            old = git_bytes(source, f'{parent}:{name}')
+            old = git_bytes(source, f'{preimage}:{name}')
             manifest['files'][name] = sha(data)
             manifest['preimages'][name] = sha(old) if old is not None else None
             output = destination / 'source' / name
@@ -408,12 +410,14 @@ def restore(backup_path):
 def main(args):
     if len(args) == 4 and args[0] == 'stage':
         stage(args[1], args[2], args[3])
+    elif len(args) == 5 and args[0] == 'stage':
+        stage(args[1], args[2], args[3], args[4])
     elif len(args) == 3 and args[0] == 'deploy':
         deploy(args[1], args[2])
     elif len(args) == 2 and args[0] == 'restore':
         restore(args[1])
     else:
-        raise SystemExit('Usage: helper.py stage <source-root> <stage-path> <commit> | deploy <stage> <commit> | restore <rollback>')
+        raise SystemExit('Usage: helper.py stage <source-root> <stage-path> <commit> [preimage-commit] | deploy <stage> <commit> | restore <rollback>')
 
 
 if __name__ == '__main__':

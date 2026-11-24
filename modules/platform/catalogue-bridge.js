@@ -6,6 +6,11 @@ const {columns,normalize}=require('./legacy-plan-editor');
 const fail=code=>{throw Object.assign(new Error(code),{code});};
 const uuid=value=>typeof value==='string' && /^[a-f0-9]{8}-[a-f0-9]{4}-[1-5][a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/i.test(value);
 const hash=value=>crypto.createHash('sha256').update(value).digest('hex');
+function deterministicRequestId(seed){
+  const bytes=Buffer.from(hash(seed).slice(0,32),'hex');
+  bytes[6]=(bytes[6]&0x0f)|0x50;bytes[8]=(bytes[8]&0x3f)|0x80;
+  const value=bytes.toString('hex');return `${value.slice(0,8)}-${value.slice(8,12)}-${value.slice(12,16)}-${value.slice(16,20)}-${value.slice(20)}`;
+}
 function authorize(ctx,permission){if(!platformDecision(ctx,permission)||!uuid(ctx.identity?.id))fail('PERMISSION_DENIED');}
 function id(value){if(!Number.isSafeInteger(value)||value<1||value>2147483647)fail('INVALID_LEGACY_PLAN_ID');return value;}
 function snapshot(row){return Object.fromEntries(['id',...columns].map(key=>[key,row[key]]));}
@@ -64,35 +69,46 @@ async function publish(db,ctx,input){
     return {id:input.versionId,status:'published',revision:input.revision+1};
   });
 }
-function sameDefinition(version,definition){
-  const capabilities=parse(version.capabilities),roleLimits=parse(version.roleLimits);
-  return Array.isArray(capabilities)&&JSON.stringify([...capabilities].sort())===JSON.stringify(definition.capabilities)&&
-    roleLimits&&definition.category.seatRoles.every(role=>Number(roleLimits[role])===definition.roleLimits[role]);
-}
 async function ensureDefaultPublished(db,ctx,input){
   authorize(ctx,'plans.draft');authorize(ctx,'plans.publish');
-  const legacyPlanId=id(input?.legacyPlanId),category=require('./categories').getCategory(input.categoryKey,input.categoryVersion);
-  if(!category?.planable)fail('CATEGORY_UNAVAILABLE');plans.authorizeCategory(ctx,category);
-  const definition=plans.definition({categoryKey:category.key,categoryVersion:category.version,capabilities:input.capabilities,roleLimits:input.roleLimits});
-  const [[catalogueRow]]=await db.query('SELECT * FROM plan WHERE id=?',[legacyPlanId]);if(!catalogueRow)fail('PLAN_NOT_FOUND');
-  const expectedHash=hash(JSON.stringify(snapshot(catalogueRow)));
-  if(typeof input.expectedCommercialHash!=='string'||input.expectedCommercialHash!==expectedHash)fail('STALE_PLAN');
-  const versions=await list(db,ctx,legacyPlanId,category.key,category.version);
-  const matching=versions.find(version=>version.commercialHash===expectedHash&&sameDefinition(version,definition));
-  if(matching?.status==='published')return {id:matching.id,version:Number(matching.version),status:'published',existing:true};
-  let draft=matching?.status==='draft'?matching:null;
-  if(!draft){
-    draft=await createDraft(db,ctx,{legacyPlanId,categoryKey:category.key,categoryVersion:category.version,
-      capabilities:definition.capabilities,roleLimits:definition.roleLimits,requestId:crypto.randomUUID()});
-  }
-  if(draft.commercialHash&&draft.commercialHash!==expectedHash)fail('STALE_PLAN');
-  try{return await publish(db,ctx,{legacyPlanId,versionId:draft.id,revision:Number(draft.revision)});}
-  catch(error){
-    if(!['PUBLISHED_PLAN_IMMUTABLE','STALE_REVISION'].includes(error.code))throw error;
-    const latest=await list(db,ctx,legacyPlanId,category.key,category.version);
-    const published=latest.find(version=>version.status==='published'&&version.commercialHash===expectedHash&&sameDefinition(version,definition));
-    if(!published)throw error;
-    return {id:published.id,version:Number(published.version),status:'published',existing:true};
-  }
+  const legacyId=id(input?.legacyPlanId),definition=plans.definition(input);plans.authorizeCategory(ctx,definition.category);
+  const categoryKeys=require('./categories').categoryKeysFor(definition.categoryKey);
+  const commercialHash=input.expectedCommercialHash;
+  if(typeof commercialHash!=='string'||!/^[a-f0-9]{64}$/.test(commercialHash))fail('INVALID_COMMERCIAL_HASH');
+  const definitionHash=hash(JSON.stringify(definition));
+  const requestId=deterministicRequestId(JSON.stringify(['category-default-v1',legacyId,definition.categoryKey,definition.categoryVersion,commercialHash,definitionHash]));
+  return transaction(db,async()=>{
+    // Serialize contract generation against catalogue edits and other publishers.
+    const [[row]]=await db.query('SELECT * FROM plan WHERE id=? FOR UPDATE',[legacyId]);
+    if(!row)fail('PLAN_NOT_FOUND');
+    if(Object.keys(normalize(row).errors).length)fail('LEGACY_PLAN_INVALID');
+    const commercial=snapshot(row),commercialJson=JSON.stringify(commercial),currentCommercialHash=hash(commercialJson);
+    if(currentCommercialHash!==commercialHash)fail('STALE_PLAN');
+    const [[published]]=await db.query(`SELECT v.id,v.version,v.status,c.definition_hash AS definitionHash
+      FROM sx_legacy_plan_contracts c JOIN sx_plan_versions v ON v.id=c.version_id
+      WHERE c.legacy_plan_id=? AND c.commercial_hash=? AND v.category_key IN (${categoryKeys.map(()=>'?').join(',')})
+        AND v.category_version=? AND v.status='published'
+      ORDER BY v.version DESC LIMIT 1 FOR UPDATE`,[legacyId,commercialHash,...categoryKeys,definition.categoryVersion]);
+    if(published){
+      if(published.definitionHash!==definitionHash)fail('STALE_PROVISION');
+      return {id:published.id,version:Number(published.version),status:published.status,created:false};
+    }
+    let [[mapping]]=await db.query('SELECT plan_id FROM sx_legacy_plan_catalogue WHERE legacy_plan_id=? FOR UPDATE',[legacyId]);
+    if(!mapping){
+      mapping={plan_id:crypto.randomUUID()};
+      await db.query('INSERT INTO sx_plans(id,name) VALUES (?,?)',[mapping.plan_id,String(row.title).slice(0,200)]);
+      await db.query('INSERT INTO sx_legacy_plan_catalogue(legacy_plan_id,plan_id) VALUES (?,?)',[legacyId,mapping.plan_id]);
+    }
+    const [[catalogue]]=await db.query('SELECT next_version FROM sx_plans WHERE id=? FOR UPDATE',[mapping.plan_id]);
+    if(!catalogue)fail('PLAN_CATALOGUE_NOT_FOUND');
+    const versionId=crypto.randomUUID(),version=Number(catalogue.next_version);
+    await db.query(`INSERT INTO sx_plan_versions(id,plan_id,version,category_key,category_version,status,revision,capabilities,role_limits,published_at)
+      VALUES (?,?,?,?,?,'published',2,?,?,UTC_TIMESTAMP(3))`,[versionId,mapping.plan_id,version,definition.categoryKey,definition.categoryVersion,JSON.stringify(definition.capabilities),JSON.stringify(definition.roleLimits)]);
+    await db.query('UPDATE sx_plans SET next_version=next_version+1 WHERE id=?',[mapping.plan_id]);
+    await db.query('INSERT INTO sx_legacy_plan_contracts(version_id,legacy_plan_id,request_id,actor_identity_id,commercial_snapshot,commercial_hash,definition_hash) VALUES (?,?,?,?,?,?,?)',
+      [versionId,legacyId,requestId,ctx.identity.id,commercialJson,commercialHash,definitionHash]);
+    await audit(db,ctx,'legacy-plan.default-contract-published',versionId,{legacyPlanId:legacyId,categoryKey:definition.categoryKey,categoryVersion:definition.categoryVersion,version,profile:'category-default-v1'});
+    return {id:versionId,version,status:'published',created:true};
+  });
 }
 module.exports={snapshot,createDraft,list,updateDraft,publish,ensureDefaultPublished};
