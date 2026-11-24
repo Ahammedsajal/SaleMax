@@ -1,3 +1,13 @@
+# 2026-11-24 — UAE and Saudi training-provider phonebook import — production data operation
+
+No source code, app release, schema or migration changed. In the existing Sales workspace, the phonebook “UAE + Saudi Training Providers (Public Directory)” (id 241) was created and populated with 2,706 provider/branch records from the reviewed directory. The account had zero existing contacts and phonebooks; its active 100,000-contact plan allowed the import. The active base release remains /opt/salemax/releases/training-pipeline-correction-v3-9867ca72-20261104; the app image remains sha256:753d77d421b3160872df0812e7b38505a1db7104cdb9d6c8b17415b2420de667 (existing source commit 97afaaecd11c60e8cc5a924f5dd7d9b4d6f83b48).
+
+The import preserves all source columns in the phonebook fields: country, region, city, category, public emails and address, business phone, other public phone, website, named contact details, Arabic name, availability, source/notes, and company/contact LinkedIn URLs. Since email marketing is not enabled for this account, 1,913 business emails are stored as public values in custom field var5; the dedicated email column remains empty and all 2,706 marketing-consent flags remain zero. No campaign or message was created.
+
+Verification: the committed phonebook has 2,706 records, 2,338 with phone, 1,913 business emails, 642 company LinkedIn pages and 3 listed contact LinkedIn profiles; all 2,706 retain source/detail metadata. The email column is empty and consent count is zero. The account limit was rechecked inside the transaction. The app and database are healthy, app restarts remain zero, and https://7network.live/healthz returns HTTP 200. No service was deployed or restarted.
+
+Protected rollback snapshot: /opt/salemax/shared/rollback-phonebook-training-directory-20261124T074945Z (mode 0700) contains pre-import state, the restricted source payload and result counts. If rollback is required, remove only phonebook id 241 and its contacts after checking whether the user has made later edits; do not restore the database. No migration rollback applies. The broader 42-ticket upgrade remains in progress.
+
 # 2026-11-23 — Email Marketing legacy bounce cleanup backfill — production
 
 Source commit `2f902bef884af382172dcc7995c5c76cfec2cae9` is pushed to `Ahammedsajal/SaleMax` `main` and deployed under the production lock as app-only overlay `/opt/salemax/releases/email-marketing-all-bounce-suppression-2f902bef884a-20261123T054618Z/compose.email-marketing-all-bounce-suppression.json`, on the existing base release `/opt/salemax/releases/training-pipeline-correction-v3-9867ca72-20261104`. It updates the active bounce-privacy runtime and appends the 321st Compose input. The app image remains `sha256:753d77d421b3160872df0812e7b38505a1db7104cdb9d6c8b17415b2420de667`; 11 environment inputs and seven non-app containers were preserved. The app is healthy with zero restarts; MariaDB is healthy.
@@ -5447,3 +5457,99 @@ sudo -n /opt/salemax/shared/with-production-lock.sh python3 /opt/salemax/release
 ```
 
 Rollback is app-only; there is no migration or database rollback. The full 42-ticket upgrade remains in progress.
+
+
+## 7Network install control in the business dashboard — production, 23 November 2026
+
+Source commit `1fecadba41b60013137ec29e4032f6530ecb88fd` is pushed to `Ahammedsajal/SaleMax` `main`. The production-generated workspace shell now loads `pwa-install.css` and `pwa-install.js`; the JavaScript mounts the `Install 7Network` control only on the `/user` business workspace route and invokes the browser's native install API or captured install prompt from the user click. The public marketing homepage is a separate page and remains unchanged. The existing production manifest has `id: /user`, `start_url: /user?page=dashboard`, and `display: standalone`, so the installed app opens the business dashboard. The prompt remains subject to the browser's install confirmation.
+
+The app-only overlay is `/opt/salemax/releases/pwa-install-dashboard-1fecadba41b6-20261123T093444Z/compose.pwa-install-dashboard.json`, layered over base `/opt/salemax/releases/training-pipeline-correction-v3-9867ca72-20261104`. The app image remained `sha256:753d77d421b3160872df0812e7b38505a1db7104cdb9d6c8b17415b2420de667`; the active Compose chain now has 323 inputs, 11 environment-file inputs and 286 app mounts. Only the app service was recreated. Four running non-app service container identities remained unchanged. No migration, database/customer-data update, image build or public-homepage change occurred.
+
+Protected rollback snapshot `/opt/salemax/shared/rollback-pwa-install-dashboard-1fecadba41b6-20261123T093444Z` has mode `0700` and records the pre-deploy app, Compose inputs, manifest, generated workspace shell and hashes. If this remains the latest app overlay, restore the previous Compose chain under the production lock:
+
+```sh
+sudo -n /opt/salemax/shared/with-production-lock.sh python3 /opt/salemax/releases/pwa-install-dashboard-1fecadba41b6-20261123T093444Z/deploy/pwa-user-dashboard-install-release.py restore /opt/salemax/shared/rollback-pwa-install-dashboard-1fecadba41b6-20261123T093444Z
+```
+
+Verification: app health is `healthy` with zero restarts; `https://crm.salemax.qa/healthz`, `/user?page=dashboard`, `/user/login`, and both cache-busted install assets returned HTTP 200. The served CSS/JS hashes match the release. The workspace HTML includes each install reference once; the public marketing homepage does not load the install bundle. The live manifest reads `/user?page=dashboard`. Signed-in Edge review of `/user?page=dashboard` showed the `Install 7Network` button in the dashboard. The native install dialog was not opened or accepted on the live user browser; mobile-width, Arabic and dark-theme visual acceptance remain open. No email, WhatsApp message, or customer action was performed.
+
+| Mounted runtime file | SHA-256 |
+|---|---|
+| `client/public/index.html` (production-derived shell) | `4424e56891f70c42277486dd6400a0254273d65b741dc2eeb20136e10cdf5a9b` |
+| `client/public/pwa-install.css` | `3ea8219412a9cbcd39b7a40abb8437e1d3c9f8a331aebb97c04049d1ea76953f` |
+| `client/public/pwa-install.js` | `23f63b9ad6e0f6bca44609779d10d2db44163c637c1626d2f738de8a6b2429f6` |
+
+No database rollback applies. The full 42-ticket upgrade remains in progress.
+
+Post-release retention check for `pwa-install-dashboard-1fecadba41b6-20261123T093444Z`: the host helper dry-run found 302 release directories, zero eligible directories and zero estimated reclaimable bytes; six running containers were considered. No release cleanup was applied.
+
+## 7Network install control moved to the final business-sidebar row — production, 23 November 2026
+
+Source commit `ce3cc7179167a1bec5f631869e552623fa0461de` is pushed to `Ahammedsajal/SaleMax` `main`. The floating install bubble is removed. On the signed-in `/user` workspace, `Install 7Network` is now the final row in **More Tools**, after Business Profile. The row uses the existing dashboard navigation permission key and calls the browser's native install API or its captured install prompt from a real button click. The browser still requires the user to accept installation. It does not appear on the public or login route. The manifest remains `id: /user`, `start_url: /user?page=dashboard`, and `display: standalone`.
+
+The app-only overlay is `/opt/salemax/releases/pwa-install-sidebar-ce3cc7179167-20261123T101734Z/compose.pwa-install-sidebar.json`, layered over the prior PWA install overlay and base `/opt/salemax/releases/training-pipeline-correction-v3-9867ca72-20261104`. The app image remained `sha256:753d77d421b3160872df0812e7b38505a1db7104cdb9d6c8b17415b2420de667`; the active Compose chain has 324 inputs, 11 environment-file inputs and 286 app mounts. Only the app service was recreated. Four non-app service identities remained unchanged. No image build, migration, database/customer-data update, or public-homepage change occurred.
+
+The live pre-deploy `training-sidebar.js` hash was `d6d7c73eaa14e7da4fcde58c887b9253a9a7c773b5dcb493f747f0093b5b18d4`, and differed from current Git: it included production-only Retail & Inventory navigation and Cash reconciliation. The release helper patches that exact production asset's identity, label and ordering hooks, preserving those live entries, rather than mounting the older checkout version. The generated production index was also patched in place to bump cache references; its other live content was retained.
+
+Protected rollback snapshot `/opt/salemax/shared/rollback-pwa-install-sidebar-ce3cc7179167-20261123T101734Z` has mode `0700` and records pre-deploy runtime hashes, Compose inputs, app identity, manifest and service identities. If this remains the latest app overlay, restore the prior dashboard-install overlay under the production lock:
+
+```sh
+sudo -n /opt/salemax/shared/with-production-lock.sh python3 /opt/salemax/releases/pwa-install-sidebar-ce3cc7179167-20261123T101734Z/deploy/pwa-user-dashboard-sidebar-install-release.py restore /opt/salemax/shared/rollback-pwa-install-sidebar-ce3cc7179167-20261123T101734Z
+```
+
+Verification: the app is `healthy` with zero restarts; `/healthz`, `/user?page=dashboard`, `/user/login`, and all three cache-busted install/sidebar assets returned HTTP 200. The public homepage returned HTTP 200 and does not load the PWA bundle. The served manifest launches `/user?page=dashboard`. The production asset hashes are:
+
+| Mounted runtime file | SHA-256 |
+|---|---|
+| `client/public/index.html` (production-derived shell) | `217567253e1d5315325b3c6e0d48b3f68a90d84e2159f5067df114fd2bcf1f3a` |
+| `client/public/training-sidebar.js` (production-derived with install-row handling) | `335b14840e619a3c4918fb339ba6854a06eeae67c805d37108f2e99bc18f3fef` |
+| `client/public/pwa-install.css` | `b51d248ba8feac140e3f6ba7b0d5c6c8501ba47bcb4ca25c6de87dbdef11037a` |
+| `client/public/pwa-install.js` | `c96e492dc723e4f069b5dcbb92e12c7d399b3a760d44fad7228e937e069f778c` |
+
+Signed-in Edge accessibility review on the business workspace showed `Install 7Network` as the final sidebar row after Business Profile; no floating install button appeared in the accessibility tree. The source JavaScript and release helper passed syntax checks and `git diff --check`; no automated suite ran. The native install prompt was not opened or accepted; mobile, Arabic and dark-theme visual acceptance remain open. The post-release retention dry-run found 303 release directories, zero eligible and zero reclaimable bytes; no cleanup was applied. No database rollback applies. The full 42-ticket upgrade remains in progress.
+
+## 7Network Super Admin business category correction — production, 24 November 2026
+
+Source commit `07949f177bfcfb0a0ce7e9ccf3147b32bc94c8cc` is pushed to `Ahammedsajal/SaleMax` `main`. It adds an in-place category-change flow for linked business accounts in Super Admin > Manage Users > Edit User. The administrator selects a target category, reviews preserved account/plan/expiry details, feature access and active team limits, then explicitly confirms. It preserves the existing login, workspace and records, requires the target category's published contract to match the current plan price and term, and blocks changes that exceed team limits or use unsupported roles. The existing business-contract editor remains separate. No category was changed during deployment or verification.
+
+The app-only overlay is `/opt/salemax/releases/business-category-change-07949f177bfc-20261124T060207Z/compose.business-category-change.json`, layered over `/opt/salemax/releases/training-pipeline-correction-v3-9867ca72-20261104`. The image remained `sha256:753d77d421b3160872df0812e7b38505a1db7104cdb9d6c8b17415b2420de667`. Only the app service was recreated; seven support-service identities were unchanged. No migration, user/account mutation or plan assignment ran. The release preserves production-only business activation and contract modules synced into this source before the feature was layered.
+
+The first rollout automatically rolled back when its release probe expected an anonymous API request to return 401/403, while the application correctly returns HTTP 200 with a JSON sign-in rejection. The rollback restored the original three runtime files and health remained good. The probe was corrected to validate the rejection payload; the successful second rollout is the active overlay above. Its protected pre-deploy snapshot is `/opt/salemax/shared/rollback-business-category-change-07949f177bfc-20261124T060207Z`. If this remains the latest app overlay, restore it under the production lock with:
+
+```sh
+sudo -n /opt/salemax/shared/with-production-lock.sh python3 /opt/salemax/releases/business-category-change-07949f177bfc-20261124T060207Z/deploy/business-category-change-release.py restore /opt/salemax/shared/rollback-business-category-change-07949f177bfc-20261124T060207Z
+```
+
+Verification: `/healthz`, the Manage Users shell and cache-busted editor script returned HTTP 200. The anonymous category API probe returned the expected JSON sign-in rejection. The public script hash matched the deployed asset, and the app was healthy with zero restarts. Signed-in Edge accessibility inspection showed the linked-account category selector, separate “Review category change” and “Manage business contract” actions, and the independent “Update User” control. On the open `7network-Sales` account, the currently assigned category read back as `7Network Sales · v1`; choosing that same category is a no-op. A different category must be selected, reviewed, and explicitly confirmed. No actual account category was changed for acceptance. JavaScript syntax, deployment-helper AST parsing and `git diff --check` passed; no automated suite was run.
+
+| Mounted runtime file | SHA-256 |
+|---|---|
+| `client/public/admin-user-plans.js` | `bb14bde1446836a2889d7d4abcfeea5b73dbd025c51dc4c6dfb77e07134f7da3` |
+| `modules/platform/business-category-change.js` | `d5d8965f5d960f1354f52d760d01d0859e4dee26b17aab48f85d181ce73d0e6c` |
+| `modules/platform/existing-business-router.js` | `3ca16224d493d7fb301472aeed7669201212cda780e02a3f1881489b27f2517b` |
+| `client/public/index.html` (production-derived shell) | `ad7eec324b0aa40d9c3a35d32b4d6a7e9da766202be113d01cbd088978ee86cf` |
+
+## 7Network business category correction review — production, 24 November 2026
+
+Source commit `c73fcb0acda869b49f9a83ee5e4a72b56e62d24d` is pushed to `Ahammedsajal/SaleMax` `main`. It corrects the category-change preview so a different published target-category price or term does not block correcting the category for an already-paid period. The preview reads the assigned historical plan snapshot and checks that it still matches the legacy account plan and expiry. The category update preserves that current plan, price and expiry, account login, workspace and records. The published target-category price remains visible and applies only when a new plan is assigned later; this flow does not bill or assign a new plan. Team, owner, role, published-contract, permission, stale-state and audit safeguards remain active.
+
+The app-only overlay is `/opt/salemax/releases/business-category-change-terms-c73fcb0acda8-20261124T063828Z/compose.business-category-change-terms.json`. It is layered over the existing production app chain; the app image remained `sha256:753d77d421b3160872df0812e7b38505a1db7104cdb9d6c8b17415b2420de667`. It introduced no migration and changed no business account. Its protected snapshot is `/opt/salemax/shared/rollback-business-category-change-terms-c73fcb0acda8-20261124T063828Z`.
+
+Live Manage Users review then exposed localized category titles rendered as `[object Object]`. Source commit `79a67283545c9ebee33913bb95d544c79d1987d9` adds language-aware title rendering and bumps the cache reference; it is also pushed to `main`. The follow-up app-only overlay `/opt/salemax/releases/business-category-change-terms-79a67283545c-20261124T064647Z/compose.business-category-change-terms.json` is the active overlay, layered after the terms correction above. It kept the same app image, 327 Compose inputs, 11 environment inputs and 287 app mounts; all seven non-app containers remained unchanged. No migration or business-account update ran.
+
+The protected rollback snapshot for the active follow-up is `/opt/salemax/shared/rollback-business-category-change-terms-79a67283545c-20261124T064647Z`. If this remains the latest app overlay, restore it under the production lock with:
+
+```sh
+sudo -n /opt/salemax/shared/with-production-lock.sh python3 /opt/salemax/releases/business-category-change-terms-79a67283545c-20261124T064647Z/deploy/business-category-change-terms-release.py restore /opt/salemax/shared/rollback-business-category-change-terms-79a67283545c-20261124T064647Z
+```
+
+Verification: the app remained healthy with zero restarts on the existing image; `/healthz`, the Manage Users shell and the cache-busted editor asset returned HTTP 200, and the served script hash matched the release. The anonymous preview API returned the expected sign-in rejection. The production runtime hashes are:
+
+| Mounted runtime file | SHA-256 |
+|---|---|
+| `client/public/admin-user-plans.js` | `9e67b6936eb54512b95992f235fc8de94c162608f8423df7caa82b04f9e1ebcd` |
+| `modules/platform/business-category-change.js` | `e00d015d6d72a94c7e7498baaf77158932e7178d37988e6a0464e1e55dc2e2d6` |
+| `modules/platform/existing-business-router.js` | `3ca16224d493d7fb301472aeed7669201212cda780e02a3f1881489b27f2517b` |
+| `client/public/index.html` (production shell with category editor cache reference) | `0a62432e5e926f8cf09e1e732b72c1017ef605f45695f281dc8d0c9237bcb6a6` |
+
+Signed-in Edge review on the account showed that the category preview now allows confirmation when the target contract price differs, while displaying the current paid terms and the target contract separately. The account category was not confirmed or changed. The localized title correction was then deployed and its served asset/hash verified; refresh Manage Users to load that final asset before opening the review. JavaScript syntax and `git diff --check` passed; no automated suite ran. No database rollback applies.
