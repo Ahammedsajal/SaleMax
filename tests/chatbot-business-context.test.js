@@ -1,7 +1,7 @@
 'use strict';
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { controlRoute, isScheduleQuestion, hasPublishedSchedule, courseDetailNeedsCoordinator, trainingCenterCoordinatorReason, publishedDurationRange, retrieveContext, validateAnswer, languageFor, fingerprint, previewState, simpleFactualReply, unavailableReply, isCourseOverviewRequest, shouldSkipApprovedFaq, isGenericAdInterest, shouldClarifyGenericCourseInterest, courseDiscoveryReply, isBareCourseSelection, publishedTrainingReply, recentAssistantCourseCode } = require('../modules/platform/chatbot-business-context');
+const { controlRoute, isScheduleQuestion, hasPublishedSchedule, courseDetailNeedsCoordinator, trainingCenterCoordinatorReason, publishedDurationRange, retrieveContext, recentCustomerCourseCode, validateAnswer, languageFor, fingerprint, previewState, simpleFactualReply, unavailableReply, isCourseOverviewRequest, shouldSkipApprovedFaq, isGenericAdInterest, shouldClarifyGenericCourseInterest, courseDiscoveryReply, isBareCourseSelection, publishedTrainingReply, recentAssistantCourseCode } = require('../modules/platform/chatbot-business-context');
 const facts = [
  { courseId:'english',code:'ENG',nameEn:'Business English',nameAr:'الإنجليزية للأعمال',descriptionEn:'English communication for work and presentations',descriptionAr:'التواصل باللغة الإنجليزية في العمل والعروض',durationValue:8,durationUnit:'weeks',offer:{priceAmount:'350.00',registrationFeeAmount:'25.00',currency:'QAR'},batches:[{startsOn:'2026-11-15',seatsAvailable:7}] },
  { courseId:'excel',code:'EXCEL',nameEn:'Excel Essentials',nameAr:'أساسيات إكسل',descriptionEn:'Practical spreadsheets and office skills',descriptionAr:'مهارات الجداول والحاسوب المكتبية',offer:{priceAmount:'250.00',currency:'QAR'},batches:[] },
@@ -467,4 +467,36 @@ test('a published zero course fee remains a valid amount', () => {
     ? { ...course, offer: { currency: 'QAR', priceAmount: 0, registrationFeeAmount: 0 } } : course);
   const context = retrieveContext({ facts: freeCourses, message: 'How much?', state: { selectedCourseCode: 'ENG' } });
   assert.match(simpleFactualReply('How much?', context).reply, /0 QAR/);
+});
+
+test('an incidental office visit keeps Marine Deckhand selected and cannot trigger MS Office', () => {
+  const courses = [
+    { code: 'MARINE', nameEn: 'Marine Deckhand', descriptionEn: 'Entry-level maritime operations' },
+    { code: 'PCAT-MS-OFFICE', nameEn: 'Computer Skills Training – MS Office Application', descriptionEn: 'Word, Excel and workplace computing' },
+  ];
+  const context = retrieveContext({ facts: courses, message: 'I already visited your office', state: { selectedCourseCode: 'MARINE' } });
+  assert.equal(context.selectedCourseCode, 'MARINE');
+  assert.equal(context.explicitCourses, 0);
+  assert.deepEqual(context.evidence.filter(item => item.kind === 'course').map(item => item.code), ['MARINE']);
+  assert.equal(retrieveContext({ facts: courses, message: 'What is the MS Office fee?' }).selectedCourseCode, 'PCAT-MS-OFFICE');
+});
+
+test('handoff course recovery uses the latest course the customer named, not a bot poster or an incidental office mention', () => {
+  const courses = [
+    { code: 'MARINE', nameEn: 'Marine Deckhand', descriptionEn: 'Entry-level maritime operations' },
+    { code: 'PCAT-MS-OFFICE', nameEn: 'Computer Skills Training – MS Office Application', descriptionEn: 'Word, Excel and workplace computing' },
+  ];
+  const history = [
+    { role: 'user', text: 'Tell me about Marine Deckhand.' },
+    { role: 'assistant', text: 'Marine Deckhand course details.' },
+    { role: 'assistant', text: 'Which course are you interested in—Marine Deckhand, or another course?' },
+    { role: 'user', text: 'I already visited your office.' },
+    { role: 'assistant', text: 'Computer Skills Training – MS Office Application details.' },
+  ];
+  assert.equal(recentCustomerCourseCode(history, courses), 'MARINE');
+});
+
+test('already-joined payment and sign-in messages route to a human specialist', () => {
+  assert.equal(controlRoute('I already joined. Today will be payment for sign in', config, {}, facts), 'handoff');
+  assert.equal(controlRoute('I al ready joined', config, {}, facts), 'handoff');
 });

@@ -348,7 +348,9 @@ async function buildHandoffBrief(db, { ctx, profile, uid, chatId, channelKind, c
       const [[session]] = await db.query(`SELECT state FROM sx_chatbot_guided_sessions WHERE tenant_id=? AND profile_id=? AND channel_kind=?
         AND channel_ref=? AND conversation_id=? LIMIT 1`, [ctx.tenant.id, profile.id, channelKind, channelRef]).catch(() => [[]]);
       try { const state = typeof session?.state === 'string' ? JSON.parse(session.state) : session?.state; selectedCourseCode = state?.selectedCourseCode || null; } catch {}
-      const matched = businessContext.retrieveContext({ facts: courses, message: inbound.map(turn => turn.text).join('\n'), state: { selectedCourseCode } });
+      const recentCustomerCourse = businessContext.recentCustomerCourseCode(transcript, courses);
+      const matched = businessContext.retrieveContext({ facts: courses, message: latestEnquiry,
+        state: { selectedCourseCode: recentCustomerCourse || selectedCourseCode } });
       courseDetails = (matched.evidence || []).filter(item => item.kind === 'course').slice(0, 3).map(item => ({ code: item.code, nameEn: item.name, nameAr: courses.find(course => course.code === item.code)?.nameAr || '' }));
     }
     return {
@@ -1118,20 +1120,37 @@ async function generateAiAnswer({ ctx, profile, uid, customerMessage, chatId = n
   };
   onStage?.('course-facts');
   const facts = factsOverride || await loadFacts();
+  let persistedHistory = Array.isArray(historyOverride) && historyOverride.length ? historyOverride : null;
   let session = state || (chatId ? await loadDomainGuidedSession({ ctx, profile, chatId, channelKind, channelRef }) : null) || {};
   const courseCertificates = ctx.category.key === 'training_center';
   if (courseCertificates && session.selectedCourseCode
     && !facts.some(item => !item.kind && item.code === session.selectedCourseCode)) {
     session = { ...session, selectedCourseCode: null };
   }
+  // Repair stale course selections from the customer's own recent messages.
+  // Assistant copy can mention a wrong course; it must never outrank the
+  // latest course the customer explicitly asked about.
+  if (courseCertificates && uid && chatId && channelKind) {
+    persistedHistory ||= await loadConversationHistory({ uid, chatId,
+      origin: channelKind === 'whatsapp_qr' ? 'qr' : channelKind === 'whatsapp_meta' ? 'meta' : null,
+      currentMessage: customerMessage });
+    const recentCustomerCourse = businessContext.recentCustomerCourseCode(persistedHistory, facts);
+    if (recentCustomerCourse) {
+      const course = facts.find(item => !item.kind && item.code === recentCustomerCourse);
+      session = { ...session, selectedCourseCode: recentCustomerCourse,
+        primaryCourseName: course?.nameEn || course?.nameAr || session.primaryCourseName,
+        waitingForCourse: false, pendingQuestion: 'none' };
+    }
+  }
   if (courseCertificates) {
     const incomingCourse = businessContext.retrieveContext({ facts, message: customerMessage, state: session, referral });
     const explicitCourseCode = incomingCourse.explicitCourses > 0 || incomingCourse.courseContextSource === 'meta_referral'
       ? incomingCourse.selectedCourseCode : null;
+    const recentCustomerCourse = businessContext.recentCustomerCourseCode(persistedHistory, facts);
     const savedCourse = facts.find(item => !item.kind && item.code === leadInfo?.primaryCourseCode)
       || facts.find(item => !item.kind && [item.nameEn, item.nameAr, item.code]
         .some(name => name && businessContext.normalized(name) === businessContext.normalized(leadInfo?.primaryCourseName || leadInfo?.courseInterest || '')));
-    const selectedCourseCode = explicitCourseCode || savedCourse?.code || session.selectedCourseCode || null;
+    const selectedCourseCode = explicitCourseCode || recentCustomerCourse || savedCourse?.code || session.selectedCourseCode || null;
     const selectedCourse = facts.find(item => !item.kind && item.code === selectedCourseCode);
     session = {
       ...session,
@@ -1304,8 +1323,7 @@ async function generateAiAnswer({ ctx, profile, uid, customerMessage, chatId = n
       metrics: { inputTokens: 0, outputTokens: 0, cacheHit: false, sources: context.sources },
     };
   }
-  const persistedHistory = Array.isArray(historyOverride) && historyOverride.length
-    ? historyOverride : await loadConversationHistory({ uid, chatId, origin: channelKind === 'whatsapp_qr' ? 'qr' : channelKind === 'whatsapp_meta' ? 'meta' : null, currentMessage: customerMessage });
+  persistedHistory ||= await loadConversationHistory({ uid, chatId, origin: channelKind === 'whatsapp_qr' ? 'qr' : channelKind === 'whatsapp_meta' ? 'meta' : null, currentMessage: customerMessage });
   const conversationHistory = persistedHistory.length ? persistedHistory : session.recentConversation;
   if (persistedHistory.length) {
     session = { ...session, recentConversation: persistedHistory };
@@ -1349,6 +1367,7 @@ async function generateAiAnswer({ ctx, profile, uid, customerMessage, chatId = n
         provider, settings, tenantId: ctx.tenant.id, text: customerMessage,
         history: historySafe, state: { ...session, ...(contactProgress || {}) }, context,
         showFees: profile.config?.guidedContent?.display?.showFees !== false,
+        staffNotificationQueued,
       });
       if (!result.ok) {
         response = result.usage;
@@ -1548,7 +1567,7 @@ async function identifyCourse({ ctx, profile, facts, message, state, referral, r
   if (diplomaCandidates.length > 1) return { clarify: true, family: 'diploma', candidates: diplomaCandidates };
   const normalizedMessage = businessContext.normalized(message);
   if (!normalizedMessage || admissions.acknowledgement(message, context.language)) return null;
-  const topicWords = normalizedMessage.split(' ').filter(word => word.length >= 4 && !/^(?:what|when|more|about|this|that|please|want|need|does|would|could|training|course|learn)$/.test(word));
+  const topicWords = businessContext.courseMatchTokens(normalizedMessage);
   const topicMatch = topicWords.some(word => courses.some(course => course.code !== state.selectedCourseCode &&
     [course.nameEn, course.nameAr, course.descriptionEn, course.descriptionAr, course.outcomesEn, course.outcomesAr]
       .some(copy => businessContext.normalized(copy || '').split(' ').includes(word))));
@@ -1758,7 +1777,18 @@ async function aiTurn({ ctx, profile, uid, message, user, sessionId, origin, cha
   let handoffReasonForTurn = null;
   if (answer.staffNotificationQueued) {
     handoffReasonForTurn = answer.handoffReason || 'course-details-need-coordinator';
-    answer.reply = await draftContactAssistant({ ctx, leadInfo, mode: 'handoff', handoffQueued: true });
+    const courseCode = answer.state?.selectedCourseCode || leadInfo?.primaryCourseCode || null;
+    const selectedCourse = (leadInfo?.facts || []).find(item => !item.kind && item.code === courseCode);
+    const courseName = selectedCourse
+      ? (leadInfo?.language === 'ar' ? selectedCourse.nameAr || selectedCourse.nameEn : selectedCourse.nameEn || selectedCourse.nameAr)
+      : answer.state?.primaryCourseName || leadInfo?.primaryCourseName || null;
+    const currentStudentReply = require('./chatbot-turn-understanding').existingLearnerHandoffReply({
+      text: incomingText, language: leadInfo?.language || businessContext.languageFor(incomingText), courseName,
+    });
+    if (currentStudentReply) answer.reply = currentStudentReply;
+    else if (typeof answer.reply !== 'string' || !answer.reply.trim()) {
+      answer.reply = await draftContactAssistant({ ctx, leadInfo, mode: 'handoff', handoffQueued: true });
+    }
   } else if (qatarCallbackClaim?.id) {
     handoffReasonForTurn = 'qatar-coordinator-callback';
     const callbackReply = await draftContactAssistant({ ctx, leadInfo, mode: 'handoff',

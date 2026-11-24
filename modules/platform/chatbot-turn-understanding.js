@@ -2,7 +2,7 @@
 
 // Interpret a turn without sending messages or changing CRM or handoff state.
 // All model output is a proposal for the runtime to validate against live data.
-const { redactCustomerText, validateAnswer } = require('./chatbot-business-context');
+const { normalized, redactCustomerText, validateAnswer } = require('./chatbot-business-context');
 
 const ACTIONS = new Set(['answer', 'clarify', 'acknowledge', 'decline', 'defer', 'request_staff', 'no_reply']);
 const QUESTIONS = new Set(['none', 'course', 'name', 'callback_number', 'callback_consent', 'other']);
@@ -34,6 +34,7 @@ const SYSTEM = [
   'When a detail is missing, say you cannot confirm it and offer a useful clarification. Do not repeat a customer’s phone number or other private details.',
   'Answer the current question naturally and concisely. Ask at most one relevant question.',
   'When the customer thanks you after receiving details, acknowledge them without restarting discovery. If they say not now or they will return later, respect their decision and do not ask another question.',
+  'If staffNotificationQueued is true, it is safe to say the team has received the enquiry. Acknowledge the customer’s actual message and current-student status; do not replace it with a generic callback script or ask for a name, course, or phone number already present in context.',
   'Use primaryCourseName and selectedCourseCode as the customer’s current course. Use courseInterestHistory only when the customer refers to an older interest or asks to compare courses. When one current course is clear, answer follow-ups about it without asking which course they mean. Change the primary course only when the customer clearly asks about a different course; retain prior interests.',
   'Respect a refusal or request to speak later. Do not restart a conversation because the customer says hello again.',
   'Do not claim a person has been notified or a callback arranged unless the server says so.',
@@ -42,7 +43,7 @@ const SYSTEM = [
   'A phone number alone is not permission to call. If a course is ambiguous ask which one.',
 ].join(' ');
 
-function buildRequest({ text, history = [], state = {}, context = {}, showFees = true }) {
+function buildRequest({ text, history = [], state = {}, context = {}, showFees = true, staffNotificationQueued = false }) {
   const turns = history.filter(item => item && ['user', 'assistant'].includes(item.role) && typeof item.text === 'string')
     .slice(-8).map(item => ({ role: item.role, text: redactCustomerText(item.text).slice(0, 400) }));
   const evidence = [];
@@ -59,6 +60,7 @@ function buildRequest({ text, history = [], state = {}, context = {}, showFees =
     text: redactCustomerText(String(text || '')).slice(0, 2000),
     history: turns,
     lastQuestion: null,
+    staffNotificationQueued: staffNotificationQueued === true,
     selectedCourseCode: typeof state.selectedCourseCode === 'string' ? state.selectedCourseCode.slice(0, 100) : null,
     primaryCourseName: typeof state.primaryCourseName === 'string' ? state.primaryCourseName.slice(0, 180) : null,
     courseInterestHistory: (Array.isArray(state.courseInterestHistory) ? state.courseInterestHistory : [])
@@ -78,6 +80,30 @@ function buildRequest({ text, history = [], state = {}, context = {}, showFees =
   const lastTurn = request.history.at(-1);
   request.lastQuestion = lastTurn?.role === 'assistant' && /[?؟]/u.test(lastTurn.text) ? lastTurn.text : null;
   return request;
+}
+
+function isExistingLearnerUpdate(text) {
+  const value = normalized(text);
+  return /\b(?:already|al ready)\s+(?:joined|enrolled|registered|started)\b|\bi\s+(?:(?:have|ve)\s+)?(?:already\s+)?(?:joined|enrolled|registered|started)\b|\bi\s+m\s+(?:already\s+)?(?:a\s+)?(?:student|learner)\b|\bi\s+am\s+(?:already\s+)?(?:a\s+)?(?:student|learner)\b|\bcurrent student\b/u.test(value);
+}
+
+function existingLearnerHandoffReply({ text, language = 'en', courseName = null } = {}) {
+  if (!isExistingLearnerUpdate(text)) return null;
+  const value = normalized(text);
+  const payment = /\b(?:payment|pay|paid|fee|fees|receipt|invoice)\b/u.test(value);
+  const signIn = /\b(?:sign in|login|log in|account access)\b/u.test(value);
+  if (language === 'ar') {
+    const course = courseName ? `دورة ${courseName}` : 'الدورة';
+    const topic = payment && signIn ? 'الدفع وتسجيل الدخول' : payment ? 'الدفع' : signIn ? 'تسجيل الدخول' : null;
+    return topic
+      ? `شكرًا على التحديث. فهمت أنك انضممت بالفعل إلى ${course} وذكرت ${topic}. شاركت رسالتك مع فريقنا لمساعدتك.`
+      : `شكرًا لإخباري. فهمت أنك انضممت بالفعل إلى ${course}. شاركت تحديثك مع فريقنا لمساعدتك كطالب حالي.`;
+  }
+  const course = courseName ? `the ${courseName} course` : 'the course';
+  const topic = payment && signIn ? 'payment and sign-in' : payment ? 'payment' : signIn ? 'sign-in' : null;
+  return topic
+    ? `Thanks for the update. I understand you’ve already joined ${course} and mentioned ${topic}. I’ve shared your message with our team so they can help.`
+    : `Thanks for letting me know you’ve already joined ${course}. I’ve shared your update with our team so they can support you as a current student.`;
 }
 
 function validateProposal(proposal, context, { staffNotificationQueued = false, contactProgress = {}, turnText = '', lastAssistant = '' } = {}) {
@@ -197,9 +223,9 @@ function retainSelectedCourse(context, selectedContext, code) {
     sources: [source, ...context.sources.filter(item => item.id !== source.id)] };
 }
 
-async function understandTurn({ provider, settings, tenantId, text, history, state, context, showFees = true }) {
+async function understandTurn({ provider, settings, tenantId, text, history, state, context, showFees = true, staffNotificationQueued = false }) {
   if (!settings?.provider || !settings?.model || !settings?.apiKey || !tenantId) return { ok: false, reason: 'AI_NOT_CONFIGURED' };
-  const payload = buildRequest({ text, history, state, context, showFees });
+  const payload = buildRequest({ text, history, state, context, showFees, staffNotificationQueued });
   // Keep the catalogue evidence ahead of the changing conversation so
   // providers can reuse the common prompt prefix when their cache permits.
   const { evidence, ...turn } = payload;
@@ -229,6 +255,7 @@ async function understandTurn({ provider, settings, tenantId, text, history, sta
   const validation = validateProposal(proposal, { ...context, evidence: payload.evidence }, {
     contactProgress: payload.contactProgress, turnText: payload.text,
     lastAssistant: [...payload.history].reverse().find(item => item.role === 'assistant')?.text || '',
+    staffNotificationQueued: payload.staffNotificationQueued,
   });
   if (!validation.valid && validation.reason === 'MULTI_COURSE_FACTS_REQUIRE_RENDERING') {
     const reply = renderPriceComparison(payload.text, payload.evidence, proposal, context);
@@ -245,4 +272,4 @@ async function understandTurn({ provider, settings, tenantId, text, history, sta
   return { ok: true, proposal, usage: response.usage };
 }
 
-module.exports = { TOOL, SYSTEM, buildRequest, validateProposal, renderPriceComparison, safeSocialFallback, retainSelectedCourse, understandTurn };
+module.exports = { TOOL, SYSTEM, buildRequest, validateProposal, renderPriceComparison, safeSocialFallback, retainSelectedCourse, isExistingLearnerUpdate, existingLearnerHandoffReply, understandTurn };

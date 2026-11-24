@@ -2,7 +2,7 @@
 
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { buildRequest, validateProposal, renderPriceComparison, safeSocialFallback, retainSelectedCourse, understandTurn } = require('../modules/platform/chatbot-turn-understanding');
+const { buildRequest, validateProposal, renderPriceComparison, safeSocialFallback, retainSelectedCourse, isExistingLearnerUpdate, existingLearnerHandoffReply, understandTurn } = require('../modules/platform/chatbot-turn-understanding');
 
 const context = {
   evidence: [
@@ -24,6 +24,28 @@ test('builds a bounded turn context and includes the last question', () => {
   assert.equal(request.history.length, 8);
   assert.equal(request.lastQuestion, null);
   assert.equal(request.selectedCourseCode, 'MARINE');
+});
+
+test('passes the trusted staff-queue state into the model context and validates a truthful handoff acknowledgement', () => {
+  const request = buildRequest({ text: 'I already joined and will pay today for sign in.', context,
+    staffNotificationQueued: true });
+  assert.equal(request.staffNotificationQueued, true);
+  const proposal = { ...answer,
+    reply: 'Thanks for the update. I understand you have joined Marine Deckhand and mentioned payment and sign-in. I’ve shared this with our team so they can help.',
+    source_ids: ['course:marine'], next_question: 'none' };
+  assert.equal(validateProposal(proposal, context, { staffNotificationQueued: true,
+    turnText: 'I already joined and will pay today for sign in.' }).valid, true);
+});
+
+test('recognizes an existing learner and replies about their current course without restarting intake', () => {
+  const text = 'I Al ready joined. Today will be payment for Sign in';
+  assert.equal(isExistingLearnerUpdate(text), true);
+  const reply = existingLearnerHandoffReply({ text, language: 'en', courseName: 'Marine Deckhand' });
+  assert.match(reply, /already joined the Marine Deckhand course/i);
+  assert.match(reply, /payment and sign-in/i);
+  assert.match(reply, /shared your message with our team/i);
+  assert.doesNotMatch(reply, /which course|what name|phone number|call you on/i);
+  assert.equal(existingLearnerHandoffReply({ text: 'What is the course fee?' }), null);
 });
 
 test('redacts private contact details and limits long multilingual prompts', () => {
