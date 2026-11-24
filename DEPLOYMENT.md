@@ -1,3 +1,30 @@
+## 2026-11-24 — Email Marketing campaign outcome review — production
+
+Source commit `ed7d253680a352b087eba7f50f563bbd168e6c8f` is pushed to `Ahammedsajal/SaleMax` `main`. The guarded app-only release is `/opt/salemax/releases/email-marketing-campaign-outcome-review-ed7d253680a3-20261124T143233Z/compose.email-marketing-campaign-outcome-review.json`, appended to the verified existing Compose chain on base `/opt/salemax/releases/training-pipeline-correction-v3-9867ca72-20261104`. The app image remains `salemax-app:email-marketing-21a07cc41fa9-20261112` (`sha256:753d77d421b3160872df0812e7b38505a1db7104cdb9d6c8b17415b2420de667`). The final chain has 335 Compose inputs, 11 environment-file inputs and 304 app mounts. All seven non-app containers were unchanged. The app and MariaDB are healthy. No database migration ran; no email was sent and no campaign or customer record was created or changed by the release.
+
+Campaigns marked **Needs review** now open recipient-level report details. Verified SES Send/Delivery events reconcile uncertain recipient rows and counters without resending. Late verified SNS events reconcile automatically; the report leaves recipients without saved SES evidence unresolved and warns against retrying blindly. The deployment includes the cache-busted report UI, campaign service/router, SES event handler, worker and reconciliation module. The unrelated inbox redesign was not included.
+
+The guarded release verified runtime hashes and public health, workspace shell and cache-busted JS/CSS assets (HTTP 200; asset hashes matched). Anonymous Email Marketing setup returned HTTP 401. An anonymous POST to the reconciliation endpoint was rejected by the origin/CSRF guard (HTTP 403, `CSRF_DENIED`) before any change. Local JavaScript/Python syntax checks and `git diff --check` passed. Authenticated owner browser acceptance was not available during the rollout and remains open; no authenticated reconciliation action was run in production.
+
+| Runtime file | Previous live SHA-256 | Deployed SHA-256 |
+|---|---|---|
+| `client/public/email-marketing-workspace.js` | `475d8477ce4cc89847dcf23a75802b07af27ff7c4d43a35aa485aaaecd42fda6` | `81bdfd94f64476c6983f90bf84428e7f5d6759b2c0fb7fa4c436fad2c57669ef` |
+| `client/public/email-marketing-workspace.css` | `1336092ccaddf487460bb24745173fd1971276ef02a1dfc6cefb2d74e91345b9` | `2853d87f58faf97f21997f10daf62706a959c7361d698fe044a1ee04c7c383d9` |
+| `client/public/index.html` | `fa54a47a7767b2fb4b69250b005777123bdb74aac15cbcf19b408237a7734648` | `048b6c7102872a8b2889ca04fc36db6144710d2d4a85babe25e523c38c8c060b` |
+| `modules/platform/email-marketing.js` | `2f124b3030c904b27bb4aac5a4f13d225f68a75b59126feabb02463bb0617fa5` | `1699e69946675566cec27514d099e6c41ff9677be7dfe8df3b9f916ab61f199f` |
+| `modules/platform/email-marketing-router.js` | `9658d10cc96f1c68d2dce642ebef94e28d0ae93fa500cc7f8fb65e9623f061c6` | `1bbbab37511963f48a2e11c2637afe9871fffa065c207536a048b5cce3cc26e3` |
+| `modules/platform/email-marketing-events.js` | `e4731e4afae0877a0d61a596919c9a5e309d33ad17fe6c9b128a5aa82dfd6245` | `7935761faaa9e0e59d193c80de57f044977c577ef9ef247991f7bd59c40ebb8c` |
+| `modules/platform/email-marketing-worker.js` | `0a8022ae98a5ecd6d792ab7a5f899bf94c1d5eeb6b67e19b7c80826f89c546d9` | `78ad2a2cd0958e68467d61b768f6ecbc81221c469f0e073648337cd9a0f43691` |
+| `modules/platform/email-marketing-reconciliation.js` | `not present` | `d5d78e7eb6b55ed5e991ecf65a172d9a9379ba680c97f8bc2f4008e781ebbe65` |
+
+Protected rollback snapshot: `/opt/salemax/shared/rollback-email-marketing-campaign-outcome-review-ed7d253680a3-20261124T143233Z` (mode `0700`). If this remains the active app overlay, restore the prior Compose chain under the production lock with:
+
+```sh
+sudo -n /opt/salemax/shared/with-production-lock.sh python3 /opt/salemax/releases/email-marketing-campaign-outcome-review-ed7d253680a3-20261124T143233Z/deploy/email-marketing-campaign-outcome-review-release.py restore /opt/salemax/shared/rollback-email-marketing-campaign-outcome-review-ed7d253680a3-20261124T143233Z
+```
+
+Restore any later app overlays first. No database rollback applies. The 42-ticket upgrade and authenticated Email Marketing acceptance remain in progress.
+
 ## 2026-11-24 — Pro Catalyst AI centre-visit intent — production
 
 Source commit `86e087721846c38e9508b3bb45b9e3f925a394f9` is pushed to `Ahammedsajal/SaleMax` `main` and deployed under the production lock in app-only overlay `/opt/salemax/releases/pro-catalyst-center-visit-signal-86e087721846-20261124T091657Z/compose.pro-catalyst-center-visit-signal.json`, on base `/opt/salemax/releases/training-pipeline-correction-v3-9867ca72-20261104`. The image remains `sha256:753d77d421b3160872df0812e7b38505a1db7104cdb9d6c8b17415b2420de667`. The Compose chain now has 332 inputs, 11 environment-file inputs and 288 app mounts. All seven non-app containers remained unchanged; the app returned healthy with zero restarts and MariaDB passed its healthy preflight. No migration or production lead/customer record was changed by deployment.
