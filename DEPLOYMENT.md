@@ -5616,3 +5616,36 @@ The snapshot has mode `0700` and stores the exact three runtime preimages and Co
 | `modules/platform/chatbot-turn-understanding.js` | `1c0969d95e1cf29f2124d6a07943e913e2d546b9e46af46dda0e1b7599080bca` | `14439a8410a739c19eff99c16acd88a3f61a65d8b796a6826e316f997eabaa3f` |
 
 Verification: the app and database were healthy before and after deployment; the app has zero restarts, mounted hashes match the source, `/healthz` and the Manage Users shell return HTTP 200, and seven non-app services retain their prior identities. A synthetic in-container replay recovers Marine Deckhand from the customer's own history after an incidental office mention, keeps MS Office unselected, routes “I already joined” to the specialist path and generates a contextual payment/sign-in acknowledgment without asking again for the course, name or phone number. Focused course-context and AI-turn suites pass 237 tests, and the conversation-history suite, JavaScript syntax checks, release-helper parse and whitespace check pass. No real WhatsApp message was sent; fresh inbound device acceptance remains open.
+
+## Retail commerce and inventory reconciliation — production, 24 November 2026
+
+Source commit `b9235d708adc07976fdbb827e2b52030a52d4412` is on `Ahammedsajal/SaleMax` main. The release reconciles the reviewed Retail source with the mounted production commerce and connector routers, native storefront, inventory, navigation, and notification handlers. It adds bounded WooCommerce pagination and retries, variant and SKU reconciliation, exact stock and selling units, and audited location recounts. Inventory now opens the first-location form for authorized managers when a business has no stock locations. Published plan IDs and the existing business shell continue to serve the category.
+
+The active overlay is `/opt/salemax/releases/retail-reconciliation-b9235d708adc-20261124T102720Z/compose.retail-reconciliation.json` over `/opt/salemax/releases/training-pipeline-correction-v3-9867ca72-20261104`. The running app uses image `sha256:753d77d421b3160872df0812e7b38505a1db7104cdb9d6c8b17415b2420de667`, with 333 Compose inputs and 302 app mounts. The release changed 29 runtime files, including the eight migration files, and recreated only the app. The database and support container identities were verified during activation.
+
+The migration runner applied these eight files in order and verified their checksums and statement counts. The ledger moved from 173 to 181 applied migrations with all prior ledger rows preserved.
+
+- `20270205_retail_woocommerce_variations_reconciliation.sql`
+- `20270206_retail_external_product_mappings.sql`
+- `20270207_retail_exact_inventory_quantities.sql`
+- `20270208_retail_woocommerce_stock_mapping.sql`
+- `20270209_retail_inventory_alerts.sql`
+- `20270210_retail_external_order_source_dates.sql`
+- `20270211_retail_woocommerce_stock_management_modes.sql`
+- `20270212_retail_inventory_unit_recount.sql`
+
+The protected snapshot `/opt/salemax/shared/rollback-retail-reconciliation-b9235d708adc-20261124T102720Z` has mode `0700` and contains runtime preimages, Compose input hashes, backup and migration proofs, and the rollback state. Its `database.sql.gz` has mode `0600` and SHA-256 `457c13bff5879559af0fa0b930946fa6a889dce00b08445935e14415530b2158`. The backup was restored into a disposable MariaDB 11.4.13 container with networking and its event scheduler disabled. The restored dump matched all 305 table and 115,126 row-insert fingerprints. All eight migrations succeeded against that restored database. A second pass skipped all eight. The temporary restore container was removed.
+
+Run the app rollback under the production lock while this overlay is latest and the new stock units or connector data have yet to be adopted.
+
+```sh
+sudo -n /opt/salemax/shared/with-production-lock.sh python3 -B /opt/salemax/releases/retail-reconciliation-b9235d708adc-20261124T102720Z/deploy/retail-reconciliation-release.py restore /opt/salemax/shared/rollback-retail-reconciliation-b9235d708adc-20261124T102720Z
+```
+
+The rollback helper recreates the prior app overlay against the forward-compatible schema and blocks rollback after verified adoption. Use a compatible forward repair after adoption. The database backup is for a separately reviewed recovery.
+
+Verification at 10:29 UTC confirmed a healthy app with zero restarts and a healthy database. Both public origins returned 200 for health. Admin and business sign-in routes, the Retail shell, and the cache-busted assets passed production checks. Sampled order, connector and inventory APIs returned 401 to anonymous requests. All mounted file hashes matched the staged artifact. Production retained 50 imported products, 50 imported orders, 50 imported customers, zero native orders and zero stock movements. The release retention dry run found three eligible older releases and 208 KiB of estimated reclaimable space.
+
+Source verification passed 74 focused tests, nine shared workspace client tests, the clean 181-migration replay, disposable MariaDB inventory and checkout concurrency checks, the synthetic WooCommerce plugin harness, and four Edge fixtures for the first-location and read-only empty states across English, Arabic RTL, light and dark, and mobile, tablet and desktop widths. The broader shared API fixtures still need their Email Marketing query mock and local dependency harness updated. Two early production attempts stopped before applying migrations. The first artifact allowlist needed the exact migration runner path, and the next isolated rehearsal needed access to the protected baseline. Both checks passed in the final release.
+
+Connected Stores uses the reviewed tenant pilot gate. Production has the allowlist closed while the replacement WooCommerce read key is pending. The existing active connection and its imported snapshots were verified. Open gates include signed-in production Retail role and device acceptance, provider credential rotation and pilot activation, live WooCommerce reconciliation, and the wider 42-ticket upgrade.
