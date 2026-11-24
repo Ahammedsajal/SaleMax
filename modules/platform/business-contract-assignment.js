@@ -5,6 +5,7 @@ const legacy=require('./legacy-plan-assignment');
 const {platformDecision}=require('./policy');
 const {categoryKeyMatches}=require('./categories');
 const {normalize}=require('./legacy-plan-editor');
+const standardOffers=require('./standard-plan-offers');
 const fail=code=>{throw Object.assign(new Error(code),{code});};
 const hash=value=>crypto.createHash('sha256').update(value).digest('hex');
 const uuid=value=>typeof value==='string'&&/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value);
@@ -63,6 +64,8 @@ async function load(db,ctx,user,data,locked){
   data.roleLimits=plans.limits(data.roleLimits,contract.category.seatRoles);
   const commercial=parse(version.commercial_snapshot),days=Number(commercial?.plan_duration_in_days);
   if(!commercial||commercial.id!==Number(version.legacy_plan_id)||Object.keys(normalize(commercial).errors).length||!Number.isSafeInteger(days)||days<1||days>3650)fail('INVALID_STORED_CONTRACT');
+  const [[catalogueRow]]=await db.query('SELECT * FROM plan WHERE id=?',[version.legacy_plan_id]);
+  if(!catalogueRow||!standardOffers.matchesCurrent(commercial,catalogueRow))fail('STALE_COMMERCIAL_CONTRACT');
   const [[current]]=await db.query("SELECT id,plan_version_id,status,role_limits,DATE_FORMAT(expires_at,'%Y-%m-%d %H:%i:%s.%f') AS expires_at FROM sx_plan_assignments WHERE tenant_id=? AND current_tenant IS NOT NULL"+suffix,[tenant.id]);
   const used=await plans.readUsage(db,tenant.id),blockers=[];
   if(tenant.status!=='active')blockers.push('ACCOUNT_INACTIVE');
