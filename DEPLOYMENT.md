@@ -5572,3 +5572,17 @@ Runtime hashes:
 | `modules/platform/business-provisioning.js` | `780cb58290c760a228d1836888e35897866e52d824378bd5406fbcab93abbb92` |
 
 JavaScript syntax checks, deployment-helper AST parsing and `git diff --check` passed. No automated suite ran. The first follow-up release attempt stopped at preflight after detecting the newer production-only catalogue bridge; it made no production changes. The successful deployment above used the reconciled source and verified preimage hashes.
+
+## Phonebook pagination and consent-column removal — production, 24 November 2026
+
+Phonebook UI source commits `b05a0a78fb7ba172dba093feae7e353c91a31de6` and `51bc3dabfa1d4c738a505ae625e0a5e7d1545083` are on `codex/phonebook-pagination-consent-column`; the branch also contains `059375462b544bc047056d0102666f0759b8d89f`, which adds the safe restore path used by the rollback helper. The release adds a page bar before the contacts table (100 records per page, with working Previous/Next and a live page count) and removes the email marketing consent display column. The email address column remains. This UI change does not modify consent values or contact data.
+
+Deployed release: `/opt/salemax/releases/phonebook-pagination-51bc3dabfa1d-20261124T084523Z`; production app image remained `sha256:753d77d421b3160872df0812e7b38505a1db7104cdb9d6c8b17415b2420de667`. Only the app container was recreated; the four non-app services were unchanged. No database migration ran.
+
+Protected rollback snapshot: `/opt/salemax/shared/rollback-phonebook-pagination-51bc3dabfa1d-20261124T084523Z`. Restore the prior app Compose chain under the production lock with:
+
+```sh
+sudo -n /opt/salemax/shared/with-production-lock.sh python3 /opt/salemax/releases/phonebook-pagination-51bc3dabfa1d-20261124T084523Z/deploy/phonebook-pagination-release.py restore /opt/salemax/shared/rollback-phonebook-pagination-51bc3dabfa1d-20261124T084523Z
+```
+
+Verification: the installed deployment helper passed Python compilation. The running Phonebook runtime asset SHA-256 is `7dd6295dccaa853744bc2ba5f9320ffc23fdb94cac765ecd690b328eee147da2`, matching the served asset. `/healthz` and the asset returned HTTP 200; the app was healthy with zero restarts. In the authenticated production browser, the contacts list showed `1–100 / 2706`, Next advanced to `101–200 / 2706` with different records, and Previous returned to the first page. The visible table included populated email values and no email marketing consent heading. No automated suite ran. Broader mobile, Arabic/RTL and dark-theme review remains part of the full-screen acceptance work.
