@@ -43,7 +43,7 @@ def sha_file(p):return digest(Path(p).read_bytes())
 def verify_support(before):
  if support_ids()!=before:raise RuntimeError('non-app service identity changed')
 def config(args,env):return json.loads(run(*args,'config','--format','json',env=env).stdout)
-def writej(p,o):write(p,(json.dumps(o,indent=2)+'\n').encode())
+def writej(p,o,mode=0o600):write(p,(json.dumps(o,indent=2)+'\n').encode(),mode)
 def deploy(stage,commit):
  if os.geteuid()!=0 or os.environ.get('SALEMAX_DEPLOY_LOCK_HELD')!='1':raise RuntimeError('protected production lock required')
  if run('hostname').stdout.strip()!='carsqatar-prod-01' or os.path.realpath(ROOT/'current')!=BASE:raise RuntimeError('production identity/base changed')
