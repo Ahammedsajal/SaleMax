@@ -8,6 +8,11 @@
   let editor,hidden=[],returnFocus,refreshOnClose=false;
   const style=document.createElement('style');style.textContent=`.sx-user-plan-action{border:0;background:#eff6ff;color:#1456B8;border-radius:6px;padding:5px 8px;font:600 11px Arial,sans-serif;cursor:pointer;white-space:nowrap}.sx-user-plan-cell{min-width:0;box-sizing:border-box;gap:4px!important}.sx-user-plan-cell .sx-user-plan-action{flex:0 0 auto;padding:4px 5px;font-size:10px}.sx-user-plan-link{display:inline-flex;align-items:center;min-height:40px;margin-inline-end:8px;padding:0 13px;border:1px solid #a7c8f3;border-radius:8px;background:#eff6ff;color:#1456B8;font:600 13px Arial,sans-serif;text-decoration:none}.sx-user-plans table{width:100%;border-collapse:collapse;text-align:start}.sx-user-plans th,.sx-user-plans td{padding:10px;border-bottom:1px solid #e4e8ee;text-align:start}.sx-user-plans .sx-plan-field select{min-height:46px}.sx-user-history{overflow:auto;margin-top:24px}.sx-user-plans button:focus-visible,.sx-user-plan-link:focus-visible,.sx-user-category-assignment button:focus-visible,.sx-user-category-assignment select:focus-visible{outline:3px solid #1768d470;outline-offset:2px}.sx-user-category-assignment output{display:flex;align-items:center;min-height:40px;padding:8px 12px;border:1px solid #cbd3dd;border-radius:8px;background:#f8fafc}.sx-user-category-assignment{width:100%;box-sizing:border-box;margin:14px 0;padding:14px;border:1px solid #b9d6ff;border-radius:10px;background:#fff9fb;color:#263243}.sx-user-category-assignment h3{margin:0 0 8px;font-size:15px}.sx-user-category-assignment label{display:block;font-size:13px;font-weight:600}.sx-user-category-assignment select{display:block;width:100%;min-height:40px;margin-top:6px;padding:7px 10px;border:1px solid #d4dbe5;border-radius:7px;background:#fff;color:#263243;font:inherit}.sx-user-category-assignment [role=status],.sx-user-category-assignment [role=alert]{margin:8px 0;font-size:12px;color:#596579}.sx-user-category-assignment .sx-category-flow{margin-top:10px}.sx-user-staff-cell{position:relative!important;overflow:visible!important}.MuiDataGrid-row.sx-user-staff-open{z-index:5;overflow:visible!important}.sx-user-staff-toggle{display:inline-flex;align-items:center;gap:5px;margin-inline-start:8px;padding:4px 8px;border:1px solid #b9d6ff;border-radius:999px;background:#f5f9ff;color:#1768D4;font:600 11px Roboto,Arial,sans-serif;cursor:pointer;white-space:nowrap}.sx-user-staff-toggle:hover{background:#e0edff}.sx-user-staff-panel{position:absolute;z-index:20;top:calc(100% + 3px);inset-inline-start:0;width:min(340px,calc(100vw - 36px));padding:12px 14px;border:1px solid #b9d6ff;border-radius:12px;background:#fff;box-shadow:0 12px 32px #29324426;color:#273345;white-space:normal;text-align:start}.sx-user-staff-panel[hidden]{display:none}.sx-user-staff-panel h3{margin:0 0 8px;font-size:12px;color:#687487;font-weight:700;text-transform:uppercase;letter-spacing:.04em}.sx-user-staff-list{list-style:none;margin:0;padding:0}.sx-user-staff-list li{position:relative;display:grid;grid-template-columns:22px minmax(0,1fr) auto;align-items:center;gap:7px;padding:8px 0;border-top:1px solid #f0e8ec}.sx-user-staff-branch{position:relative;align-self:stretch;min-height:24px;border-inline-start:1px solid #d8a4b7}.sx-user-staff-branch:after{position:absolute;top:50%;inset-inline-start:0;width:11px;border-top:1px solid #d8a4b7;content:''}.sx-user-staff-name{min-width:0;font-size:12px;font-weight:600;overflow-wrap:anywhere}.sx-user-staff-email{display:block;margin-top:2px;color:#748094;font-size:11px;font-weight:400}.sx-user-staff-role{padding:3px 6px;border-radius:999px;background:#f4f5f8;color:#596579;font-size:10px;white-space:nowrap}.sx-user-staff-state{grid-column:2/4;color:#687487;font-size:10px}.sx-user-staff-state[data-status=active]{color:#12845b}@media(max-width:700px){.sx-user-staff-toggle{margin-inline-start:4px;padding:4px 6px;font-size:10px}.sx-user-staff-panel{inset-inline-start:auto;inset-inline-end:0;width:min(300px,calc(100vw - 150px))}.sx-user-plan-cell .sx-user-plan-action{padding:3px 4px;font-size:10px}}`;document.head.appendChild(style);
   style.textContent+=`.sx-qr-limits-layer{position:fixed;z-index:2147483000;inset:0;display:grid;place-items:center;padding:20px;background:#101b2c88;backdrop-filter:blur(5px)}.sx-qr-limits-dialog{width:min(680px,100%);max-height:min(88vh,820px);overflow:auto;padding:24px;border:1px solid #dfe7f1;border-radius:20px;background:#fff;box-shadow:0 28px 90px #09162955;color:#172337;font-family:Roboto,Arial,sans-serif;text-align:start}.sx-qr-limits-head{display:flex;align-items:flex-start;justify-content:space-between;gap:16px}.sx-qr-limits-eyebrow{margin:0 0 6px;color:#c41e56;font-size:11px;font-weight:800;letter-spacing:.12em;text-transform:uppercase}.sx-qr-limits-dialog h2{margin:0;font-size:23px}.sx-qr-limits-dialog p{color:#64748b;line-height:1.55}.sx-qr-limits-close{width:38px;height:38px;border:1px solid #dbe3ee;border-radius:10px;background:#fff;color:#42536a;font-size:21px;cursor:pointer}.sx-qr-role-table{width:100%;border-collapse:collapse;margin:18px 0}.sx-qr-role-table th,.sx-qr-role-table td{padding:12px 10px;border-bottom:1px solid #e7edf4;text-align:start}.sx-qr-role-table th{color:#66768c;background:#f6f8fb;font-size:11px;text-transform:uppercase;letter-spacing:.05em}.sx-qr-role-table td{font-size:13px}.sx-qr-role-members{display:block;margin-top:3px;color:#7b8798;font-size:11px}.sx-qr-role-table input{width:86px;min-height:40px;padding:6px 9px;border:1px solid #cbd7e5;border-radius:9px;font:600 14px Roboto,Arial,sans-serif}.sx-qr-limit-actions{display:flex;align-items:center;justify-content:flex-end;gap:10px;margin-top:16px}.sx-qr-limit-actions button{min-height:42px;padding:0 16px;border:1px solid #d6e0ed;border-radius:10px;background:#fff;color:#34465e;font:600 13px Roboto,Arial,sans-serif;cursor:pointer}.sx-qr-limit-actions [data-save]{border-color:#1768d4;background:#1768d4;color:#fff}.sx-qr-limit-actions button:disabled{opacity:.6;cursor:wait}.sx-qr-limits-status{min-height:22px;margin:12px 0 0;color:#b42318;font-size:12px}.sx-qr-limits-status[data-ok=true]{color:#087a56}@media(max-width:560px){.sx-qr-limits-dialog{padding:17px;border-radius:15px}.sx-qr-role-table th,.sx-qr-role-table td{padding:9px 5px;font-size:11px}.sx-qr-role-table input{width:64px}}`;
+  style.textContent+=`.sx-category-review{padding:14px;border:1px solid #dce5f0;border-radius:12px;background:#fff;color:#263243}.sx-category-review h4{margin:0 0 12px;font-size:16px}.sx-category-review h5{margin:14px 0 7px;font-size:13px}.sx-category-review-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,190px),1fr));gap:8px}.sx-category-review-grid>div{min-width:0;padding:10px;border:1px solid #e4eaf2;border-radius:9px;background:#f8fafc}.sx-category-review-grid small,.sx-category-review-grid strong{display:block}.sx-category-review-grid small{margin-bottom:5px;color:#69788d;font-size:11px}.sx-category-review-grid strong{overflow-wrap:anywhere;font-size:12px}.sx-category-table-wrap{max-width:100%;overflow:auto}.sx-category-review table{width:100%;min-width:430px;border-collapse:collapse}.sx-category-review th,.sx-category-review td{padding:8px;border-bottom:1px solid #e8edf3;text-align:start;font-size:12px}.sx-category-review thead th{background:#f5f7fa;color:#69788d;font-size:10px;text-transform:uppercase}.sx-category-impact{margin-top:12px;padding:10px 12px;border-left:3px solid #1768d4;border-radius:7px;background:#f4f8ff}.sx-category-impact p{margin:4px 0;line-height:1.5;font-size:12px}.sx-category-ready,.sx-category-blockers{padding:10px 12px;border-radius:8px;font-size:12px;line-height:1.5}.sx-category-ready{background:#eaf8f1;color:#087a56}.sx-category-blockers{background:#fff1f1;color:#ad273d}.sx-category-actions{display:flex;flex-wrap:wrap;justify-content:flex-end;gap:8px;margin-top:12px}.sx-category-actions button{min-height:36px;padding:0 12px;border:1px solid #d5deea;border-radius:8px;background:#fff;color:#34465e;font:600 12px Arial,sans-serif;cursor:pointer}.sx-category-actions [data-confirm-category]{border-color:#a51751;background:#a51751;color:#fff}.sx-category-actions button:disabled{opacity:.6;cursor:wait}.sx-category-error{margin-top:8px;color:#ad273d;font-size:12px;line-height:1.45}html[data-theme=dark] .sx-category-review,html[data-mui-color-scheme=dark] .sx-category-review{background:#191c24;border-color:#343741;color:#e4e7ec}html[data-theme=dark] .sx-category-review-grid>div,html[data-mui-color-scheme=dark] .sx-category-review-grid>div{background:#20232c;border-color:#444955}html[data-theme=dark] .sx-category-impact,html[data-mui-color-scheme=dark] .sx-category-impact{background:#172338;border-color:#4385e6}@media(max-width:560px){.sx-category-review{padding:10px}.sx-category-actions{justify-content:stretch}.sx-category-actions button{flex:1}}`;
+  style.textContent+='.sx-user-category-assignment [data-category-fields]>button{margin-inline-end:8px;margin-block-start:8px}';
+  const seatStyle=document.createElement('style');
+  seatStyle.textContent='.sx-quick-seat-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,190px),1fr));gap:10px;margin:12px 0}.sx-quick-seat-control{min-width:0;padding:12px;border:1px solid #b9c5d4;border-radius:9px;background:Canvas;color:CanvasText}.sx-quick-seat-control label{display:block;font-size:13px;font-weight:600}.sx-quick-seat-control input{display:block;width:100%;box-sizing:border-box;min-height:42px;margin-top:7px;padding:7px 9px;border:1px solid #9aa7b7;border-radius:7px;background:Canvas;color:CanvasText;color-scheme:light dark;font:inherit;font-variant-numeric:tabular-nums}.sx-quick-seat-control small{display:block;margin-top:6px;font-size:11px;line-height:1.45;color:GrayText}.sx-quick-seat-control input:focus-visible{outline:3px solid #1768d470;outline-offset:2px}.sx-quick-seat-control input[readonly]{opacity:.8}html[data-theme=dark] .sx-user-category-assignment,html[data-mui-color-scheme=dark] .sx-user-category-assignment{background:#191c24;border-color:#343741;color:#e4e7ec}html[data-theme=dark] .sx-quick-seat-control,html[data-mui-color-scheme=dark] .sx-quick-seat-control{background:#20232c;border-color:#444955;color:#e4e7ec}html[data-theme=dark] .sx-quick-seat-control input,html[data-mui-color-scheme=dark] .sx-quick-seat-control input{background:#20232c;border-color:#5a6270;color:#f2f4f7;color-scheme:dark}@media(max-width:700px){.sx-quick-seat-grid{grid-template-columns:minmax(0,1fr)}}';
+  document.head.appendChild(seatStyle);
   async function api(path,body) {
     const token=localStorage.getItem('wacrm_admin');if(!token)throw new Error(t('Your session expired. Sign in again.','انتهت الجلسة. يرجى تسجيل الدخول مجددًا.'));
     let response,data;
@@ -27,6 +32,114 @@
     let node=heading?.parentElement;
     while(node && node!==document.body) {if([...node.querySelectorAll('button')].some(button=>['Refresh','تحديث'].includes(button.textContent.trim())))return node.parentElement;node=node.parentElement;}
     return null;
+  }
+  async function quickActivateBusiness(userId,active,category,onComplete){
+    const access=window.salemaxPlanContracts?.protectedRequest;if(!access)return;
+    const key=category.key,version=category.version,requestId=crypto.randomUUID();
+    const call=(path,body)=>access(encodeURIComponent(userId)+'/'+path,body);
+    const roleLabels={owner:['Owner','المالك'],accountant:['Accountant','المحاسب'],manager:['Manager','المدير'],team_leader:['Team leader','قائد الفريق'],agent:['Agent','الوكيل']};
+    const errorText=error=>{
+      const messages={
+        AUTH_REQUIRED:t('Sign in to the existing platform admin session first.','سجّل الدخول إلى جلسة مسؤول المنصة الحالية أولًا.'),
+        MFA_REQUIRED:t('Verify platform MFA in Manage Plans, then return here.','تحقق من المصادقة الثنائية للمنصة في إدارة الخطط ثم عد إلى هنا.'),
+        PERMISSION_DENIED:t('Your platform role cannot activate this category or publish its default plan contract.','لا تسمح صلاحياتك في المنصة بتفعيل هذه الفئة أو نشر عقدها الافتراضي.'),
+        BUSINESS_PLAN_REQUIRED:t('Assign a valid existing plan to this account first.','عيّن خطة حالية صالحة لهذا الحساب أولًا.'),
+        BUSINESS_PLAN_EXPIRED:t('The account’s current plan has expired. Renew it before activating the workspace.','انتهت الخطة الحالية للحساب. جدّدها قبل تفعيل مساحة العمل.'),
+        CURRENT_PLAN_SNAPSHOT_STALE:t('The user’s saved plan differs from the catalogue. Refresh and reconcile it before activation.','تختلف خطة المستخدم المحفوظة عن الكتالوج. حدّثها وطابقها قبل التفعيل.'),
+        CURRENT_PLAN_CONTRACT_STALE:t('This category contract no longer matches the current plan. Review the contract in Manage Plans.','لم يعد عقد الفئة مطابقًا للخطة الحالية. راجع العقد في إدارة الخطط.'),
+        STALE_PLAN:t('The catalogue plan changed during setup. Refresh and review again.','تغيرت خطة الكتالوج أثناء الإعداد. حدّث الصفحة وراجع مجددًا.'),
+        DEFAULT_CONTRACT_CONFLICT:t('A category contract changed during setup. Refresh and review again.','تغير عقد الفئة أثناء الإعداد. حدّث الصفحة وراجع مجددًا.'),
+        STALE_PROVISION:t('The account, plan, category, or limits changed. Reload and review again.','تغير الحساب أو الخطة أو الفئة أو الحدود. أعد التحميل والمراجعة.'),
+        BUSINESS_ALREADY_PROVISIONED:t('This account already has a business workspace. Reload Manage Users to view it.','لدى هذا الحساب مساحة عمل بالفعل. أعد تحميل إدارة المستخدمين لعرضها.'),
+        BUSINESS_IDENTITY_EXISTS:t('This email already belongs to a 7Network identity. Ask the platform owner to review it.','هذا البريد مرتبط بهوية 7Network بالفعل. اطلب من مالك المنصة مراجعتها.'),
+        PLAN_LIMIT_EXCEEDED:t('A selected role limit is above the published contract maximum. Review that role in Manage Plans.','يتجاوز حد أحد الأدوار الحد الأقصى للعقد المنشور. راجع هذا الدور في إدارة الخطط.'),
+        SEATS_IN_USE:t('A selected role limit is below the number of active accounts already using that role. Increase it to cover the existing team.','حد أحد الأدوار أقل من عدد الحسابات النشطة المستخدمة له. ارفعه ليشمل الفريق الحالي.'),
+        INVALID_ROLE_LIMITS:t('Enter a whole number within each role’s allowed range.','أدخل عددًا صحيحًا ضمن النطاق المسموح لكل دور.'),
+        ONE_OWNER_REQUIRED:t('Each business must have exactly one owner.','يجب أن يكون لكل نشاط مالك واحد فقط.'),
+        PROVISION_BLOCKED:t('The selected limits cannot be applied. Review the active staff and contract limits.','تعذر تطبيق الحدود المحددة. راجع أعداد الموظفين النشطين وحدود العقد.'),
+        BUSINESS_EMAIL_INVALID:t('An active staff account needs a valid email before it can join this workspace.','يحتاج حساب موظف نشط إلى بريد إلكتروني صالح قبل الانضمام إلى مساحة العمل.'),
+        LEGACY_STAFF_IDENTITY_EXISTS:t('A staff email is already linked to another 7Network identity. Review that account before activation.','بريد أحد الموظفين مرتبط بهوية 7Network أخرى. راجع ذلك الحساب قبل التفعيل.'),
+        LEGACY_STAFF_LINK_INVALID:t('A staff account is already linked inconsistently. Ask the platform owner to review it.','أحد حسابات الموظفين مرتبط بطريقة غير متسقة. اطلب من مالك المنصة مراجعته.'),
+        ASSIGNMENT_UNAVAILABLE:t('The setup service is temporarily unavailable. No account changes were confirmed. Retry later.','خدمة الإعداد غير متاحة مؤقتًا. لم يتم تأكيد أي تغيير. حاول مجددًا لاحقًا.')
+      };
+      return messages[error?.code]||error?.message||t('Could not activate this workspace. No setup was confirmed.','تعذر تفعيل مساحة العمل. لم يتم تأكيد الإعداد.');
+    };
+    const returnToCategory=async()=>{if(typeof onComplete==='function')await onComplete();};
+    const showError=error=>{
+      active.innerHTML='<div role="alert" class="sx-plan-message">'+esc(errorText(error))+'</div><div class="sx-plan-buttons"><button type="button" data-return>'+t('Back to category','العودة إلى الفئة')+'</button></div>';
+      active.querySelector('[data-return]').onclick=returnToCategory;
+    };
+    active.dir=ar()?'rtl':'ltr';
+    active.innerHTML='<p role="status">'+t('Checking the current plan and category defaults…','جارٍ التحقق من الخطة الحالية والإعدادات الافتراضية للفئة…')+'</p>';
+    let options;
+    try{
+      options=(await call('quick-provision-options?categoryKey='+encodeURIComponent(key)+'&categoryVersion='+version)).data;
+    }catch(error){showError(error);return;}
+    const roles=options.category.seatRoles||Object.keys(options.defaultLimits||{});
+    const defaults=options.defaultLimits||{};
+    const ceiling=options.roleCeiling||options.contract?.ceiling||defaults;
+    const staffCount=Number(options.legacyStaffCount||0);
+    if(defaults.agent!==undefined&&staffCount<=Number(ceiling.agent??defaults.agent))defaults.agent=Math.max(Number(defaults.agent),staffCount);
+    const roleFields=roles.map(role=>{
+      const owner=role==='owner',max=Number(ceiling[role]??defaults[role]??0),value=Number(defaults[role]??0);
+      const label=owner?t('Owner (fixed)','المالك (ثابت)'):t(...(roleLabels[role]||[role,role]));
+      const suggested=Number(options.defaultLimits?.[role]||0);
+      let help;
+      if(owner)help=t('One owner per business. This limit is fixed.','مالك واحد لكل نشاط. هذا الحد ثابت.');
+      else if(role==='agent')help=t('Suggested '+suggested+' · maximum '+max+' · active staff '+staffCount,'المقترح '+suggested+' · الحد الأقصى '+max+' · الموظفون النشطون '+staffCount);
+      else help=t('Suggested '+suggested+' · maximum '+max,'المقترح '+suggested+' · الحد الأقصى '+max);
+      return '<div class="sx-quick-seat-control"><label for="sx-seat-'+esc(role)+'">'+esc(label)+'</label><input id="sx-seat-'+esc(role)+'" data-seat-role="'+esc(role)+'" type="number" min="'+(owner?1:0)+'" max="'+max+'" step="1" value="'+value+'" required'+(owner?' readonly aria-readonly="true"':'')+'><small>'+esc(help)+'</small></div>';
+    }).join('');
+    const staffLimitExceeded=roles.includes('agent')&&staffCount>Number(ceiling.agent??0);
+    const staffSummary=t('Active staff accounts: '+staffCount+'. They will join this workspace automatically.','حسابات الموظفين النشطة: '+staffCount+'. ستنضم تلقائيًا إلى مساحة العمل.');
+    const contractMessage=options.defaultContractWillBePublished
+      ?t('A default category contract will be published once. Set this business’s role limits below; the account price and expiry stay unchanged.','سيُنشر عقد افتراضي للفئة مرة واحدة. اضبط حدود الأدوار لهذا النشاط أدناه؛ ويبقى السعر وموعد الانتهاء كما هما.')
+      :t('Using the existing published category contract, version '+options.contract.version+'.','سيُستخدم عقد الفئة المنشور الحالي، الإصدار '+options.contract.version+'.');
+    active.innerHTML='<h2 tabindex="-1">'+t('Assign category and activate','تعيين الفئة والتفعيل')+'</h2><p><strong>'+esc(options.user.name)+'</strong> · '+esc(options.user.email)+'</p><div class="sx-plan-card"><p>'+t('Category','الفئة')+': <strong>'+esc(options.category.title[ar()?'ar':'en'])+'</strong></p><p>'+t('Current plan','الخطة الحالية')+': '+esc(options.currentPlan.title||'—')+' · '+esc(options.currentPlan.price??'—')+' QAR · '+esc(options.currentPlan.plan_duration_in_days??'—')+' '+t('days','يومًا')+'</p><p>'+t('Current plan expiry','انتهاء الخطة الحالية')+': '+esc(date(options.expiresAt))+'</p><p>'+staffSummary+'</p><p role="status">'+contractMessage+'</p><p>'+t('Set the maximum number of accounts for each role. Existing staff must fit these limits. Each business has exactly one owner. Seat limits do not change the current plan price or expiry.','حدد الحد الأقصى للحسابات لكل دور. يجب أن تتسع الحدود للموظفين الحاليين. لكل نشاط مالك واحد فقط. لا تغيّر حدود المقاعد سعر الخطة الحالية أو موعد انتهائها.')+'</p>'+(staffLimitExceeded?'<p role="alert" class="sx-plan-message">'+t('The active team is larger than the published agent limit. Increase that limit in Manage Plans before activation.','الفريق النشط أكبر من الحد المنشور للوكلاء. ارفع هذا الحد في إدارة الخطط قبل التفعيل.')+'</p>':'')+'</div><h3>'+t('Workspace user limits','حدود مستخدمي مساحة العمل')+'</h3><div class="sx-quick-seat-grid">'+roleFields+'</div><div role="alert" class="sx-plan-message" hidden></div><div class="sx-plan-buttons"><button type="button" data-back>'+t('Back','رجوع')+'</button><button type="button" data-activate>'+t('Assign & activate workspace','تعيين الفئة وتفعيل مساحة العمل')+'</button></div>';
+    active.querySelector('h2')?.focus();
+    active.querySelector('[data-back]').onclick=returnToCategory;
+    const button=active.querySelector('[data-activate]'),notice=active.querySelector('[role="alert"]'),seatInputs=[...active.querySelectorAll('[data-seat-role]')];
+    let submitting=false,serverError='';
+    const readRoleLimits=()=>{
+      const roleLimits={};
+      for(const input of seatInputs){
+        const value=input.valueAsNumber;
+        if(!Number.isSafeInteger(value)||value<Number(input.min)||value>Number(input.max))return {error:t('Enter a whole number within each role’s allowed range.','أدخل عددًا صحيحًا ضمن النطاق المسموح لكل دور.')};
+        roleLimits[input.dataset.seatRole]=value;
+      }
+      if(roleLimits.owner!==1)return {error:t('Each business must have exactly one owner.','يجب أن يكون لكل نشاط مالك واحد فقط.')};
+      if(roleLimits.agent!==undefined&&roleLimits.agent<staffCount)return {error:t('Agent seats must be at least '+staffCount+' to cover existing active staff.','يجب ألا يقل حد الوكلاء عن '+staffCount+' لتغطية الموظفين النشطين الحاليين.')};
+      return {roleLimits};
+    };
+    const syncLimits=()=>{
+      const validation=readRoleLimits(),message=validation.error||serverError;
+      button.disabled=submitting||!!validation.error;
+      notice.hidden=!message;
+      notice.textContent=message||'';
+    };
+    seatInputs.forEach(input=>input.addEventListener('input',()=>{serverError='';syncLimits();}));
+    syncLimits();
+    button.onclick=async()=>{
+      if(submitting)return;
+      const validation=readRoleLimits();
+      if(validation.error){
+        syncLimits();
+        seatInputs.find(input=>!Number.isSafeInteger(input.valueAsNumber)||input.valueAsNumber<Number(input.min)||input.valueAsNumber>Number(input.max))?.focus();
+        return;
+      }
+      submitting=true;serverError='';syncLimits();
+      try{
+        const activation=(await call('quick-provision',{categoryKey:key,categoryVersion:version,requestId,expectedState:options.expectedState,roleLimits:validation.roleLimits})).data;
+        active.innerHTML='<h2 tabindex="-1">'+t('Workspace activated','تم تفعيل مساحة العمل')+'</h2><p role="status">'+esc(options.user.name)+' · '+esc(options.category.title[ar()?'ar':'en'])+'</p><p>'+t('The existing plan, price, expiry, and selected role limits were kept.','تم الإبقاء على الخطة والسعر وموعد الانتهاء وحدود الأدوار المحددة.')+'</p><p>'+t(Number(activation.staffAdopted||0)+' existing staff members are linked. New staff added here inherit the same category and limits.','تم ربط '+Number(activation.staffAdopted||0)+' من الموظفين الحاليين. ويرث الموظفون الجدد الفئة والحدود نفسها.')+'</p><div class="sx-plan-buttons"><button type="button" data-done>'+t('Done','تم')+'</button></div>';
+        active.querySelector('h2')?.focus();
+        active.querySelector('[data-done]').onclick=returnToCategory;
+      }catch(error){
+        submitting=false;
+        serverError=errorText(error);
+        syncLimits();
+        if(!readRoleLimits().error){notice.hidden=false;notice.textContent=serverError;}
+      }
+    };
   }
   async function openBusiness(userId,active,reload,onComplete,requestedCategory='training_center',requestedVersion=1){
     const access=window.salemaxPlanContracts?.protectedRequest;if(!access)return;
@@ -76,7 +189,7 @@
       const back=active.querySelector('[data-back]');if(back)back.onclick=reload;
       const re=active.querySelector('[data-reload]');if(re)re.onclick=()=>load();
       if(data?.linked===false&&data.permissions?.provision){
-        const createButton=(category,label)=>{const button=document.createElement('button');button.type='button';button.className='sx-user-plan-action';button.textContent=label;button.onclick=()=>{requestedCategory=category.key;requestedVersion=category.version;provisionBusiness();};active.querySelector('[role=alert]')?.after(button);};
+        const createButton=(category,label)=>{const button=document.createElement('button');button.type='button';button.className='sx-user-plan-action';button.textContent=label;button.onclick=()=>{requestedCategory=category.key;requestedVersion=category.version;if(category.key==='7network_sales')provisionBusiness();else quickActivateBusiness(userId,active,category,()=>load());};active.querySelector('[role=alert]')?.after(button);};
         for(const category of data.categories||[])createButton(category,t('Set up business workspace','إعداد مساحة عمل النشاط')+' · '+category.title[ar()?'ar':'en']+' v'+category.version);
       }
       const form=active.querySelector('form');if(!form)return;
@@ -109,25 +222,71 @@
     if(!save?.parentElement)return;
     const access=window.salemaxPlanContracts?.protectedRequest;if(!access)return;
     const card=document.createElement('section');card.className='sx-user-category-assignment';card.dataset.sxCategoryEditor='';card.dir=ar()?'rtl':'ltr';
-    card.innerHTML=`<h3>${t('Business category','فئة النشاط')}</h3><div data-category-fields><label>${t('Assign category','تعيين الفئة')}<select aria-label="${t('Business category','فئة النشاط')}"><option value="">${t('No category is assigned yet','لم يتم تعيين فئة بعد')}</option></select></label><p role="status" data-category-status>${t('Checking the current business category…','جارٍ التحقق من فئة النشاط الحالية…')}</p><button type="button" class="sx-user-plan-action" data-category-start disabled>${t('Review Training Center setup','مراجعة إعداد مركز التدريب')}</button></div><div class="sx-category-flow" data-category-flow hidden></div>`;
+    card.innerHTML=`<h3>${t('Business category','فئة النشاط')}</h3><div data-category-fields><label>${t('Assign category','تعيين الفئة')}<select aria-label="${t('Business category','فئة النشاط')}"><option value="">${t('No category is assigned yet','لم يتم تعيين فئة بعد')}</option></select></label><p role="status" data-category-status>${t('Checking the current business category…','جارٍ التحقق من فئة النشاط الحالية…')}</p><button type="button" class="sx-user-plan-action" data-category-start disabled>${t('Review Training Center setup','مراجعة إعداد مركز التدريب')}</button><button type="button" class="sx-user-plan-action" data-category-change hidden disabled>${t('Review category change','مراجعة تغيير الفئة')}</button></div><div class="sx-category-flow" data-category-flow hidden></div>`;
     save.parentElement.insertBefore(card,save);
-    const fields=card.querySelector('[data-category-fields]'),select=card.querySelector('select'),status=card.querySelector('[data-category-status]'),start=card.querySelector('[data-category-start]'),flow=card.querySelector('[data-category-flow]');let current=null,loading=false;
+    const fields=card.querySelector('[data-category-fields]'),select=card.querySelector('select'),status=card.querySelector('[data-category-status]'),start=card.querySelector('[data-category-start]'),changeButton=card.querySelector('[data-category-change]'),flow=card.querySelector('[data-category-flow]');let current=null,loading=false,changing=false;
+    const categoryError=error=>{
+      const messages={
+        PERMISSION_DENIED:t('Your platform role cannot change this business category.','لا تسمح صلاحيات المنصة بتغيير فئة هذا النشاط.'),
+        STALE_CATEGORY_CHANGE:t('The account changed while you were reviewing it. Reload the account and review again.','تغير الحساب أثناء المراجعة. أعد تحميل الحساب وراجع مجددًا.'),
+        CATEGORY_UNCHANGED:t('Choose a different business category first.','اختر فئة نشاط مختلفة أولًا.'),
+        MATCHING_CONTRACT_REQUIRED:t('The target category needs a published contract for this same plan and price. Publish that contract in Manage Plans, then retry.','تحتاج الفئة المستهدفة إلى عقد منشور للخطة والسعر نفسيهما. انشر العقد من إدارة الخطط ثم أعد المحاولة.'),
+        COMMERCIAL_TERMS_CHANGED:t('The target contract changes price or duration. Category changes must keep the current plan terms.','يغيّر العقد المستهدف السعر أو المدة. يجب أن يحافظ تغيير الفئة على شروط الخطة الحالية.'),
+        STORED_CONTRACT_INVALID:t('The current or target plan contract has invalid saved terms. Ask the platform owner to review it in Manage Plans before changing category.','تحتوي شروط العقد الحالي أو المستهدف على بيانات محفوظة غير صالحة. اطلب من مالك المنصة مراجعتها في إدارة الخطط قبل تغيير الفئة.'),
+        SEATS_IN_USE:t('The target category or plan cannot support the active team or pending invitations. Adjust the contract or team first.','لا تستطيع الفئة أو الخطة المستهدفة استيعاب الفريق النشط أو الدعوات المعلقة. عدّل العقد أو الفريق أولًا.'),
+        PLAN_LIMIT_EXCEEDED:t('The current role limits exceed the target contract. Update the published contract and review again.','تتجاوز حدود الأدوار الحالية العقد المستهدف. حدّث العقد المنشور وراجع مجددًا.'),
+        ASSIGNMENT_UNAVAILABLE:t('The category-change service is temporarily unavailable. No change was confirmed. Retry later.','خدمة تغيير الفئة غير متاحة مؤقتًا. لم يتم تأكيد أي تغيير. حاول مجددًا لاحقًا.'),
+        UNSUPPORTED_ACTIVE_ROLES:t('The active team contains a role the target category does not support. Resolve that role before changing category.','يحتوي الفريق النشط على دور لا تدعمه الفئة المستهدفة. عالج هذا الدور قبل تغيير الفئة.')
+      };
+      return messages[error?.code]||t('Could not change the category. No change was confirmed. Review the account and try again.','تعذر تغيير الفئة. لم يتم تأكيد أي تغيير. راجع الحساب وحاول مجددًا.');
+    };
+    async function reviewCategoryChange(category){
+      if(changing||!current?.linked||!current.permissions?.categoryChange||!category)return;
+      changing=true;fields.hidden=true;flow.hidden=false;flow.dir=ar()?'rtl':'ltr';flow.innerHTML=`<p role="status">${t('Checking the current plan, team and target category…','جارٍ التحقق من الخطة والفريق والفئة المستهدفة…')}</p>`;
+      let review,requestId=crypto.randomUUID();
+      try{
+        review=(await access(`${encodeURIComponent(userId)}/category-change-preview`,{categoryKey:category.key,categoryVersion:category.version})).data;
+        const roleNames={owner:['Owner','المالك'],accountant:['Accountant','المحاسب'],manager:['Manager','المدير'],team_leader:['Team Leader','قائد الفريق'],agent:['Agent','الوكيل']};
+        const roleRows=Object.entries(review.roleLimits||{}).map(([role,limit])=>`<tr><th>${esc(roleNames[role]?t(...roleNames[role]):role.replaceAll('_',' '))}</th><td>${esc(review.used?.[role]??0)}</td><td>${esc(limit)}</td><td>${esc(review.ceiling?.[role]??'—')}</td></tr>`).join('');
+        const blockers=Array.isArray(review.blockers)?review.blockers:[];
+        const blockerText=blockers.map(code=>code.split(':')[0]).map(code=>esc(categoryError({code}))).join(' ');
+        flow.innerHTML=`<section class="sx-category-review"><h4>${t('Review category change','مراجعة تغيير الفئة')}</h4><div class="sx-category-review-grid"><div><small>${t('Current category','الفئة الحالية')}</small><strong>${esc(review.currentCategory?.title||'—')}</strong></div><div><small>${t('New category','الفئة الجديدة')}</small><strong>${esc(review.targetCategory?.title||'—')}</strong></div><div><small>${t('Current plan','الخطة الحالية')}</small><strong>${esc(review.currentPlan||'—')}</strong></div><div><small>${t('Price and expiry','السعر والانتهاء')}</small><strong>${esc(review.currentPrice??'—')} ${esc(review.currency||'')} · ${esc(date(review.expiresAt))}</strong></div></div><h5>${t('Team limits','حدود الفريق')}</h5><div class="sx-category-table-wrap"><table><thead><tr><th>${t('Role','الدور')}</th><th>${t('In use','المستخدم')}</th><th>${t('After change','بعد التغيير')}</th><th>${t('Plan maximum','حد الخطة')}</th></tr></thead><tbody>${roleRows||`<tr><td colspan="4">${t('No role limits available','لا تتوفر حدود للأدوار')}</td></tr>`}</tbody></table></div><div class="sx-category-impact"><p><strong>${t('The account, login, workspace, current plan, price and expiry stay the same.','سيبقى الحساب وتسجيل الدخول ومساحة العمل والخطة والسعر وموعد الانتهاء كما هي.')}</strong></p><p>${t('Access changes to match the new category. Existing records are kept; features removed by the new category may no longer show those records.','ستتغير الصلاحيات لتتبع الفئة الجديدة. ستُحفظ السجلات الحالية، لكن الميزات المحذوفة من الفئة الجديدة قد لا تعرضها.')}</p><p>${t('Features added','الميزات المضافة')}: ${esc((review.addedCapabilities||[]).join(', ')||'—')}<br>${t('Features removed','الميزات المحذوفة')}: ${esc((review.removedCapabilities||[]).join(', ')||'—')}</p></div>${blockers.length?`<div class="sx-category-blockers" role="alert">${blockerText}</div>`:`<p class="sx-category-ready" role="status">${t('No price, plan-term or active-team conflict found. Nothing changes until you confirm.','لم يتم العثور على تعارض في السعر أو مدة الخطة أو الفريق النشط. لن يتغير شيء حتى تؤكد.')}</p>`}<div class="sx-category-actions"><button type="button" data-back-category>${t('Back','رجوع')}</button>${blockers.length?'':`<button type="button" data-confirm-category>${t('Confirm category change','تأكيد تغيير الفئة')}</button>`}</div><div class="sx-category-error" role="alert" hidden></div></section>`;
+        flow.querySelector('[data-back-category]').onclick=()=>{flow.hidden=true;fields.hidden=false;};
+        const confirm=flow.querySelector('[data-confirm-category]');
+        if(confirm)confirm.onclick=async()=>{
+          if(changing||!review?.canChange)return;changing=true;confirm.disabled=true;
+          const notice=flow.querySelector('.sx-category-error');notice.hidden=true;
+          try{
+            await access(`${encodeURIComponent(userId)}/category-change`,{categoryKey:category.key,categoryVersion:category.version,expectedState:review.expectedState,requestId});
+            refreshOnClose=true;await refreshCategory();flow.hidden=true;fields.hidden=false;
+            status.textContent=t('Category updated. The account, workspace, plan and expiry were preserved.','تم تحديث الفئة مع الحفاظ على الحساب ومساحة العمل والخطة وموعد الانتهاء.');
+          }catch(error){notice.textContent=categoryError(error);notice.hidden=false;confirm.disabled=false;}
+          finally{changing=false;}
+        };
+      }catch(error){
+        flow.innerHTML=`<div class="sx-category-blockers" role="alert">${esc(categoryError(error))}</div><div class="sx-category-actions"><button type="button" data-back-category>${t('Back','رجوع')}</button></div>`;
+        flow.querySelector('[data-back-category]').onclick=()=>{flow.hidden=true;fields.hidden=false;};
+      }finally{changing=false;}
+    }
     async function refreshCategory(){
       if(loading)return;loading=true;start.disabled=true;status.textContent=t('Checking the current business category…','جارٍ التحقق من فئة النشاط الحالية…');
       try{
         const result=await access(`${encodeURIComponent(userId)}/context`);current=result.data;
-        const selected=current.linked?current.tenant?.category_key:'';
+        const selected=current.linked?(current.category?.key||current.tenant?.category_key):'';
         select.innerHTML=`<option value="">${t('No category is assigned yet','لم يتم تعيين فئة بعد')}</option>`+(current.categories||[]).map(category=>`<option value="${esc(category.key)}@${category.version}">${esc(category.title[ar()?'ar':'en'])} · v${category.version}</option>`).join('');
-        select.value=current.linked?selected+'@'+current.tenant.category_version:'';select.disabled=!!current.linked;
-        status.textContent=current.linked?(selected==='7network_sales'?t('7Network Sales is assigned. Access follows its published internal contract.','تم تعيين فئة مبيعات 7Network. يعتمد الوصول على عقدها الداخلي المنشور.'):t('The business category is assigned. Access follows its published contract and active plan.','تم تعيين فئة النشاط. يعتمد الوصول على العقد المنشور والخطة النشطة.')):t('Choose a category. Setup links this existing user to the selected workspace and applies its published contract.','اختر فئة. يربط الإعداد هذا المستخدم الحالي بمساحة العمل المحددة ويطبق عقدها المنشور.');
+        select.value=current.linked?selected+'@'+current.tenant.category_version:'';select.disabled=!!current.linked&&!current.permissions?.categoryChange;
+        select.parentElement.childNodes[0].textContent=current.linked?t('Category','الفئة'):t('Assign category','تعيين الفئة');
+        status.textContent=current.linked?(current.permissions?.categoryChange?t('This business is linked. You can review a category change; the account and current plan stay in place.','هذا النشاط مرتبط. يمكنك مراجعة تغيير الفئة مع بقاء الحساب والخطة الحالية.'):selected==='7network_sales'?t('7Network Sales is assigned. Access follows its published internal contract.','تم تعيين فئة مبيعات 7Network. يعتمد الوصول على عقدها الداخلي المنشور.'):t('The business category is active. Staff in this workspace inherit the same category.','فئة النشاط مفعّلة. ويرث موظفو مساحة العمل الفئة نفسها.')):t('Choose a category, then assign it to activate the workspace. The account name, current plan, and standard team limits are used automatically.','اختر فئة ثم عيّنها لتفعيل مساحة العمل. سيُستخدم اسم الحساب والخطة الحالية وحدود الفريق القياسية تلقائيًا.');
         fields.querySelector('[data-owner-activation]')?.remove();
         if(current.linked&&selected==='7network_sales'&&current.permissions?.internalCategory){const activate=document.createElement('button');activate.type='button';activate.dataset.ownerActivation='';activate.className='sx-user-plan-action';activate.textContent=t('Create Business Admin setup link','إنشاء رابط إعداد مسؤول النشاط');activate.onclick=async()=>{activate.disabled=true;try{const invite=(await access(`${encodeURIComponent(userId)}/owner-activation`,{})).data;const href=location.origin+'/user/login#business-owner-setup='+encodeURIComponent(invite.token);let output=fields.querySelector('[data-owner-link-output]');if(!output){output=document.createElement('div');output.dataset.ownerLinkOutput='';output.setAttribute('role','status');fields.append(output);}output.innerHTML=`<p>${t('One-time setup link for','رابط إعداد لمرة واحدة لـ')} ${esc(invite.email)} (72 ${t('hours','ساعة')}):</p><p><code style="overflow-wrap:anywhere">${esc(href)}</code></p><button type="button" data-owner-link-copy>${t('Copy link','نسخ الرابط')}</button>`;output.querySelector('[data-owner-link-copy]').onclick=async event=>{try{await navigator.clipboard.writeText(href);event.currentTarget.textContent=t('Copied','تم النسخ');}catch(_){event.currentTarget.textContent=t('Select and copy the link above','حدد الرابط أعلاه وانسخه');}};}catch(error){status.textContent=error.code==='OWNER_ALREADY_ACTIVATED'?t('The Business Admin account is already active.','تم تفعيل حساب مسؤول النشاط بالفعل.'):t('Could not create the setup link. Check the Business Admin account and try again.','تعذر إنشاء رابط الإعداد. تحقق من حساب مسؤول النشاط وحاول مجددًا.');}finally{activate.disabled=false;}};fields.append(activate);}
-        start.textContent=current.linked?(t('Manage business contract','إدارة عقد النشاط')):t('Review category setup','مراجعة إعداد الفئة');start.disabled=!(current.linked||current.permissions?.provision&&(current.categories||[]).some(category=>category.key+'@'+category.version===select.value));
+        changeButton.hidden=!(current.linked&&current.permissions?.categoryChange);changeButton.disabled=true;
+        start.textContent=current.linked?(t('Manage business contract','إدارة عقد النشاط')):(select.value.startsWith('7network_sales@')?t('Review internal setup','مراجعة الإعداد الداخلي'):t('Assign & activate','تعيين وتفعيل'));start.disabled=!(current.linked||current.permissions?.provision&&(current.categories||[]).some(category=>category.key+'@'+category.version===select.value));
       }catch(error){select.value='';status.textContent=t('Could not verify the category. Refresh and try again.','تعذر التحقق من الفئة. حدّث الصفحة وحاول مجددًا.');start.disabled=true;}
       finally{loading=false;}
     }
-    select.onchange=()=>{start.disabled=!(current?.linked||current?.permissions?.provision&&(current.categories||[]).some(category=>category.key+'@'+category.version===select.value));};
-    start.onclick=async()=>{if(start.disabled)return;const category=(current.categories||[]).find(category=>category.key+'@'+category.version===select.value);if(!category)return;const key=category.key;fields.hidden=true;flow.hidden=false;flow.innerHTML=`<div role="status">${t('Loading business setup…','جارٍ تحميل إعداد النشاط…')}</div>`;const completed=async()=>{await refreshCategory();flow.hidden=true;fields.hidden=false;};await openBusiness(userId,flow,completed,completed,key,category.version);};
+    select.onchange=()=>{start.disabled=!(current?.linked||current?.permissions?.provision&&(current.categories||[]).some(category=>category.key+'@'+category.version===select.value));if(changeButton&&!changeButton.hidden)changeButton.disabled=select.value===(current?.category?.key||current?.tenant?.category_key)+'@'+current?.tenant?.category_version;};
+    changeButton.onclick=()=>{const category=(current?.categories||[]).find(item=>item.key+'@'+item.version===select.value);reviewCategoryChange(category);};
+    start.onclick=async()=>{if(start.disabled)return;const category=current?.linked?(current.categories||[]).find(item=>item.key+'@'+item.version===(current.category?.key||current.tenant?.category_key)+'@'+current.tenant?.category_version):(current.categories||[]).find(item=>item.key+'@'+item.version===select.value);if(!category)return;fields.hidden=true;flow.hidden=false;flow.innerHTML=`<div role="status">${t('Loading current plan and category defaults…','جارٍ تحميل الخطة الحالية والإعدادات الافتراضية للفئة…')}</div>`;const completed=async()=>{await refreshCategory();flow.hidden=true;fields.hidden=false;};if(!current.linked&&category.key!=='7network_sales')await quickActivateBusiness(userId,flow,category,completed);else await openBusiness(userId,flow,completed,completed,category.key,category.version);};
     refreshCategory();
   }
   async function open(userId) {

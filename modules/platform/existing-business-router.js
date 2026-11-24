@@ -2,6 +2,7 @@
 const express=require('express');
 const crypto=require('node:crypto');
 const assignment=require('./business-contract-assignment');
+const categoryChange=require('./business-category-change');
 const provisioning=require('./business-provisioning');
 const legacy=require('./legacy-plan-assignment');
 const {platformDecision}=require('./policy');
@@ -43,14 +44,23 @@ function createExistingBusinessRouter({pool,legacyGuard,canonicalGuard}){
       if(!tenant)return {userId:user.id,uid:user.uid,name:user.name,current:legacy.summary(user.plan),expiresAt:user.plan_expire,linked:false,versions:[]};
       const category=getCategory(tenant.category_key,Number(tenant.category_version));
       if(!category||category.planable!==true)throw Object.assign(new Error(),{code:'CATEGORY_UNAVAILABLE'});
-      if(category.public===false&&!platformDecision(req.businessContext,'categories.manage'))throw Object.assign(new Error(),{code:'PERMISSION_DENIED'});
+      if(category.public===false&&!platformDecision(req.businessContext,'categories.manage')&&!platformDecision(req.businessContext,'tenants.category-change'))throw Object.assign(new Error(),{code:'PERMISSION_DENIED'});
       const state=crypto.createHash('sha256').update(JSON.stringify([user.plan==null?null:String(user.plan),user.plan_expire==null?null:String(user.plan_expire),mapping.tenant_id,mapping.membership_id,mapping.legacy_uid_hash,String(mapping.verified_at),String(tenant.revision)])).digest('hex');
       const categoryKeys=require('./categories').categoryKeysFor(category.key);
       const [versions]=await db.query(`SELECT v.id,v.version,v.category_key AS categoryKey,v.category_version AS categoryVersion,v.role_limits AS roleLimits,v.capabilities,c.commercial_snapshot AS commercial FROM sx_plan_versions v JOIN sx_legacy_plan_contracts c ON c.version_id=v.id WHERE v.status='published' AND v.category_key IN (${categoryKeys.map(()=>'?').join(',')}) AND v.category_version=? ORDER BY c.legacy_plan_id,v.version DESC LIMIT 100`,[...categoryKeys,tenant.category_version]);
       return {userId:user.id,uid:user.uid,name:user.name,current:legacy.summary(user.plan),expiresAt:user.plan_expire,linked:true,tenant,category:{key:category.key,version:category.version,title:category.title,seatRoles:category.seatRoles},verifiedAt:mapping.verified_at,state,versions:versions.map(v=>({id:v.id,version:v.version,categoryKey:require('./categories').canonicalCategoryKey(v.categoryKey),categoryVersion:v.categoryVersion,roleLimits:jsonValue(v.roleLimits),capabilities:jsonValue(v.capabilities),commercial:jsonValue(v.commercial)}))};
     });
     data.categories=listCategories().filter(category=>category.planable===true&&(category.public||platformDecision(req.businessContext,'categories.manage'))).map(({key,version,title,seatRoles})=>({key,version,title,seatRoles}));
-    data.permissions={read:platformDecision(req.businessContext,'plans.read'),assign:platformDecision(req.businessContext,'plans.assign'),provision:platformDecision(req.businessContext,'tenants.create')&&platformDecision(req.businessContext,'plans.assign'),internalCategory:platformDecision(req.businessContext,'categories.manage')};res.json({success:true,data});
+    if(data.linked&&data.category&&!data.categories.some(category=>category.key===data.category.key&&category.version===data.category.version))data.categories.push(data.category);
+    data.permissions={read:platformDecision(req.businessContext,'plans.read'),assign:platformDecision(req.businessContext,'plans.assign'),provision:platformDecision(req.businessContext,'tenants.create')&&platformDecision(req.businessContext,'plans.assign'),internalCategory:platformDecision(req.businessContext,'categories.manage'),categoryChange:platformDecision(req.businessContext,'tenants.category-change')};res.json({success:true,data});
+  }));
+  router.post('/:userId/category-change-preview',wrap(async(req,res)=>{
+    if(!/^\d+$/.test(req.params.userId)||Number(req.params.userId)<1||Number(req.params.userId)>2147483647)return res.status(400).json({code:'INVALID_ASSIGNMENT'});
+    const data=await use(async db=>{await requirePortfolio(db,req.businessContext,Number(req.params.userId));return categoryChange.preview(db,req.businessContext,{...req.body,userId:Number(req.params.userId)});});res.json({success:true,data});
+  }));
+  router.post('/:userId/category-change',wrap(async(req,res)=>{
+    if(!/^\d+$/.test(req.params.userId)||Number(req.params.userId)<1||Number(req.params.userId)>2147483647)return res.status(400).json({code:'INVALID_ASSIGNMENT'});
+    const data=await use(async db=>{await requirePortfolio(db,req.businessContext,Number(req.params.userId));return categoryChange.change(db,req.businessContext,{...req.body,userId:Number(req.params.userId)});});res.json({success:true,data});
   }));
   router.get('/:userId/provision-options',wrap(async(req,res)=>{
     if(!/^\d+$/.test(req.params.userId)||Number(req.params.userId)<1||Number(req.params.userId)>2147483647)return res.status(400).json({code:'INVALID_ASSIGNMENT'});
@@ -69,6 +79,19 @@ function createExistingBusinessRouter({pool,legacyGuard,canonicalGuard}){
     if(!/^\d+$/.test(req.params.userId)||Number(req.params.userId)<1||Number(req.params.userId)>2147483647)return res.status(400).json({code:'INVALID_ASSIGNMENT'});
     const data=await use(async db=>{await requirePortfolio(db,req.businessContext,Number(req.params.userId));return provisioning.provision(db,req.businessContext,{...req.body,userId:Number(req.params.userId)});});res.status(201).json({success:true,data});
   }));
+  router.get('/:userId/quick-provision-options',wrap(async(req,res)=>{
+    if(!/^\d+$/.test(req.params.userId)||Number(req.params.userId)<1||Number(req.params.userId)>2147483647)return res.status(400).json({code:'INVALID_ASSIGNMENT'});
+    const categoryKey=typeof req.query.categoryKey==='string'?req.query.categoryKey:'training_center',rawVersion=req.query.categoryVersion;
+    if(rawVersion!==undefined&&(typeof rawVersion!=='string'||! /^[1-9][0-9]*$/.test(rawVersion)))throw Object.assign(new Error(),{code:'INVALID_CATEGORY_VERSION'});
+    const categoryVersion=rawVersion===undefined?1:Number(rawVersion);if(!Number.isSafeInteger(categoryVersion))throw Object.assign(new Error(),{code:'INVALID_CATEGORY_VERSION'});
+    const data=await use(async db=>{await requirePortfolio(db,req.businessContext,Number(req.params.userId));return provisioning.quickOptions(db,req.businessContext,Number(req.params.userId),categoryKey,categoryVersion);});
+    res.setHeader('Cache-Control','no-store');res.json({success:true,data});
+  }));
+  router.post('/:userId/quick-provision',wrap(async(req,res)=>{
+    if(!/^\d+$/.test(req.params.userId)||Number(req.params.userId)<1||Number(req.params.userId)>2147483647)return res.status(400).json({code:'INVALID_ASSIGNMENT'});
+    const data=await use(async db=>{await requirePortfolio(db,req.businessContext,Number(req.params.userId));return provisioning.quickProvision(db,req.businessContext,{...req.body,userId:Number(req.params.userId)});});
+    res.status(data.replayed?200:201).json({success:true,data});
+  }));
   router.post('/:userId/owner-activation',wrap(async(req,res)=>{
     if(!/^\d+$/.test(req.params.userId)||Number(req.params.userId)<1||Number(req.params.userId)>2147483647)return res.status(400).json({code:'INVALID_USER_ID'});
     const invitation=await use(db=>ownerActivation.create(db,req.businessContext,Number(req.params.userId)));
@@ -84,7 +107,7 @@ function createExistingBusinessRouter({pool,legacyGuard,canonicalGuard}){
   }));
   router.use((error,req,res,next)=>{
     if(res.headersSent)return next(error);
-    const code=error.code||'',status=['PERMISSION_DENIED','PLATFORM_REQUIRED','VERIFIED_ADMIN_LINK_REQUIRED','PORTFOLIO_ACCESS_DENIED'].includes(code)?403:['USER_NOT_FOUND'].includes(code)?404:['STALE_FEATURE_SETTINGS','STALE_ASSIGNMENT','PUBLISHED_PLAN_IMMUTABLE','IDEMPOTENCY_CONFLICT','AMBIGUOUS_BUSINESS_LINK','AMBIGUOUS_USER','VERIFIED_BUSINESS_LINK_REQUIRED','BUSINESS_ALREADY_PROVISIONED','BUSINESS_IDENTITY_EXISTS','PUBLISHED_CONTRACT_REQUIRED','CONTRACT_NOT_FOR_CURRENT_PLAN','MAPPED_TENANT_REQUIRES_CONTRACT_ASSIGNMENT','SALES_OWNER_NOT_READY','OWNER_ALREADY_ACTIVATED','DESIGNATED_OWNER_REQUIRED'].includes(code)?409:['STALE_PROVISION'].includes(code)?409:code.startsWith('INVALID_')||['ONE_OWNER_REQUIRED','CATEGORY_UNAVAILABLE','ACCOUNT_INACTIVE','PLAN_LIMIT_EXCEEDED','SEATS_IN_USE','BUSINESS_PLAN_REQUIRED','BUSINESS_EMAIL_INVALID','BUSINESS_NAME_INVALID','STORED_CONTRACT_INVALID'].includes(code)?400:error.type==='entity.parse.failed'?400:error.type==='entity.too.large'?413:503;
+    const code=error.code||'',status=['PERMISSION_DENIED','PLATFORM_REQUIRED','VERIFIED_ADMIN_LINK_REQUIRED','PORTFOLIO_ACCESS_DENIED'].includes(code)?403:['USER_NOT_FOUND'].includes(code)?404:['STALE_FEATURE_SETTINGS','STALE_ASSIGNMENT','STALE_PLAN','STALE_CATEGORY_CHANGE','CURRENT_PLAN_SNAPSHOT_STALE','CURRENT_PLAN_CONTRACT_STALE','BUSINESS_PLAN_EXPIRED','DEFAULT_CONTRACT_CONFLICT','LEGACY_STAFF_IDENTITY_EXISTS','LEGACY_STAFF_LINK_INVALID','PUBLISHED_PLAN_IMMUTABLE','IDEMPOTENCY_CONFLICT','AMBIGUOUS_BUSINESS_LINK','AMBIGUOUS_USER','VERIFIED_BUSINESS_LINK_REQUIRED','BUSINESS_ALREADY_PROVISIONED','BUSINESS_IDENTITY_EXISTS','PUBLISHED_CONTRACT_REQUIRED','CONTRACT_NOT_FOR_CURRENT_PLAN','MAPPED_TENANT_REQUIRES_CONTRACT_ASSIGNMENT','SALES_OWNER_NOT_READY','OWNER_ALREADY_ACTIVATED','DESIGNATED_OWNER_REQUIRED','STALE_PROVISION'].includes(code)?409:code.startsWith('INVALID_')||['ONE_OWNER_REQUIRED','CATEGORY_UNAVAILABLE','CATEGORY_UNCHANGED','ACCOUNT_INACTIVE','ACTIVE_CONTRACT_REQUIRED','CURRENT_CONTRACT_MISMATCH','MATCHING_CONTRACT_REQUIRED','COMMERCIAL_TERMS_CHANGED','LEGACY_PLAN_MISMATCH','LEGACY_EXPIRY_INVALID','UNSUPPORTED_ACTIVE_ROLES','PLAN_LIMIT_EXCEEDED','SEATS_IN_USE','BUSINESS_PLAN_REQUIRED','BUSINESS_EMAIL_INVALID','BUSINESS_NAME_INVALID','STORED_CONTRACT_INVALID','PROVISION_BLOCKED'].includes(code)?400:error.type==='entity.parse.failed'?400:error.type==='entity.too.large'?413:503;
     const body={code:status===503?'ASSIGNMENT_UNAVAILABLE':error.type==='entity.parse.failed'?'INVALID_JSON':error.type==='entity.too.large'?'BODY_TOO_LARGE':code};
     if(!['GET','HEAD'].includes(req.method)&&req.businessContext?.identity?.id){
       use(db=>db.query("INSERT INTO sx_audit_events(id,actor_identity_id,actor_kind,action,resource_type,resource_id,changes,correlation_id) VALUES (?,?,'identity','business-contract.request-rejected','business-account',?,?,?)",[crypto.randomUUID(),req.businessContext.identity.id,req.params.userId||'unknown',JSON.stringify(body),crypto.randomUUID()])).then(()=>res.status(status).json(body)).catch(()=>res.status(503).json({code:'AUDIT_UNAVAILABLE'}));
