@@ -5572,3 +5572,25 @@ Runtime hashes:
 | `modules/platform/business-provisioning.js` | `780cb58290c760a228d1836888e35897866e52d824378bd5406fbcab93abbb92` |
 
 JavaScript syntax checks, deployment-helper AST parsing and `git diff --check` passed. No automated suite ran. The first follow-up release attempt stopped at preflight after detecting the newer production-only catalogue bridge; it made no production changes. The successful deployment above used the reconciled source and verified preimage hashes.
+
+## Pro Catalyst course continuity and current-student replies — production, 24 November 2026
+
+Source commit `10ece805b8f3e19fa3ad2629a5c6f67e8b69d41b` is pushed to `Ahammedsajal/SaleMax` `main` and deployed in app-only overlay `/opt/salemax/releases/pro-catalyst-conversation-state-10ece805b8f3-20261124T085034Z`, on base `/opt/salemax/releases/training-pipeline-correction-v3-9867ca72-20261104`. The existing app image remains `sha256:753d77d421b3160872df0812e7b38505a1db7104cdb9d6c8b17415b2420de667`. The release retains 331 Compose inputs, 11 environment inputs and 288 app mounts; only the app container was recreated. All seven non-app container identities remained unchanged. No migration, chatbot profile update, customer message or customer-record mutation occurred.
+
+The bot no longer interprets a generic “I visited your office” as MS Office. Recent explicit course names in the customer's messages now outrank stale lead/session course selections and course names present only in assistant replies. Existing students saying they have joined, enrolled, registered or started are routed to the specialist team; after the notification is actually queued, the customer receives a short current-student acknowledgment about the payment/sign-in update instead of a repeated callback/name/number script.
+
+Protected rollback snapshot: `/opt/salemax/shared/rollback-pro-catalyst-conversation-state-10ece805b8f3-20261124T085034Z`. If this is still the latest app overlay, restore the prior Compose chain under the production lock with:
+
+```sh
+sudo -n /opt/salemax/shared/with-production-lock.sh python3 /opt/salemax/releases/pro-catalyst-conversation-state-10ece805b8f3-20261124T085034Z/deploy/pro-catalyst-conversation-state-release.py restore /opt/salemax/shared/rollback-pro-catalyst-conversation-state-10ece805b8f3-20261124T085034Z
+```
+
+The snapshot has mode `0700` and stores the exact three runtime preimages and Compose metadata. Production preimage hashes were verified before deployment:
+
+| Runtime file | Previous SHA-256 | Deployed SHA-256 |
+|---|---|---|
+| `modules/platform/chatbot-runtime.js` | `c501a73a69ae378a5c166b031ea312b38ee3510488159380fc188a35413145b9` | `fe19ba3e5b2009b55995c0505ae9b5594adca56dd8b4c79f8f6dde836937bac2` |
+| `modules/platform/chatbot-business-context.js` | `e8e195df40fcd42c5368c42247d11ae3cc9155f8ed20083a27361b10e0dd3a30` | `8d1642620cbfbbdf14393d30f386cfb3e238944715358f2a8611987942a2649c` |
+| `modules/platform/chatbot-turn-understanding.js` | `1c0969d95e1cf29f2124d6a07943e913e2d546b9e46af46dda0e1b7599080bca` | `14439a8410a739c19eff99c16acd88a3f61a65d8b796a6826e316f997eabaa3f` |
+
+Verification: the app and database were healthy before and after deployment; the app has zero restarts, mounted hashes match the source, `/healthz` and the Manage Users shell return HTTP 200, and seven non-app services retain their prior identities. A synthetic in-container replay recovers Marine Deckhand from the customer's own history after an incidental office mention, keeps MS Office unselected, routes “I already joined” to the specialist path and generates a contextual payment/sign-in acknowledgment without asking again for the course, name or phone number. Focused course-context and AI-turn suites pass 237 tests, and the conversation-history suite, JavaScript syntax checks, release-helper parse and whitespace check pass. No real WhatsApp message was sent; fresh inbound device acceptance remains open.

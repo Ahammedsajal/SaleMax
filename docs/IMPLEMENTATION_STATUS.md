@@ -1,6 +1,8 @@
-## Pro Catalyst course continuity and current-student replies — source implemented, 24 November 2026
+## Pro Catalyst course continuity and current-student replies — deployed, 24 November 2026
 
-Generic phrases such as “I already visited your office” no longer select the MS Office course. For Training Center chats, the latest course explicitly named by the customer takes precedence over stale saved selections and course names appearing only in bot replies. Existing students who say they have joined/started and mention payment or sign-in are routed to the specialist team; after the notification is actually queued, the bot acknowledges the current-student update without restarting discovery or repeating name/number collection. The focused course-context, AI-turn and conversation-history suites pass 237 tests. Guarded app-only release is being prepared; no live chat or customer record has been changed.
+Generic phrases such as “I already visited your office” no longer select the MS Office course. For Training Center chats, the latest course explicitly named by the customer takes precedence over stale saved selections and course names appearing only in bot replies. Existing students who say they have joined/started and mention payment or sign-in are routed to the specialist team; after the notification is actually queued, the bot acknowledges the current-student update without restarting discovery or repeating name/number collection. The focused course-context, AI-turn and conversation-history suites pass. No live chat or customer record was changed during deployment.
+
+Source `10ece805b8f3e19fa3ad2629a5c6f67e8b69d41b` is deployed in app-only overlay `/opt/salemax/releases/pro-catalyst-conversation-state-10ece805b8f3-20261124T085034Z`. Production mounted hashes, public health, the synthetic context replay, app health and non-app container identities passed. No migration or customer data change occurred. A real WhatsApp customer-message acceptance check remains open; see `DEPLOYMENT.md` for rollback details.
 
 ## 7Network install action at the end of the business sidebar — deployed, 23 November 2026
 
