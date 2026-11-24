@@ -136,6 +136,100 @@ async function persistCourseSelection(pool, options) {
   } finally { db.release(); }
 }
 
+async function persistTrainingCenterVisitSignal(pool, {
+  uid, uidHash, leadId, signals = [], courseCode = null, origin = null, channelRef = null,
+  chatId = null, providerMessageId = null, timestamp = null, messageText = '', confidence = 0,
+  provider = null, model = null,
+}) {
+  const signalSet = new Set(Array.isArray(signals) ? signals : []);
+  if (!uid || !uidHash || !leadId || !signalSet.has('training_center_visited')) {
+    return { updated: false, reason: 'NO_VISIT_SIGNAL' };
+  }
+  const likelyToStart = signalSet.has('likely_to_start_class');
+  const messageDigest = crypto.createHash('sha256').update(String(messageText || '')).digest('hex');
+  const messageIdentity = providerMessageId || `${timestamp || 'unknown'}:${messageDigest}`;
+  const eventKey = crypto.createHash('sha256')
+    .update([uidHash, String(uid), String(leadId), String(origin || ''), String(channelRef || ''), String(chatId || ''), String(messageIdentity)].join('|'))
+    .digest('hex').slice(0, 48);
+  const db = await pool.getConnection();
+  try {
+    await db.beginTransaction();
+    const [[lead]] = await db.query(`SELECT qualification_data,status,stage_key,priority,automation_paused
+      FROM pipeline_leads WHERE uid_hash=? AND uid=? AND id=? FOR UPDATE`, [uidHash, uid, leadId]);
+    if (!lead || lead.status !== 'open') {
+      await db.commit();
+      return { updated: false, reason: lead ? 'LEAD_NOT_OPEN' : 'LEAD_NOT_FOUND' };
+    }
+
+    let qualification;
+    try { qualification = parse(lead.qualification_data); } catch { qualification = {}; }
+    if (!qualification || typeof qualification !== 'object' || Array.isArray(qualification)) qualification = {};
+    const journey = qualification.trainingCenterJourney && typeof qualification.trainingCenterJourney === 'object'
+      ? qualification.trainingCenterJourney : {};
+    const priorKeys = Array.isArray(journey.eventKeys) ? journey.eventKeys : [];
+    if (priorKeys.includes(eventKey)) {
+      await db.commit();
+      return { updated: false, duplicate: true };
+    }
+
+    const now = new Date().toISOString();
+    const course = typeof courseCode === 'string' && /^[A-Za-z0-9_-]{1,100}$/.test(courseCode) ? courseCode : null;
+    const wasVisited = journey.centerVisitStatus === 'customer_reported';
+    const wasLikely = journey.enrollmentIntent === 'likely_to_start_class';
+    const nextPriority = likelyToStart && ['low', 'normal'].includes(lead.priority) ? 'high' : lead.priority;
+    const shouldRecordActivity = !wasVisited || (likelyToStart && !wasLikely);
+    qualification.trainingCenterJourney = {
+      ...journey,
+      centerVisitStatus: 'customer_reported',
+      firstReportedAt: journey.firstReportedAt || now,
+      lastReportedAt: now,
+      courseCode: course || journey.courseCode || null,
+      enrollmentIntent: likelyToStart ? 'likely_to_start_class' : journey.enrollmentIntent || null,
+      intentConfidence: likelyToStart ? Math.max(0, Math.min(1, Number(confidence) || 0)) : journey.intentConfidence || null,
+      intentSource: likelyToStart ? 'chatbot_ai' : journey.intentSource || null,
+      eventKeys: [...priorKeys, eventKey].slice(-50),
+    };
+
+    let nextStage = lead.stage_key;
+    if (likelyToStart && lead.stage_key === 'new' && Number(lead.automation_paused || 0) === 0) {
+      const [[interested]] = await db.query(`SELECT stage_type FROM pipeline_stages
+        WHERE uid_hash=? AND stage_key='interested' LIMIT 1`, [uidHash]);
+      if (interested?.stage_type === 'open') nextStage = 'interested';
+    }
+
+    await db.query(`UPDATE pipeline_leads SET qualification_data=?,priority=?,stage_key=?,
+      stage_entered_at=IF(stage_key<>?,UTC_TIMESTAMP(3),stage_entered_at),
+      last_activity_at=UTC_TIMESTAMP(3),updated_at=UTC_TIMESTAMP(3)
+      WHERE uid_hash=? AND uid=? AND id=? AND status='open'`,
+    [JSON.stringify(qualification), nextPriority, nextStage, nextStage, uidHash, uid, leadId]);
+
+    if (shouldRecordActivity) {
+      const summary = likelyToStart
+        ? 'Customer reports visiting the training centre; class-start intent marked likely'
+        : 'Customer-reported training-centre visit recorded';
+      await db.query(`INSERT INTO pipeline_activity(uid_hash,lead_id,actor_type,activity_type,summary,details,created_at)
+        VALUES (?,?,'system','lead_updated',?,?,UTC_TIMESTAMP(3))`,
+      [uidHash, leadId, summary, JSON.stringify({ source: 'chatbot_ai', provider: String(provider || '').slice(0, 32) || null,
+        model: String(model || '').slice(0, 64) || null,
+        signals: likelyToStart ? ['training_center_visited', 'likely_to_start_class'] : ['training_center_visited'],
+        courseCode: course || journey.courseCode || null,
+        confidence: Math.max(0, Math.min(1, Number(confidence) || 0)), eventKey })]);
+    }
+    if (nextStage !== lead.stage_key) {
+      await db.query(`INSERT INTO pipeline_activity(uid_hash,lead_id,actor_type,activity_type,summary,details,created_at)
+        VALUES (?,?,'system','automation_stage_move',?,?,UTC_TIMESTAMP(3))`,
+      [uidHash, leadId, 'High course-start intent moved the lead to Interested', JSON.stringify({
+        rule: 'ai_training_center_visit', stageFrom: lead.stage_key, stageTo: nextStage,
+        courseCode: course, priorityFrom: lead.priority, priorityTo: nextPriority, eventKey })]);
+    }
+    await db.commit();
+    return { updated: true, stage: nextStage, priority: nextPriority };
+  } catch (error) {
+    await db.rollback().catch(() => {});
+    throw error;
+  } finally { db.release(); }
+}
+
 function qatarMobile(value) {
   const digits = normalizedDigits(value).replace(/\D/g, '').replace(/^00/, '');
   const national = digits.startsWith('974') && digits.length === 11 ? digits.slice(3) : digits.length === 8 ? digits : '';
@@ -615,7 +709,7 @@ async function markCourseAsked(pool, info, uid) {
 }
 module.exports = { savedContactName, captureLead, captureGenericLead, genericCaptureEnabled, customerName, qualificationFromText,
   rememberCourseInterests, restoreCourseMemory, persistCourseSelectionInTransaction,
-  persistCourseSelection,
+  persistCourseSelection, persistTrainingCenterVisitSignal,
   qatarMobile, qatarMobileFromText, phoneOnly, qatarCallbackEnabled, addQuestion, addQatarContactQuestion,
   affirmativeReply, nameConfirmationReply, callbackConsentReply, callbackConsentPromptWasAsked, markQatarContactAsked, markContactPromptAsked, markCallbackConsentPromptAsked,
   reserveCallbackAcknowledgement, releaseCallbackAcknowledgement, standaloneNamePrompt, markAsked, markCourseAsked, nameCandidateForTurn };

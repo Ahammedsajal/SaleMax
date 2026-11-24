@@ -6,6 +6,7 @@ const { normalized, redactCustomerText, validateAnswer } = require('./chatbot-bu
 
 const ACTIONS = new Set(['answer', 'clarify', 'acknowledge', 'decline', 'defer', 'request_staff', 'no_reply']);
 const QUESTIONS = new Set(['none', 'course', 'name', 'callback_number', 'callback_consent', 'other']);
+const LEAD_SIGNALS = new Set(['training_center_visited', 'likely_to_start_class']);
 const TOOL = {
   name: 'propose_training_reply',
   description: 'Propose the next action and reply for this training-centre conversation.',
@@ -18,9 +19,10 @@ const TOOL = {
       source_ids: { type: 'array', items: { type: 'string' } },
       reply: { type: 'string' },
       next_question: { type: 'string', enum: [...QUESTIONS] },
+      lead_signals: { type: 'array', items: { type: 'string', enum: [...LEAD_SIGNALS] } },
       confidence: { type: 'number' },
     },
-    required: ['action', 'course_codes', 'source_ids', 'reply', 'next_question', 'confidence'],
+    required: ['action', 'course_codes', 'source_ids', 'reply', 'next_question', 'lead_signals', 'confidence'],
   },
 };
 
@@ -36,6 +38,8 @@ const SYSTEM = [
   'When the customer thanks you after receiving details, acknowledge them without restarting discovery. If they say not now or they will return later, respect their decision and do not ask another question.',
   'If staffNotificationQueued is true, it is safe to say the team has received the enquiry. Acknowledge the customer’s actual message and current-student status; do not replace it with a generic callback script or ask for a name, course, or phone number already present in context.',
   'Use primaryCourseName and selectedCourseCode as the customer’s current course. Use courseInterestHistory only when the customer refers to an older interest or asks to compare courses. When one current course is clear, answer follow-ups about it without asking which course they mean. Change the primary course only when the customer clearly asks about a different course; retain prior interests.',
+  'Classify lead_signals from the latest customer message interpreted with recent conversation and the selected course; never treat bot text as a customer claim. Use training_center_visited only when the customer reports that they physically visited this training centre or its office. Questions, future/planned visits, hypotheticals, and negated statements do not count as a reported visit. During an active course enquiry, that reported visit is a warm signal and should also include likely_to_start_class, unless the customer has already enrolled or started the course. These are tentative sales signals only: never claim or record that enrolment, payment, or class attendance is confirmed. Return an empty array when the latest message does not report a visit.',
+  'Acknowledge a reported visit naturally and continue from the known course context. Do not restart course discovery or ask which course when selectedCourseCode or primaryCourseName already identifies it. The runtime handles any required contact-detail prompt; do not ask for name or phone again.',
   'Respect a refusal or request to speak later. Do not restart a conversation because the customer says hello again.',
   'Do not claim a person has been notified or a callback arranged unless the server says so.',
   'Do not offer to contact staff or check a detail with them unless the server provides an action to do that; instead explain that the detail is not confirmed.',
@@ -87,6 +91,13 @@ function isExistingLearnerUpdate(text) {
   return /\b(?:already|al ready)\s+(?:joined|enrolled|registered|started)\b|\bi\s+(?:(?:have|ve)\s+)?(?:already\s+)?(?:joined|enrolled|registered|started)\b|\bi\s+m\s+(?:already\s+)?(?:a\s+)?(?:student|learner)\b|\bi\s+am\s+(?:already\s+)?(?:a\s+)?(?:student|learner)\b|\bcurrent student\b/u.test(value);
 }
 
+function isTrainingCenterVisitCandidate(value) {
+  const text = normalized(value);
+  const hasPlace = /\b(?:our|your|the)?\s*(?:training\s+)?(?:office|centre|center|campus|institute)\b/u.test(text);
+  const hasVisit = /\b(?:visited|visit(?:ed)?|went\s+to|came\s+to|been\s+to|was\s+at|am\s+at|are\s+at)\b/u.test(text);
+  return (hasPlace && hasVisit) || /(?:زرت|زرنا|ذهبت\s+إلى|أتيت\s+إلى|كنت\s+في).{0,50}(?:مركز|مكتب|معهد)/u.test(text);
+}
+
 function existingLearnerHandoffReply({ text, language = 'en', courseName = null } = {}) {
   if (!isExistingLearnerUpdate(text)) return null;
   const value = normalized(text);
@@ -113,6 +124,12 @@ function validateProposal(proposal, context, { staffNotificationQueued = false, 
       || typeof proposal.reply !== 'string' || proposal.reply.length > 1200
       || !Number.isFinite(proposal.confidence) || proposal.confidence < 0 || proposal.confidence > 1) {
     return { valid: false, reason: 'INVALID_PROPOSAL' };
+  }
+  const leadSignals = proposal.lead_signals === undefined ? [] : proposal.lead_signals;
+  if (!Array.isArray(leadSignals) || leadSignals.length > 2 || new Set(leadSignals).size !== leadSignals.length
+      || leadSignals.some(signal => !LEAD_SIGNALS.has(signal))
+      || (leadSignals.includes('likely_to_start_class') && !leadSignals.includes('training_center_visited'))) {
+    return { valid: false, reason: 'INVALID_LEAD_SIGNALS' };
   }
   if (proposal.confidence < 0.8) return { valid: false, reason: 'LOW_CONFIDENCE' };
   if (!staffNotificationQueued && /\b(?:would you like|shall|should|can) (?:me|i) to (?:ask|contact|check|confirm|send|notify)\b|\b(?:would you like me|shall i|should i|can i) (?:ask|contact|check|confirm|notify)\b/iu.test(proposal.reply)) {
@@ -239,6 +256,10 @@ async function understandTurn({ provider, settings, tenantId, text, history, sta
   });
   if (response.function !== TOOL.name || !response.functionArguments) return { ok: false, reason: 'MISSING_PROPOSAL', usage: response.usage };
   const proposal = { ...response.functionArguments };
+  if (proposal.lead_signals === undefined) proposal.lead_signals = [];
+  // The latest customer message must itself report the visit. A prior visit
+  // in history must not cause a fresh pipeline event on an unrelated turn.
+  if (!isTrainingCenterVisitCandidate(payload.text)) proposal.lead_signals = [];
   if (typeof proposal.reply === 'string') {
     for (const item of payload.evidence) {
       if (typeof item.sourceId !== 'string' || !item.sourceId) continue;
@@ -272,4 +293,4 @@ async function understandTurn({ provider, settings, tenantId, text, history, sta
   return { ok: true, proposal, usage: response.usage };
 }
 
-module.exports = { TOOL, SYSTEM, buildRequest, validateProposal, renderPriceComparison, safeSocialFallback, retainSelectedCourse, isExistingLearnerUpdate, existingLearnerHandoffReply, understandTurn };
+module.exports = { TOOL, SYSTEM, buildRequest, validateProposal, renderPriceComparison, safeSocialFallback, retainSelectedCourse, isTrainingCenterVisitCandidate, isExistingLearnerUpdate, existingLearnerHandoffReply, understandTurn };

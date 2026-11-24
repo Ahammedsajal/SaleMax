@@ -880,6 +880,16 @@ function contextualPilotAllowed({ ctx, profile, origin, message }) {
   return origin === 'meta' && recipientAllowed(profile.config, message?.senderMobile, profile.id);
 }
 
+function contextualVisitTurnAllowed({ ctx, profile, origin, message, text }) {
+  if (!aiAvailableForProfile(profile) || ctx.category.key !== 'training_center'
+      || !require('./chatbot-turn-understanding').isTrainingCenterVisitCandidate(text)) return false;
+  if (origin === 'qr') {
+    const identity = mockup.qrRecipientIdentity(message);
+    return Boolean(identity && mockup.liveQrMessageAllowed(profile.config, message));
+  }
+  return origin === 'meta' && recipientAllowed(profile.config, message?.senderMobile, profile.id);
+}
+
 function aiHandlesStaffRoute(profile, route) {
   return aiAvailableForProfile(profile) && ['human', 'handoff', 'certificate'].includes(route);
 }
@@ -1359,6 +1369,7 @@ async function generateAiAnswer({ ctx, profile, uid, customerMessage, chatId = n
   let succeeded = false;
   let failedUsage = null;
   let contextualQuestion = null;
+  let contextualLeadSignals = [];
   let contextualValidated = false;
   onStage?.('provider-request');
   try {
@@ -1394,6 +1405,7 @@ async function generateAiAnswer({ ctx, profile, uid, customerMessage, chatId = n
           metrics: { ...result.usage, cacheHit: false, sources: [] } };
       }
       contextualQuestion = result.proposal.next_question;
+      contextualLeadSignals = Array.isArray(result.proposal.lead_signals) ? result.proposal.lead_signals : [];
       contextualValidated = true;
       response = { canAnswer: true, confidence: result.proposal.confidence,
         reply: result.proposal.reply, sourceIds: result.proposal.source_ids, ...result.usage };
@@ -1462,6 +1474,7 @@ async function generateAiAnswer({ ctx, profile, uid, customerMessage, chatId = n
   if (contextualPilot && contextualQuestion) nextState.pendingQuestion = contextualQuestion;
   const answer = { canAnswer: true, confidence: response.confidence, reply: response.reply, state: nextState, route: 'ai',
     repeat: Boolean(repeat), staffRequested, staffNotificationQueued, handoffReason: staffReason, metrics,
+    ...(contextualLeadSignals.length ? { leadSignals: contextualLeadSignals, leadSignalConfidence: response.confidence } : {}),
     // The contextual model has already chosen the next conversational action.
     // Appending the legacy intake prompt can turn a thank-you into a repeated
     // discovery question or contradict the customer's request to stop.
@@ -1619,7 +1632,9 @@ async function aiTurn({ ctx, profile, uid, message, user, sessionId, origin, cha
   onStage?.('bot-routing');
   const incomingText = textOf(message);
   const continuity = mockup.ownsInbox(uid, origin);
-  const contextualPilot = contextualPilotAllowed({ ctx, profile, origin, message });
+  const configuredContextualAi = contextualPilotAllowed({ ctx, profile, origin, message });
+  const contextualVisitTurn = !configuredContextualAi && contextualVisitTurnAllowed({ ctx, profile, origin, message, text: incomingText });
+  const contextualPilot = configuredContextualAi || contextualVisitTurn;
   const contextualContinuation = contextualPilot && businessContext.isTrainingGreeting(incomingText)
     && Boolean((await loadDomainGuidedSession({ ctx, profile, chatId, channelKind: channelFor(origin), channelRef: sessionId }))?.greeted);
   const aiAvailableForTurn = aiAvailableForProfile(profile);
@@ -1825,6 +1840,23 @@ async function aiTurn({ ctx, profile, uid, message, user, sessionId, origin, cha
     if (!latest.length) throw Object.assign(new Error('CHAT_CONTEXT_UNAVAILABLE'), { code: 'CHAT_CONTEXT_UNAVAILABLE' });
     if (String(latest[0].metaChatId || '') !== String(message.metaChatId || '')) {
       return { superseded: true, route: 'newer-customer-message' };
+    }
+    if (ctx.category.key === 'training_center' && leadInfo?.leadId && leadInfo?.uidHash
+        && Array.isArray(answer.leadSignals) && answer.leadSignals.includes('training_center_visited')) {
+      const proposedCourseCode = answer.state?.selectedCourseCode || leadInfo.primaryCourseCode || null;
+      const knownCourseCode = (leadInfo.facts || []).some(item => !item.kind && item.code === proposedCourseCode)
+        ? proposedCourseCode : null;
+      try {
+        await require('./chatbot-lead-capture').persistTrainingCenterVisitSignal(dbPool, {
+          uid, uidHash: leadInfo.uidHash, leadId: leadInfo.leadId, signals: answer.leadSignals,
+          courseCode: knownCourseCode, origin, channelRef: sessionId, chatId,
+          providerMessageId: message.metaChatId || message.id || null, timestamp: message.timestamp,
+          messageText: incomingText, confidence: answer.leadSignalConfidence,
+          provider: answer.metrics?.provider, model: answer.metrics?.model,
+        });
+      } catch (error) {
+        console.warn('[chatbot] training-center visit signal could not be saved', error.code || 'LEAD_SIGNAL_WRITE_FAILED');
+      }
     }
   }
   if (!await canSendNow({ ctx, profile, uid, origin, sessionId, chatId, message })) return { paused: true };
