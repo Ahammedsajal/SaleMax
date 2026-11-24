@@ -34,7 +34,7 @@ OLD_UI_REF = b'/email-marketing-workspace.js?v=20261124-email-domain-share1'
 NEW_UI_REF = b'/email-marketing-workspace.js?v=20261124-campaign-outcome-review1'
 OLD_CSS_REF = b'/email-marketing-workspace.css?v=20261122-email-bounce-privacy1'
 NEW_CSS_REF = b'/email-marketing-workspace.css?v=20261124-campaign-outcome-review1'
-SIDEBAR_REF = b'/training-sidebar.js?v=20261117-email-marketing-nav1'
+SIDEBAR_REF = b'/training-sidebar.js?v=20261124-retail-reconciliation'
 PREIMAGES = {
     UI: '475d8477ce4cc89847dcf23a75802b07af27ff7c4d43a35aa485aaaecd42fda6',
     CSS: '1336092ccaddf487460bb24745173fd1971276ef02a1dfc6cefb2d74e91345b9',
