@@ -5543,3 +5543,32 @@ Verification: the app remained healthy with zero restarts on the existing image;
 | `client/public/index.html` (production shell with category editor cache reference) | `0a62432e5e926f8cf09e1e732b72c1017ef605f45695f281dc8d0c9237bcb6a6` |
 
 Signed-in Edge review on the account showed that the category preview now allows confirmation when the target contract price differs, while displaying the current paid terms and the target contract separately. The account category was not confirmed or changed. The localized title correction was then deployed and its served asset/hash verified; refresh Manage Users to load that final asset before opening the review. JavaScript syntax and `git diff --check` passed; no automated suite ran. No database rollback applies.
+
+## Standard commercial plan offers — production, 24 November 2026
+
+Source commits `f726a5715174f64e637233da7ed4e4d0c97793ed`, `338d58e2c3132631571e51b3b910f8b9e395c8f5`, and `800ce0030fae4e69862387c8c6804436f08b51e5` are pushed to `Ahammedsajal/SaleMax` `main`. The assignment context now returns only published category contracts whose complete commercial snapshot matches the current shared legacy plan catalogue. Preview and assignment repeat that check server-side, so old prices cannot be chosen from the UI or submitted directly. Provisioning also skips stale category snapshots; the existing audited default-contract publisher can create a current category contract when quick provisioning needs one. Existing paid assignments and immutable published history are untouched.
+
+The production master catalogue is `Yearly CRM` at 3,840 QAR / 365 days and `Monthly CRM` at 370 QAR / 30 days. The legacy 700 QAR and 3,740 QAR published versions remain in history because published contracts are immutable; the new assignment flow no longer offers them. This release did not change any plan assignment or subscription record.
+
+The release was deployed to `/opt/salemax/releases/standard-plan-offers-800ce0030fae-20261124T081156Z/compose.standard-plan-offers.json`, layered on the existing production Compose chain and app image `salemax-app:email-marketing-21a07cc41fa9-20261112` (`sha256:753d77d421b3160872df0812e7b38505a1db7104cdb9d6c8b17415b2420de667`). It added four read-only app mounts; the running app now has 288 mounts and 329 Compose inputs. Only the app container was recreated. All seven non-app container identities remained unchanged. No migration ran.
+
+Protected rollback snapshot: `/opt/salemax/shared/rollback-standard-plan-offers-800ce0030fae-20261124T081156Z`. If this is still the latest app overlay, restore the prior app Compose chain under the production lock:
+
+```sh
+sudo -n /opt/salemax/shared/with-production-lock.sh python3 /opt/salemax/releases/standard-plan-offers-800ce0030fae-20261124T081156Z/deploy/standard-plan-offers-release.py restore /opt/salemax/shared/rollback-standard-plan-offers-800ce0030fae-20261124T081156Z
+```
+
+The release helper found a production-only `catalogue-bridge.js` revision that already contained an atomic, audited default-contract publisher. That exact file was synced into this source checkout before deployment and left mounted from its existing production path; it was not overwritten. Its runtime hash is `77ddd95a0267a12e035f34da58eed181da59fdc950f24661c2a10cc8b2d30349`.
+
+Verification: app and database were healthy before deployment; the app returned healthy with zero restarts afterward. `/healthz` and the Manage Users shell returned HTTP 200. The unauthenticated business-context API returned the expected sign-in JSON (`logout: true`). The live catalogue audit found current selectable published contracts for Training Center yearly (3,840 QAR) and Retail & Inventory yearly (3,840 QAR). No current yearly contract is published for 7Network Sales, Real Estate, or Base CRM. A matching monthly contract is not yet published for any of the five categories; Training Center has only an outdated 350 QAR / 180 day version. Those historical versions are now hidden from new assignment. Publishing the missing current category offers through Manage Plans remains required before all categories expose both standard periods. The Manage Plans tab could not be controlled in this run: the browser integration was detached, and the visible Edge window was an unrelated InPrivate DNS error page.
+
+Runtime hashes:
+
+| Mounted runtime file | SHA-256 |
+|---|---|
+| `modules/platform/existing-business-router.js` | `1509dc59329bdee6ad5431f3d9cdb22005a33024c824501895b701dcf62be51f` |
+| `modules/platform/business-contract-assignment.js` | `57ed74e94e4ce84707c0557a2516bec0ef8694b48627f1240f3a84e612f02ffe` |
+| `modules/platform/standard-plan-offers.js` | `f900deab8d69b6367f486b2ca05474ccae77935fec5b46e5f9b40b69764c5dcb` |
+| `modules/platform/business-provisioning.js` | `780cb58290c760a228d1836888e35897866e52d824378bd5406fbcab93abbb92` |
+
+JavaScript syntax checks, deployment-helper AST parsing and `git diff --check` passed. No automated suite ran. The first follow-up release attempt stopped at preflight after detecting the newer production-only catalogue bridge; it made no production changes. The successful deployment above used the reconciled source and verified preimage hashes.
