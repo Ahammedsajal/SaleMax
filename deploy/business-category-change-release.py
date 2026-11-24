@@ -268,12 +268,21 @@ def public_check(expected_ui_hash):
     try:
         with urlopen(request, timeout=20) as response:
             status = response.status
+            body = response.read()
     except HTTPError as error:
         status = error.code
-    if status not in (401, 403):
+        body = error.read()
+    rejected = status in (401, 403)
+    if status == 200:
+        try:
+            result = json.loads(body)
+            rejected = result.get('success') is False or result.get('logout') is True
+        except (TypeError, ValueError):
+            rejected = False
+    if not rejected:
         raise RuntimeError('Anonymous category-change API did not reject the request')
     return {'healthz': 'HTTP 200', 'manageUsersShell': 'HTTP 200',
-            'anonymousMutationApi': f'HTTP {status}', 'adminUserPlansAsset': 'HTTP 200'}
+            'anonymousMutationApi': f'HTTP {status} rejected', 'adminUserPlansAsset': 'HTTP 200'}
 
 def deploy(stage_path, commit):
     require_lock()
