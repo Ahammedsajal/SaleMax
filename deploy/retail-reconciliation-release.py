@@ -186,8 +186,9 @@ def stage_manifest(stage, commit):
     if set(info['preimages']) != set(info['runtime']):
         raise RuntimeError('Incomplete live Retail preimage manifest')
     for path, checksum in {**info['runtime'], **info['tools']}.items():
-        if not re.fullmatch(r'(?:modules/platform|client/public|database/migrations|deploy|'
-                            r'integrations/woocommerce/7network-retail-connector)/[A-Za-z0-9._-]+', path):
+        if path != 'database/migration-runner.js' and not re.fullmatch(
+                r'(?:modules/platform|client/public|database/migrations|deploy|'
+                r'integrations/woocommerce/7network-retail-connector)/[A-Za-z0-9._-]+', path):
             raise RuntimeError('Unexpected Retail release path')
         source = stage / path
         if source.is_symlink() or not source.is_file() or file_sha(source) != checksum:
