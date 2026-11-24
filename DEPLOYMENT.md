@@ -5518,3 +5518,28 @@ Verification: `/healthz`, the Manage Users shell and cache-busted editor script 
 | `modules/platform/business-category-change.js` | `d5d8965f5d960f1354f52d760d01d0859e4dee26b17aab48f85d181ce73d0e6c` |
 | `modules/platform/existing-business-router.js` | `3ca16224d493d7fb301472aeed7669201212cda780e02a3f1881489b27f2517b` |
 | `client/public/index.html` (production-derived shell) | `ad7eec324b0aa40d9c3a35d32b4d6a7e9da766202be113d01cbd088978ee86cf` |
+
+## 7Network business category correction review — production, 24 November 2026
+
+Source commit `c73fcb0acda869b49f9a83ee5e4a72b56e62d24d` is pushed to `Ahammedsajal/SaleMax` `main`. It corrects the category-change preview so a different published target-category price or term does not block correcting the category for an already-paid period. The preview reads the assigned historical plan snapshot and checks that it still matches the legacy account plan and expiry. The category update preserves that current plan, price and expiry, account login, workspace and records. The published target-category price remains visible and applies only when a new plan is assigned later; this flow does not bill or assign a new plan. Team, owner, role, published-contract, permission, stale-state and audit safeguards remain active.
+
+The app-only overlay is `/opt/salemax/releases/business-category-change-terms-c73fcb0acda8-20261124T063828Z/compose.business-category-change-terms.json`. It is layered over the existing production app chain; the app image remained `sha256:753d77d421b3160872df0812e7b38505a1db7104cdb9d6c8b17415b2420de667`. It introduced no migration and changed no business account. Its protected snapshot is `/opt/salemax/shared/rollback-business-category-change-terms-c73fcb0acda8-20261124T063828Z`.
+
+Live Manage Users review then exposed localized category titles rendered as `[object Object]`. Source commit `79a67283545c9ebee33913bb95d544c79d1987d9` adds language-aware title rendering and bumps the cache reference; it is also pushed to `main`. The follow-up app-only overlay `/opt/salemax/releases/business-category-change-terms-79a67283545c-20261124T064647Z/compose.business-category-change-terms.json` is the active overlay, layered after the terms correction above. It kept the same app image, 327 Compose inputs, 11 environment inputs and 287 app mounts; all seven non-app containers remained unchanged. No migration or business-account update ran.
+
+The protected rollback snapshot for the active follow-up is `/opt/salemax/shared/rollback-business-category-change-terms-79a67283545c-20261124T064647Z`. If this remains the latest app overlay, restore it under the production lock with:
+
+```sh
+sudo -n /opt/salemax/shared/with-production-lock.sh python3 /opt/salemax/releases/business-category-change-terms-79a67283545c-20261124T064647Z/deploy/business-category-change-terms-release.py restore /opt/salemax/shared/rollback-business-category-change-terms-79a67283545c-20261124T064647Z
+```
+
+Verification: the app remained healthy with zero restarts on the existing image; `/healthz`, the Manage Users shell and the cache-busted editor asset returned HTTP 200, and the served script hash matched the release. The anonymous preview API returned the expected sign-in rejection. The production runtime hashes are:
+
+| Mounted runtime file | SHA-256 |
+|---|---|
+| `client/public/admin-user-plans.js` | `9e67b6936eb54512b95992f235fc8de94c162608f8423df7caa82b04f9e1ebcd` |
+| `modules/platform/business-category-change.js` | `e00d015d6d72a94c7e7498baaf77158932e7178d37988e6a0464e1e55dc2e2d6` |
+| `modules/platform/existing-business-router.js` | `3ca16224d493d7fb301472aeed7669201212cda780e02a3f1881489b27f2517b` |
+| `client/public/index.html` (production shell with category editor cache reference) | `0a62432e5e926f8cf09e1e732b72c1017ef605f45695f281dc8d0c9237bcb6a6` |
+
+Signed-in Edge review on the account showed that the category preview now allows confirmation when the target contract price differs, while displaying the current paid terms and the target contract separately. The account category was not confirmed or changed. The localized title correction was then deployed and its served asset/hash verified; refresh Manage Users to load that final asset before opening the review. JavaScript syntax and `git diff --check` passed; no automated suite ran. No database rollback applies.
