@@ -116,7 +116,8 @@ def restore_and_rehearse(db_image, app_image, backup, migrator, request):
         'docker', 'run', '-d', '--rm', '--network', 'none', '--cpus', '1', '--memory', '1g',
         '--pids-limit', '256', '--label', 'com.7network.purpose=retail-restore-rehearsal',
         '--env', 'MARIADB_ALLOW_EMPTY_ROOT_PASSWORD=1', db_image, '--bind-address=127.0.0.1',
-        '--event-scheduler=OFF', '--skip-log-bin', '--innodb-buffer-pool-size=128M'
+        '--event-scheduler=OFF', '--skip-log-bin', '--innodb-buffer-pool-size=128M',
+        '--innodb-flush-log-at-trx-commit=2'
     ).strip()
     try:
         isolation = ops.inspect(container)['HostConfig']
@@ -141,6 +142,7 @@ def restore_and_rehearse(db_image, app_image, backup, migrator, request):
         emit('backup_restored', tables=fingerprint['tables'], archiveBytes=archive.stat().st_size)
         rehearsal = run_migrator([
             'docker', 'run', '--rm', '-i', '--network', f'container:{container}', '--memory', '512m',
+            '--user', '0:0', '--cap-drop', 'ALL', '--workdir', '/app',
             '--env', 'RETAIL_RESTORE_ONLY=1', '--mount', f'type=bind,src={backup / "baseline"},dst=/retail-baseline,ro',
             '--entrypoint', 'node', app_image, '-e', migrator, 'rehearse'
         ], request)
