@@ -129,9 +129,30 @@ def deploy(stage,commit):
   if run('curl','-fsS','-o','/dev/null','-w','%{http_code}',url).strip()!='200':raise RuntimeError('Public HTTP check failed')
  write_private(backup/'result.json',{'commit':commit,'release':str(release),'rollback':str(backup),'image':IMAGE,'imageId':current['Image'],'hashes':hashes,'migration':migration,'appHealthy':True,'dbHealthy':inspect(DB)['State'].get('Health',{}).get('Status')=='healthy','otherServicesUnchanged':True})
  print(json.dumps({'commit':commit,'release':str(release),'rollback':str(backup),'image':IMAGE,'imageId':current['Image'],'hashes':hashes,'migration':migration,'appHealthy':True,'otherServicesUnchanged':True}))
+def restore(backup_path):
+ require_lock();backup=Path(backup_path).resolve()
+ record=json.loads((backup/'container-before.json').read_text());release=Path((backup/'release.txt').read_text().strip())
+ app=inspect(APP);db=inspect(DB)
+ if app.get('Image')!=record.get('image') or app.get('Config',{}).get('Image')!=IMAGE or db['State'].get('Health',{}).get('Status')!='healthy':raise RuntimeError('Rollback baseline differs')
+ files,envs,workdir=compose_context(app);overlay=str(release/'compose.email-marketing-shared-sender.json')
+ if not files or files[-1]!=overlay:raise RuntimeError('This release is not the active Compose tail')
+ previous=json.loads((backup/'compose-before.json').read_text())
+ if not previous or previous!=files[:-1]:raise RuntimeError('Saved pre-release Compose chain differs')
+ before_inventory=json.loads((backup/'support-services.json').read_text())
+ if {k:v for k,v in inventory().items() if k!=APP}!=before_inventory:raise RuntimeError('A non-app container identity changed')
+ env=input_env(app,files,envs);run(*(compose_args(previous,envs,workdir)+['up','-d','--no-deps','--no-build','--force-recreate','app']),env=env)
+ current=None
+ for _ in range(60):
+  current=inspect(APP)
+  if current['State'].get('Health',{}).get('Status')=='healthy':break
+  time.sleep(2)
+ if not current or current['State'].get('Health',{}).get('Status')!='healthy':raise RuntimeError('Restored app is unhealthy')
+ if {k:v for k,v in inventory().items() if k!=APP}!=before_inventory:raise RuntimeError('A non-app container changed during restore')
+ print(json.dumps({'restored':True,'appId':current['Id'],'imageId':current['Image'],'migrationRetained':True,'databaseDataRestored':False,'nonAppContainersUnchanged':True}))
 def main():
  if len(sys.argv)==5 and sys.argv[1]=='stage':stage(sys.argv[2],sys.argv[3],sys.argv[4])
  elif len(sys.argv)==4 and sys.argv[1]=='deploy':deploy(sys.argv[2],sys.argv[3])
+ elif len(sys.argv)==3 and sys.argv[1]=='restore':restore(sys.argv[2])
  else:raise RuntimeError('Usage: stage <source-root> <stage-dir> <commit> | deploy <stage-dir> <commit>')
 if __name__=='__main__':
  try:main()
