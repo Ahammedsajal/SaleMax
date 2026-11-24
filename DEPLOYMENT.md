@@ -5497,3 +5497,24 @@ Verification: the app is `healthy` with zero restarts; `/healthz`, `/user?page=d
 | `client/public/pwa-install.js` | `c96e492dc723e4f069b5dcbb92e12c7d399b3a760d44fad7228e937e069f778c` |
 
 Signed-in Edge accessibility review on the business workspace showed `Install 7Network` as the final sidebar row after Business Profile; no floating install button appeared in the accessibility tree. The source JavaScript and release helper passed syntax checks and `git diff --check`; no automated suite ran. The native install prompt was not opened or accepted; mobile, Arabic and dark-theme visual acceptance remain open. The post-release retention dry-run found 303 release directories, zero eligible and zero reclaimable bytes; no cleanup was applied. No database rollback applies. The full 42-ticket upgrade remains in progress.
+
+## 7Network Super Admin business category correction — production, 24 November 2026
+
+Source commit `07949f177bfcfb0a0ce7e9ccf3147b32bc94c8cc` is pushed to `Ahammedsajal/SaleMax` `main`. It adds an in-place category-change flow for linked business accounts in Super Admin > Manage Users > Edit User. The administrator selects a target category, reviews preserved account/plan/expiry details, feature access and active team limits, then explicitly confirms. It preserves the existing login, workspace and records, requires the target category's published contract to match the current plan price and term, and blocks changes that exceed team limits or use unsupported roles. The existing business-contract editor remains separate. No category was changed during deployment or verification.
+
+The app-only overlay is `/opt/salemax/releases/business-category-change-07949f177bfc-20261124T060207Z/compose.business-category-change.json`, layered over `/opt/salemax/releases/training-pipeline-correction-v3-9867ca72-20261104`. The image remained `sha256:753d77d421b3160872df0812e7b38505a1db7104cdb9d6c8b17415b2420de667`. Only the app service was recreated; seven support-service identities were unchanged. No migration, user/account mutation or plan assignment ran. The release preserves production-only business activation and contract modules synced into this source before the feature was layered.
+
+The first rollout automatically rolled back when its release probe expected an anonymous API request to return 401/403, while the application correctly returns HTTP 200 with a JSON sign-in rejection. The rollback restored the original three runtime files and health remained good. The probe was corrected to validate the rejection payload; the successful second rollout is the active overlay above. Its protected pre-deploy snapshot is `/opt/salemax/shared/rollback-business-category-change-07949f177bfc-20261124T060207Z`. If this remains the latest app overlay, restore it under the production lock with:
+
+```sh
+sudo -n /opt/salemax/shared/with-production-lock.sh python3 /opt/salemax/releases/business-category-change-07949f177bfc-20261124T060207Z/deploy/business-category-change-release.py restore /opt/salemax/shared/rollback-business-category-change-07949f177bfc-20261124T060207Z
+```
+
+Verification: `/healthz`, the Manage Users shell and cache-busted editor script returned HTTP 200. The anonymous category API probe returned the expected JSON sign-in rejection. The public script hash matched the deployed asset, and the app was healthy with zero restarts. Signed-in Edge accessibility inspection showed the linked-account category selector, separate “Review category change” and “Manage business contract” actions, and the independent “Update User” control. On the open `7network-Sales` account, the currently assigned category read back as `7Network Sales · v1`; choosing that same category is a no-op. A different category must be selected, reviewed, and explicitly confirmed. No actual account category was changed for acceptance. JavaScript syntax, deployment-helper AST parsing and `git diff --check` passed; no automated suite was run.
+
+| Mounted runtime file | SHA-256 |
+|---|---|
+| `client/public/admin-user-plans.js` | `bb14bde1446836a2889d7d4abcfeea5b73dbd025c51dc4c6dfb77e07134f7da3` |
+| `modules/platform/business-category-change.js` | `d5d8965f5d960f1354f52d760d01d0859e4dee26b17aab48f85d181ce73d0e6c` |
+| `modules/platform/existing-business-router.js` | `3ca16224d493d7fb301472aeed7669201212cda780e02a3f1881489b27f2517b` |
+| `client/public/index.html` (production-derived shell) | `ad7eec324b0aa40d9c3a35d32b4d6a7e9da766202be113d01cbd088978ee86cf` |
