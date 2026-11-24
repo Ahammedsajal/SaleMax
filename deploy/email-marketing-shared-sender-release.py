@@ -49,7 +49,10 @@ def input_env(app,files,envs):
  refs=set();supplied=set()
  for p in files: refs.update(re.findall(r'\$\{([A-Za-z_][A-Za-z0-9_]*)',Path(p).read_text()))
  for p in envs: supplied.update(re.findall(r'^\s*([A-Za-z_][A-Za-z0-9_]*)=',Path(p).read_text(),re.M))
- live=dict(x.split('=',1) for x in app['Config'].get('Env',[]) if '=' in x);vals={k:live[k] for k in refs-supplied if k in live}
+ live=dict(x.split('=',1) for x in app['Config'].get('Env',[]) if '=' in x)
+ manual_path=ROOT/'shared/rollback-private-inventory-84644fdfebee/compose-manual-vars.json'
+ manual=json.loads(manual_path.read_text()) if manual_path.is_file() else {}
+ vals={k:(manual[k] if k in manual else live[k]) for k in refs-supplied if k in manual or k in live}
  if set(vals)!=refs-supplied: raise RuntimeError('Compose inputs cannot be resolved safely')
  env=dict(os.environ)
  for k in refs:env.pop(k,None)
