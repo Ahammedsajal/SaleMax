@@ -8,7 +8,6 @@ const providerSettings=require('./email-marketing-provider-settings');
 const inboxMessaging=require('./email-marketing-inbox');
 const inbound=require('./email-marketing-inbound');
 const emailContent=require('./email-marketing-content');
-const bouncePrivacy=require('./email-marketing-bounce-privacy');
 const workerId=`email-${os.hostname().replace(/[^A-Za-z0-9._:-]/g,'-').slice(0,60)}-${process.pid}`;
 const id=()=>crypto.randomUUID();
 const interval=5000,leaseSeconds=180;
@@ -20,15 +19,16 @@ async function claim(pool,{limit=8,now=new Date()}={}){
     await db.query("UPDATE sx_email_campaigns SET status='queued' WHERE status='scheduled' AND scheduled_at<=UTC_TIMESTAMP(3)");
     await db.query("UPDATE sx_email_campaign_recipients SET status='unknown',lease_owner=NULL,lease_expires_at=NULL,last_error_code='DELIVERY_OUTCOME_UNKNOWN' WHERE status='sending' AND lease_expires_at<=UTC_TIMESTAMP(3)");
     const [rows]=await db.query(`SELECT r.id,r.tenant_id AS tenantId,r.campaign_id AS campaignId,r.contact_id AS contactId,r.recipient_email AS recipientEmail,
-      r.normalized_email AS normalizedEmail,r.email_fingerprint AS emailFingerprint,r.attempt_count AS attemptCount,c.subject,c.text_body AS textBody,c.design_json AS designJson,c.status AS campaignStatus,
-      s.email AS senderEmail,s.verification_status AS senderStatus,d.region,d.domain,d.verification_status AS domainStatus,d.dkim_status AS dkimStatus,
+      r.normalized_email AS normalizedEmail,r.attempt_count AS attemptCount,c.subject,c.text_body AS textBody,c.design_json AS designJson,c.status AS campaignStatus,
+      s.id AS senderId,s.email AS senderEmail,s.verification_status AS senderStatus,d.region,d.domain,d.verification_status AS domainStatus,d.dkim_status AS dkimStatus,
       i.reply_domain AS replyDomain,i.receiving_status AS receivingStatus,c.reply_to_email AS replyToEmail
       FROM sx_email_campaign_recipients r JOIN sx_email_campaigns c ON c.tenant_id=r.tenant_id AND c.id=r.campaign_id
       JOIN sx_email_senders s ON s.tenant_id=c.tenant_id AND s.id=c.sender_id
-      JOIN sx_email_sender_domains d ON d.tenant_id=s.tenant_id AND d.id=s.domain_id
+      JOIN sx_email_sender_domains d ON d.id=s.domain_id
+      LEFT JOIN sx_email_sender_domain_shares sh ON sh.domain_id=d.id AND sh.owner_tenant_id=d.tenant_id AND sh.shared_tenant_id=s.tenant_id AND sh.sender_email=s.email AND sh.status='active'
       LEFT JOIN sx_email_inbound_domains i ON i.tenant_id=d.tenant_id AND i.sender_domain_id=d.id
       WHERE c.status IN ('queued','sending') AND (c.scheduled_at IS NULL OR c.scheduled_at<=UTC_TIMESTAMP(3))
-        AND r.status='pending' AND r.available_at<=UTC_TIMESTAMP(3)
+        AND r.status='pending' AND r.available_at<=UTC_TIMESTAMP(3) AND (d.tenant_id=s.tenant_id OR sh.id IS NOT NULL)
       ORDER BY r.available_at,r.created_at,r.id LIMIT ? FOR UPDATE SKIP LOCKED`,[limit]);
     const items=[];
     for(const row of rows){
@@ -43,18 +43,16 @@ async function claim(pool,{limit=8,now=new Date()}={}){
 
 async function currentContact(db,item){
   const [rows]=await db.query(`SELECT c.name,c.email,c.mobile,c.var1,c.var2,c.var3,c.var4,c.var5,c.email_unsubscribed_at,
-      s.normalized_email AS suppressedEmail,bs.email_fingerprint AS bouncedFingerprint
+      s.normalized_email AS suppressedEmail
     FROM sx_email_campaign_recipients r
     JOIN sx_legacy_ownership o ON o.tenant_id=r.tenant_id AND o.source_table='user'
     JOIN sx_memberships m ON m.id=o.membership_id AND m.tenant_id=o.tenant_id AND m.role='owner' AND m.status='active'
     JOIN user u ON BINARY CAST(u.id AS CHAR)=BINARY o.source_id AND BINARY SHA2(u.uid,256)=BINARY o.legacy_uid_hash
     JOIN contact c ON c.uid=u.uid AND c.id=r.contact_id
     LEFT JOIN sx_email_suppressions s ON s.tenant_id=r.tenant_id AND s.normalized_email=r.normalized_email
-    LEFT JOIN sx_email_bounce_suppressions bs ON bs.tenant_id=r.tenant_id AND bs.email_fingerprint=r.email_fingerprint
     WHERE r.tenant_id=? AND r.campaign_id=? AND r.id=? LIMIT 2`,[item.tenantId,item.campaignId,item.id]);
   if(rows.length!==1)return {blocked:true,code:'PHONEBOOK_CONTACT_UNAVAILABLE'};
   const contact=rows[0],email=service.normalizeEmail(contact.email);
-  if(contact.bouncedFingerprint)return {blocked:true,code:'EMAIL_BOUNCED'};
   if(contact.email_unsubscribed_at)return {blocked:true,code:'CONTACT_UNSUBSCRIBED'};
   if(!service.validEmail(email)||email!==item.normalizedEmail)return {blocked:true,code:'CONTACT_EMAIL_CHANGED'};
   if(contact.suppressedEmail)return {blocked:true,code:'EMAIL_SUPPRESSED'};
@@ -108,7 +106,13 @@ function campaignReplyAddresses(item,key){
 async function dispatch(pool,item,{key,origin,send=ses.sendSimple,providerCache=new Map(),credentials=null,providerErrorCode=null,configurationSetName=null}={}){
   if(item.senderStatus!=='verified'||item.domainStatus!=='verified'||item.dkimStatus!=='SUCCESS')return finish(pool,item,{status:'failed',errorCode:'EMAIL_SENDER_NOT_VERIFIED'});
   if(!credentials)return finish(pool,item,{status:'retry',errorCode:providerErrorCode||'AWS_CREDENTIALS_REQUIRED',delaySeconds:300});
-  const db=await pool.getConnection();let current,attachments;try{current=await currentContact(db,item);if(current.blocked)return finish(pool,item,{status:'suppressed',errorCode:current.code});attachments=await campaignAttachments(db,item);}finally{db.release();}
+  const db=await pool.getConnection();let current,attachments,shareAllowed;try{
+    const [[senderAccess]]=await db.query(`SELECT d.tenant_id AS ownerTenantId FROM sx_email_senders s JOIN sx_email_sender_domains d ON d.id=s.domain_id
+      LEFT JOIN sx_email_sender_domain_shares x ON x.domain_id=d.id AND x.owner_tenant_id=d.tenant_id AND x.shared_tenant_id=s.tenant_id AND x.sender_email=s.email AND x.status='active'
+      WHERE s.tenant_id=? AND s.id=? AND (d.tenant_id=s.tenant_id OR x.id IS NOT NULL) LIMIT 1`,[item.tenantId,item.senderId]);
+    shareAllowed=Boolean(senderAccess);if(!shareAllowed)return finish(pool,item,{status:'failed',errorCode:'EMAIL_DOMAIN_SHARE_REVOKED'});
+    current=await currentContact(db,item);if(current.blocked)return finish(pool,item,{status:'suppressed',errorCode:current.code});attachments=await campaignAttachments(db,item);
+  }finally{db.release();}
   let design=null;
   if(item.designJson){
     try{design=emailContent.cleanDesign(emailContent.parseDesign(item.designJson),attachments);}
@@ -205,10 +209,10 @@ async function tick(pool,{key,origin,limit=8}={}){
   }
   return {claimed:items.length,sent,failed,suppressed,unknown,retried,outboundMessages};
 }
-function start(pool,{key,origin,ready=Promise.resolve(),logger=console,setIntervalImpl=setInterval,clearIntervalImpl=clearInterval}={}){
+function start(pool,{key,origin,logger=console,setIntervalImpl=setInterval,clearIntervalImpl=clearInterval}={}){
   if(!pool||!Buffer.isBuffer(key)||key.length!==32||process.env.LOCAL_ONLY_MODE==='true')return ()=>{};
   let busy=false;
-  const timer=setIntervalImpl(()=>{if(busy)return;busy=true;Promise.resolve(ready).then(()=>tick(pool,{key,origin})).catch(()=>logger.error('Email marketing worker tick failed.')).finally(()=>{busy=false;});},interval);
+  const timer=setIntervalImpl(()=>{if(busy)return;busy=true;tick(pool,{key,origin}).catch(()=>logger.error('Email marketing worker tick failed.')).finally(()=>{busy=false;});},interval);
   timer.unref?.();return ()=>clearIntervalImpl(timer);
 }
 

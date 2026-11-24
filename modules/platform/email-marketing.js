@@ -73,14 +73,25 @@ async function providerStatus(db,ctx,key){
 async function setup(db,ctx,key){
   emailMarketingAccess(ctx.context);
   const [[replySettings]]=await db.query('SELECT reply_to_email AS replyToEmail,revision FROM sx_email_marketing_settings WHERE tenant_id=?',[ctx.tenantId]);
-  const [domains]=await db.query('SELECT * FROM sx_email_sender_domains WHERE tenant_id=? ORDER BY created_at,id',[ctx.tenantId]);
+  const [domains]=await db.query(`SELECT d.*,CASE WHEN d.tenant_id=? THEN 0 ELSE 1 END AS is_shared,
+      (SELECT t.name FROM sx_tenants t WHERE t.id=d.tenant_id) AS owner_name
+    FROM sx_email_sender_domains d
+    WHERE d.tenant_id=? OR EXISTS(SELECT 1 FROM sx_email_sender_domain_shares x WHERE x.domain_id=d.id AND x.shared_tenant_id=? AND x.status='active')
+    ORDER BY d.created_at,d.id`,[ctx.tenantId,ctx.tenantId,ctx.tenantId]);
   const [inboundDomains]=await db.query(`SELECT id,sender_domain_id,region,reply_domain,verification_status,mx_verified_at,receiving_status,
     receipt_rule_set_name,receipt_rule_name,last_error_code,verification_token FROM sx_email_inbound_domains WHERE tenant_id=? ORDER BY created_at,id`,[ctx.tenantId]);
   const inboundBySender=new Map(inboundDomains.map(row=>[row.sender_domain_id,row]));
-  const [senders]=await db.query('SELECT * FROM sx_email_senders WHERE tenant_id=? ORDER BY created_at,id',[ctx.tenantId]);
+  const [senders]=await db.query(`SELECT s.* FROM sx_email_senders s JOIN sx_email_sender_domains d ON d.id=s.domain_id
+    WHERE s.tenant_id=? AND (d.tenant_id=s.tenant_id OR EXISTS(SELECT 1 FROM sx_email_sender_domain_shares x
+      WHERE x.domain_id=d.id AND x.owner_tenant_id=d.tenant_id AND x.shared_tenant_id=s.tenant_id AND x.sender_email=s.email AND x.status='active'))
+    ORDER BY s.created_at,s.id`,[ctx.tenantId]);
+  const [shares]=await db.query(`SELECT x.id,x.domain_id AS domainId,x.shared_tenant_id AS sharedTenantId,t.name AS workspaceName,
+      x.sender_email AS senderEmail,x.created_at AS createdAt
+    FROM sx_email_sender_domain_shares x JOIN sx_tenants t ON t.id=x.shared_tenant_id
+    WHERE x.owner_tenant_id=? AND x.status='active' ORDER BY t.name,x.sender_email`,[ctx.tenantId]);
   const [books]=await db.query('SELECT id,name,(SELECT COUNT(*) FROM contact c WHERE c.uid=p.uid AND c.phonebook_id=p.id) AS contactCount FROM phonebook p WHERE p.uid=? ORDER BY p.name,p.id',[ctx.ownerUid]);
   const [templates]=await db.query('SELECT id,name,subject,text_body AS text,revision,updated_at AS updatedAt FROM sx_email_templates WHERE tenant_id=? ORDER BY updated_at DESC,id',[ctx.tenantId]);
-  return {provider:await providerStatus(db,ctx,key),replyToEmail:replySettings?.replyToEmail||'',replyToRevision:Number(replySettings?.revision||0),domains:domains.map(row=>({...decodeDomain(row),inbound:decodeInbound(inboundBySender.get(row.id),row.domain)})),senders:senders.map(decodeSender),phonebooks:books,templates};
+  return {provider:await providerStatus(db,ctx,key),replyToEmail:replySettings?.replyToEmail||'',replyToRevision:Number(replySettings?.revision||0),domains:domains.map(row=>({...decodeDomain(row),shared:Boolean(row.is_shared),ownerName:row.owner_name,inbound:row.is_shared?null:decodeInbound(inboundBySender.get(row.id),row.domain)})),senders:senders.map(decodeSender),shares,phonebooks:books,templates};
 }
 
 function campaignMailbox(value){
@@ -133,6 +144,44 @@ async function addDomain(db,ctx,input,key){
   }catch(error){if(error?.code==='ER_DUP_ENTRY')fail('EMAIL_DOMAIN_ALREADY_CONNECTED',409);throw error;}
   await audit(db,ctx,'email.domain.created','email-domain',id,{domain,region});
   return {id,domain,region,status:domainStatus(identity.status),dkimStatus:identity.dkimStatus,records:identity.records};
+}
+async function shareSenderDomain(db,ctx,id,input){
+  emailMarketingAccess(ctx.context);
+  if(typeof id!=='string'||!/^[-0-9a-f]{36}$/i.test(id))fail('INVALID_EMAIL_DOMAIN_ID');
+  const targetEmail=cleanEmail(input?.workspaceEmail,true),senderEmail=cleanEmail(input?.senderEmail,true);
+  await db.beginTransaction();
+  try{
+    const [[domain]]=await db.query('SELECT id,tenant_id,domain FROM sx_email_sender_domains WHERE tenant_id=? AND id=? FOR UPDATE',[ctx.tenantId,id]);
+    if(!domain)fail('EMAIL_DOMAIN_NOT_FOUND',404);
+    if(senderEmail.split('@')[1]!==domain.domain)fail('EMAIL_SENDER_DOMAIN_MISMATCH');
+    const [[sender]]=await db.query(`SELECT id FROM sx_email_senders WHERE tenant_id=? AND domain_id=? AND email=? AND verification_status='verified'`,[ctx.tenantId,id,senderEmail]);
+    if(!sender)fail('EMAIL_SENDER_NOT_VERIFIED',409);
+    const [[target]]=await db.query(`SELECT t.id AS tenantId FROM sx_identities i JOIN sx_memberships m ON m.identity_id=i.id AND m.role='owner' AND m.status='active'
+      JOIN sx_tenants t ON t.id=m.tenant_id AND t.status='active' WHERE i.email_normalized=? AND i.status='active'`,[targetEmail]);
+    if(!target)fail('EMAIL_SHARE_WORKSPACE_NOT_FOUND',404);
+    if(target.tenantId===ctx.tenantId)fail('EMAIL_SHARE_SAME_WORKSPACE');
+    const [[existingSender]]=await db.query('SELECT id,domain_id AS domainId FROM sx_email_senders WHERE tenant_id=? AND email=? FOR UPDATE',[target.tenantId,senderEmail]);
+    if(existingSender&&existingSender.domainId!==id)fail('EMAIL_SHARE_SENDER_CONFLICT',409);
+    const shareId=uuid(),targetSenderId=existingSender?.id||uuid();
+    await db.query(`INSERT INTO sx_email_sender_domain_shares(id,domain_id,owner_tenant_id,shared_tenant_id,sender_email,status,created_by_identity_id,revoked_by_identity_id,revoked_at)
+      VALUES(?,?,?,?,?,'active',?,NULL,NULL) ON DUPLICATE KEY UPDATE status='active',created_by_identity_id=VALUES(created_by_identity_id),revoked_by_identity_id=NULL,revoked_at=NULL`,
+      [shareId,id,ctx.tenantId,target.tenantId,senderEmail,ctx.identityId]);
+    await db.query(`INSERT INTO sx_email_senders(id,tenant_id,domain_id,email,verification_status,created_by_identity_id)
+      VALUES(?,?,?,?, 'verified',?) ON DUPLICATE KEY UPDATE verification_status='verified',last_error_code=NULL`,
+      [targetSenderId,target.tenantId,id,senderEmail,ctx.identityId]);
+    await audit(db,ctx,'email.domain.sender-shared','email-domain',id,{sharedTenantId:target.tenantId,senderEmail});
+    await db.commit();
+    return {shared:true,domainId:id,workspaceEmail:targetEmail,senderEmail};
+  }catch(error){try{await db.rollback();}catch{}throw error;}
+}
+async function revokeSenderDomainShare(db,ctx,id,shareId){
+  emailMarketingAccess(ctx.context);
+  if(typeof id!=='string'||!/^[-0-9a-f]{36}$/i.test(id)||typeof shareId!=='string'||!/^[-0-9a-f]{36}$/i.test(shareId))fail('INVALID_EMAIL_DOMAIN_ID');
+  const [result]=await db.query(`UPDATE sx_email_sender_domain_shares SET status='revoked',revoked_by_identity_id=?,revoked_at=UTC_TIMESTAMP(3)
+    WHERE owner_tenant_id=? AND domain_id=? AND id=? AND status='active'`,[ctx.identityId,ctx.tenantId,id,shareId]);
+  if(!Number(result?.affectedRows||0))fail('EMAIL_DOMAIN_SHARE_NOT_FOUND',404);
+  await audit(db,ctx,'email.domain.share-revoked','email-domain',id,{shareId});
+  return {revoked:true,domainId:id,shareId};
 }
 async function refreshDomain(db,ctx,id,key){
   emailMarketingAccess(ctx.context);if(typeof id!=='string'||!/^[-0-9a-f]{36}$/i.test(id))fail('INVALID_EMAIL_DOMAIN_ID');
@@ -434,9 +483,13 @@ async function createCampaign(db,ctx,input,key){
   if(scheduledAt&&(!Number.isFinite(scheduledAt.getTime())||scheduledAt.getTime()<Date.now()+60000||scheduledAt.getTime()>Date.now()+90*86400000))fail('INVALID_EMAIL_SCHEDULE');
   await db.beginTransaction();try{
     const [rows]=await db.query(`SELECT s.id,s.email,s.verification_status,d.region,d.domain,d.verification_status AS domain_status,d.dkim_status
-      FROM sx_email_senders s JOIN sx_email_sender_domains d ON d.tenant_id=s.tenant_id AND d.id=s.domain_id
+      FROM sx_email_senders s JOIN sx_email_sender_domains d ON d.id=s.domain_id
       WHERE s.tenant_id=? AND s.id=? FOR UPDATE`,[ctx.tenantId,senderId]);
-    const sender=rows[0];if(!sender)fail('EMAIL_SENDER_NOT_FOUND',404);if(sender.verification_status!=='verified'||sender.domain_status!=='verified'||sender.dkim_status!=='SUCCESS')fail('EMAIL_SENDER_NOT_VERIFIED',409);
+    const sender=rows[0];if(!sender)fail('EMAIL_SENDER_NOT_FOUND',404);
+    const [[grant]]=await db.query(`SELECT id FROM sx_email_sender_domain_shares WHERE domain_id=(SELECT domain_id FROM sx_email_senders WHERE tenant_id=? AND id=?) AND shared_tenant_id=? AND sender_email=? AND status='active' LIMIT 1`,[ctx.tenantId,senderId,ctx.tenantId,sender.email]);
+    const [[ownerDomain]]=await db.query('SELECT tenant_id FROM sx_email_sender_domains WHERE id=(SELECT domain_id FROM sx_email_senders WHERE tenant_id=? AND id=?)',[ctx.tenantId,senderId]);
+    if(ownerDomain?.tenant_id!==ctx.tenantId&&!grant)fail('EMAIL_DOMAIN_SHARE_REVOKED',403);
+    if(sender.verification_status!=='verified'||sender.domain_status!=='verified'||sender.dkim_status!=='SUCCESS')fail('EMAIL_SENDER_NOT_VERIFIED',409);
     let template=null;
     if(templateId){const [[row]]=await db.query('SELECT id,subject,text_body AS text,design_json AS design,revision FROM sx_email_templates WHERE tenant_id=? AND id=?',[ctx.tenantId,templateId]);if(!row)fail('EMAIL_TEMPLATE_NOT_FOUND',404);template={...row,design:emailContent.parseDesign(row.design)};}
     const body=cleanText(template?.design?template.text:(input.text||template?.text||''),30000,'INVALID_EMAIL_TEXT',{required:true}),mailSubject=cleanText(input.subject||template?.subject||'',998,'INVALID_EMAIL_SUBJECT',{required:true});
@@ -631,9 +684,10 @@ async function threadMessages(db,ctx,id){
 async function testSend(db,ctx,input,key){
   emailMarketingAccess(ctx.context);const senderId=String(input?.senderId||'');if(!/^[-0-9a-f]{36}$/i.test(senderId))fail('INVALID_EMAIL_SENDER_ID');
   const settings=await configuredProvider(db,key);
-  const [[sender]]=await db.query(`SELECT s.email,s.verification_status,d.region,d.verification_status AS domainStatus,d.dkim_status AS dkimStatus
-    FROM sx_email_senders s JOIN sx_email_sender_domains d ON d.tenant_id=s.tenant_id AND d.id=s.domain_id
+  const [[sender]]=await db.query(`SELECT s.email,s.verification_status,d.region,d.verification_status AS domainStatus,d.dkim_status AS dkimStatus,d.tenant_id AS domainOwnerTenantId,s.domain_id AS domainId
+    FROM sx_email_senders s JOIN sx_email_sender_domains d ON d.id=s.domain_id
     WHERE s.tenant_id=? AND s.id=?`,[ctx.tenantId,senderId]);if(!sender)fail('EMAIL_SENDER_NOT_FOUND',404);
+  if(sender.domainOwnerTenantId!==ctx.tenantId){const [[grant]]=await db.query(`SELECT id FROM sx_email_sender_domain_shares WHERE domain_id=? AND owner_tenant_id=? AND shared_tenant_id=? AND sender_email=? AND status='active' LIMIT 1`,[sender.domainId,sender.domainOwnerTenantId,ctx.tenantId,sender.email]);if(!grant)fail('EMAIL_DOMAIN_SHARE_REVOKED',403);}
   if(sender.verification_status!=='verified'||sender.domainStatus!=='verified'||sender.dkimStatus!=='SUCCESS')fail('EMAIL_SENDER_NOT_VERIFIED',409);
   const recipient=input?.recipient===undefined?sender.email:cleanEmail(input.recipient,true);
   let account;try{account=await ses.getAccount(sender.region,settings.credentials);}catch(error){fail(safeSesError(error),503);}
@@ -664,4 +718,4 @@ async function applyUnsubscribe(db,key,token){
   }catch(error){try{await db.rollback();}catch{}throw error;}
 }
 
-module.exports={MAX_RECIPIENTS,MAX_ATTACHMENT_BYTES,MAX_TOTAL_ATTACHMENT_BYTES,MAX_ATTACHMENTS,normalizeEmail,validEmail,cleanDomain,cleanRegion,cleanEmail,tokenFor,decodeToken,safeFilename,sniffAttachment,summarizeAudience,fingerprint,bounceSuppressed:bouncePrivacy.isSuppressed,emailMarketingAccess,sessionContext,providerStatus,setup,saveReplyTo,addDomain,refreshDomain,deleteDomain,addSender,refreshSender,enableReplies,refreshReplies,audit,saveAttachment,previewAttachment,loadAttachments,listTemplates,saveTemplate,previewAudience,createCampaign,listCampaigns,campaignDetail,analytics,inbox,threadMessages,testSend,applyUnsubscribe};
+module.exports={MAX_RECIPIENTS,MAX_ATTACHMENT_BYTES,MAX_TOTAL_ATTACHMENT_BYTES,MAX_ATTACHMENTS,normalizeEmail,validEmail,cleanDomain,cleanRegion,cleanEmail,tokenFor,decodeToken,safeFilename,sniffAttachment,summarizeAudience,fingerprint,bounceSuppressed:bouncePrivacy.isSuppressed,emailMarketingAccess,sessionContext,providerStatus,setup,saveReplyTo,addDomain,shareSenderDomain,revokeSenderDomainShare,refreshDomain,deleteDomain,addSender,refreshSender,enableReplies,refreshReplies,audit,saveAttachment,previewAttachment,loadAttachments,listTemplates,saveTemplate,previewAudience,createCampaign,listCampaigns,campaignDetail,analytics,inbox,threadMessages,testSend,applyUnsubscribe};

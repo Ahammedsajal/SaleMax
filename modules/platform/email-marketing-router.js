@@ -27,6 +27,8 @@ function createEmailMarketingRouter({pool:injectedPool,authenticate,origin,key,b
   router.get('/setup',run(async(db,ctx)=>service.setup(db,ctx,key)));
   router.put('/reply-to',run(async(db,ctx,req)=>service.saveReplyTo(db,ctx,req.body)));
   router.post('/domains',run(async(db,ctx,req)=>service.addDomain(db,ctx,req.body,key)));
+  router.post('/domains/:id/shares',run(async(db,ctx,req)=>service.shareSenderDomain(db,ctx,req.params.id,req.body)));
+  router.delete('/domains/:id/shares/:tenantId',run(async(db,ctx,req)=>service.revokeSenderDomainShare(db,ctx,req.params.id,req.params.tenantId)));
   router.post('/domains/:id/refresh',run(async(db,ctx,req)=>service.refreshDomain(db,ctx,req.params.id,key)));
   router.delete('/domains/:id',run(async(db,ctx,req)=>service.deleteDomain(db,ctx,req.params.id)));
   router.post('/domains/:id/replies',run(async(db,ctx,req)=>service.enableReplies(db,ctx,req.params.id,key)));

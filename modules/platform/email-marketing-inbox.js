@@ -25,9 +25,11 @@ async function senderFor(db,tenantId,senderId){
   if(typeof senderId!=='string'||!/^[-0-9a-f]{36}$/i.test(senderId))fail('INVALID_EMAIL_SENDER_ID');
   const [[sender]]=await db.query(`SELECT s.id,s.email,s.verification_status AS senderStatus,d.region,
       d.verification_status AS domainStatus,d.dkim_status AS dkimStatus
-    FROM sx_email_senders s JOIN sx_email_sender_domains d ON d.tenant_id=s.tenant_id AND d.id=s.domain_id
+    FROM sx_email_senders s JOIN sx_email_sender_domains d ON d.id=s.domain_id
     WHERE s.tenant_id=? AND s.id=?`,[tenantId,senderId]);
   if(!sender)fail('EMAIL_SENDER_NOT_FOUND',404);
+  const [[owner]]=await db.query('SELECT tenant_id FROM sx_email_sender_domains WHERE id=(SELECT domain_id FROM sx_email_senders WHERE tenant_id=? AND id=?)',[tenantId,senderId]);
+  if(owner?.tenant_id!==tenantId){const [[grant]]=await db.query(`SELECT id FROM sx_email_sender_domain_shares WHERE domain_id=(SELECT domain_id FROM sx_email_senders WHERE tenant_id=? AND id=?) AND owner_tenant_id=? AND shared_tenant_id=? AND sender_email=? AND status='active' LIMIT 1`,[tenantId,senderId,owner?.tenant_id,tenantId,sender.email]);if(!grant)fail('EMAIL_DOMAIN_SHARE_REVOKED',403);}
   if(sender.senderStatus!=='verified'||sender.domainStatus!=='verified'||sender.dkimStatus!=='SUCCESS')fail('EMAIL_SENDER_NOT_VERIFIED',409);
   return sender;
 }
@@ -71,7 +73,6 @@ async function saveDraft(db,ctx,input){
     const effectiveSenderId=thread?.campaignSenderId||thread?.senderId||String(input.senderId||'');
     const sender=await senderFor(db,ctx.tenantId,effectiveSenderId);
     let recipient=requestedTo||thread?.email;
-    if(thread&&!thread.email)fail('EMAIL_RECIPIENT_REMOVED',409);
     if(thread&&(!recipient||service.cleanEmail(recipient,true)!==service.cleanEmail(thread.email,true)))fail('EMAIL_THREAD_RECIPIENT_LOCKED',409);
     recipient=service.cleanEmail(recipient,true);
     const recipientName=thread?.name||name;
@@ -149,9 +150,7 @@ async function sendDraft(db,ctx,messageId,key){
     cleanSubject(row.subject);
     const senderId=row.campaignSenderId||row.threadSenderId;
     const sender=await senderFor(db,ctx.tenantId,senderId);
-    if(!row.recipientEmail)fail('EMAIL_RECIPIENT_REMOVED',409);
     const recipient=service.cleanEmail(row.recipientEmail,true);
-    if(await service.bounceSuppressed(db,key,ctx.tenantId,recipient))fail('EMAIL_RECIPIENT_BOUNCED',409);
     if(!row.campaignId){
       const [[suppressed]]=await db.query('SELECT id FROM sx_email_suppressions WHERE tenant_id=? AND normalized_email=? LIMIT 1',[ctx.tenantId,recipient]);
       if(suppressed)fail('EMAIL_RECIPIENT_SUPPRESSED',409);
@@ -199,12 +198,14 @@ async function claimQueue(pool,{limit=8}={}){
       WHERE q.status='sending' AND q.lease_expires_at<=UTC_TIMESTAMP(3)`);
     const [rows]=await db.query(`SELECT q.id AS queueId,q.tenant_id AS tenantId,q.message_id AS messageId,q.sender_id AS senderId,
         q.reply_to_email AS replyToEmail,m.thread_id AS threadId,m.subject,m.text_body AS text,t.recipient_email AS recipientEmail,
-        s.email AS senderEmail,s.verification_status AS senderStatus,d.region,d.verification_status AS domainStatus,d.dkim_status AS dkimStatus
+        s.id AS senderId,s.email AS senderEmail,s.verification_status AS senderStatus,d.region,d.verification_status AS domainStatus,d.dkim_status AS dkimStatus
       FROM sx_email_outbound_queue q JOIN sx_email_messages m ON m.tenant_id=q.tenant_id AND m.id=q.message_id
       JOIN sx_email_threads t ON t.tenant_id=m.tenant_id AND t.id=m.thread_id
       JOIN sx_email_senders s ON s.tenant_id=q.tenant_id AND s.id=q.sender_id
-      JOIN sx_email_sender_domains d ON d.tenant_id=s.tenant_id AND d.id=s.domain_id
+      JOIN sx_email_sender_domains d ON d.id=s.domain_id
+      LEFT JOIN sx_email_sender_domain_shares sh ON sh.domain_id=d.id AND sh.owner_tenant_id=d.tenant_id AND sh.shared_tenant_id=s.tenant_id AND sh.sender_email=s.email AND sh.status='active'
       WHERE q.status='queued' AND q.available_at<=UTC_TIMESTAMP(3)
+        AND (d.tenant_id=s.tenant_id OR sh.id IS NOT NULL)
       ORDER BY q.available_at,q.created_at,q.id LIMIT ? FOR UPDATE SKIP LOCKED`,[Math.max(1,Math.min(32,Number(limit)||8))]);
     for(const row of rows){
       await db.query(`UPDATE sx_email_outbound_queue SET status='sending',attempts=attempts+1,lease_expires_at=DATE_ADD(UTC_TIMESTAMP(3),INTERVAL 5 MINUTE)
@@ -246,6 +247,10 @@ async function processQueue(pool,{credentials=null,configurationSetName=null,lim
       }
       const db=await pool.getConnection();let files,lastInbound;
       try{
+        const [[access]]=await db.query(`SELECT d.tenant_id AS ownerTenantId FROM sx_email_senders s JOIN sx_email_sender_domains d ON d.id=s.domain_id
+          LEFT JOIN sx_email_sender_domain_shares x ON x.domain_id=d.id AND x.owner_tenant_id=d.tenant_id AND x.shared_tenant_id=s.tenant_id AND x.sender_email=s.email AND x.status='active'
+          WHERE s.tenant_id=? AND s.id=? AND (d.tenant_id=s.tenant_id OR x.id IS NOT NULL) LIMIT 1`,[item.tenantId,item.senderId]);
+        if(!access){await finishQueue(pool,item,{status:'failed',errorCode:'EMAIL_DOMAIN_SHARE_REVOKED'});failed++;continue;}
         const [rows]=await db.query(`SELECT a.id,a.file_name AS fileName,a.content_type AS contentType,a.content
           FROM sx_email_message_attachments x JOIN sx_email_attachments a ON a.tenant_id=x.tenant_id AND a.id=x.attachment_id
           WHERE x.tenant_id=? AND x.message_id=? ORDER BY a.file_name`,[item.tenantId,item.messageId]);
