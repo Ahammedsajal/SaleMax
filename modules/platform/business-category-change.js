@@ -45,15 +45,19 @@ async function load(db,ctx,data,locked=false){
   if(owners.length!==1||owners[0].source_id!==String(user.id))fail('AMBIGUOUS_BUSINESS_LINK');
   const [[owner]]=await db.query("SELECT m.id,m.identity_id FROM sx_memberships m JOIN sx_identities i ON i.id=m.identity_id WHERE m.id=? AND m.tenant_id=? AND m.role='owner' AND m.status='active' AND i.status='active'"+suffix,[mapping.membership_id,tenant.id]);
   if(!owner)fail('VERIFIED_BUSINESS_LINK_REQUIRED');
-  const [[current]]=await db.query(`SELECT a.id,a.status,a.role_limits,DATE_FORMAT(a.effective_from,'%Y-%m-%d %H:%i:%s.%f') AS effective_from,DATE_FORMAT(a.expires_at,'%Y-%m-%d %H:%i:%s.%f') AS expires_at,v.id AS version_id,v.version,v.category_key,v.category_version,v.capabilities,c.legacy_plan_id,c.commercial_snapshot
+  const [[current]]=await db.query(`SELECT a.id,a.status,a.role_limits,DATE_FORMAT(a.effective_from,'%Y-%m-%d %H:%i:%s.%f') AS effective_from,DATE_FORMAT(a.expires_at,'%Y-%m-%d %H:%i:%s.%f') AS expires_at,v.id AS version_id,v.version,v.category_key,v.category_version,v.capabilities,c.legacy_plan_id,c.commercial_snapshot,h.plan_id AS assigned_plan_id,h.assigned_snapshot,h.assigned_expiry
     FROM sx_plan_assignments a JOIN sx_plan_versions v ON v.id=a.plan_version_id JOIN sx_legacy_plan_contracts c ON c.version_id=v.id
+    LEFT JOIN sx_legacy_contract_assignments r ON r.assignment_id=a.id LEFT JOIN sx_legacy_plan_assignments h ON h.id=r.legacy_assignment_id
     WHERE a.tenant_id=? AND a.current_tenant IS NOT NULL${suffix}`,[tenant.id]);
   if(!current)fail('ACTIVE_CONTRACT_REQUIRED');
   const currentCategory=getCategory(tenant.category_key,Number(tenant.category_version));
   if(!currentCategory||!categoryKeyMatches(current.category_key,tenant.category_key)||Number(current.category_version)!==Number(tenant.category_version))fail('CURRENT_CONTRACT_MISMATCH');
   const currentDefinition=plans.definition({categoryKey:current.category_key,categoryVersion:Number(current.category_version),capabilities:json(current.capabilities),roleLimits:json(current.role_limits)});
   const roleLimits=currentDefinition.roleLimits;
-  const currentCommercial=json(current.commercial_snapshot),legacySnapshot=json(user.plan),targetKeys=categoryKeysFor(data.categoryKey);
+  // Assignment history records the plan terms that were actually given for
+  // this paid period. A different target-category price must not rewrite it.
+  const assignedCommercial=current.assigned_snapshot==null?null:json(current.assigned_snapshot);
+  const currentCommercial=assignedCommercial||json(current.commercial_snapshot),legacySnapshot=json(user.plan),targetKeys=categoryKeysFor(data.categoryKey);
   const [versions]=await db.query(`SELECT v.id,v.version,v.category_key,v.category_version,v.role_limits,v.capabilities,c.legacy_plan_id,c.commercial_snapshot
     FROM sx_plan_versions v JOIN sx_legacy_plan_contracts c ON c.version_id=v.id
     WHERE v.status='published' AND v.category_key IN (${targetKeys.map(()=>'?').join(',')}) AND v.category_version=? AND c.legacy_plan_id=?
@@ -61,23 +65,22 @@ async function load(db,ctx,data,locked=false){
   const blockers=[];
   if(tenant.status!=='active')blockers.push('ACCOUNT_INACTIVE');
   if(!['active','trial','grace'].includes(current.status))blockers.push('ACTIVE_CONTRACT_REQUIRED');
-  if(!legacySnapshot||typeof legacySnapshot!=='object'||Array.isArray(legacySnapshot)||Number(legacySnapshot.id)!==Number(current.legacy_plan_id))blockers.push('LEGACY_PLAN_MISMATCH');
+  if(!legacySnapshot||typeof legacySnapshot!=='object'||Array.isArray(legacySnapshot)||Number(legacySnapshot.id)!==Number(current.legacy_plan_id)||Number(currentCommercial.id)!==Number(current.legacy_plan_id)||(assignedCommercial&&Number(current.assigned_plan_id)!==Number(current.legacy_plan_id)))blockers.push('LEGACY_PLAN_MISMATCH');
   else if(['id','title','price','price_strike','plan_duration_in_days','is_trial'].some(key=>String(legacySnapshot[key]??'')!==String(currentCommercial[key]??'')))blockers.push('LEGACY_PLAN_MISMATCH');
+  if(assignedCommercial&&Number(current.assigned_expiry)!==Number(user.plan_expire))blockers.push('LEGACY_PLAN_MISMATCH');
   if(!Number.isSafeInteger(Number(user.plan_expire))||Number(user.plan_expire)<1)blockers.push('LEGACY_EXPIRY_INVALID');
   if(categoryKeyMatches(tenant.category_key,data.categoryKey)&&Number(tenant.category_version)===data.categoryVersion)blockers.push('CATEGORY_UNCHANGED');
   const targetVersion=versions[0]||null;
-  let contract=null,targetCommercial=null,targetLimits=null,capabilities=[];
+  let contract=null,targetCommercial=null,targetLimits=null,capabilities=[],targetTermsMatch=false;
   if(!targetVersion)blockers.push('MATCHING_CONTRACT_REQUIRED');
   else{
     targetCommercial=json(targetVersion.commercial_snapshot);
     const targetCategory=getCategory(targetVersion.category_key,Number(targetVersion.category_version));
     contract=plans.definition({categoryKey:targetVersion.category_key,categoryVersion:Number(targetVersion.category_version),capabilities:json(targetVersion.capabilities),roleLimits:json(targetVersion.role_limits)});
     if(!categoryKeyMatches(targetVersion.category_key,data.categoryKey)||Number(targetVersion.category_version)!==data.categoryVersion||!targetCategory)blockers.push('CATEGORY_UNAVAILABLE');
-    // A category correction may change features and seat shape, but must not
-    // silently change the legacy plan, price or term.
     const currentNormalized=normalize(currentCommercial),targetNormalized=normalize(targetCommercial);
-    if(Object.keys(currentNormalized.errors).length||Object.keys(targetNormalized.errors).length)blockers.push('STORED_CONTRACT_INVALID');
-    else if(Number(targetVersion.legacy_plan_id)!==Number(current.legacy_plan_id)||JSON.stringify(currentNormalized.value)!==JSON.stringify(targetNormalized.value))blockers.push('COMMERCIAL_TERMS_CHANGED');
+    if(Object.keys(currentNormalized.errors).length||Object.keys(targetNormalized.errors).length||Number(targetVersion.legacy_plan_id)!==Number(current.legacy_plan_id)||Number(targetCommercial.id)!==Number(current.legacy_plan_id))blockers.push('STORED_CONTRACT_INVALID');
+    else targetTermsMatch=['id','price','price_strike','plan_duration_in_days','is_trial'].every(key=>String(currentCommercial[key]??'')===String(targetCommercial[key]??''));
     targetLimits=contract.roleLimits;
     capabilities=contract.capabilities;
   }
@@ -97,14 +100,14 @@ async function load(db,ctx,data,locked=false){
     if(data.category.seatRoles.filter(role=>role==='owner').length!==1)blockers.push('ONE_OWNER_REQUIRED');
     const oldCaps=currentDefinition.capabilities,newCaps=capabilities;
     const state=hash(JSON.stringify({user:{id:user.id,uid:user.uid,plan:user.plan==null?null:String(user.plan),planExpire:user.plan_expire==null?null:String(user.plan_expire)},mapping,tenant,current:{...current,commercial_snapshot:currentCommercial},members,invites,targetVersionId:targetVersion.id,targetRoleLimits:targetLimits,proposed}));
-    return {user,tenant,mapping,current,currentCategory,targetVersion,targetCategory:data.category,currentCommercial,targetCommercial,targetLimits,roleLimits,proposed,usage,unsupported,oldCapabilities:oldCaps,newCapabilities:newCaps,addedCapabilities:newCaps.filter(cap=>!oldCaps.includes(cap)),removedCapabilities:oldCaps.filter(cap=>!newCaps.includes(cap)),blockers,state};
+    return {user,tenant,mapping,current,currentCategory,targetVersion,targetCategory:data.category,currentCommercial,targetCommercial,targetTermsMatch,targetLimits,roleLimits,proposed,usage,unsupported,oldCapabilities:oldCaps,newCapabilities:newCaps,addedCapabilities:newCaps.filter(cap=>!oldCaps.includes(cap)),removedCapabilities:oldCaps.filter(cap=>!newCaps.includes(cap)),blockers,state};
   }
   const state=hash(JSON.stringify({user:{id:user.id,uid:user.uid,plan:user.plan==null?null:String(user.plan),planExpire:user.plan_expire==null?null:String(user.plan_expire)},mapping,tenant,current:{...current,commercial_snapshot:currentCommercial},members,invites,targetCategory:data.category}));
   return {user,tenant,mapping,current,currentCategory,targetCategory:data.category,currentCommercial,targetCommercial:null,targetVersion:null,targetLimits:null,proposed:null,usage,unsupported,oldCapabilities:json(current.capabilities),newCapabilities:[],addedCapabilities:[],removedCapabilities:[],blockers,state};
 }
 function resultView(data){
-  const {user,tenant,current,currentCategory,targetCategory,targetVersion,currentCommercial,targetCommercial,targetLimits,proposed,usage,addedCapabilities,removedCapabilities,blockers,state}=data;
-  return {userId:user.id,tenantId:tenant.id,businessName:tenant.name,currentCategory:{key:currentCategory.key,version:currentCategory.version,title:currentCategory.title},targetCategory:{key:targetCategory.key,version:targetCategory.version,title:targetCategory.title},currentPlan:currentCommercial.title,targetPlan:targetCommercial?.title||null,currentPrice:currentCommercial.price,targetPrice:targetCommercial?.price??null,currency:tenant.currency,expiresAt:user.plan_expire,locale:{countryCode:tenant.country_code,currency:tenant.currency,timezone:tenant.timezone},planVersionId:targetVersion?.id||null,planVersion:targetVersion?.version??null,roleLimits:proposed,ceiling:targetLimits,used:usage,addedCapabilities,removedCapabilities,blockers,canChange:blockers.length===0,expectedState:state,expiresAtPreserved:true,accountAndWorkspacePreserved:true,dataPreserved:true,readOnly:true};
+  const {user,tenant,current,currentCategory,targetCategory,targetVersion,currentCommercial,targetCommercial,targetTermsMatch,targetLimits,proposed,usage,addedCapabilities,removedCapabilities,blockers,state}=data;
+  return {userId:user.id,tenantId:tenant.id,businessName:tenant.name,currentCategory:{key:currentCategory.key,version:currentCategory.version,title:currentCategory.title},targetCategory:{key:targetCategory.key,version:targetCategory.version,title:targetCategory.title},currentPlan:currentCommercial.title,targetPlan:targetCommercial?.title||null,currentPrice:currentCommercial.price,targetPrice:targetCommercial?.price??null,currentDurationDays:Number(currentCommercial.plan_duration_in_days),targetDurationDays:targetCommercial?Number(targetCommercial.plan_duration_in_days):null,targetTermsMatch,currency:tenant.currency,expiresAt:user.plan_expire,locale:{countryCode:tenant.country_code,currency:tenant.currency,timezone:tenant.timezone},planVersionId:targetVersion?.id||null,planVersion:targetVersion?.version??null,roleLimits:proposed,ceiling:targetLimits,used:usage,addedCapabilities,removedCapabilities,blockers,canChange:blockers.length===0,expectedState:state,expiresAtPreserved:true,currentPlanTermsPreserved:true,accountAndWorkspacePreserved:true,dataPreserved:true,readOnly:true};
 }
 async function preview(db,ctx,body){
   const data=input(ctx,body);return transaction(db,async()=>resultView(await load(db,ctx,data,false)));
@@ -127,7 +130,7 @@ async function change(db,ctx,body){
     const [tenantUpdate]=await db.query('UPDATE sx_tenants SET category_key=?,category_version=?,revision=revision+1 WHERE id=? AND revision=?',[data.categoryKey,data.categoryVersion,loaded.tenant.id,loaded.tenant.revision]);
     if(tenantUpdate.affectedRows!==1)fail('STALE_CATEGORY_CHANGE');
     await db.query('INSERT INTO sx_legacy_contract_assignments(request_id,legacy_user_id,tenant_id,actor_identity_id,payload_hash,assignment_id,legacy_assignment_id) VALUES (?,?,?,?,?,?,?)',[data.requestId,loaded.user.id,loaded.tenant.id,ctx.identity.id,payloadHash,id,historyId]);
-    const changes={from:{categoryKey:loaded.tenant.category_key,categoryVersion:Number(loaded.tenant.category_version),planVersionId:loaded.current.version_id},to:{categoryKey:data.categoryKey,categoryVersion:data.categoryVersion,planVersionId:loaded.targetVersion.id,roleLimits:loaded.proposed},legacyPlanId:Number(loaded.current.legacy_plan_id),expiryPreserved:true,localePreserved:true};
+    const changes={from:{categoryKey:loaded.tenant.category_key,categoryVersion:Number(loaded.tenant.category_version),planVersionId:loaded.current.version_id},to:{categoryKey:data.categoryKey,categoryVersion:data.categoryVersion,planVersionId:loaded.targetVersion.id,roleLimits:loaded.proposed},legacyPlanId:Number(loaded.current.legacy_plan_id),currentPlanTermsPreserved:true,termsMatchTargetContract:loaded.targetTermsMatch,currentPrice:loaded.currentCommercial.price,currentDurationDays:Number(loaded.currentCommercial.plan_duration_in_days),targetContractPrice:loaded.targetCommercial.price,targetContractDurationDays:Number(loaded.targetCommercial.plan_duration_in_days),currency:loaded.tenant.currency,expiryPreserved:true,localePreserved:true};
     await db.query(`INSERT INTO sx_audit_events(id,tenant_id,actor_identity_id,actor_kind,action,resource_type,resource_id,changes,correlation_id) VALUES (?,?,?,'identity','business.category-changed','business-account',?,?,?)`,[crypto.randomUUID(),loaded.tenant.id,ctx.identity.id,loaded.tenant.id,JSON.stringify(changes),crypto.randomUUID()]);
     return {id,tenantId:loaded.tenant.id,planVersionId:loaded.targetVersion.id,roleLimits:loaded.proposed,status:loaded.current.status,expiresAt:Number(loaded.user.plan_expire),replayed:false};
   });
