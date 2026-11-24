@@ -52,8 +52,11 @@ function middleware(pool){return async function tenantCrmHost(req,res,next){
       path==='/business-dashboard'||path.startsWith('/business-dashboard/')||
       ['/api/user/','/api/agent/','/api/workspace/','/api/inbox/','/api/phonebook/','/api/chat_flow/','/api/templet/','/api/chatbot/','/api/broadcast/','/api/qr/','/api/ai/','/api/wa_call/','/api/pipeline/','/api/crm/'].some(prefix=>path.startsWith(prefix))||
       path==='/socket.io'||path.startsWith('/socket.io/');
+    const retailStorefrontRoute=(req.method==='GET'&&(
+      path==='/'||path==='/catalog'||path==='/manifest.webmanifest'||path==='/service-worker.js'||/^\/image\/[0-9a-f-]{36}\/[0-9a-f-]{36}$/i.test(path)
+    ))||(req.method==='POST'&&['/checkout','/checkout/recover','/track'].includes(path));
     const asset=/\.(?:js|css|png|jpe?g|webp|ico|svg|woff2?|ttf|map|json|txt|pdf|mp4|webm|mp3|wav)$/i.test(path)&&req.method==='GET';
-    if(!crmRoute&&!asset)return res.status(404).end();
+    if(!crmRoute&&!retailStorefrontRoute&&!asset)return res.status(404).end();
     return next();
   }catch(error){if(db)db.release();if(error.code==='ER_NO_SUCH_TABLE')return next();return res.status(503).json({success:false,code:'DOMAIN_ROUTING_UNAVAILABLE'});}
 };}

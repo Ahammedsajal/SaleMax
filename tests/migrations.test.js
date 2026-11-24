@@ -29,6 +29,10 @@ test('actual discovery excludes destructive rollback', () => {
   const telephonyLeadLinks=migrations.findIndex(m=>m.file==='20261204_telephony_call_lead_links.sql');
   const telephonyRemoteNumber=migrations.findIndex(m=>m.file==='20261112_telephony_call_remote_number.sql');
   assert.ok(telephonyLeadLinks>=0&&telephonyRemoteNumber>telephonyLeadLinks,'call lead columns are created before the remote-number column is positioned after lead_id');
+  const notificationTables=migrations.findIndex(m=>m.file==='20261225_business_whatsapp_notifications.sql');
+  const defaultReportTime=migrations.findIndex(m=>m.file==='20261024_business_daily_report_default_time.sql');
+  assert.ok(notificationTables>=0 && defaultReportTime>notificationTables,
+    'business notification tables are created before the daily time default is altered');
   assert.ok(migrations.every(m => !/rollback/.test(m.file)));
   assert.equal(migrations[0].file, '20260928_lead_pipeline.sql');
 });

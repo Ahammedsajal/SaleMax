@@ -4,9 +4,10 @@ const crypto = require('node:crypto');
 class MigrationError extends Error {
   constructor(code) { super(code); this.code = code; }
 }
-// Keep historical migration filenames/checksums intact while expressing the
-// one known schema dependency whose date prefix predates its prerequisite.
+// Keep historical filenames and SQL checksums intact when a migration's
+// date prefix predates the table or columns that it needs.
 const migrationDependencies = Object.freeze({
+  '20261024_business_daily_report_default_time.sql': Object.freeze(['20261225_business_whatsapp_notifications.sql']),
   '20261112_telephony_call_remote_number.sql': Object.freeze(['20261204_telephony_call_lead_links.sql']),
 });
 // Older Email Marketing deployments recorded these migration keys with the

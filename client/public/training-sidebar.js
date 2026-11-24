@@ -35,7 +35,7 @@
     ['Courses & Admissions', 'الدورات والقبول', ['Courses', 'Products & services']],
     ['Leads & Reports', 'العملاء المحتملون والتقارير', ['Lead Pipeline', 'Lead Reports']],
     ['Contacts & Conversations', 'جهات الاتصال والمحادثات', ['Phonebook', 'Call Center']],
-    ['Finance', 'المالية', ['Invoices & Payments', 'Finance Reports', 'Sales Finance']],
+    ['Finance', 'المالية', ['Invoices & Payments', 'Finance Reports', 'Sales Finance', 'Cash reconciliation']],
     ['WhatsApp & Campaigns', 'واتساب والحملات', ['Add WhatsApp by QR', 'Link Meta WhatsApp', 'Create Meta Template', 'Send Campaign', 'Campaign Dashboard', 'Email Marketing', 'Web Notification']],
     ['Automation & Bots', 'الأتمتة والروبوتات', ['Automation Flows', 'WA Chatbot', 'FAQs', 'AI Integrations']],
     ['Team & Tasks', 'الفريق والمهام', ['Team access', 'Tasks', 'Team Login', 'Agent Task']],
@@ -43,12 +43,14 @@
     ['Webhooks', 'الويب هوك', ['Manage Webhooks', 'Webhook Automation', 'Webhook Logs']],
     ['WhatsApp Warmer', 'تهيئة واتساب', ['WhatsApp Warmer']],
     ['Sales Operations', 'عمليات المبيعات', ['Sales Overview','Organization','Sales Targets','Sales Reports','Sales Deals','My Commissions','Commission Payouts','Commission Policy','Audit Trail','ICP']],
+    ['Retail & Inventory', 'التجزئة والمخزون', ['Inventory','Retail orders','Connected Stores','My deliveries']],
     ['More Tools', 'أدوات أخرى', []]
   ];
-  const FINAL_INSTALL_ROW_ORDER = 2147483647;
   const aliases = {
+    'تسوية النقد':'Cash reconciliation',
     'تكاملات الذكاء الاصطناعي':'AI Integrations',
     'المنتجات والخدمات':'Products & services', 'الدورات': 'Courses', 'طلبات المتقدمين': 'Candidate Applications', 'الأسئلة الشائعة': 'FAQs',
+    'المخزون':'Inventory','طلبات التجزئة':'Retail orders','المتاجر المتصلة':'Connected Stores','عمليات التوصيل الخاصة بي':'My deliveries',
     'مسار العملاء المحتملين': 'Lead Pipeline', 'تقارير العملاء المحتملين': 'Lead Reports',
     'الفواتير والمدفوعات': 'Invoices & Payments', 'تقارير المالية': 'Finance Reports',
     'إدارة وصول الفريق': 'Team access', 'تسجيل دخول الوكيل': 'Team Login',
@@ -62,8 +64,9 @@
     'Automation Flows':'flows', 'WA Chatbot':'chatbot', 'FAQs':'faqs', 'Create Meta Template':'templates', 'Send Campaign':'campaigns',
     'Campaign Dashboard':'campaign-dashboard', 'Email Marketing':'email', 'Lead Pipeline':'leads', 'Lead Reports':'reports', Phonebook:'contacts', 'Team Login':'agent-login','Agent Login':'agent-login','CRM appearance':'settings','Web Notification':'notifications','Web Notifications':'notifications',
     'Agent Task':'tasks', Tasks:'tasks', 'Call Center':'call-center', 'Products & services':'products-services', Courses:'courses', Students:'students', 'Center profile':'training-profile', 'Candidate Applications':'forms', 'Applications & CVs':'recruitment', 'طلبات التوظيف والسير الذاتية':'recruitment', 'Invoices & Payments':'invoices',
-    'Finance Reports':'finance-reports', 'Team access':'team', 'People & Roles':'team', 'الأشخاص والأدوار':'team', 'Team and Roles':'team', 'Commission Policy':'commission-policy', 'Sales Deals':'sales-deals','Sales Targets':'sales-targets','Sales Reports':'sales-targets', 'My Commissions':'sales-commissions','Commission Payouts':'sales-commissions','Sales Finance':'sales-finance','Sales Overview':'sales-workspace',
-    'AI Integrations':'ai-integrations','Business Settings':'settings','Business Profile':'settings', Settings:'settings', Organization:'sales-organization', 'Sales Overview':'sales-targets','Audit Trail':'sales-audit','ICP':'icp',Properties:'properties','العقارات':'properties'
+    'Finance Reports':'finance-reports', 'Cash reconciliation':'retail-finance', 'Team access':'team', 'People & Roles':'team', 'الأشخاص والأدوار':'team', 'Team and Roles':'team', 'Commission Policy':'commission-policy', 'Sales Deals':'sales-deals','Sales Targets':'sales-targets','Sales Reports':'sales-targets', 'My Commissions':'sales-commissions','Commission Payouts':'sales-commissions','Sales Finance':'sales-finance','Sales Overview':'sales-workspace',
+    'AI Integrations':'ai-integrations','Business Settings':'settings','Business Profile':'settings', Settings:'settings', Organization:'sales-organization', 'Sales Overview':'sales-targets','Audit Trail':'sales-audit','ICP':'icp',Properties:'properties','العقارات':'properties',
+    Inventory:'business-inventory','Retail orders':'retail-orders','Connected Stores':'retail-connected-stores','My deliveries':'retail-deliveries'
   };
   const salesNavLabels={
     overview:{owner:['Business Overview','نظرة عامة على الأعمال'],manager:['Team Overview','نظرة عامة على الفريق'],team_leader:['Team Overview','نظرة عامة على الفريق'],agent:['My Day','مهامي اليوم']},
@@ -220,6 +223,11 @@
       'Call Center':['M4 13v-2a8 8 0 0 1 16 0v2','M4 12H3v5h4v-5z','M20 12h1v5h-4v-5z','M17 19a5 5 0 0 1-5 3h-2'],
       'Invoices & Payments':['M6 2h12v20l-3-2-3 2-3-2-3 2z','M9 7h6','M9 11h6','M12 14v4','M10 16h4'],
       'Finance Reports':['M4 19V5','M4 19h17','M8 16v-3','M13 16V8','M18 16V5'],
+      'Cash reconciliation':['M3 6h18v14H3z','M7 6V4h10v2','M3 10h18','M9 14h6'],
+      Inventory:['M3 6 12 2l9 4v12l-9 4-9-4z','M3 6l9 4 9-4','M12 10v12'],
+      'Retail orders':['M3 4h18v16H3z','M3 9h18','M8 4v5','M16 4v5','M7 14h4'],
+      'Connected Stores':['M3 10h18','M5 10V6l7-3 7 3v4','M6 10v10h12V10','M10 20v-6h4'],
+      'My deliveries':['M3 6h12v12H3z','M15 10h4l3 4v4h-7z','M7 18a1.5 1.5 0 1 0 0 3 1.5 1.5 0 0 0 0-3z','M18 18a1.5 1.5 0 1 0 0 3 1.5 1.5 0 0 0 0-3z'],
       'Add WhatsApp by QR':['M3 8V3h5','M16 3h5v5','M21 16v5h-5','M8 21H3v-5','M8 8h3v3H8z','M15 8v2','M15 14h2v2h-2z','M10 15v2'],
       'Link Meta WhatsApp':['M4 5h16v12H8l-4 4z','M8 9h8','M8 13h5'],
       'Create Meta Template':['M5 3h10l4 4v14H5z','M14 3v5h5','M8 12h8','M8 16h8'],
@@ -266,7 +274,49 @@
       return shape;
     }));
   }
+  function ensureInventoryNavigationRow(list) {
+    const href='/user?page=business-inventory';
+    const candidates=new Set();
+    for(const node of list.querySelectorAll('[data-sx-stock-nav],a[href="'+href+'"]')){
+      const row=node.matches('li')?node:node.closest('li');
+      if(row)candidates.add(row);
+    }
+    for(const row of [...list.children]){
+      if(row.tagName==='LI'&&navigationIdentity(row)==='business-inventory')candidates.add(row);
+    }
+    const isNativeRow=row=>row.dataset.sxStockNav==='native'&&row.parentElement===list&&
+      row.querySelector('.MuiListItemButton-root')&&
+      row.querySelector('.MuiListItemIcon-root svg')&&row.querySelector('.MuiListItemText-primary');
+    let row=[...candidates].find(isNativeRow)||null;
+    for(const duplicate of candidates)if(duplicate!==row)duplicate.remove();
+    if(!roleNavigation?.has('business-inventory')||
+      (assignedNavigation!==null&&!assignedNavigation.has('business-inventory')))return;
+    const title=tr('Inventory','المخزون');
+    if(!row){
+      const template=list.querySelector(':scope > li[data-salemax-pipeline-link]')||
+        list.querySelector(':scope > li:not([data-sx-nav-section])');
+      if(!template)return;
+      row=cloneNavigationRow(template);
+      row.dataset.sxStockNav='native';
+      row.removeAttribute('data-salemax-pipeline-link');
+      row.removeAttribute('data-sx-search-hidden');
+      row.removeAttribute('data-sx-optional-hidden');
+      row.hidden=false;
+      list.append(row);
+    }
+    row.dataset.sxStockNav='native';
+    row.hidden=false;
+    row.removeAttribute('data-sx-search-hidden');
+    row.removeAttribute('data-sx-optional-hidden');
+    const primary=row.querySelector('.MuiListItemText-primary');
+    if(primary&&primary.textContent!==title)primary.textContent=title;
+    row.setAttribute('aria-label',title);
+    const button=row.querySelector('.MuiListItemButton-root,[role="button"],button,a')||row;
+    button.setAttribute('aria-label',title);
+    button.onclick=event=>{event.preventDefault();location.href=href;};
+  }
   function syncInjectedRows(list) {
+    ensureInventoryNavigationRow(list);
     // The legacy shell mounts separate desktop and mobile drawers. Reuse only
     // entries already admitted by the maintained modules' permission checks.
     if (membershipRole === 'owner' && roleNavigation?.has('ai-integrations') && (assignedNavigation === null || assignedNavigation.has('ai-integrations')) && !hasNavigationKey(list,'ai-integrations')) {
@@ -462,7 +512,7 @@
   // are not identities: overview, targets and reports share sales-targets.
   const navigationMarkers={
     'data-sx-lead-reports-nav':'reports','data-sx-call-center-nav':'call-center',
-    'data-sx-tasks-nav':'tasks','data-sx-sales-overview-nav':'sales-targets',
+    'data-sx-tasks-nav':'tasks','data-sx-sales-overview-nav':'sales-targets','data-sx-stock-nav':'business-inventory',
     'data-sx-sales-targets-nav':'sales-targets','data-sx-sales-reports-nav':'sales-targets',
     'data-sx-sales-deals-nav':'sales-deals','data-sx-sales-commissions-nav':'sales-commissions',
     'data-sx-sales-finance-nav':'sales-finance','data-sx-sales-organization-nav':'sales-organization',
@@ -655,7 +705,7 @@
       }
       const query = (drawer.querySelector('input')?.value || '').trim().toLowerCase();
       const active = new URLSearchParams(location.search).get('page');
-      const routes = {'AI Integrations':'ai-integrations','Products & services':'products-services', Courses:'courses', 'Candidate Applications':'forms', 'Applications & CVs':'recruitment', 'Invoices & Payments':'finance-settings', 'Finance Reports':'finance-settings', 'Team access':'team-invitations', 'People & Roles':'team-invitations', 'Business Settings':'crm-appearance', 'Business Profile':'crm-appearance', 'Lead Pipeline':'lead-pipeline', 'Lead Reports':'lead-reports', Tasks:'tasks', 'Call Center':'call-center', 'WA Chatbot':'wa-chatbot', FAQs:'faqs','Commission Policy':'commission-policy','Organization':'sales-organization','Sales Overview':'sales-workspace','Sales Deals':'sales-workspace','Sales Targets':'sales-workspace','Sales Reports':'sales-workspace','My Commissions':'sales-workspace','Commission Payouts':'sales-workspace','Sales Finance':'sales-finance','Campaign Dashboard':'campaign-dashboard','Email Marketing':'campaign-dashboard'};
+      const routes = {'AI Integrations':'ai-integrations','Products & services':'products-services', Courses:'courses', 'Candidate Applications':'forms', 'Applications & CVs':'recruitment', 'Invoices & Payments':'finance-settings', 'Finance Reports':'finance-settings', 'Team access':'team-invitations', 'People & Roles':'team-invitations', 'Business Settings':'crm-appearance', 'Business Profile':'crm-appearance', 'Lead Pipeline':'lead-pipeline', 'Lead Reports':'lead-reports', Tasks:'tasks', 'Call Center':'call-center', 'WA Chatbot':'wa-chatbot', FAQs:'faqs','Commission Policy':'commission-policy','Organization':'sales-organization','Sales Overview':'sales-workspace','Sales Deals':'sales-workspace','Sales Targets':'sales-workspace','Sales Reports':'sales-workspace','My Commissions':'sales-workspace','Commission Payouts':'sales-workspace','Sales Finance':'sales-finance','Campaign Dashboard':'campaign-dashboard','Email Marketing':'campaign-dashboard','Inventory':'business-inventory','Retail orders':'retail-orders','Connected Stores':'retail-connected-stores','My deliveries':'retail-deliveries','Cash reconciliation':'retail-finance'};
       const present = new Set();
       [...list.children].filter(row => row.tagName === 'LI' && !row.hasAttribute('data-sx-nav-section')).forEach((row, index) => {
         const text = label(row), name = aliases[text] || text;
@@ -677,7 +727,7 @@
         if (group < 0) group = groups.length - 1;
         const rank = groups[group][2].indexOf(name);
         const order = row.hasAttribute('data-sx-pwa-install-nav')
-          ? String(FINAL_INSTALL_ROW_ORDER)
+          ? '2147483647'
           : String(group * 100 + 1 + (rank < 0 ? index : rank));
         if (row.style.order !== order) row.style.order = order;
         const navKey=row.dataset.sxCanonicalSalesNav||(row.dataset.sxSalesSection?({overview:'sales-targets',targets:'sales-targets',reports:'sales-targets',deals:'sales-deals',commissions:'sales-commissions'})[row.dataset.sxSalesSection]:navigationKeys[name]||navigationKeys[text]);
@@ -739,7 +789,7 @@
     document.documentElement.style.setProperty('--sx-sidebar-inline-offset', `${sidebarOffset}px`);
     const page=new URLSearchParams(location.search).get('page');
     const salesSection=new URLSearchParams(location.search).get('section')||'overview';const salesRouteKey=({overview:'sales-targets',targets:'sales-targets',reports:'sales-targets',deals:'sales-deals',commissions:'sales-commissions'})[salesSection]||'sales-targets';
-    const routeKeys={'ai-integrations':'ai-integrations',properties:'properties',students:'students','training-profile':'training-profile','crm-appearance':'settings','products-services':'products-services',courses:'courses',forms:'forms',recruitment:'recruitment','lead-pipeline':'leads','lead-reports':'reports',tasks:'tasks','call-center':'call-center','campaign-dashboard':new URLSearchParams(location.search).get('channel')==='email'?'email':'campaign-dashboard','finance-settings':new URLSearchParams(location.search).get('section')==='reports'?'finance-reports':'invoices','team-invitations':'team','wa-chatbot':'chatbot',faqs:'faqs','commission-policy':'commission-policy','sales-workspace':salesRouteKey,'sales-finance':'sales-finance','sales-organization':'sales-organization',icp:'icp'};
+    const routeKeys={'ai-integrations':'ai-integrations',properties:'properties',students:'students','training-profile':'training-profile','crm-appearance':'settings','products-services':'products-services',courses:'courses',forms:'forms',recruitment:'recruitment','lead-pipeline':'leads','lead-reports':'reports',tasks:'tasks','call-center':'call-center','finance-settings':new URLSearchParams(location.search).get('section')==='reports'?'finance-reports':'invoices','team-invitations':'team','wa-chatbot':'chatbot',faqs:'faqs','commission-policy':'commission-policy','sales-workspace':salesRouteKey,'sales-finance':'sales-finance','sales-organization':'sales-organization',icp:'icp','campaign-dashboard':new URLSearchParams(location.search).get('channel')==='email'?'email':'campaign-dashboard'};
     const required=routeKeys[page];
     // Team access is available to any membership whose role/navigation grants
     // it. The API still enforces team.invite (including owner-approved manager

@@ -186,3 +186,23 @@ Migration `20261224_7network_sales_icp_profiles.sql` adds one tenant-scoped prof
 `docs/CHATGPT_MCP_CONNECTOR.md` defines the first-release scope and product gates. The authenticated connection/consent/revocation UI uses the existing shared business session at `/api/workspace/chatgpt`. ChatGPT connects to the remote MCP endpoint at `/mcp` through the OAuth authorization-server endpoints under `/mcp/oauth/*` and the OAuth discovery documents under `/.well-known/*`.
 
 The connector re-resolves the linked owner or agent on every tool request and checks current tenant, role, feature access, Inbox permission, task permission and connection revocation. `pipeline.read`, `conversations.read`, `tasks.read`, and `tasks.manage` are distinct grants. Conversation text requires a separate opt-in, current Inbox and per-chat checks, and returns up to 20 text messages without media or sender metadata. Message bodies may contain personal data. Do not add customer messaging or broad write tools through this connector without a reviewed action-specific approval and rollback design.
+
+## Retail inventory and Connected Stores
+
+The existing Retail inventory screen uses `/api/workspace/business-inventory` for
+tenant-scoped stock, locations, thresholds, movements, exact SKU units and
+audited physical recounts. Quantities use exact decimal strings internally.
+Existing whole-unit balances retain their unit history and old order returns
+require compatible units before automatic restock.
+
+The order workspace uses `/api/workspace/retail`. Connected Stores uses
+`/api/workspace/retail/connectors` and remains owner-only. Connector and connected
+order access also require an explicit tenant pilot grant. The WooCommerce
+connector uses bounded resumable reads for products, variations, orders and
+customers. Mapping a source item to a SKU requires an explicit tenant-scoped
+selection. Mapping and amount reconciliation leave WooCommerce as the source of
+truth for connected orders and stock.
+
+The public native shop stays under `/business/<slug>/shop/` or the verified
+tenant hostname. The storefront worker caches the scoped shell and versioned
+static files. Checkout and order data use the current server response.
