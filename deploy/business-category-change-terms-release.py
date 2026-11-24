@@ -25,13 +25,13 @@ ROUTER = 'modules/platform/existing-business-router.js'
 INDEX = 'client/public/index.html'
 HELPER = 'deploy/business-category-change-terms-release.py'
 SOURCE_FILES = (UI, SERVICE, ROUTER, INDEX, HELPER)
-OLD_REF = b'/admin-user-plans.js?v=20261124-category-change1'
-NEW_REF = b'/admin-user-plans.js?v=20261124-category-change2'
+OLD_REF = b'/admin-user-plans.js?v=20261124-category-change2'
+NEW_REF = b'/admin-user-plans.js?v=20261124-category-change3'
 PREIMAGES = {
-    UI: 'bb14bde1446836a2889d7d4abcfeea5b73dbd025c51dc4c6dfb77e07134f7da3',
-    SERVICE: 'd5d8965f5d960f1354f52d760d01d0859e4dee26b17aab48f85d181ce73d0e6c',
+    UI: '7b4919346e2771fb3729feadd5dee001e522fd2090af19a9d59c8133cc795fc9',
+    SERVICE: 'e00d015d6d72a94c7e7498baaf77158932e7178d37988e6a0464e1e55dc2e2d6',
     ROUTER: '3ca16224d493d7fb301472aeed7669201212cda780e02a3f1881489b27f2517b',
-    INDEX: 'ad7eec324b0aa40d9c3a35d32b4d6a7e9da766202be113d01cbd088978ee86cf',
+    INDEX: 'a41a57c82a3506eeeef081998b08e30f33663717f2fb39ff249aa2618abab395',
 }
 MINIMUM_FREE_BYTES = 4 * 1024**3
 ABSENT_PREIMAGES = ()
