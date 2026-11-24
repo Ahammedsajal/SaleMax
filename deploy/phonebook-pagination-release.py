@@ -62,7 +62,7 @@ def deploy(stage,commit):
  pre=backup/'phonebook-workspace.js.before';get_live(TARGET,pre)
  if sha_file(pre)!=PREIMAGE:raise RuntimeError('live Phonebook preimage differs from reviewed source')
  release=ROOT/'releases'/('phonebook-pagination-'+commit[:12]+'-'+datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%SZ'));runtime=release/'runtime';overlay=release/'compose.phonebook-pagination.json'
- js=runtime/'phonebook-workspace.js';write(js,new,0o644);writej(release/'runtime-hashes.json',{'client/public/phonebook-workspace.js':digest(new)})
+ js=runtime/'phonebook-workspace.js';write(js,new,0o644);writej(release/'runtime-hashes.json',{'client/public/phonebook-workspace.js':digest(new)});write(backup/'release-path.txt',(str(release)+'\n').encode());write(backup/'overlay-path.txt',(str(overlay)+'\n').encode())
  overlay_data={'services':{'app':{'image':app['Config']['Image'],'volumes':[{'type':'bind','source':str(js),'target':TARGET,'read_only':True,'bind':{'create_host_path':False}}]}}};writej(overlay,overlay_data,0o644)
  env,vars=compose_env(files,envs,app);writej(backup/'compose-vars.json',vars)
  before=config(compose_args(files,envs,workdir),env);candidate=compose_args(files+[str(overlay)],envs,workdir);after=config(candidate,env)
@@ -93,6 +93,20 @@ def deploy(stage,commit):
    if restored['Image']!=app['Image'] or run('docker','exec',APP,'sha256sum',TARGET).stdout.split()[0]!=PREIMAGE:raise RuntimeError('automatic rollback failed') from e
    verify_support(support)
   raise
+def restore(backup):
+ if os.geteuid()!=0 or os.environ.get('SALEMAX_DEPLOY_LOCK_HELD')!='1':raise RuntimeError('protected production lock required')
+ if run('hostname').stdout.strip()!='carsqatar-prod-01' or os.path.realpath(ROOT/'current')!=BASE:raise RuntimeError('production identity/base changed')
+ backup=Path(backup);files=(backup/'compose-files.before.txt').read_text().splitlines();envs=(backup/'compose-env-files.before.txt').read_text().splitlines();workdir=(backup/'compose-working-dir.txt').read_text().strip();overlay=(backup/'overlay-path.txt').read_text().strip();release=Path((backup/'release-path.txt').read_text().strip())
+ if inspect()['Config']['Labels'].get('com.docker.compose.project.config_files','').split(',')!=files+[overlay]:raise RuntimeError('a later app overlay is active; restore it first')
+ for p,h in json.loads((backup/'compose-input-hashes.json').read_text()).items():
+  if digest(Path(p).read_bytes())!=h:raise RuntimeError('rollback Compose input changed')
+ expected=json.loads((release/'runtime-hashes.json').read_text())['client/public/phonebook-workspace.js']
+ if run('docker','exec',APP,'sha256sum',TARGET).stdout.split()[0]!=expected:raise RuntimeError('active Phonebook asset changed; refusing rollback')
+ support=json.loads((backup/'support-services.json').read_text());verify_support(support);env=dict(os.environ,**json.loads((backup/'compose-vars.json').read_text()));args=compose_args(files,envs,workdir)
+ run(*args,'up','-d','--no-deps','--no-build','--force-recreate','app',env=env);current=wait_healthy();prior=json.loads((backup/'app-before.json').read_text())
+ if current['Image']!=prior['imageId'] or run('docker','exec',APP,'sha256sum',TARGET).stdout.split()[0]!=PREIMAGE:raise RuntimeError('rollback preimage verification failed')
+ verify_support(support);print(json.dumps({'rolledBack':str(release),'appHealthy':True,'supportServicesUnchanged':len(support),'databaseRollback':False}))
 if __name__=='__main__':
  if len(sys.argv)==4 and sys.argv[1]=='deploy':deploy(sys.argv[2],sys.argv[3])
- else:raise SystemExit('usage: phonebook-pagination-release.py deploy <stage> <commit>')
+ elif len(sys.argv)==3 and sys.argv[1]=='restore':restore(sys.argv[2])
+ else:raise SystemExit('usage: phonebook-pagination-release.py deploy <stage> <commit> | restore <backup>')
