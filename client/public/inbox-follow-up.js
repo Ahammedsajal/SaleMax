@@ -94,7 +94,7 @@
       for (let depth=0;parent&&depth<9;depth++,parent=parent.parentElement) {
         const children=Array.from(parent.children || []);
         const position=children.findIndex(child=>child.contains(input));
-        if(position>0&&position+1<children.length&&children[0].querySelector('h6,[role="heading"]'))return input;
+        if(position>0&&position+1<children.length&&children[0].querySelector('h6,[role="heading"]'))return {input,container:parent,toolbar:children[position]};
       }
     }
     return null;
@@ -250,13 +250,12 @@
   let mountingToday=false;
   async function mountToday() {
     if(mountingToday||new URLSearchParams(location.search).get('page')!=='inbox')return;
-    const input=inboxSearch();
-    const searchBox=input?.closest('.MuiFormControl-root')||input?.parentElement;
-    if(!searchBox||searchBox.previousElementSibling?.hasAttribute('data-sx-today'))return;
+    const surface=inboxSearch();
+    if(!surface||surface.container.querySelector('[data-sx-today]'))return;
     mountingToday=true;
     try {
       const session=await window.SaleMaxWorkspace?.session?.();
-      if(session?.categoryKey!=='training_center'||!input.isConnected||searchBox.previousElementSibling?.hasAttribute('data-sx-today'))return;
+      if(session?.categoryKey!=='training_center'||!surface.input.isConnected||surface.container.querySelector('[data-sx-today]'))return;
       const button=document.createElement('button');
       addTodayStyles();button.type='button';button.dataset.sxToday='1';button.className='sx-today-trigger';
       const icon=document.createElement('span');icon.className='sx-today-trigger-icon';icon.setAttribute('aria-hidden','true');icon.textContent='✓';
@@ -268,7 +267,11 @@
           if(current?.categoryKey==='training_center')await showToday(current);
         } catch {}
       });
-      searchBox.before(button);
+      const wrapper=document.createElement('div');
+      wrapper.style.cssText='padding:4px 12px 8px';
+      button.style.width='100%';
+      wrapper.append(button);
+      surface.container.insertBefore(wrapper,surface.toolbar);
     } catch {} finally { mountingToday=false; }
   }
   let queued=false;const observer=new MutationObserver(()=>{if(queued)return;queued=true;requestAnimationFrame(()=>{queued=false;mount();mountToday();});});observer.observe(document.documentElement,{childList:true,subtree:true});mount();mountToday();
