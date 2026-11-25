@@ -13,6 +13,12 @@ test('sale-review request validates Qatar QAR snapshots and exact installments w
   assert.equal(reviews.normalize({...valid,invoiceEmail:''}).invoiceEmail,'payer@example.qa');
   for(const input of [{...valid,priceMinor:300000.5},{...valid,discountMinor:300001},{...valid,installments:Array(13).fill({amountMinor:1,dueDate:today})},{...valid,payerEmail:'bad'},{...valid,payerEmail:'',payerPhone:''},{...valid,invoiceEmail:'bad'},{...valid,terms:''},{...valid,tenantId:'foreign-tenant'},{...valid,installments:[{amountMinor:285000,dueDate:'2020-01-01'}]}])assert.throws(()=>reviews.normalize(input));
 });
+test('sale review exposes only a verified Meta ad source for the linked lead',()=>{
+  const base={id:crypto.randomUUID(),status:'pending',installments:'[]',offer_version:2,price_minor:300000,registration_fee_minor:0,discount_minor:0,net_minor:300000,verified_ad_source_id:'ad-123',verified_ad_headline:'Marine Deckhand · Qatar',course_removed:0};
+  const review=reviews.publicReview(base);
+  assert.deepEqual(review.verifiedAdSource,{sourceId:'ad-123',headline:'Marine Deckhand · Qatar'});
+  assert.equal(reviews.publicReview({...base,verified_ad_source_id:null,verified_ad_headline:'Unverified referral'}).verifiedAdSource,null);
+});
 test('sale requests require the training enrollment capability and role permission',()=>{
   const base={audience:'tenant',identity:{id:crypto.randomUUID()},tenant:{id:crypto.randomUUID(),status:'active',categoryKey:'training_center',categoryVersion:1},membership:{id:crypto.randomUUID(),tenantId:'',role:'agent',status:'active'},category:trainingCenter,subscription:{status:'active',capabilities:['training.enrollments']}};base.membership.tenantId=base.tenant.id;
   assert.equal(policy.decision(base,{capability:'training.enrollments',permission:'sales.request'}).allowed,true);
@@ -30,5 +36,5 @@ test('sale review API and bilingual screen are integrated into the existing pipe
   const fs=require('node:fs'),path=require('node:path'),root=path.join(__dirname,'..');const ui=fs.readFileSync(path.join(root,'client/public/pipeline/pipeline.js'),'utf8'),router=fs.readFileSync(path.join(root,'routes/pipeline.js'),'utf8'),css=fs.readFileSync(path.join(root,'client/public/pipeline/pipeline.css'),'utf8');
   const html=fs.readFileSync(path.join(root,'client/public/pipeline/index.html'),'utf8');
   assert.match(ui,/sale-review-area/);assert.match(ui,/saleReviewDescription/);assert.match(ui,/مراجعة البيع/);assert.match(ui,/installmentTotalMismatch/);assert.match(ui,/financeBlocker/);assert.match(router,/\/sale-options/);assert.match(router,/sale-reviews\/\:reviewId\/decision/);assert.match(css,/sale-review-form/);
-  assert.match(ui,/data-sale-course-price/);assert.match(ui,/data-sale-registration-fee/);assert.doesNotMatch(ui,/<input name="price"[^>]*readonly/);assert.doesNotMatch(ui,/<input name="registrationFee"[^>]*readonly/);assert.match(ui,/form\.querySelector\('\[data-sale-course-price\]'\)\.textContent=minorText\(base\)/);assert.match(ui,/class="sale-review-money" style="display:flex/);assert.match(html,/pipeline\.js\?v=20261014-sales-scheduled-call1/);
+  assert.match(ui,/data-sale-course-price/);assert.match(ui,/data-sale-registration-fee/);assert.doesNotMatch(ui,/<input name="price"[^>]*readonly/);assert.doesNotMatch(ui,/<input name="registrationFee"[^>]*readonly/);assert.match(ui,/form\.querySelector\('\[data-sale-course-price\]'\)\.textContent=minorText\(base\)/);assert.match(ui,/class="sale-review-money" style="display:flex/);assert.match(ui,/verifiedAdSource/);assert.match(html,/pipeline\.js\?v=20261125-ad-source-review1/);
 });

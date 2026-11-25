@@ -303,3 +303,5 @@
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
+.sale-review-card>.sale-review-attribution{display:flex;gap:6px;align-items:flex-start;margin:9px 0;padding:9px 11px;border-inline-start:3px solid #18794e;border-radius:7px;background:#ecfdf3;color:#175c3b;font-size:12px}
+html[data-theme="dark"] .sale-review-card>.sale-review-attribution{background:#123a2b;color:#b5f5cf;border-color:#44a879}
