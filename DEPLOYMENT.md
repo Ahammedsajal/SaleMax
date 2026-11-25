@@ -5745,3 +5745,37 @@ A requested workspace template was created using the running template service an
 - Protected rollback snapshot `/opt/salemax/shared/rollback-admissions-registration-chat-fix-6b72660448d4-20261125T102002Z`. While this overlay remains the chain head, restore under the production lock with `sudo -n /opt/salemax/shared/with-production-lock.sh python3 /opt/salemax/releases/admissions-registration-chat-fix-6b72660448d4-20261125T102002Z/deploy/admissions-registration-chat-fix-release.py restore /opt/salemax/shared/rollback-admissions-registration-chat-fix-6b72660448d4-20261125T102002Z`. No database rollback applies.
 - Verification: 243 focused tests passed, including unique and ambiguous phone lookup and agent scope. A read-only production check confirmed a single matching QR chat for the inspected conversation. The authenticated ProCatalyst owner opened Register learner and the published staff form with the linked lead and contact details prefilled. The observed historical lead had no matching saved course code, so the course was left for staff selection. No form was submitted. App health returned HTTP 200, anonymous workspace API HTTP 401 and seven non-app containers remained unchanged.
 - Remaining gates: agent and manager browser verification, course and advisor prefill across representative leads, multi-channel and ambiguous conversations, mobile, Arabic/RTL and dark-theme verification. The wider staffed-shift escalation, role views, scheduled owner brief, full AI scenario, notification repair, reception reconciliation and verified paid-enrollment attribution remain in progress.
+## Admissions lead referral capture — production, 25 November 2026
+
+Source commit `48ce8cc3b2de8bf16ca208767bb46d78c5efd788` is active in
+`/opt/salemax/releases/admissions-referral-capture-48ce8cc3b2de-20261125T104255Z`.
+The existing bot lead-capture path now passes the inbound provider referral to
+the existing lead pipeline. If the same inbound event is replayed after a lead
+already exists, its attribution is saved idempotently with `INSERT IGNORE`.
+Provider-verified Meta ad referrals retain their verified status; other referral
+context is stored without being labeled a verified ad. This preserves the
+source for a later registration while avoiding duplicate attribution rows.
+
+No migration ran and no customer message or record was replayed or changed.
+Targeted tests pass 254/254 across referral replay, bot capture, staff form,
+follow-up brief and business-context suites. The guarded app-only release kept
+the app image `salemax-app:email-marketing-21a07cc41fa9-20261112`
+(`sha256:753d77d421b3160872df0812e7b38505a1db7104cdb9d6c8b17415b2420de667`),
+resolved 341 Compose inputs and 11 environment inputs, and added two runtime
+file mounts (307 total). Seven non-app container identities were unchanged.
+App and database health passed, public `/healthz` returned HTTP 200, and the
+anonymous workspace endpoint returned HTTP 401.
+
+Protected rollback snapshot:
+`/opt/salemax/shared/rollback-admissions-referral-capture-48ce8cc3b2de-20261125T104255Z`.
+While this release remains the chain head, restore under the production lock
+with:
+
+```sh
+sudo -n /opt/salemax/shared/with-production-lock.sh python3 /opt/salemax/releases/admissions-referral-capture-48ce8cc3b2de-20261125T104255Z/deploy/admissions-referral-capture-release.py restore /opt/salemax/shared/rollback-admissions-referral-capture-48ce8cc3b2de-20261125T104255Z
+```
+
+No database rollback applies. Attribution was not backfilled from historical
+conversation data; that requires a separate tenant-scoped, previewable and
+idempotent reconciliation. Later enrollment/payment attribution and live Meta
+referral acceptance remain open.

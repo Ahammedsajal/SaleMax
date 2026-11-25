@@ -2689,3 +2689,36 @@ The bot now retains every distinct course interest in the lead’s existing `qua
 ## Email campaign outcome review — source update, 24 November 2026
 
 Campaigns marked **Needs review** now link directly to recipient outcomes. The report separates unresolved recipient rows from SES-confirmed sends and deliveries, exposes an audited **Reconcile confirmed SES results** action, and leaves rows without a saved Send/Delivery event unresolved with a warning not to retry blindly. Verified SNS Send/Delivery events reconcile future uncertain worker results automatically; uncertain messages with captured content are retained in the conversation and change to sent when SES confirms them. This addresses the confirmed case where SES had recorded delivery but the campaign recipient stayed `unknown`. Source only; production is unchanged. Automated tests and browser acceptance have not been run.
+## Admissions Inbox pilot — live implementation, 25 November 2026
+
+The requested Today workflow is now in the existing Inbox with a calmer
+review panel and clearer primary actions. It surfaces due callbacks,
+registration applications needing attention, pending payments and conversations
+awaiting a human reply. The Inbox contact action can open a staff registration
+form prefilled with the correctly linked learner/lead. Phone-only QR chat IDs
+are resolved safely; ambiguous matches are rejected. Staff-form routes retain
+tenant and role checks.
+
+New chatbot leads now retain their inbound referral in the existing pipeline
+attribution ledger. Verified Meta ad referrals remain distinctly verified;
+other referral context is not promoted to a verified ad. Replayed inbound lead
+events save the attribution idempotently. This supplies the first traceable
+link from an ad enquiry to later registration records, which already reference
+the originating lead.
+
+Sources through `48ce8cc3b2de8bf16ca208767bb46d78c5efd788` are on branch
+`codex/admissions-operations-pilot`; the UI, registration lookup and referral
+capture increments are deployed. The referral increment passed 254 focused
+checks. The user’s owner account was used to visually check the Today panel and
+to confirm that Register learner opened the correct applicant context. No
+registration, payment, or outbound customer message was submitted.
+
+Remaining pilot gates: advisor and manager live role verification; Arabic/RTL,
+dark theme and phone/tablet visual acceptance; owner-approved staffing hours
+and backup routing before shift escalation is configured; coordinator-approved
+employment/placement wording; real Meta referral acceptance; and a reconciled
+pilot baseline for enrollment and ad-source reporting. Today lists only the
+records its existing scoped endpoints load, so report totals must not be
+presented as complete until pagination and source-data reconciliation are
+verified. The broader 42-ticket application program, restore/load gates and
+production release work remain open.
