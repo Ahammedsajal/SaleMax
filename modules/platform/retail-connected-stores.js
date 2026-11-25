@@ -5,6 +5,8 @@ const dns = require('node:dns').promises;
 const https = require('node:https');
 const net = require('node:net');
 const { URL } = require('node:url');
+const customerDirectory = require('./retail-customer-directory');
+const nativeImports = require('./retail-native-imports');
 
 const UUID = /^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i;
 const SHOP = /^[a-z0-9][a-z0-9-]{0,62}\.myshopify\.com$/i;
@@ -118,6 +120,15 @@ function customerOf(row, provider) {
     } : null,
   };
 }
+function normalizedAddress(address) {
+  if (!address || typeof address !== 'object' || Array.isArray(address)) return null;
+  const result = {
+    address1: address.address1 || address.address_1 || null, address2: address.address2 || address.address_2 || null,
+    city: address.city || null, region: address.province || address.state || null,
+    postalCode: address.zip || address.postcode || null, country: address.countryCodeV2 || address.country_code || address.country || null,
+  };
+  return Object.values(result).some(Boolean) ? result : null;
+}
 function nodes(value) { return Array.isArray(value) ? value : Array.isArray(value?.nodes) ? value.nodes : Array.isArray(value?.edges) ? value.edges.map(edge => edge.node) : []; }
 function normalizeTransactions(rows, orderCurrency) {
   return rows.map(tx => {
@@ -135,8 +146,8 @@ function normalizeTransactions(rows, orderCurrency) {
 }
 function normalizeLineItems(rows) {
   return rows.slice(0, 100).map(line => ({ id: line.id == null ? null : String(line.id).slice(0, 191),
-    productId: line.product_id == null && line.productId == null ? null : String(line.product_id ?? line.productId),
-    variantId: line.variant_id == null && line.variation_id == null && line.variantId == null ? null : String(line.variant_id ?? line.variation_id ?? line.variantId),
+    productId: line.product_id == null && line.productId == null && line.product?.id == null ? null : String(line.product_id ?? line.productId ?? line.product?.id),
+    variantId: line.variant_id == null && line.variation_id == null && line.variantId == null && line.variant?.id == null ? null : String(line.variant_id ?? line.variation_id ?? line.variantId ?? line.variant?.id),
     title: String(line.title || line.name || line.product_title || '').slice(0, 255),
     sku: String(line.sku || '').slice(0, 100) || null,
     quantity: safeQuantity(line.quantity ?? 0),
@@ -174,15 +185,19 @@ function normalizeProduct(provider, row) {
         host.split('.').length >= 2) imageUrl = image.toString();
   } catch { /* Image previews are optional; malformed or private URLs are omitted. */ }
   const managementMode = stockManagementMode(provider === 'woocommerce' ? row.manage_stock : undefined);
-  return { id, title: String(row.name || row.title || row.handle || id).slice(0, 255), sku: String(row.sku || first.sku || '').slice(0, 100) || null,
-    productType: provider === 'woocommerce' ? String(row.type || 'unknown').toLowerCase().slice(0, 32) : null,
+  return { id, title: String(row.name || row.title || row.handle || id).slice(0, 255),
+    sku: String(row.sku || (provider === 'woocommerce' ? first.sku : '') || '').slice(0, 100) || null,
+    productType: provider === 'woocommerce' ? String(row.type || 'unknown').toLowerCase().slice(0, 32) : String(row.productType || 'unknown').toLowerCase().slice(0, 32),
     status: String(row.status || 'unknown').toLowerCase().slice(0, 32), currency: currency(cur), price: safeAmount(price),
-    imageUrl, variants, variationCount: provider === 'woocommerce' && Array.isArray(row.variations) ? row.variations.length : variants.length,
+    imageUrl, descriptionEn: nativeImports.plainText(row.description || row.body_html || row.bodyHtml || '', 5000),
+    variants, variationCount: provider === 'woocommerce' && Array.isArray(row.variations) ? row.variations.length :
+      provider === 'shopify' && Number.isSafeInteger(Number(row.variantsCount?.count)) ? Number(row.variantsCount.count) : variants.length,
     priceUnavailable: provider === 'woocommerce' && sourcePrice == null && Array.isArray(row.variations) && row.variations.length > 0,
     sourceStock: provider === 'woocommerce' ? { managed: managementMode === 'managed', managementMode,
       quantity: managementMode !== 'managed' || row.stock_quantity == null ? null : safeStockQuantity(row.stock_quantity),
       status: String(row.stock_status || 'unknown').toLowerCase().slice(0,32) } : null,
-    variantsTruncated: Boolean(row.variants?.pageInfo?.hasNextPage || provider === 'woocommerce' && (row.variations || []).length > 0 && !variants.length),
+    variantsTruncated: Boolean(row.variants?.pageInfo?.hasNextPage || provider === 'shopify' && variants.length < Number(row.variantsCount?.count || 0) ||
+      provider === 'woocommerce' && (row.variations || []).length > 0 && !variants.length),
     updatedAt: row.date_modified_gmt || row.updatedAt || row.updated_at || null, source: provider };
 }
 function normalizeProductVariation(provider, productId, row, defaultCurrency = 'QAR') {
@@ -229,7 +244,7 @@ function normalizeOrder(provider, row) {
     id: String(row.transaction_id), kind: 'payment', type: 'payment', status: row.date_paid || row.date_paid_gmt ? 'reported_paid_by_store' : 'unverified',
     currency: row.currency, amount: row.total, gateway: row.payment_method_title || row.payment_method || null, processed_at: row.date_paid_gmt || row.date_paid || null,
   });
-  for (const refund of row.refunds || []) {
+  for (const refund of nodes(row.refunds)) {
     const refundTransactions = nodes(refund.transactions);
     if (refundTransactions.length) {
       transactions.push(...refundTransactions.map(transaction => ({ ...transaction, kind: transaction.kind || 'refund' })));
@@ -263,7 +278,9 @@ function normalizeOrder(provider, row) {
   const tax = woo ? (row.total_tax == null ? null : safeAmount(row.total_tax)) :
     row.totalTaxSet?.shopMoney?.amount == null ? null : safeAmount(row.totalTaxSet.shopMoney.amount);
   const fees = woo && Array.isArray(row.fee_lines) ? decimalAdd(row.fee_lines.map(line => line.total ?? '0')) : null;
-  const refunds = woo && Array.isArray(row.refunds) ? decimalAdd(row.refunds.map(refund => decimalAbs(refund.total ?? '0'))) : null;
+  const refunds = woo && Array.isArray(row.refunds) ? decimalAdd(row.refunds.map(refund => decimalAbs(refund.total ?? '0'))) :
+    decimalAdd(transactions.filter(tx => ['refund','refunds'].includes(tx.kind.toLowerCase()) &&
+      ['success','successful','completed','processed','reported_paid_by_store','recorded_by_store'].includes(tx.status)).map(tx => tx.amount));
   const moneyLines = (items, titleField) => (Array.isArray(items) ? items : []).slice(0, 50).map(item => ({
     title: String(item?.[titleField] || item?.name || '').slice(0, 160),
     code: String(item?.method_id || item?.code || '').slice(0, 80) || null,
@@ -274,11 +291,17 @@ function normalizeOrder(provider, row) {
     status: String(orderStatus || 'unknown').toLowerCase().slice(0, 64), financialStatus: String(financial).toLowerCase().slice(0, 64),
     currency: orderCurrency, total: safeAmount(moneyAmount(row)), customerId: c.id, customer: c,
     contactConsent, contactConsentAt,
-    lineItems: normalizeLineItems(nodes(row.lineItems || row.line_items)),
-    breakdown: { subtotal, discount, shipping, tax, fees, refunds },
+    lineItems: normalizeLineItems(nodes(row.lineItems || row.line_items)).map(line => provider === 'shopify' ? {
+      ...line,
+      productId: line.productId ? canonicalShopifyId('Product', line.productId) : null,
+      variantId: line.variantId ? canonicalShopifyId('ProductVariant', line.variantId) : null,
+    } : line),
+    breakdown: { subtotal, discount, shipping, tax, fees, refunds }, transactions,
+    shippingAddress: normalizedAddress(row.shippingAddress || row.shipping_address),
     shippingLines: moneyLines(row.shipping_lines, 'method_title'), feeLines: moneyLines(row.fee_lines, 'name'),
     lineItemsTruncated: Boolean(row.lineItems?.pageInfo?.hasNextPage || (Array.isArray(row.line_items) && row.line_items.length > 100)),
-    transactionsTruncated: Boolean(row.transactions?.pageInfo?.hasNextPage || (row.refunds || []).some(refund => refund.transactions?.pageInfo?.hasNextPage)),
+    transactionsTruncated: Boolean(row.transactions?.pageInfo?.hasNextPage || row.refunds?.pageInfo?.hasNextPage ||
+      nodes(row.refunds).some(refund => refund.transactions?.pageInfo?.hasNextPage)),
     createdAt: orderTimestamp(row,'date_created_gmt','date_created',provider) || sourceTimestamp(row.created_at || row.createdAt),
     updatedAt: orderTimestamp(row,'date_modified_gmt','date_modified',provider) || sourceTimestamp(row.updated_at || row.updatedAt), source: provider };
 }
@@ -336,7 +359,7 @@ function sourceTimestampIsStale(existingValue, incomingValue) {
 async function sourceRow(db, table, whereSql, params) {
   if (!['sx_retail_external_customers','sx_retail_external_products','sx_retail_external_product_variants',
     'sx_retail_external_orders','sx_retail_external_checkouts'].includes(table)) fail('INVALID_SOURCE_TABLE', 500);
-  const extra = table === 'sx_retail_external_customers' ? ',customer_status AS customerStatus' : '';
+  const extra = table === 'sx_retail_external_customers' ? ',customer_status AS customerStatus,customer_directory_key AS customerDirectoryKey' : '';
   const [[existing]] = await db.query(`SELECT source_updated_at AS sourceUpdatedAt${extra} FROM ${table} WHERE ${whereSql} LIMIT 1 FOR UPDATE`, params);
   return existing || null;
 }
@@ -397,14 +420,32 @@ async function upsertCustomer(db, connection, row) {
   if (existing?.customerStatus === 'redacted' || existing && sourceTimestampIsStale(existing.sourceUpdatedAt, customer.updatedAt)) {
     return { ...customer, stale: true, redacted: existing?.customerStatus === 'redacted' };
   }
+  const customerDirectoryKey = customerDirectory.customerDirectoryKey(connection.tenant_id, connection.id, customer.id, customer);
+  const emailHash = customerDirectory.emailLookupHash(connection.tenant_id, customer.email);
   const encrypted = seal(customer, connection.tenant_id, connection.id, `customer:${customer.id}`);
   await db.query(`INSERT INTO sx_retail_external_customers
-    (tenant_id,connection_id,external_customer_id,customer_status,customer_ciphertext,customer_iv,customer_auth_tag,source_updated_at)
-    VALUES (?,?,?,'active',?,?,?,?) ON DUPLICATE KEY UPDATE customer_status=IF(${newerSourceUpdate},'active',customer_status),
+    (tenant_id,connection_id,external_customer_id,customer_status,customer_ciphertext,customer_iv,customer_auth_tag,
+      customer_directory_key,email_lookup_hash,source_updated_at)
+    VALUES (?,?,?,'active',?,?,?,?,?,?) ON DUPLICATE KEY UPDATE customer_status=IF(${newerSourceUpdate},'active',customer_status),
     customer_ciphertext=IF(${newerSourceUpdate},VALUES(customer_ciphertext),customer_ciphertext),
     customer_iv=IF(${newerSourceUpdate},VALUES(customer_iv),customer_iv),customer_auth_tag=IF(${newerSourceUpdate},VALUES(customer_auth_tag),customer_auth_tag),
+    customer_directory_key=IF(${newerSourceUpdate},VALUES(customer_directory_key),customer_directory_key),
+    email_lookup_hash=IF(${newerSourceUpdate},VALUES(email_lookup_hash),email_lookup_hash),
     imported_at=IF(${newerSourceUpdate},UTC_TIMESTAMP(3),imported_at),source_updated_at=IF(${newerSourceUpdate},VALUES(source_updated_at),source_updated_at)`,
-  [connection.tenant_id, connection.id, customer.id, encrypted.ciphertext, encrypted.iv, encrypted.authTag, dateOrNull(customer.updatedAt)]);
+  [connection.tenant_id, connection.id, customer.id, encrypted.ciphertext, encrypted.iv, encrypted.authTag, customerDirectoryKey,
+    emailHash, dateOrNull(customer.updatedAt)]);
+  await customerDirectory.indexSource(db, { tenantId: connection.tenant_id, connectionId: connection.id,
+    sourceKind: 'customer', sourceId: customer.id, directoryKey: customerDirectoryKey, customer });
+  if (existing?.customerDirectoryKey && existing.customerDirectoryKey !== customerDirectoryKey) {
+    const [orders] = await db.query(`SELECT external_order_id AS id FROM sx_retail_external_orders
+      WHERE tenant_id=? AND connection_id=? AND customer_external_id=?`, [connection.tenant_id, connection.id, customer.id]);
+    await db.query(`UPDATE sx_retail_external_orders SET customer_directory_key=?,email_lookup_hash=?
+      WHERE tenant_id=? AND connection_id=? AND customer_external_id=?`,
+    [customerDirectoryKey, emailHash, connection.tenant_id, connection.id, customer.id]);
+    for (const order of orders) await customerDirectory.indexSource(db, { tenantId: connection.tenant_id, connectionId: connection.id,
+      sourceKind: 'order', sourceId: order.id, directoryKey: customerDirectoryKey, customer });
+  }
+  await nativeImports.refreshCustomerOrders(db, connection, customer.id, customerDirectoryKey, customer);
   return customer;
 }
 async function upsertProduct(db, connection, row) {
@@ -431,7 +472,57 @@ async function upsertProduct(db, connection, row) {
   [connection.tenant_id, connection.id, product.id, product.status, product.sku, product.currency, product.price, encrypted.ciphertext, encrypted.iv,
     encrypted.authTag, product.sourceStock?.managementMode === 'managed' ? 1 : product.sourceStock?.managementMode === 'unmanaged' ? 0 : null,
     product.sourceStock?.managementMode || 'unknown', product.sourceStock?.quantity ?? null, product.sourceStock?.status || 'unknown', dateOrNull(product.updatedAt)]);
+  await nativeImports.upsertProduct(db, connection, product);
+  if (connection.provider === 'shopify' && product.variants.length) {
+    await persistShopifyProductVariants(db, connection, product.id, product.variants, false);
+  }
   return product;
+}
+function normalizeShopifyProductVariant(productId, row, defaultCurrency = 'QAR') {
+  const parentId = canonicalShopifyId('Product', productId);
+  const id = canonicalShopifyId('ProductVariant', row?.id);
+  const rawPrice = row?.price?.amount ?? row?.price;
+  if (!parentId || parentId.length > 191 || !id || id.length > 191) fail('INVALID_PROVIDER_VARIATION', 422);
+  return { id, productId: parentId, title: String(row.title || 'Default').slice(0, 255),
+    sku: String(row.sku || '').trim().slice(0, 100) || null,
+    status: row.availableForSale === false ? 'unavailable' : 'active',
+    purchasable: row.availableForSale == null ? null : Boolean(row.availableForSale),
+    currency: currency(row.price?.currencyCode || row.currencyCode || defaultCurrency), price: safeAmount(rawPrice ?? '0'),
+    attributes: (Array.isArray(row.selectedOptions) ? row.selectedOptions : []).slice(0, 20).map(option => ({
+      name: String(option?.name || '').slice(0, 80), option: String(option?.value || '').slice(0, 100),
+    })).filter(option => option.name || option.option),
+    sourceStock: { managed: false, managementMode: 'unknown', quantity: null, status: 'unknown' },
+    updatedAt: row.updatedAt || null, source: 'shopify' };
+}
+async function persistShopifyProductVariants(db, connection, productId, rows, importNative = true) {
+  if (connection.provider !== 'shopify') fail('INVALID_PROVIDER_VARIATION', 422);
+  const variants = Array.isArray(rows) ? rows : [], accepted = [];
+  const parentId = canonicalShopifyId('Product', productId);
+  for (const row of variants) {
+    const variation = normalizeShopifyProductVariant(parentId, row, connection.default_currency || 'QAR');
+    if (await isStaleSourceRow(db, 'sx_retail_external_product_variants',
+        'tenant_id=? AND connection_id=? AND external_variant_id=?', [connection.tenant_id, connection.id, variation.id], variation.updatedAt)) continue;
+    const encrypted = seal(variation, connection.tenant_id, connection.id, `product-variant:${variation.id}`);
+    const updateGuard = newerSourceUpdate;
+    await db.query(`INSERT INTO sx_retail_external_product_variants
+      (tenant_id,connection_id,external_product_id,external_variant_id,sku,variant_status,currency,price,
+        variant_ciphertext,variant_iv,variant_auth_tag,source_stock_managed,source_stock_management,source_stock_quantity,source_stock_status,source_updated_at)
+      VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?) ON DUPLICATE KEY UPDATE external_product_id=IF(${updateGuard},VALUES(external_product_id),external_product_id),
+      sku=IF(${updateGuard},VALUES(sku),sku),variant_status=IF(${updateGuard},VALUES(variant_status),variant_status),
+      currency=IF(${updateGuard},VALUES(currency),currency),price=IF(${updateGuard},VALUES(price),price),
+      variant_ciphertext=IF(${updateGuard},VALUES(variant_ciphertext),variant_ciphertext),variant_iv=IF(${updateGuard},VALUES(variant_iv),variant_iv),
+      variant_auth_tag=IF(${updateGuard},VALUES(variant_auth_tag),variant_auth_tag),imported_at=IF(${updateGuard},UTC_TIMESTAMP(3),imported_at),
+      source_stock_managed=IF(${updateGuard},VALUES(source_stock_managed),source_stock_managed),
+      source_stock_management=IF(${updateGuard},VALUES(source_stock_management),source_stock_management),
+      source_stock_quantity=IF(${updateGuard},VALUES(source_stock_quantity),source_stock_quantity),
+      source_stock_status=IF(${updateGuard},VALUES(source_stock_status),source_stock_status),
+      source_updated_at=IF(${updateGuard},VALUES(source_updated_at),source_updated_at)`,
+    [connection.tenant_id, connection.id, variation.productId, variation.id, variation.sku, variation.status, variation.currency,
+      variation.price, encrypted.ciphertext, encrypted.iv, encrypted.authTag, null, 'unknown', null, 'unknown', dateOrNull(variation.updatedAt)]);
+    accepted.push(row);
+  }
+  if (importNative && accepted.length) await nativeImports.upsertProductVariants(db, connection, parentId, accepted);
+  return { accepted: accepted.length, total: variants.length };
 }
 async function upsertProductVariation(db, connection, productId, row) {
   const normalized = normalizeProductVariation(connection.provider, productId, row, connection.default_currency || 'QAR');
@@ -459,6 +550,7 @@ async function upsertProductVariation(db, connection, productId, row) {
     normalized.sourceStock.managementMode === 'managed' ? 1 : normalized.sourceStock.managementMode === 'unmanaged' ? 0 : null,
     normalized.sourceStock.managementMode,
     normalized.sourceStock.quantity, normalized.sourceStock.status, dateOrNull(normalized.updatedAt)]);
+  await nativeImports.upsertVariation(db, connection, normalized);
   return normalized;
 }
 async function markProductVariationDeleted(db, connection, productId, variationId, updatedAt = null) {
@@ -470,6 +562,7 @@ async function markProductVariationDeleted(db, connection, productId, variationI
     WHERE tenant_id=? AND connection_id=? AND external_product_id=? AND external_variant_id=?
       AND (? IS NULL OR source_updated_at IS NULL OR source_updated_at<=?)`,
   [incoming, connection.tenant_id, connection.id, parent, id, incoming, incoming]);
+  await nativeImports.markProductDeleted(db, connection, parent, id);
   return Boolean(result.affectedRows);
 }
 async function markProductVariationsDeleted(db, connection, productId, updatedAt = null) {
@@ -481,6 +574,7 @@ async function markProductVariationsDeleted(db, connection, productId, updatedAt
     WHERE tenant_id=? AND connection_id=? AND external_product_id=?
       AND (? IS NULL OR source_updated_at IS NULL OR source_updated_at<=?)`,
   [incoming, connection.tenant_id, connection.id, parent, incoming, incoming]);
+  await nativeImports.markProductDeleted(db, connection, parent, '');
   return Number(result.affectedRows || 0);
 }
 async function upsertOrder(db, connection, row) {
@@ -496,20 +590,25 @@ async function upsertOrder(db, connection, row) {
       'tenant_id=? AND connection_id=? AND external_order_id=?', [connection.tenant_id, connection.id, order.id], order.updatedAt)) {
     return { ...order, stale: true };
   }
+  const customerDirectoryKey = order.customer ? customerDirectory.customerDirectoryKey(
+    connection.tenant_id, connection.id, order.customerId, order.customer, order.id) : null;
+  const emailHash = order.customer ? customerDirectory.emailLookupHash(connection.tenant_id, order.customer.email) : null;
   const customer = order.customer ? seal(order.customer, connection.tenant_id, connection.id, `order-customer:${order.id}`) : null;
   const snapshot = seal(order, connection.tenant_id, connection.id, `order:${order.id}`);
   const updateGuard = newerSourceUpdate;
   await db.query(`INSERT INTO sx_retail_external_orders
     (tenant_id,connection_id,external_order_id,order_number,order_status,financial_status,currency,total_amount,subtotal_amount,discount_amount,
-      shipping_amount,tax_amount,fee_amount,refund_amount,customer_external_id,
+      shipping_amount,tax_amount,fee_amount,refund_amount,customer_external_id,customer_directory_key,email_lookup_hash,
       contact_consent,consent_at,customer_ciphertext,customer_iv,customer_auth_tag,order_ciphertext,order_iv,order_auth_tag,source_updated_at,source_created_at)
-    VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?) ON DUPLICATE KEY UPDATE order_number=IF(${updateGuard},VALUES(order_number),order_number),
+    VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?) ON DUPLICATE KEY UPDATE order_number=IF(${updateGuard},VALUES(order_number),order_number),
     order_status=IF(${updateGuard},VALUES(order_status),order_status),financial_status=IF(${updateGuard},VALUES(financial_status),financial_status),
     currency=IF(${updateGuard},VALUES(currency),currency),total_amount=IF(${updateGuard},VALUES(total_amount),total_amount),
     subtotal_amount=IF(${updateGuard},VALUES(subtotal_amount),subtotal_amount),discount_amount=IF(${updateGuard},VALUES(discount_amount),discount_amount),
     shipping_amount=IF(${updateGuard},VALUES(shipping_amount),shipping_amount),tax_amount=IF(${updateGuard},VALUES(tax_amount),tax_amount),
     fee_amount=IF(${updateGuard},VALUES(fee_amount),fee_amount),refund_amount=IF(${updateGuard},VALUES(refund_amount),refund_amount),
     customer_external_id=IF(${updateGuard},VALUES(customer_external_id),customer_external_id),contact_consent=IF(${updateGuard},VALUES(contact_consent),contact_consent),
+    customer_directory_key=IF(${updateGuard},VALUES(customer_directory_key),customer_directory_key),
+    email_lookup_hash=IF(${updateGuard},VALUES(email_lookup_hash),email_lookup_hash),
     consent_at=IF(${updateGuard},VALUES(consent_at),consent_at),customer_ciphertext=IF(${updateGuard},VALUES(customer_ciphertext),customer_ciphertext),
     customer_iv=IF(${updateGuard},VALUES(customer_iv),customer_iv),customer_auth_tag=IF(${updateGuard},VALUES(customer_auth_tag),customer_auth_tag),
     order_ciphertext=IF(${updateGuard},VALUES(order_ciphertext),order_ciphertext),order_iv=IF(${updateGuard},VALUES(order_iv),order_iv),
@@ -518,9 +617,12 @@ async function upsertOrder(db, connection, row) {
     source_created_at=IF(${updateGuard},COALESCE(VALUES(source_created_at),source_created_at),source_created_at)`,
   [connection.tenant_id, connection.id, order.id, order.number, order.status, order.financialStatus, order.currency, order.total,
     order.breakdown.subtotal, order.breakdown.discount, order.breakdown.shipping, order.breakdown.tax, order.breakdown.fees, order.breakdown.refunds, order.customerId,
+    customerDirectoryKey, emailHash,
     order.contactConsent, dateOrNull(order.contactConsentAt), customer?.ciphertext || null, customer?.iv || null, customer?.authTag || null,
     snapshot.ciphertext, snapshot.iv, snapshot.authTag,
     dateOrNull(order.updatedAt), utcDateTimeString(order.createdAt)]);
+  await customerDirectory.indexSource(db, { tenantId: connection.tenant_id, connectionId: connection.id,
+    sourceKind: 'order', sourceId: order.id, directoryKey: customerDirectoryKey, customer: order.customer });
   for (const tx of order.transactions || []) {
     const txId = String(tx.id || tx.transaction_id || '');
     const amount = tx.amount ?? tx.amountSet?.shopMoney?.amount ?? tx.amountSet?.presentmentMoney?.amount ?? tx.total;
@@ -538,6 +640,7 @@ async function upsertOrder(db, connection, row) {
       String(tx.gateway || tx.payment_method || '').slice(0, 100) || null, dateOrNull(tx.processed_at || tx.createdAt || tx.date_created_gmt),
       encrypted.ciphertext, encrypted.iv, encrypted.authTag]);
   }
+  await nativeImports.upsertOrder(db, connection, order, customerDirectoryKey);
   return order;
 }
 async function upsertTransaction(db, connection, externalOrderId, transaction) {
@@ -559,6 +662,14 @@ async function upsertTransaction(db, connection, externalOrderId, transaction) {
     transaction_ciphertext=VALUES(transaction_ciphertext),transaction_iv=VALUES(transaction_iv),transaction_auth_tag=VALUES(transaction_auth_tag)`,
   [connection.tenant_id, connection.id, orderId, id, safeTransaction.kind, safeTransaction.status, safeTransaction.currency,
     safeTransaction.amount, safeTransaction.gateway, dateOrNull(safeTransaction.processed_at), encrypted.ciphertext, encrypted.iv, encrypted.authTag]);
+  if (['refund','refunds'].includes(safeTransaction.kind.toLowerCase())) {
+    const [[refunds]] = await db.query(`SELECT COALESCE(SUM(amount),0) AS amount FROM sx_retail_external_transactions
+      WHERE tenant_id=? AND connection_id=? AND external_order_id=? AND LOWER(transaction_kind) IN ('refund','refunds')`,
+    [connection.tenant_id, connection.id, orderId]);
+    await db.query(`UPDATE sx_retail_orders SET source_refund_amount=?
+      WHERE tenant_id=? AND external_source_connection_id=? AND external_source_order_id=?`,
+    [refunds.amount, connection.tenant_id, connection.id, orderId]);
+  }
 }
 async function upsertCheckout(db, connection, row) {
   const checkout = normalizeCheckout(connection.provider, row);
@@ -596,6 +707,15 @@ async function upsertCheckout(db, connection, row) {
   return checkout;
 }
 async function redactCustomer(db, connection, externalId) {
+  await nativeImports.redactCustomer(db, connection, externalId);
+  const [indexedOrders] = await db.query(`SELECT external_order_id AS id FROM sx_retail_external_orders
+    WHERE tenant_id=? AND connection_id=? AND customer_external_id=?`, [connection.tenant_id, connection.id, externalId]);
+  for (const row of indexedOrders) await db.query(`DELETE FROM sx_retail_customer_search_tokens
+    WHERE tenant_id=? AND connection_id=? AND source_kind='order' AND source_id=?`,
+  [connection.tenant_id, connection.id, crypto.createHash('sha256').update(connection.id).update('\0').update(row.id).digest('hex')]);
+  const customerTokenId=crypto.createHash('sha256').update(connection.id).update('\0').update(externalId).digest('hex');
+  await db.query(`DELETE FROM sx_retail_customer_search_tokens
+    WHERE tenant_id=? AND connection_id=? AND source_kind='customer' AND source_id=?`, [connection.tenant_id, connection.id, customerTokenId]);
   const [orders] = await db.query(`SELECT external_order_id AS id,order_ciphertext AS ciphertext,order_iv AS iv,order_auth_tag AS authTag
     FROM sx_retail_external_orders WHERE tenant_id=? AND connection_id=? AND customer_external_id=?`, [connection.tenant_id, connection.id, externalId]);
   for (const row of orders) {
@@ -603,7 +723,7 @@ async function redactCustomer(db, connection, externalId) {
     order.customer = null;
     delete order.billing; delete order.shipping;
     const encrypted = seal(order, connection.tenant_id, connection.id, `order:${row.id}`);
-    await db.query(`UPDATE sx_retail_external_orders SET customer_external_id=NULL,contact_consent='unknown',customer_ciphertext=NULL,
+  await db.query(`UPDATE sx_retail_external_orders SET customer_external_id=NULL,customer_directory_key=NULL,email_lookup_hash=NULL,contact_consent='unknown',customer_ciphertext=NULL,
       customer_iv=NULL,customer_auth_tag=NULL,order_ciphertext=?,order_iv=?,order_auth_tag=?
       WHERE tenant_id=? AND connection_id=? AND external_order_id=?`,
     [encrypted.ciphertext, encrypted.iv, encrypted.authTag, connection.tenant_id, connection.id, row.id]);
@@ -619,7 +739,7 @@ async function redactCustomer(db, connection, externalId) {
       checkout_ciphertext=?,checkout_iv=?,checkout_auth_tag=? WHERE tenant_id=? AND connection_id=? AND external_checkout_id=?`,
     [encrypted.ciphertext, encrypted.iv, encrypted.authTag, connection.tenant_id, connection.id, row.id]);
   }
-  await db.query(`UPDATE sx_retail_external_customers SET customer_status='redacted',customer_ciphertext=NULL,customer_iv=NULL,customer_auth_tag=NULL
+  await db.query(`UPDATE sx_retail_external_customers SET customer_status='redacted',customer_directory_key=NULL,email_lookup_hash=NULL,customer_ciphertext=NULL,customer_iv=NULL,customer_auth_tag=NULL
     WHERE tenant_id=? AND connection_id=? AND external_customer_id=?`, [connection.tenant_id, connection.id, externalId]);
   const [requests] = await db.query(`SELECT id,provider_request_id AS providerRequestId,request_payload_ciphertext AS ciphertext,
     request_payload_iv AS iv,request_payload_auth_tag AS authTag FROM sx_retail_store_privacy_requests
@@ -639,7 +759,10 @@ async function redactCustomer(db, connection, externalId) {
     WHERE tenant_id=? AND connection_id=? AND status='failed'`, [connection.tenant_id, connection.id]);
 }
 async function eraseConnectionData(db, connection) {
-  for (const table of ['sx_retail_external_transactions','sx_retail_external_orders','sx_retail_external_checkouts',
+  await nativeImports.eraseConnection(db, connection.tenant_id, connection.id);
+  await db.query('DELETE FROM sx_retail_customer_search_tokens WHERE tenant_id=? AND connection_id=?', [connection.tenant_id, connection.id]);
+  await db.query('DELETE FROM sx_retail_catalogue_imports WHERE tenant_id=? AND connection_id=?', [connection.tenant_id, connection.id]);
+  for (const table of ['sx_retail_external_product_mappings','sx_retail_external_transactions','sx_retail_external_orders','sx_retail_external_checkouts',
     'sx_retail_external_customers','sx_retail_external_product_variants','sx_retail_external_products']) {
     await db.query(`DELETE FROM ${table} WHERE tenant_id=? AND connection_id=?`, [connection.tenant_id, connection.id]);
   }
@@ -653,6 +776,7 @@ module.exports = {
   currency, canonicalShopifyId, sourceTimestampIsStale,
   customerOf, normalizeCustomer, normalizeProduct, normalizeProductVariation, normalizeOrder, normalizeCheckout, shopifySignature, shopifyQuerySignature,
   wooSignature, randomSecret, validateId, dateOrNull, publicIpv4, requestHttps, safeStockQuantity, upsertCustomer, upsertProduct, upsertOrder,
-  upsertProductVariation, markProductVariationDeleted, markProductVariationsDeleted,
+  upsertProductVariation, persistShopifyProductVariants, normalizeShopifyProductVariant,
+  markProductVariationDeleted, markProductVariationsDeleted,
   upsertCheckout, upsertTransaction, redactCustomer, eraseConnectionData,
 };

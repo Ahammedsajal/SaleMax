@@ -3,11 +3,13 @@
 const {randomUUID, createHash} = require('node:crypto');
 const deliveryProof = require('./retail-delivery-proof');
 const customerConsent = require('./retail-notice-consent');
+const customerDirectory = require('./retail-customer-directory');
 const quantityMath = require('./retail-quantity');
 const inventoryAlerts = require('./retail-inventory-alerts');
 const uuid = /^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i;
 const slugPattern = /^[a-z0-9](?:[a-z0-9-]{0,78}[a-z0-9])?$/;
 const fail = (code, status = 400) => { throw Object.assign(new Error(code), {code, status}); };
+const assertLocalOrder = order => { if (order?.externalSourceConnectionId) fail('IMPORTED_ORDER_READ_ONLY', 409); };
 const string = (value, max, required = true) => {
   if (typeof value !== 'string' || value.trim().length > max || (required && !value.trim())) fail('INVALID_INPUT');
   return value.trim();
@@ -199,7 +201,8 @@ async function returnItems(pool,tenant,actor,orderId,input) {
     if(!business)fail('ORDER_NOT_FOUND',404);
     const [[prior]]=await db.query('SELECT id,request_hash AS hash,restocked FROM sx_retail_returns WHERE tenant_id=? AND request_id=? FOR UPDATE',[tenant,request.requestId]);
     if(prior){if(prior.hash!==hash)fail('REQUEST_CONFLICT',409);return {id:prior.id,restocked:Boolean(prior.restocked),replayed:true};}
-    const [[order]]=await db.query('SELECT status,location_id AS locationId,order_lines AS orderLines FROM sx_retail_orders WHERE tenant_id=? AND id=? FOR UPDATE',[tenant,orderId]);
+    const [[order]]=await db.query('SELECT status,location_id AS locationId,order_lines AS orderLines,external_source_connection_id AS externalSourceConnectionId FROM sx_retail_orders WHERE tenant_id=? AND id=? FOR UPDATE',[tenant,orderId]);
+    assertLocalOrder(order);
     if(!order||!['completed','partially_returned'].includes(order.status))fail('RETURN_UNAVAILABLE',409);
     const purchased=typeof order.orderLines==='string'?JSON.parse(order.orderLines):order.orderLines;
     const purchasedById=new Map(purchased.map(line=>[line.id,{quantity:quantityMath.scaled(line.quantity),priceMinor:Number(line.priceMinor),
@@ -234,8 +237,9 @@ async function recordCashReceipt(pool,tenant,actor,orderId,input,driver=false) {
   if(!uuid.test(orderId)||!input||!uuid.test(input.requestId||'')||!Number.isSafeInteger(input.amountMinor)||input.amountMinor<0)fail('INVALID_CASH_RECEIPT');
   const requestId=input.requestId.toLowerCase();
   return transaction(pool,async db=>{
-    const [[order]]=await db.query('SELECT status,fulfillment,delivery_proof_required AS proofRequired,delivery_state AS deliveryState,driver_id AS driver,total_minor AS total FROM sx_retail_orders WHERE tenant_id=? AND id=? FOR UPDATE',[tenant,orderId]);
+    const [[order]]=await db.query('SELECT status,fulfillment,delivery_proof_required AS proofRequired,delivery_state AS deliveryState,driver_id AS driver,total_minor AS total,external_source_connection_id AS externalSourceConnectionId FROM sx_retail_orders WHERE tenant_id=? AND id=? FOR UPDATE',[tenant,orderId]);
     if(!order)fail('ORDER_NOT_FOUND',404);
+    assertLocalOrder(order);
     if((driver||actor.role==='agent')&&(!order.driver||order.driver!==actor.membershipId||order.fulfillment!=='delivery'))fail('ORDER_NOT_FOUND',404);
     const collector=order.fulfillment==='delivery'?order.driver:actor.membershipId;
     if(!collector)fail('CASH_RECORD_UNAVAILABLE',409);
@@ -349,6 +353,10 @@ async function checkout(pool, slug, input) {
       (id,tenant_id,request_id,request_hash,buyer_name,buyer_phone,buyer_email,delivery_address,delivery_pin,delivery_zone,fulfillment,order_lines,total_minor,delivery_fee,location_id,delivery_state,delivery_proof_required)
       VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
       [id, store.tenantId, order.requestId, hash, order.name, order.phone, order.email||null, order.address, order.pin, zone?.name||null, order.fulfillment, JSON.stringify(lines), total, fee,location.id,order.fulfillment==='delivery'?'unassigned':null,proof?1:0]);
+    const customerDirectoryKey=customerDirectory.localOrderDirectoryKey(store.tenantId,order.email,id);
+    await db.query('UPDATE sx_retail_orders SET customer_directory_key=? WHERE tenant_id=? AND id=?',[customerDirectoryKey,store.tenantId,id]);
+    await customerDirectory.indexSource(db,{tenantId:store.tenantId,sourceKind:'native_order',sourceId:id,directoryKey:customerDirectoryKey,
+      customer:{name:order.name,email:order.email||null,phone:order.phone}});
     let consentRevocationToken=null;
     if(order.orderUpdatesWhatsapp){
       const whatsapp=require('./business-whatsapp'),destination=whatsapp.phone(order.phone,{countryCode:store.timezone==='Asia/Qatar'?'974':undefined});
@@ -487,7 +495,8 @@ async function reportDeliveryFailure(pool,tenant,actor,orderId,input){
   const request=deliveryRequest(input,'failed'),requestHash=createHash('sha256').update(JSON.stringify({orderId,reason:request.reason})).digest('hex');
   return transaction(pool,async db=>{
     const [[order]]=await db.query(`SELECT status,fulfillment,delivery_state AS deliveryState,delivery_proof_required AS proofRequired,
-      driver_id AS driver FROM sx_retail_orders WHERE tenant_id=? AND id=? FOR UPDATE`,[tenant,orderId]);
+      driver_id AS driver,external_source_connection_id AS externalSourceConnectionId FROM sx_retail_orders WHERE tenant_id=? AND id=? FOR UPDATE`,[tenant,orderId]);
+    assertLocalOrder(order);
     if(!order||order.fulfillment!=='delivery'||order.driver!==actor.membershipId)fail('ORDER_NOT_FOUND',404);
     const [[prior]]=await db.query('SELECT request_hash AS hash,result FROM sx_retail_delivery_attempts WHERE tenant_id=? AND order_id=? AND request_id=? FOR UPDATE',[tenant,orderId,request.requestId]);
     if(prior){if(prior.hash!==requestHash)fail('REQUEST_CONFLICT',409);return {status:prior.result,replayed:true};}
@@ -509,7 +518,8 @@ async function retryDelivery(pool,tenant,actor,orderId,input){
   if(!uuid.test(orderId))fail('ORDER_NOT_FOUND',404);
   const request=deliveryRequest(input,'retry'),requestHash=createHash('sha256').update(JSON.stringify({orderId,action:'retry'})).digest('hex');
   return transaction(pool,async db=>{
-    const [[order]]=await db.query("SELECT status,fulfillment,delivery_state AS deliveryState,driver_id AS driver FROM sx_retail_orders WHERE tenant_id=? AND id=? FOR UPDATE",[tenant,orderId]);
+    const [[order]]=await db.query("SELECT status,fulfillment,delivery_state AS deliveryState,driver_id AS driver,external_source_connection_id AS externalSourceConnectionId FROM sx_retail_orders WHERE tenant_id=? AND id=? FOR UPDATE",[tenant,orderId]);
+    assertLocalOrder(order);
     if(!order||order.fulfillment!=='delivery'||order.driver!==actor.membershipId)fail('ORDER_NOT_FOUND',404);
     const [[prior]]=await db.query('SELECT request_hash AS hash,result FROM sx_retail_delivery_attempts WHERE tenant_id=? AND order_id=? AND request_id=? FOR UPDATE',[tenant,orderId,request.requestId]);
     if(prior){if(prior.hash!==requestHash)fail('REQUEST_CONFLICT',409);return {status:prior.result,replayed:true};}
@@ -527,7 +537,8 @@ async function verifyDeliveryProof(pool,tenant,actor,orderId,input){
   const requestHash=createHash('sha256').update(JSON.stringify({orderId,codeProofHash})).digest('hex');
   return transaction(pool,async db=>{
     const [[order]]=await db.query(`SELECT status,fulfillment,delivery_state AS deliveryState,delivery_proof_required AS proofRequired,
-      driver_id AS driver FROM sx_retail_orders WHERE tenant_id=? AND id=? FOR UPDATE`,[tenant,orderId]);
+      driver_id AS driver,external_source_connection_id AS externalSourceConnectionId FROM sx_retail_orders WHERE tenant_id=? AND id=? FOR UPDATE`,[tenant,orderId]);
+    assertLocalOrder(order);
     if(!order||order.fulfillment!=='delivery'||order.driver!==actor.membershipId)fail('ORDER_NOT_FOUND',404);
     const [[prior]]=await db.query('SELECT request_hash AS hash,result FROM sx_retail_delivery_attempts WHERE tenant_id=? AND order_id=? AND request_id=? FOR UPDATE',[tenant,orderId,request.requestId]);
     if(prior){if(prior.hash!==requestHash)fail('REQUEST_CONFLICT',409);return {verified:prior.result==='proof_verified',replayed:true};}
@@ -547,7 +558,8 @@ async function verifyDeliveryProof(pool,tenant,actor,orderId,input){
 async function assignDriver(pool,tenant,actor,orderId,driverId){
   if(!uuid.test(orderId)||!uuid.test(driverId||''))fail('INVALID_ASSIGNMENT');
   return transaction(pool,async db=>{
-    const [[order]]=await db.query('SELECT status,fulfillment,delivery_state AS deliveryState,driver_id AS driver FROM sx_retail_orders WHERE tenant_id=? AND id=? FOR UPDATE',[tenant,orderId]);
+    const [[order]]=await db.query('SELECT status,fulfillment,delivery_state AS deliveryState,driver_id AS driver,external_source_connection_id AS externalSourceConnectionId FROM sx_retail_orders WHERE tenant_id=? AND id=? FOR UPDATE',[tenant,orderId]);
+    assertLocalOrder(order);
     if(!order||order.fulfillment!=='delivery'||!['placed','ready','dispatched'].includes(order.status)||
       (order.status==='dispatched'&&order.deliveryState!=='failed'))fail('ASSIGNMENT_UNAVAILABLE',409);
     const [[member]]=await db.query("SELECT id FROM sx_memberships WHERE tenant_id=? AND id=? AND status='active' AND role='agent' FOR UPDATE",[tenant,driverId]);
@@ -568,8 +580,9 @@ async function assignDriver(pool,tenant,actor,orderId,driverId){
 async function transition(pool, tenant, actor, id, next, driver) {
   if (!uuid.test(id)) fail('ORDER_NOT_FOUND', 404);
   return transaction(pool, async db => {
-    const [[order]] = await db.query('SELECT status,fulfillment,location_id AS locationId,delivery_state AS deliveryState,delivery_proof_required AS proofRequired,driver_id AS driver,order_lines AS orderLines,total_minor AS total FROM sx_retail_orders WHERE tenant_id=? AND id=? FOR UPDATE', [tenant,id]);
+    const [[order]] = await db.query('SELECT status,fulfillment,location_id AS locationId,delivery_state AS deliveryState,delivery_proof_required AS proofRequired,driver_id AS driver,order_lines AS orderLines,total_minor AS total,external_source_connection_id AS externalSourceConnectionId FROM sx_retail_orders WHERE tenant_id=? AND id=? FOR UPDATE', [tenant,id]);
     if (!order || (driver && order.driver !== actor.membershipId)) fail('ORDER_NOT_FOUND', 404);
+    assertLocalOrder(order);
     if (order.status === next) return {status: next};
     const allowed = {placed: ['ready','cancelled'], ready: order.fulfillment === 'delivery' ? ['dispatched','cancelled'] : ['completed','cancelled'], dispatched: ['completed'], completed: ['returned'], partially_returned:['returned']};
     if (!allowed[order.status]?.includes(next) || (driver && !['dispatched','completed'].includes(next)) || (next === 'dispatched' && !order.driver)) fail('INVALID_TRANSITION', 409);

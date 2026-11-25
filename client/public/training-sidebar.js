@@ -43,14 +43,16 @@
     ['Webhooks', 'الويب هوك', ['Manage Webhooks', 'Webhook Automation', 'Webhook Logs']],
     ['WhatsApp Warmer', 'تهيئة واتساب', ['WhatsApp Warmer']],
     ['Sales Operations', 'عمليات المبيعات', ['Sales Overview','Organization','Sales Targets','Sales Reports','Sales Deals','My Commissions','Commission Payouts','Commission Policy','Audit Trail','ICP']],
-    ['Retail & Inventory', 'التجزئة والمخزون', ['Inventory','Retail orders','Connected Stores','My deliveries']],
+    ['Retail & Inventory', 'التجزئة والمخزون', ['Inventory','Retail orders','My deliveries','Cash reconciliation']],
+    ['Integrations & Imports', 'التكاملات والاستيراد', ['Store Connections']],
+    ['Business Operations', 'عمليات الأعمال', ['Customers']],
     ['More Tools', 'أدوات أخرى', []]
   ];
   const aliases = {
     'تسوية النقد':'Cash reconciliation',
     'تكاملات الذكاء الاصطناعي':'AI Integrations',
     'المنتجات والخدمات':'Products & services', 'الدورات': 'Courses', 'طلبات المتقدمين': 'Candidate Applications', 'الأسئلة الشائعة': 'FAQs',
-    'المخزون':'Inventory','طلبات التجزئة':'Retail orders','المتاجر المتصلة':'Connected Stores','عمليات التوصيل الخاصة بي':'My deliveries',
+    'المخزون':'Inventory','طلبات التجزئة':'Retail orders','المتاجر المتصلة':'Store Connections','اتصالات المتاجر':'Store Connections','العملاء':'Customers','عمليات التوصيل الخاصة بي':'My deliveries',
     'مسار العملاء المحتملين': 'Lead Pipeline', 'تقارير العملاء المحتملين': 'Lead Reports',
     'الفواتير والمدفوعات': 'Invoices & Payments', 'تقارير المالية': 'Finance Reports',
     'إدارة وصول الفريق': 'Team access', 'تسجيل دخول الوكيل': 'Team Login',
@@ -66,7 +68,7 @@
     'Agent Task':'tasks', Tasks:'tasks', 'Call Center':'call-center', 'Products & services':'products-services', Courses:'courses', Students:'students', 'Center profile':'training-profile', 'Candidate Applications':'forms', 'Applications & CVs':'recruitment', 'طلبات التوظيف والسير الذاتية':'recruitment', 'Invoices & Payments':'invoices',
     'Finance Reports':'finance-reports', 'Cash reconciliation':'retail-finance', 'Team access':'team', 'People & Roles':'team', 'الأشخاص والأدوار':'team', 'Team and Roles':'team', 'Commission Policy':'commission-policy', 'Sales Deals':'sales-deals','Sales Targets':'sales-targets','Sales Reports':'sales-targets', 'My Commissions':'sales-commissions','Commission Payouts':'sales-commissions','Sales Finance':'sales-finance','Sales Overview':'sales-workspace',
     'AI Integrations':'ai-integrations','Business Settings':'settings','Business Profile':'settings', Settings:'settings', Organization:'sales-organization', 'Sales Overview':'sales-targets','Audit Trail':'sales-audit','ICP':'icp',Properties:'properties','العقارات':'properties',
-    Inventory:'business-inventory','Retail orders':'retail-orders','Connected Stores':'retail-connected-stores','My deliveries':'retail-deliveries'
+    Inventory:'business-inventory','Retail orders':'retail-orders','Connected Stores':'retail-connected-stores','Store Connections':'retail-connected-stores','Customers':'retail-customers','My deliveries':'retail-deliveries'
   };
   const salesNavLabels={
     overview:{owner:['Business Overview','نظرة عامة على الأعمال'],manager:['Team Overview','نظرة عامة على الفريق'],team_leader:['Team Overview','نظرة عامة على الفريق'],agent:['My Day','مهامي اليوم']},
@@ -705,7 +707,7 @@
       }
       const query = (drawer.querySelector('input')?.value || '').trim().toLowerCase();
       const active = new URLSearchParams(location.search).get('page');
-      const routes = {'AI Integrations':'ai-integrations','Products & services':'products-services', Courses:'courses', 'Candidate Applications':'forms', 'Applications & CVs':'recruitment', 'Invoices & Payments':'finance-settings', 'Finance Reports':'finance-settings', 'Team access':'team-invitations', 'People & Roles':'team-invitations', 'Business Settings':'crm-appearance', 'Business Profile':'crm-appearance', 'Lead Pipeline':'lead-pipeline', 'Lead Reports':'lead-reports', Tasks:'tasks', 'Call Center':'call-center', 'WA Chatbot':'wa-chatbot', FAQs:'faqs','Commission Policy':'commission-policy','Organization':'sales-organization','Sales Overview':'sales-workspace','Sales Deals':'sales-workspace','Sales Targets':'sales-workspace','Sales Reports':'sales-workspace','My Commissions':'sales-workspace','Commission Payouts':'sales-workspace','Sales Finance':'sales-finance','Campaign Dashboard':'campaign-dashboard','Email Marketing':'campaign-dashboard','Inventory':'business-inventory','Retail orders':'retail-orders','Connected Stores':'retail-connected-stores','My deliveries':'retail-deliveries','Cash reconciliation':'retail-finance'};
+      const routes = {'AI Integrations':'ai-integrations','Products & services':'products-services', Courses:'courses', 'Candidate Applications':'forms', 'Applications & CVs':'recruitment', 'Invoices & Payments':'finance-settings', 'Finance Reports':'finance-settings', 'Team access':'team-invitations', 'People & Roles':'team-invitations', 'Business Settings':'crm-appearance', 'Business Profile':'crm-appearance', 'Lead Pipeline':'lead-pipeline', 'Lead Reports':'lead-reports', Tasks:'tasks', 'Call Center':'call-center', 'WA Chatbot':'wa-chatbot', FAQs:'faqs','Commission Policy':'commission-policy','Organization':'sales-organization','Sales Overview':'sales-workspace','Sales Deals':'sales-workspace','Sales Targets':'sales-workspace','Sales Reports':'sales-workspace','My Commissions':'sales-workspace','Commission Payouts':'sales-workspace','Sales Finance':'sales-finance','Campaign Dashboard':'campaign-dashboard','Email Marketing':'campaign-dashboard','Inventory':'business-inventory','Retail orders':'retail-orders','Connected Stores':'retail-connected-stores','Store Connections':'retail-connected-stores','Customers':'retail-customers','My deliveries':'retail-deliveries','Cash reconciliation':'retail-finance'};
       const present = new Set();
       [...list.children].filter(row => row.tagName === 'LI' && !row.hasAttribute('data-sx-nav-section')).forEach((row, index) => {
         const text = label(row), name = aliases[text] || text;

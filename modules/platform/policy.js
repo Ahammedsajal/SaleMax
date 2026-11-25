@@ -23,6 +23,7 @@ const permissions = {
   'retail.configure': { owner: 'tenant' },
   'retail.connect': { owner: 'tenant' },
   'retail.orders': { owner: 'tenant', manager: 'tenant' },
+  'retail.customers.read': { owner: 'tenant', accountant: 'tenant', manager: 'tenant' },
   'retail.deliver': { agent: 'assigned' },
   'inventory.read': { owner: 'tenant', manager: 'tenant', accountant: 'tenant' },
   'inventory.manage': { owner: 'tenant', manager: 'tenant' },
@@ -98,7 +99,7 @@ const capabilities = Object.freeze({
   'sales.finance': ['sales.finance.read','sales.invoice.issue','sales.receipt.record','sales.receipt.allocate','sales.finance.report'],
   'sales.targets': ['targets.read','targets.manage'],
   'sales.icp': ['icp.read','icp.manage'],
-  'retail.commerce': ['retail.configure', 'retail.connect', 'retail.orders', 'retail.deliver', 'retail.cash.collect', 'retail.returns'],
+  'retail.commerce': ['retail.configure', 'retail.connect', 'retail.orders', 'retail.customers.read', 'retail.deliver', 'retail.cash.collect', 'retail.returns'],
   'retail.inventory': ['inventory.read','inventory.manage'],
   'products.catalog': ['products.read','products.manage'],
   'retail.finance': ['retail.finance'],
@@ -177,7 +178,7 @@ function decision(context, { capability, permission, resource, external = false 
   // constrains the corresponding canonical module APIs. A missing value keeps
   // existing memberships on their established role-based behavior.
   if (Array.isArray(membership.assignedNavigation)) {
-    const matchingKeys = require('./navigation').keysForCapability(capability);
+    const matchingKeys = require('./navigation').keysForCapability(capability,permission);
     if (matchingKeys.length && !matchingKeys.some(key => membership.assignedNavigation.includes(key))) {
       return { allowed: false, code: 'PERMISSION_DENIED' };
     }

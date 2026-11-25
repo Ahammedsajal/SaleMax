@@ -5,7 +5,7 @@ const {randomUUID}=require('node:crypto');
 const moment = require('moment-timezone');
 const commerce = require('./retail-commerce');
 const retailConnector = require('./retail-connected-stores');
-const connectorPilot=require('./retail-connector-pilot');
+const customerDirectory = require('./retail-customer-directory');
 const quantityMath = require('./retail-quantity');
 const inventoryAlerts = require('./retail-inventory-alerts');
 const {decision} = require('./policy');
@@ -139,6 +139,15 @@ function workspaceRouter({pool,authenticate,env=process.env}) {
     if (!decision(context,{capability,permission}).allowed) return res.sendStatus(403);
     return fn(req,res,context);
   });
+  router.get('/customers',allow('retail.customers.read',async(req,res,c)=>{
+    const page=Number(req.query.page??1),limit=Number(req.query.limit??20),search=req.query.search??'';
+    if(!Number.isSafeInteger(page)||page<1||page>100000||!Number.isSafeInteger(limit)||limit<1||limit>50||typeof search!=='string'||search.length>100)commerce.fail('INVALID_PAGING');
+    reply(res,await customerDirectory.list(pool,c.tenant.id,{page,limit,search}));
+  }));
+  router.get('/customers/:key',allow('retail.customers.read',async(req,res,c)=>{
+    const page=Number(req.query.page??1),limit=Number(req.query.limit??25);
+    reply(res,await customerDirectory.detail(pool,c.tenant.id,req.params.key,{page,limit}));
+  }));
   router.get('/store/settings',allow('retail.configure',async(req,res,c)=>{
     const [[store]]=await pool.query('SELECT slug,title,about,contact,enabled,delivery_fee AS deliveryFee,delivery_zones AS deliveryZones FROM sx_retail_store WHERE tenant_id=?',[c.tenant.id]);
     const [[notificationSettings]]=await pool.query('SELECT retail_orders_enabled AS retailOrdersEnabled,retail_customer_updates_enabled AS retailCustomerUpdatesEnabled,retail_inventory_enabled AS retailInventoryEnabled FROM sx_business_notification_settings WHERE tenant_id=?',[c.tenant.id]);
@@ -371,9 +380,13 @@ function workspaceRouter({pool,authenticate,env=process.env}) {
     const limit=search?orderSearchPageSize+1:100,offset=search?search.page*orderSearchPageSize:0;
     const emailSelect=driver?'NULL AS buyerEmail':'o.buyer_email AS buyerEmail';
     const [found]=await pool.query(`SELECT o.id,o.buyer_name AS buyerName,o.buyer_phone AS buyerPhone,${emailSelect},o.delivery_address AS deliveryAddress,o.delivery_pin AS deliveryPin,o.delivery_zone AS deliveryZone,
-      l.name_en AS locationNameEn,l.name_ar AS locationNameAr,o.fulfillment,o.order_lines AS orderLines,o.total_minor AS totalMinor,o.status,o.delivery_state AS deliveryState,
-      o.delivery_proof_required AS proofRequired,o.lead_id AS leadId,o.cash_received_at AS cashReceivedAt,o.driver_id AS driverId,o.created_at AS createdAt
+      l.name_en AS locationNameEn,l.name_ar AS locationNameAr,o.fulfillment,o.order_lines AS orderLines,CAST(o.total_minor AS CHAR) AS totalMinor,o.status,o.delivery_state AS deliveryState,
+      o.delivery_proof_required AS proofRequired,o.lead_id AS leadId,o.cash_received_at AS cashReceivedAt,o.driver_id AS driverId,o.created_at AS createdAt,
+      o.currency,o.external_source_connection_id AS sourceConnectionId,o.external_source_order_id AS sourceOrderId,
+      o.source_order_status AS sourceOrderStatus,o.source_financial_status AS sourceFinancialStatus,
+      CAST(o.source_total_amount AS CHAR) AS sourceTotal,s.provider AS sourceProvider,s.display_name AS sourceStoreName
       FROM sx_retail_orders o LEFT JOIN sx_retail_locations l ON l.tenant_id=o.tenant_id AND l.id=o.location_id
+      LEFT JOIN sx_retail_store_connections s ON s.tenant_id=o.tenant_id AND s.id=o.external_source_connection_id
       WHERE ${where.join(' AND ')} ORDER BY o.created_at DESC,o.id DESC LIMIT ? OFFSET ?`,[...values,limit,offset]);
     const hasMore=Boolean(search&&found.length>orderSearchPageSize);
     const rows=search?found.slice(0,orderSearchPageSize):found;
@@ -399,7 +412,8 @@ function workspaceRouter({pool,authenticate,env=process.env}) {
         returnableQuantity:quantityMath.json((quantityMath.scaled(line.quantity)||0n)-(prior.get(line.id)||0n),Number(line.quantityPrecision||0))
       }));
       const proof=proofByOrder.get(row.id),latestAttempt=attemptByOrder.get(row.id);
-      return {...row,totalMinor:Number(row.totalMinor),cashReceived:Boolean(row.cashReceivedAt)||received.has(row.id),
+      const importedFromStore=Boolean(row.sourceConnectionId);
+      return {...row,totalMinor:importedFromStore?String(row.totalMinor):Number(row.totalMinor),importedFromStore,currency:row.currency||'QAR',cashReceived:Boolean(row.cashReceivedAt)||received.has(row.id),
         deliveryProofRequired:Boolean(proofRequired),proofVerified:Boolean(proof?.verifiedAt),deliveryAttemptCount:failureCountByOrder.get(row.id)||0,
         lastDeliveryResult:latestAttempt?.result||null,lastDeliveryFailureReason:latestAttempt?.result==='failed'?latestAttempt.reason:null,lines};
     });
@@ -407,7 +421,6 @@ function workspaceRouter({pool,authenticate,env=process.env}) {
   }
   router.post('/orders/search',allow('retail.orders',(req,res,c)=>list(res,c,false,orderSearchInput(req.body))));
   router.post('/orders/online/search',allow('retail.orders',async(req,res,c)=>{
-    if(!connectorPilot.isPilotTenant(c.tenant.id,env))commerce.fail('RETAIL_CONNECTOR_PILOT_DISABLED',403);
     const search=onlineOrderSearchInput(req.body),where=['o.tenant_id=?',"s.status<>'pending'"],values=[c.tenant.id];
     const effectiveDate='COALESCE(o.source_created_at,o.imported_at)';
     if(search.from){where.push(`${effectiveDate}>=?`);values.push(search.from);}
@@ -437,7 +450,6 @@ function workspaceRouter({pool,authenticate,env=process.env}) {
     reply(res,{orders,hasMore,page:search.page,pageSize:orderSearchPageSize});
   }));
   router.post('/orders/online/detail',allow('retail.orders',async(req,res,c)=>{
-    if(!connectorPilot.isPilotTenant(c.tenant.id,env))commerce.fail('RETAIL_CONNECTOR_PILOT_DISABLED',403);
     const input=onlineOrderDetailInput(req.body);
     const [[row]]=await pool.query(`SELECT o.connection_id AS connectionId,o.external_order_id AS externalOrderId,
       o.order_ciphertext AS ciphertext,o.order_iv AS iv,o.order_auth_tag AS authTag,s.provider,s.display_name AS storeName
@@ -571,8 +583,9 @@ function workspaceRouter({pool,authenticate,env=process.env}) {
     if(c.membership.role!=='owner'||!uid||!decision(c,{capability:'crm.leads',permission:'leads.manage'}).allowed)return res.sendStatus(403);
     if(!commerce.uuid.test(id))commerce.fail('ORDER_NOT_FOUND',404);
     const lead=await commerce.transaction(pool,async db=>{
-      const [[order]]=await db.query('SELECT buyer_name AS name,buyer_phone AS phone,lead_id AS leadId FROM sx_retail_orders WHERE tenant_id=? AND id=? FOR UPDATE',[c.tenant.id,id]);
+      const [[order]]=await db.query('SELECT buyer_name AS name,buyer_phone AS phone,lead_id AS leadId,external_source_connection_id AS sourceConnectionId FROM sx_retail_orders WHERE tenant_id=? AND id=? FOR UPDATE',[c.tenant.id,id]);
       if(!order)commerce.fail('ORDER_NOT_FOUND',404);
+      if(order.sourceConnectionId)commerce.fail('IMPORTED_ORDER_READ_ONLY',409);
       if(order.leadId)return {id:order.leadId};
       const {createManualLead,normalizePhone}=require('../../helper/pipeline/leadPipeline');
       const result=await createManualLead({uid,actorType:'user',actorId:uid,role:'owner',categoryKey:c.tenant.categoryKey,connection:db,

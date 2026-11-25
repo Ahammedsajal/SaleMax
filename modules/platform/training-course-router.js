@@ -6,6 +6,7 @@ const fs = require('node:fs/promises');
 const courses = require('./training-courses');
 const courseMedia = require('./training-course-media');
 const enrollmentProgress = require('./training-enrollment-progress');
+const retailNativeImports = require('./retail-native-imports');
 
 function createTrainingCourseRouter({ pool, origin, userGuard, canonicalGuard, sessionGuard, products = false }) {
   if(products)pool=require('./product-catalog').database(pool);
@@ -73,11 +74,17 @@ function createTrainingCourseRouter({ pool, origin, userGuard, canonicalGuard, s
   router.use(contextGuard);
   if(products)router.use((req,res,next)=>/^(?:\/enrollments|\/import-procatalyst)(?:\/|$)/.test(req.path)?res.sendStatus(404):next());
 
-  router.get('/', contextGuard, wrap(async (req, res) => res.json({ success: true, data: await courses.list(pool, req.courseContext, {
-    page: req.query.page === undefined ? 1 : Number(req.query.page),
-    limit: req.query.limit === undefined ? 20 : Number(req.query.limit),
-    search: req.query.search || '', status: req.query.status || ''
-  }) })));
+  router.get('/', contextGuard, wrap(async (req, res) => {
+    const query = { page: req.query.page === undefined ? 1 : Number(req.query.page),
+      limit: req.query.limit === undefined ? 20 : Number(req.query.limit), search: req.query.search || '', status: req.query.status || '' };
+    const data = products ? (courses.object(req.courseContext, 'courses.read'), await retailNativeImports.listProducts(pool, req.courseContext, query)) :
+      await courses.list(pool, req.courseContext, query);
+    return res.json({ success: true, data });
+  }));
+  if (products) router.get('/:id/variants', contextGuard, wrap(async (req, res) => {
+    courses.object(req.courseContext, 'courses.read');
+    return res.json({ success: true, data: await retailNativeImports.variants(pool, req.courseContext.tenant.id, req.params.id) });
+  }));
   router.post('/import-procatalyst', contextGuard, wrap(async (req, res) => {
     const source=[
       ['PCAT-BARISTA','Barista Training','تدريب باريستا','This programme prepares you for professional work in cafés, restaurants, and hospitality outlets. You learn coffee origins, bean selection, grinding techniques, and espresso extraction. Training covers milk texturing, latte art basics, beverage presentation, hygiene standards, and customer service skills. You practise using commercial coffee machines and handle real service scenarios. After completion, you are ready to work confidently as a barista in fast paced environments.','يهيئك هذا البرنامج للعمل باحتراف في المقاهي والمطاعم ومرافق الضيافة. تتعلم أنواع القهوة واختيار الحبوب وتقنيات الطحن واستخلاص الإسبريسو. ويشمل التدريب تبخير الحليب وأساسيات فن اللاتيه وتقديم المشروبات ومعايير النظافة وخدمة العملاء، مع تطبيق عملي على آلات القهوة التجارية ومواقف الخدمة الواقعية.',['Art & Hobby','Health & Wellness','Personal Training']],
