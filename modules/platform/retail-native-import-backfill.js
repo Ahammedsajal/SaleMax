@@ -1,6 +1,5 @@
 'use strict';
 
-const crypto = require('node:crypto');
 const connector = require('./retail-connected-stores');
 const directory = require('./retail-customer-directory');
 const nativeImports = require('./retail-native-imports');
@@ -148,7 +147,9 @@ async function backfillConnection(pool, connection, { limit = 25, dependencies =
     await inBatch(pool, connection, {
       kind: 'orders', limit, result, params: [connection.tenant_id, connection.id],
       sql: `SELECT e.external_order_id AS id,e.customer_external_id AS customerExternalId,
-          c.customer_status AS customerStatus,e.order_ciphertext AS ciphertext,e.order_iv AS iv,e.order_auth_tag AS authTag
+          c.customer_status AS customerStatus,c.customer_directory_key AS customerDirectoryKey,
+          c.customer_ciphertext AS customerCiphertext,c.customer_iv AS customerIv,c.customer_auth_tag AS customerAuthTag,
+          e.order_ciphertext AS ciphertext,e.order_iv AS iv,e.order_auth_tag AS authTag
         FROM sx_retail_external_orders e LEFT JOIN sx_retail_external_customers c
           ON c.tenant_id=e.tenant_id AND c.connection_id=e.connection_id AND c.external_customer_id=e.customer_external_id
         LEFT JOIN sx_retail_orders o ON o.tenant_id=e.tenant_id AND o.external_source_connection_id=e.connection_id
@@ -158,9 +159,15 @@ async function backfillConnection(pool, connection, { limit = 25, dependencies =
       apply: async (db, row) => {
         let order = cryptoConnector.openJson(row, connection.tenant_id, connection.id, `order:${row.id}`);
         order = prepareOrderSnapshot(order, row.customerStatus);
+        if (!order.customer && row.customerStatus === 'active' && row.customerCiphertext) {
+          order = { ...order, customerId: row.customerExternalId,
+            customer: cryptoConnector.openJson({ ciphertext: row.customerCiphertext, iv: row.customerIv, authTag: row.customerAuthTag },
+              connection.tenant_id, connection.id, `customer:${row.customerExternalId}`) };
+        }
         let key = null, emailHash = null;
         if (order.customer) {
-          key = customerDirectory.customerDirectoryKey(connection.tenant_id, connection.id, order.customerId, order.customer, row.id);
+          key = row.customerStatus === 'active' && row.customerDirectoryKey ||
+            customerDirectory.customerDirectoryKey(connection.tenant_id, connection.id, order.customerId, order.customer, row.id);
           emailHash = customerDirectory.emailLookupHash(connection.tenant_id, order.customer.email);
         } else if (row.customerStatus === 'redacted') {
           const encrypted = cryptoConnector.seal(order, connection.tenant_id, connection.id, `order:${row.id}`);

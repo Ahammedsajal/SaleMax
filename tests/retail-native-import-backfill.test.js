@@ -71,6 +71,38 @@ test('redacted local order snapshots stay scrubbed during native backfill', asyn
   assert.ok(writes.some(item => item.sql.includes('UPDATE sx_retail_external_orders SET customer_external_id=NULL')));
 });
 
+test('orders without embedded customer details use their active imported customer snapshot', async () => {
+  const row = { id: 'order-2', customerExternalId: 'customer-2', customerStatus: 'active', customerDirectoryKey: 'directory-key',
+    customerCiphertext: Buffer.from('customer'), customerIv: Buffer.from('iv'), customerAuthTag: Buffer.from('tag'),
+    ciphertext: Buffer.from('order'), iv: Buffer.from('iv'), authTag: Buffer.from('tag') };
+  const { pool } = fakePool({ orderRow: row });
+  let imported;
+  const result = await backfill.backfillConnection(pool, { id: connectionId, tenant_id: tenantId, provider: 'woocommerce', default_currency: 'QAR' }, {
+    dependencies: {
+      connector: {
+        openJson: (_row, _tenant, _connection, kind) => kind === 'order:order-2'
+          ? { id: row.id, customer: null, customerId: null, lineItems: [], total: '1.00', currency: 'QAR',
+            breakdown: { refunds: '0' }, status: 'processing', financialStatus: 'paid', createdAt: null }
+          : { id: row.customerExternalId, firstName: 'Retail', lastName: 'Buyer', email: 'buyer@example.test', phone: '+97400000000' },
+        seal: () => ({ ciphertext: Buffer.from('safe'), iv: Buffer.from('iv'), authTag: Buffer.from('tag') }),
+      },
+      directory: {
+        customerDirectoryKey: () => 'computed-key', emailLookupHash: () => 'email-hash',
+      },
+      nativeImports: {
+        async upsertOrder(_db, _connection, order, key) { imported = { order, key }; },
+        async refreshCustomerOrders() {}, async upsertProduct() {}, async upsertVariation() {},
+      },
+    },
+  });
+
+  assert.equal(result.orders, 1);
+  assert.equal(result.failed, 0);
+  assert.equal(imported.key, 'directory-key');
+  assert.equal(imported.order.customerId, 'customer-2');
+  assert.equal(imported.order.customer.firstName, 'Retail');
+});
+
 test('unverified stores backfill local snapshots without contacting the provider', async () => {
   const connection = { id: connectionId, tenant_id: tenantId, provider: 'woocommerce', credentials_verified_at: null };
   const calls = [];
