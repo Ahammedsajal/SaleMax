@@ -124,7 +124,9 @@
     dialog.append(heading,status,close);document.body.append(dialog);dialog.showModal();
     const results=await Promise.allSettled([
       window.SaleMaxWorkspace.request('tasks','?status=active&scope=mine&limit=100'),
-      window.SaleMaxWorkspace.request('pipeline','/reports/follow-up-brief?includeItems=true')
+      window.SaleMaxWorkspace.request('pipeline','/reports/follow-up-brief?includeItems=true'),
+      session.permissions?.['forms.manage'] ? window.SaleMaxWorkspace.request('forms','/submissions?limit=100') : Promise.resolve(null),
+      session.permissions?.['payments.verify'] ? window.SaleMaxWorkspace.request('finance','/payments/pending?limit=1') : Promise.resolve(null)
     ]);
     if(!dialog.isConnected)return;
     status.replaceChildren();
@@ -148,6 +150,38 @@
       if(!due.length)taskSection.append(document.createTextNode(tr('No callbacks due in the loaded tasks.','لا توجد متابعات مستحقة في المهام المحمّلة.')));
       if(result.hasMore)taskSection.append(document.createTextNode(tr(' More tasks are available in Tasks.',' توجد مهام أخرى في صفحة المهام.')));
     } else taskSection.append(document.createTextNode(tr('Could not load tasks.','تعذر تحميل المهام.')));
+    if(results[2].status==='fulfilled' && results[2].value){
+      const applications=results[2].value.data;
+      const pending=(applications.items||[]).filter(item=>item.saleReviewStatus==='pending'||Number(item.attentionDeliveries)>0);
+      const applicationSection=section(tr('Registrations needing attention','طلبات تسجيل تحتاج إلى متابعة'));
+      for(const item of pending){
+        const name=item.submissionData?.contact_name||item.referenceCode||tr('Registration','طلب تسجيل');
+        const reasons={
+          REGISTRATION_RECIPIENT_MISSING:tr('Recipient is missing','بيانات المستلم غير متوفرة'),
+          REGISTRATION_WHATSAPP_NOT_CONFIGURED:tr('WhatsApp delivery needs configuration','يلزم إعداد إرسال واتساب'),
+          REGISTRATION_WHATSAPP_ACCOUNT_UNAVAILABLE:tr('WhatsApp account is unavailable','حساب واتساب غير متاح'),
+          REGISTRATION_DELIVERY_OUTCOME_UNKNOWN:tr('Check delivery status','تحقق من حالة الإرسال')
+        };
+        const detail=[item.saleCourseNameEn,item.referenceCode,
+          item.saleReviewStatus==='pending'?tr('Approval pending','بانتظار الموافقة'):'',
+          Number(item.attentionDeliveries)>0?(reasons[item.attentionDeliveryReason]||tr('Notification needs attention','الإشعار يحتاج إلى متابعة')):''
+        ].filter(Boolean).join(' · ');
+        row(applicationSection,name,detail,appHome+'?page=forms&submissionId='+encodeURIComponent(item.id));
+      }
+      if(!pending.length)applicationSection.append(document.createTextNode(tr('No issues in the loaded registrations.','لا توجد مشكلات في الطلبات المحمّلة.')));
+      if((applications.total||0)>(applications.items||[]).length)applicationSection.append(document.createTextNode(tr(' More registrations are available in Forms.',' توجد طلبات أخرى في النماذج.')));
+    } else if(results[2].status==='rejected') {
+      const applicationSection=section(tr('Registrations awaiting approval','طلبات تسجيل بانتظار الموافقة'));
+      applicationSection.textContent=tr('Could not load registrations.','تعذر تحميل طلبات التسجيل.');
+    }
+    if(results[3].status==='fulfilled' && results[3].value){
+      const payments=results[3].value.data;
+      const paymentSection=section(tr('Payments awaiting verification','مدفوعات بانتظار التحقق'));
+      row(paymentSection,tr('Review pending payments','مراجعة المدفوعات المعلقة'),String(Number(payments.total)||0),'/user?page=finance-settings');
+    } else if(results[3].status==='rejected') {
+      const paymentSection=section(tr('Payments awaiting verification','مدفوعات بانتظار التحقق'));
+      paymentSection.textContent=tr('Could not load payments.','تعذر تحميل المدفوعات.');
+    }
     const chatSection=section(tr('Learners awaiting a reply','متدربون بانتظار الرد'));
     if(results[1].status==='fulfilled'){
       const result=results[1].value.data;

@@ -209,6 +209,10 @@
       selectedLead=lead;
             const form=root.querySelector('#enquiry-form');const fill=(name,value)=>{const control=form.elements[name];if(control)control.value=value??'';};
             fill('contact_name',selectedLead.contactName);fill('learner_name',selectedLead.learnerName||selectedLead.contactName);fill('phone',selectedLead.phone);fill('email',selectedLead.email);for(const key of ['certificate_name','qid','nationality','phone_res','address','city','social_contact','emergency_phone','local_address','city_state','birth_date','gender','graduated','referral_name']){const value=selectedLead.qualificationData?.[key]||'';const c=form.elements[key];if(c?.tagName==='SELECT'&&value&&!Array.from(c.options).some(o=>o.value===value))c.add(new Option(value,value));fill(key,value);}for(const field of data.form.schema.leadFields?.fields||[])fill('custom_'+field.key,selectedLead.qualificationData?.customFields?.[field.key]?.value??'');fill('source','Lead');window.__sxRegistrationControls?.refresh();
+            const code=selectedLead.qualificationData?.primaryCourseCode;
+            const matches=code?(data.courses||[]).filter(course=>course.code===code):[];
+            const course=form.querySelector('[data-course-row] [data-course-key="course_id"]');
+            if(course&&!course.value&&matches.length===1){course.value=matches[0].id;course.dispatchEvent(new Event('change',{bubbles:true}));}
             selected.textContent=tr(`Selected lead: ${selectedLead.contactName||selectedLead.learnerName||selectedLead.phone||selectedLead.email}. You can edit the form details.` ,`تم اختيار العميل المحتمل: ${selectedLead.contactName||selectedLead.learnerName||selectedLead.phone||selectedLead.email}. يمكنك تعديل بيانات النموذج.`);
             results.innerHTML='';input.value='';
     }

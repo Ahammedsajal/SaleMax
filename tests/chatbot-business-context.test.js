@@ -500,3 +500,11 @@ test('already-joined payment and sign-in messages route to a human specialist', 
   assert.equal(controlRoute('I already joined. Today will be payment for sign in', config, {}, facts), 'handoff');
   assert.equal(controlRoute('I al ready joined', config, {}, facts), 'handoff');
 });
+
+test('weekday class availability needs a coordinator even when a start date exists',()=>{
+  assert.equal(isScheduleQuestion('How much, and do you have a Friday class?'),true);
+  assert.equal(trainingCenterCoordinatorReason('How much, and do you have a Friday class?',facts,'ENG'),'SCHEDULE_REQUIRES_COORDINATOR');
+  assert.equal(isScheduleQuestion('هل لديكم دورة يوم الجمعة؟'),true);
+  assert.equal(trainingCenterCoordinatorReason('هل لديكم دورة يوم الجمعة؟',facts,'ENG'),'SCHEDULE_REQUIRES_COORDINATOR');
+  assert.equal(isScheduleQuestion('Thank you, have a good Friday'),false);
+});
