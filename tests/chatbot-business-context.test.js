@@ -90,6 +90,10 @@ test('a named-course availability question is not mistaken for a catalogue reque
 });
 for (const message of ['When is the next batch?','What is the course schedule?','متى تبدأ الدفعة القادمة؟']) test('schedule questions use the live batch gate: '+message,()=>assert.equal(isScheduleQuestion(message),true));
 test('schedule enquiry without a published batch is handed to a coordinator',()=>assert.equal(trainingCenterCoordinatorReason('When is the next batch?',facts,'EXCEL'),'SCHEDULE_REQUIRES_COORDINATOR'));
+test('employment and placement questions are always routed to coordinator-approved information',()=>{
+  assert.equal(trainingCenterCoordinatorReason('Does this course guarantee job placement?',facts,'EXCEL'),'EMPLOYMENT_DETAILS_REQUIRE_COORDINATOR');
+  assert.equal(trainingCenterCoordinatorReason('هل توفرون فرص عمل بعد الدورة؟',facts,'EXCEL'),'EMPLOYMENT_DETAILS_REQUIRE_COORDINATOR');
+});
 test('duration with a published value stays answerable',()=>assert.equal(trainingCenterCoordinatorReason('How long is Business English?',facts,'ENG'),null));
 test('missing selected course details are handed to a coordinator',()=>assert.equal(trainingCenterCoordinatorReason('Is Business English online?',facts,'ENG'),'COURSE_DETAIL_REQUIRES_COORDINATOR'));
 test('published duration ranges override a conflicting single-value field in English and Arabic',()=>{

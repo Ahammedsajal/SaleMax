@@ -185,6 +185,7 @@ function courseDetailNeedsCoordinator(message, facts, selectedCourseCode = null)
 function trainingCenterCoordinatorReason(message, facts, selectedCourseCode = null) {
   const text = normalized(message);
   const course = selectedCourseCode && (facts || []).find(item => item.code === selectedCourseCode && !item.kind);
+  if (/\b(?:job placement|employment|employability|career placement|placement support|job guarantee|employment guarantee|job opportunities)\b|التوظيف|التوظيفية|فرص عمل|وظيفة|وظائف|ضمان التوظيف/u.test(text)) return 'EMPLOYMENT_DETAILS_REQUIRE_COORDINATOR';
   // A published start date does not establish which weekday classes meet.
   if (isScheduleQuestion(message) && /\b(?:monday|tuesday|wednesday|thursday|friday|saturday|sunday)\b|الاثنين|الثلاثاء|الاربعاء|الخميس|الجمعة|السبت|الاحد/u.test(text)) return 'SCHEDULE_REQUIRES_COORDINATOR';
   if (course && /\b(?:not flexible|can only start|must start|need a fixed date)\b|لست مرنا|موعد محدد/u.test(text)

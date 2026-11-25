@@ -935,7 +935,10 @@ function safeConversationalReply({ language, context, message, state = {}, staff
   return 'I don’t have that detail confirmed yet. Which part would you like me to check? I can also share the information we do have.';
 }
 
-function coordinatorReply({ language, followUp = false }) {
+function coordinatorReply({ language, followUp = false, reason = null }) {
+  if (reason === 'EMPLOYMENT_DETAILS_REQUIRE_COORDINATOR') return language === 'ar'
+    ? followUp ? 'لا أملك معلومات مؤكدة عن التوظيف أو التعيين لهذه الدورة. يمكن لمنسق الدورة تأكيد نوع الدعم المهني المتاح.' : 'أحلت سؤالك إلى منسق الدورة لتأكيد معلومات التوظيف أو التعيين الحالية. لا أملك تفاصيل مؤكدة بعد.'
+    : followUp ? 'I don’t have confirmed employment or placement information for this course. The course coordinator can confirm what career support is currently available.' : 'I’ve shared your question with the course coordinator so they can confirm the current employment or placement information. I don’t have confirmed details yet.';
   if (language === 'ar') return followUp
     ? 'استفسارك قيد المتابعة مع منسق الدورة، وسيتواصل معك لمساعدتك في الخطوة التالية.'
     : 'أحلت استفسارك إلى منسق الدورة ليتواصل معك قريبًا ويساعدك في التفاصيل.';
@@ -1276,9 +1279,10 @@ async function generateAiAnswer({ ctx, profile, uid, customerMessage, chatId = n
   const published = admissionsIntake ? businessContext.publishedTrainingReply(customerMessage, context) : null;
   if (published && !staffRequested) return { canAnswer: true, confidence: 1, reply: published.reply, state: nextState, route: 'facts', repeat: Boolean(repeat),
     metrics: { inputTokens: 0, outputTokens: 0, cacheHit: false, sources: context.sources.filter(source => published.sourceIds.includes(source.id)) } };
-  if (ctx.category.key === 'training_center' && !contextualPilot) {
+  if (ctx.category.key === 'training_center') {
     const handoffReason = businessContext.trainingCenterCoordinatorReason(customerMessage, facts, context.selectedCourseCode || session.selectedCourseCode);
-    if (handoffReason) staffReason ||= handoffReason;
+    if (handoffReason === 'EMPLOYMENT_DETAILS_REQUIRE_COORDINATOR') staffReason = handoffReason;
+    else if (handoffReason === 'SCHEDULE_REQUIRES_COORDINATOR' || !contextualPilot) staffReason ||= handoffReason;
   }
   if (courseCertificates && continuity && staffReason && !staffRequested && uid && chatId && channelKind && channelRef) {
     return { handedOff: true, code: 'course-details-need-coordinator' };
@@ -1291,9 +1295,11 @@ async function generateAiAnswer({ ctx, profile, uid, customerMessage, chatId = n
     // they never create a handoff, pause a chat, or send a WhatsApp message.
     staffNotificationQueued = true;
   }
-  const coordinatorPolicy = courseCertificates && continuity && !contextualPilot;
+  const coordinatorPolicy = staffReason === 'EMPLOYMENT_DETAILS_REQUIRE_COORDINATOR'
+    || (contextualPilot && staffReason === 'SCHEDULE_REQUIRES_COORDINATOR')
+    || (courseCertificates && continuity && !contextualPilot);
   const coordinatorAnswer = () => {
-    const variants = [false, true].map(followUp => coordinatorReply({ language: context.language, followUp }));
+    const variants = [false, true].map(followUp => coordinatorReply({ language: context.language, followUp, reason: staffReason }));
     const previous = (session.recentConversation || []).filter(turn => turn.role === 'assistant').at(-1)?.text || '';
     const followUp = previous.includes(variants[0]) || (!previous.includes(variants[1]) && session.coordinatorFollowUp === true);
     const reply = staffNotificationQueued ? variants[Number(followUp)] : (context.language === 'ar'

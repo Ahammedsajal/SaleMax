@@ -139,7 +139,7 @@
     `;
     document.head.append(style);
   }
-  async function showToday(session) {
+  async function showToday(session,titleKey='Today') {
     const ar=(document.documentElement.lang||localStorage.getItem('language')||'').toLowerCase().startsWith('ar');
     const tr=(en,arabic)=>ar?arabic:en;
     const appHome=session.role==='agent'?'/agent':'/user';
@@ -151,7 +151,7 @@
     header.className='sx-today-header';
     const headingBlock=document.createElement('div');
     const heading=document.createElement('h2');
-    heading.textContent=tr('Today','اليوم');
+    heading.textContent=titleKey==='brief'?tr('Morning brief','ملخص الصباح'):tr('Today','اليوم');
     const date=document.createElement('p');
     date.className='sx-today-date';
     date.textContent=new Intl.DateTimeFormat(ar?'ar-QA':'en-GB',{weekday:'long',day:'numeric',month:'long',timeZone:session.timezone||'Asia/Qatar'}).format(new Date());
@@ -167,17 +167,19 @@
     status.textContent=tr('Loading your work…','جارٍ تحميل مهامك…');
     dialog.addEventListener('close',()=>dialog.remove());
     dialog.append(header,status);document.body.append(dialog);dialog.showModal();
+    const canViewTeam=['owner','canonical-owner','manager','team_leader'].includes(session.role);
+    const taskQuery=`?status=active&scope=${canViewTeam?'team':'mine'}&limit=100`;
     const results=await Promise.allSettled([
-      window.SaleMaxWorkspace.request('tasks','?status=active&scope=mine&limit=100'),
+      window.SaleMaxWorkspace.request('tasks',taskQuery),
       window.SaleMaxWorkspace.request('pipeline','/reports/follow-up-brief?includeItems=true'),
       session.permissions?.['forms.manage'] ? window.SaleMaxWorkspace.request('forms','/submissions?limit=100') : Promise.resolve(null),
       session.permissions?.['payments.verify'] ? window.SaleMaxWorkspace.request('finance','/payments/pending?limit=1') : Promise.resolve(null)
     ]);
     if(!dialog.isConnected)return;
     status.replaceChildren();
-    function section(title) {
+    function section(title,count=null) {
       const wrapper=document.createElement('section');wrapper.className='sx-today-section';
-      const label=document.createElement('h3');label.textContent=title;
+      const label=document.createElement('h3');label.textContent=count===null?title:`${title} · ${count}`;
       wrapper.append(label);status.append(wrapper);return wrapper;
     }
     function row(wrapper,title,detail,url) {
@@ -197,14 +199,15 @@
     if(results[0].status==='fulfilled'){
       const result=results[0].value.data;
       const due=(result.items||[]).filter(item=>['lead_follow_up','chatbot_handoff'].includes(item.task_type)&&item.due_at&&todayLocal(item.due_at,session.timezone||'Asia/Qatar'));
-      for(const item of due)row(taskSection,item.title,item.description||tr('Open the task for details.','افتح المهمة للاطلاع على التفاصيل.'),appHome+'?page=tasks&task='+encodeURIComponent(item.id));
+      taskSection.querySelector('h3').textContent=`${tr('Callbacks due','المتابعات المستحقة')} · ${due.length}`;
+      for(const item of due){const learner=item.lead_learner_name||item.lead_contact||item.lead_title||item.title;const assignee=item.assignee_names||tr('Unassigned','غير معيّن');const next=item.status==='blocked'?tr('Resolve the blocker, then contact the learner.','عالج العائق ثم تواصل مع المتعلم.'):tr('Open callback and contact the learner.','افتح المتابعة وتواصل مع المتعلم.');const detail=[learner,item.description?.split('\n').find(line=>line.startsWith('Follow-up details:'))?.replace('Follow-up details: ','')||null,tr('Advisor','المستشار')+': '+assignee,next].filter(Boolean).join(' · ');row(taskSection,item.title,detail,appHome+'?page=tasks&task='+encodeURIComponent(item.id));}
       if(!due.length)note(taskSection,tr('No callbacks due in the loaded tasks.','لا توجد متابعات مستحقة في المهام المحمّلة.'));
       if(result.hasMore)note(taskSection,tr('More tasks are available in Tasks.','توجد مهام أخرى في صفحة المهام.'));
     } else note(taskSection,tr('Could not load tasks.','تعذر تحميل المهام.'));
     if(results[2].status==='fulfilled' && results[2].value){
       const applications=results[2].value.data;
       const pending=(applications.items||[]).filter(item=>item.saleReviewStatus==='pending'||Number(item.attentionDeliveries)>0);
-      const applicationSection=section(tr('Registrations needing attention','طلبات تسجيل تحتاج إلى متابعة'));
+      const applicationSection=section(tr('Registrations needing attention','طلبات تسجيل تحتاج إلى متابعة'),pending.length);
       for(const item of pending){
         const name=item.submissionData?.contact_name||item.referenceCode||tr('Registration','طلب تسجيل');
         const reasons={
@@ -214,6 +217,9 @@
           REGISTRATION_DELIVERY_OUTCOME_UNKNOWN:tr('Check delivery status','تحقق من حالة الإرسال')
         };
         const detail=[item.saleCourseNameEn,item.referenceCode,
+          item.assignedAdvisorName?tr('Advisor','المستشار')+': '+item.assignedAdvisorName:'',
+          item.verifiedAdSourceType?tr('Verified ad','إعلان موثّق')+': '+(item.verifiedAdHeadline||item.verifiedAdSourceType):'',
+          item.invoiceNumber?tr('Invoice','الفاتورة')+': '+item.invoiceNumber:'',
           item.saleReviewStatus==='pending'?tr('Approval pending','بانتظار الموافقة'):'',
           Number(item.attentionDeliveries)>0?(reasons[item.attentionDeliveryReason]||tr('Notification needs attention','الإشعار يحتاج إلى متابعة')):''
         ].filter(Boolean).join(' · ');
@@ -227,8 +233,8 @@
     }
     if(results[3].status==='fulfilled' && results[3].value){
       const payments=results[3].value.data;
-      const paymentSection=section(tr('Payments awaiting verification','مدفوعات بانتظار التحقق'));
-      row(paymentSection,tr('Review pending payments','مراجعة المدفوعات المعلقة'),String(Number(payments.total)||0),'/user?page=finance-settings');
+      const paymentSection=section(tr('Payments awaiting verification','مدفوعات بانتظار التحقق'),Number(payments.total)||0);
+      row(paymentSection,tr('Review pending payments','مراجعة المدفوعات المعلقة'),tr(`${Number(payments.total)||0} payment${Number(payments.total)===1?'':'s'} · Open the review queue.`,`${Number(payments.total)||0} دفعة · افتح قائمة المراجعة.`),'/user?page=finance-settings&section=payments');
     } else if(results[3].status==='rejected') {
       const paymentSection=section(tr('Payments awaiting verification','مدفوعات بانتظار التحقق'));
       paymentSection.textContent=tr('Could not load payments.','تعذر تحميل المدفوعات.');
@@ -239,6 +245,7 @@
       const items=[...(result.items||[]),...(result.reviewItems||[])];
       const actionable=item=>/[?؟]|\b(?:how|when|where|price|fee|cost|schedule|class|register|enrol|enroll|call|payment|discount|job|course)\b|كم|رسوم|متى|موعد|دورة|تسجيل|اتصل|اتصال|الدفع/iu.test(item.latestCustomerMessage||'');
       items.sort((a,b)=>Number(actionable(b))-Number(actionable(a))||Date.parse(b.lastCustomerAt||0)-Date.parse(a.lastCustomerAt||0));
+      chatSection.querySelector('h3').textContent=`${tr('Conversations to review','محادثات للمراجعة')} · ${items.length}`;
       for(const item of items.slice(0,30)){
         const detail=[item.latestCustomerMessage,item.ownerName,item.suggestedNextStep].filter(Boolean).join(' · ');
         row(chatSection,item.customerName,detail,appHome+'?page=inbox&chatId='+encodeURIComponent(item.chatId));
@@ -247,7 +254,7 @@
       if(items.length>30||result.allHasMore)note(chatSection,tr('More are available in Lead Reports.','توجد محادثات أخرى في تقارير العملاء.'));
     } else chatSection.append(document.createTextNode(tr('Could not load conversations.','تعذر تحميل المحادثات.')));
   }
-  let mountingToday=false;
+  let mountingToday=false,mountingBrief=false;
   async function mountToday() {
     if(mountingToday||new URLSearchParams(location.search).get('page')!=='inbox')return;
     const surface=inboxSearch();
@@ -274,5 +281,19 @@
       surface.container.insertBefore(wrapper,surface.toolbar);
     } catch {} finally { mountingToday=false; }
   }
-  let queued=false;const observer=new MutationObserver(()=>{if(queued)return;queued=true;requestAnimationFrame(()=>{queued=false;mount();mountToday();});});observer.observe(document.documentElement,{childList:true,subtree:true});mount();mountToday();
+  async function mountMorningBrief(){
+    if(mountingBrief||new URLSearchParams(location.search).get('page')!=='dashboard')return;
+    const target=[...document.querySelectorAll('h1,h2,[role="heading"]')].find(node=>visible(node)&&clean(node.textContent).length>0);
+    if(!target||target.parentElement?.querySelector('[data-sx-morning-brief]'))return;
+    mountingBrief=true;
+    try{
+      const session=await window.SaleMaxWorkspace?.session?.();
+      if(session?.categoryKey!=='training_center'||!['owner','canonical-owner'].includes(session.role)||!target.isConnected)return;
+      const button=document.createElement('button');button.type='button';button.dataset.sxMorningBrief='1';button.className='sx-today-trigger';button.style.marginBlock='8px';
+      button.textContent=(document.documentElement.lang||localStorage.getItem('language')||'').toLowerCase().startsWith('ar')?'ملخص الصباح':'Open morning brief';
+      button.addEventListener('click',()=>showToday(session,'brief'));
+      target.insertAdjacentElement('afterend',button);
+    }catch{}finally{mountingBrief=false;}
+  }
+  let queued=false;const observer=new MutationObserver(()=>{if(queued)return;queued=true;requestAnimationFrame(()=>{queued=false;mount();mountToday();mountMorningBrief();});});observer.observe(document.documentElement,{childList:true,subtree:true});mount();mountToday();mountMorningBrief();
 })();

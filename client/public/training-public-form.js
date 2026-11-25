@@ -213,7 +213,7 @@
             const matches=code?(data.courses||[]).filter(course=>course.code===code):[];
             const course=form.querySelector('[data-course-row] [data-course-key="course_id"]');
             if(course&&!course.value&&matches.length===1){course.value=matches[0].id;course.dispatchEvent(new Event('change',{bubbles:true}));}
-            selected.textContent=tr(`Selected lead: ${selectedLead.contactName||selectedLead.learnerName||selectedLead.phone||selectedLead.email}. You can edit the form details.` ,`تم اختيار العميل المحتمل: ${selectedLead.contactName||selectedLead.learnerName||selectedLead.phone||selectedLead.email}. يمكنك تعديل بيانات النموذج.`);
+            const learner=selectedLead.contactName||selectedLead.learnerName||selectedLead.phone||selectedLead.email;const courseName=matches.length===1?(language==='ar'?matches[0].nameAr||matches[0].nameEn:matches[0].nameEn||matches[0].nameAr):'';const context=[courseName,selectedLead.assignedAdvisorName?tr(`Advisor: ${selectedLead.assignedAdvisorName}`,`المستشار: ${selectedLead.assignedAdvisorName}`):'',selectedLead.verifiedAdSourceType?tr(`Verified ad: ${selectedLead.verifiedAdHeadline||selectedLead.verifiedAdSourceType}`,`إعلان موثّق: ${selectedLead.verifiedAdHeadline||selectedLead.verifiedAdSourceType}`):''].filter(Boolean).join(' · ');selected.textContent=tr(`Selected lead: ${learner}${context?` · ${context}`:''}. You can edit the form details.`,`تم اختيار العميل المحتمل: ${learner}${context?` · ${context}`:''}. يمكنك تعديل بيانات النموذج.`);
             results.innerHTML='';input.value='';
     }
     const leadId=query.get('leadId');

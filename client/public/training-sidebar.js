@@ -791,6 +791,14 @@
     const salesSection=new URLSearchParams(location.search).get('section')||'overview';const salesRouteKey=({overview:'sales-targets',targets:'sales-targets',reports:'sales-targets',deals:'sales-deals',commissions:'sales-commissions'})[salesSection]||'sales-targets';
     const routeKeys={'ai-integrations':'ai-integrations',properties:'properties',students:'students','training-profile':'training-profile','crm-appearance':'settings','products-services':'products-services',courses:'courses',forms:'forms',recruitment:'recruitment','lead-pipeline':'leads','lead-reports':'reports',tasks:'tasks','call-center':'call-center','finance-settings':new URLSearchParams(location.search).get('section')==='reports'?'finance-reports':'invoices','team-invitations':'team','wa-chatbot':'chatbot',faqs:'faqs','commission-policy':'commission-policy','sales-workspace':salesRouteKey,'sales-finance':'sales-finance','sales-organization':'sales-organization',icp:'icp','campaign-dashboard':new URLSearchParams(location.search).get('channel')==='email'?'email':'campaign-dashboard'};
     const required=routeKeys[page];
+    if(page==='dashboard'&&membershipCategoryKey==='training_center'){
+      const destination=membershipRole==='accountant'?'finance-settings':['agent','manager','team_leader'].includes(membershipRole)?'inbox':['admissions','receptionist'].includes(membershipRole)?'forms':null;
+      if(destination){
+        const key=routeKeys[destination];
+        const permitted=(assignedNavigation===null||assignedNavigation.has(key))&&(roleNavigation===null||roleNavigation.has(key));
+        if(permitted){const base=location.pathname.replace(/\/$/,'')||'/user';location.replace(`${base}?page=${encodeURIComponent(destination)}`);return;}
+      }
+    }
     // Team access is available to any membership whose role/navigation grants
     // it. The API still enforces team.invite (including owner-approved manager
     // delegation), so category/role-specific redirects here only create a
