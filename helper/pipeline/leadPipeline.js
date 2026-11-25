@@ -725,6 +725,20 @@ async function captureInbound({ uid, origin, chatId, senderMobile, senderName, m
   const messageBody = bodyText(message, normalizedMessage);
 
   return inTransaction(async (connection) => {
+    const saveAttribution = async leadId => {
+      if (!leadId || !referral || !referralType) return;
+      await connection.query(
+        `INSERT IGNORE INTO pipeline_attributions
+          (uid_hash, lead_id, conversation_key, event_key, provider_message_id, source_type, source_id,
+           source_url, headline, body, media_type, ctwa_clid, is_verified_ad, event_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        [uidHash, leadId, conversationKey, eventKey, providerId, referralType,
+          text(referral.source_id, 191) || null, text(referral.source_url, 2000) || null,
+          text(referral.headline, 500) || null, text(referral.body, 1000) || null,
+          text(referral.media_type, 64) || null, text(referral.ctwa_clid, 255) || null,
+          adReferral ? 1 : 0, now],
+      );
+    };
     const { settings } = await ensureWorkspace(connection, uidValue);
     if (!botCapture && (!settings.enabled || (origin === "qr" && !settings.auto_capture_qr) || (origin === "meta" && !settings.auto_capture_meta))) {
       return { skipped: true, reason: "capture_disabled" };
@@ -757,6 +771,7 @@ async function captureInbound({ uid, origin, chatId, senderMobile, senderName, m
         "SELECT lead_id FROM pipeline_events WHERE uid_hash = ? AND event_key = ? LIMIT 1",
         [uidHash, eventKey],
       );
+      await saveAttribution(duplicates[0]?.lead_id);
       return { duplicate: true, leadId: duplicates[0]?.lead_id || null };
     }
 
@@ -864,19 +879,7 @@ async function captureInbound({ uid, origin, chatId, senderMobile, senderName, m
       [uidHash, lead.id, conversationKey, safeChatId, origin, now, now],
     );
 
-    if (referral && referralType) {
-      await connection.query(
-        `INSERT IGNORE INTO pipeline_attributions
-          (uid_hash, lead_id, conversation_key, event_key, provider_message_id, source_type, source_id,
-           source_url, headline, body, media_type, ctwa_clid, is_verified_ad, event_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-        [uidHash, lead.id, conversationKey, eventKey, providerId, referralType,
-          text(referral.source_id, 191) || null, text(referral.source_url, 2000) || null,
-          text(referral.headline, 500) || null, text(referral.body, 1000) || null,
-          text(referral.media_type, 64) || null, text(referral.ctwa_clid, 255) || null,
-          adReferral ? 1 : 0, now],
-      );
-    }
+    await saveAttribution(lead.id);
 
     const whatsappBook = await ensurePhonebook(connection, uidHash, uidValue, "whatsapp");
     await ensurePhonebookContact(connection, { uidHash, uid: uidValue, kind: "whatsapp", phonebookId: whatsappBook, phone, name, receivedAt: now });

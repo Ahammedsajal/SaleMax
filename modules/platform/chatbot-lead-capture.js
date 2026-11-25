@@ -355,7 +355,7 @@ async function captureLead(pool, { ctx, profile, uid, chatId, origin, message, f
   if (ctx.tenant.categoryKey !== 'training_center' || !recipientAllowed(profile.config, message.senderMobile, profile.id)) return null;
   const text = String(message?.msgContext?.text?.body ?? message?.msgContext?.button?.text ?? message?.msgContext?.interactive?.button_reply?.title ?? message?.msgContext?.interactive?.list_reply?.title
     ?? message?.msgContext?.image?.caption ?? message?.msgContext?.video?.caption ?? message?.msgContext?.document?.caption ?? '').trim().slice(0, 2000);
-  const captured = await require('../../helper/pipeline/leadPipeline').captureBotInbound({ uid, origin, chatId, senderMobile: message.senderMobile, senderName: message.senderName, normalizedMessage: message, providerMessageId: message.metaChatId, timestamp: message.timestamp, pool });
+  const captured = await require('../../helper/pipeline/leadPipeline').captureBotInbound({ uid, origin, chatId, senderMobile: message.senderMobile, senderName: message.senderName, normalizedMessage: message, providerMessageId: message.metaChatId, timestamp: message.timestamp, referral: message?.msgContext?.referral || null, pool });
   if (!captured.leadId) throw Object.assign(new Error('BOT_LEAD_NOT_CAPTURED'), { code: 'BOT_LEAD_NOT_CAPTURED' });
   const db = await pool.getConnection();
   try {
@@ -577,7 +577,7 @@ async function captureGenericLead(pool, { ctx, profile, uid, chatId, origin, mes
     || !recipientAllowed(profile.config, message?.senderMobile, profile.id)) return null;
   const captured = await require('../../helper/pipeline/leadPipeline').captureBotInbound({
     uid, origin, chatId, senderMobile: message.senderMobile, senderName: message.senderName,
-    normalizedMessage: message, providerMessageId: message.metaChatId, timestamp: message.timestamp, pool,
+    normalizedMessage: message, providerMessageId: message.metaChatId, timestamp: message.timestamp, referral: message?.msgContext?.referral || null, pool,
   });
   if (captured.skipped || !captured.leadId) throw Object.assign(new Error('BOT_LEAD_NOT_CAPTURED'), { code: 'BOT_LEAD_NOT_CAPTURED' });
   return { leadId: captured.leadId, duplicate: captured.duplicate === true };
