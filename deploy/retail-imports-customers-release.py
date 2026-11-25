@@ -12,7 +12,7 @@ RELEASE_NAME = 'retail-native-import-backfill'
 PILOT_ENV = 'SALEMAX_RETAIL_CONNECTOR_PILOT_TENANTS'
 ORIGIN = 'https://7network.live'
 IMAGE = 'sha256:753d77d421b3160872df0812e7b38505a1db7104cdb9d6c8b17415b2420de667'
-LAST_OVERLAY = '/opt/salemax/releases/website-google-analytics-e4730af5c9bb-20261125T153830Z/compose.website-google-analytics.json'
+LAST_OVERLAY = '/opt/salemax/releases/retail-native-import-backfill-84e4cb0b8af8-20261125T162628Z/compose.retail-imports-customers.json'
 MIGRATION = '20270213_retail_native_store_imports.sql'
 
 RUNTIME = {
