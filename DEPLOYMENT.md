@@ -5791,3 +5791,23 @@ Protected rollback snapshot: /opt/salemax/shared/rollback-website-google-analyti
     sudo -n /opt/salemax/shared/with-production-lock.sh python3 /opt/salemax/releases/website-google-analytics-all-visitors-661542351fcc-20261125T165341Z/deploy/website-google-analytics-all-visitors-release.py restore /opt/salemax/shared/rollback-website-google-analytics-all-visitors-661542351fcc-20261125T165341Z
 
 Verification on carsqatar-prod-01: /healthz, homepage, cache-busted JavaScript and privacy notice returned HTTP 200; their served hashes matched the release report. The homepage contains the new cache key and OpenAI choice but no GA opt-in. The served JavaScript calls the GA4 loader unconditionally, grants analytics storage and denies the three advertising settings; the homepage CSP allows the GA endpoints. The app is healthy with zero restarts, and the database is healthy. Node syntax, release-helper syntax, targeted live-index/stage preflight and git diff --check passed. No automated test suite ran. An actual GA4 Realtime event was not independently observed because the Edge session was unavailable during the preceding browser check. The full 42-ticket upgrade and its remaining release gates continue.
+
+## Globe photo tiles and tap-to-enlarge — production, 25 November 2026
+
+Source commit `55ddfe27e2326f923210d2934bf5f66b6a0ad3c6` is pushed to `Ahammedsajal/SaleMax` `main`. The globe had two stale image paths that returned the website's HTML document (`text/html`) instead of images, producing browser question-mark icons; other tiles were text-only badges. The globe now uses twelve verified local WebP photos, preloads them, and falls back to a verified photo if one fails. Tapping/clicking a photo opens an accessible enlarged viewer with localized caption and close controls. Desktop hover zoom remains, and keyboard activation and Escape/backdrop close are supported. English and Arabic control instructions now explain how to enlarge a photo.
+
+The guarded app-only release is `/opt/salemax/releases/website-network-globe-zoom-55ddfe27e232-20261125T170015Z`, layered over `/opt/salemax/releases/training-pipeline-correction-v3-9867ca72-20261104` and the previously active Retail and GA4 overlays. The app image remained `sha256:753d77d421b3160872df0812e7b38505a1db7104cdb9d6c8b17415b2420de667`; the active chain has 350 Compose inputs, 11 environment inputs and 329 app mounts. App and database are healthy, with zero app restarts; non-app service identities remained unchanged. No migration ran and no customer/account data changed.
+
+Protected rollback snapshot: `/opt/salemax/shared/rollback-website-network-globe-zoom-55ddfe27e232-20261125T170015Z`. Roll back under the production lock if this remains the newest app overlay; first roll back any later overlays:
+
+```sh
+sudo -n /opt/salemax/shared/with-production-lock.sh python3 /opt/salemax/releases/website-network-globe-zoom-55ddfe27e232-20261125T170015Z/deploy/website-network-globe-zoom-release.py restore /opt/salemax/shared/rollback-website-network-globe-zoom-55ddfe27e232-20261125T170015Z
+```
+
+| Runtime file | SHA-256 |
+|---|---|
+| `client/public/website/index.html` | `2573fb2963861315ee164d0558e041331bc250c4ce45b19908632380915ba50c` |
+| `client/public/website/website.css` | `34226c3b32d3c97de3a0a60e80f95dc859d2333af8be7b1a388cf71edd9a3465` |
+| `client/public/website/network-globe.js` | `f26447bc17fc6af512d117f1eb1ea0c8d8e1f4da0f987e128ee9bfd46888df9d` |
+
+Verification on `carsqatar-prod-01`: `/healthz`, homepage, versioned CSS/JavaScript, and all twelve unique photo assets returned HTTP 200; each photo response had `image/webp` content type, and served HTML/CSS/JavaScript hashes matched the release. Browser verification at 390×844 confirmed photos render without broken-image icons and tapping opens an enlarged photo with localized Arabic caption and close button; English and Arabic UI states were checked. JavaScript/helper syntax and `git diff --check` passed; no automated suite ran. No release cleanup was applied. The full 42-ticket upgrade and remaining release gates continue.
