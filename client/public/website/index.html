@@ -33,7 +33,7 @@
       defer
       src="/website/plan-presentation.js?v=20261103-whatsapp-icon1"
     ></script>
-    <script defer src="/website/website.js?v=20261108-hero-bg-motion2"></script>
+    <script defer src="/website/website.js?v=20261125-ga4-consent1"></script>
     <script defer src="/website/hero-scene.bundle.js?v=20261108-hero-bg-motion2"></script>
     <script defer src="/website/network-globe.js?v=20261125-network-globe1"></script>
   </head>
@@ -1298,16 +1298,38 @@
       aria-labelledby="analytics-consent-title"
       hidden
     >
-      <h2 id="analytics-consent-title" data-ar="قياس إعلانات OpenAI (اختياري)">
-        Optional OpenAI ad measurement
+      <h2 id="analytics-consent-title" data-ar="إعدادات الخصوصية والقياس">
+        Privacy and measurement settings
       </h2>
       <p
-        data-ar="يساعدنا ذلك على معرفة الإعلانات التي تجلب طلبات العروض التجريبية. إذا وافقت، لن نرسل حدثاً إلا بعد حفظ طلبك بنجاح. قد يعالج OpenAI حقول الاتصال المدعومة ويجزّئها في متصفحك لمطابقة الحدث. يمكنك تغيير اختيارك في أي وقت."
+        data-ar="اختر كل خدمة على حدة. تظل خدمات القياس متوقفة حتى توافق عليها، ويمكنك تغيير اختيارك في أي وقت."
       >
-        This helps us understand which ads bring demo enquiries. If you allow it,
-        we send a conversion event only after your request is saved successfully.
-        OpenAI may process and hash supported contact fields in your browser to
-        match the event. You can change your choice at any time.
+        Choose each service separately. Measurement stays off until you opt in,
+        and you can change your choices at any time.
+      </p>
+      <div class="analytics-consent-options">
+        <label class="analytics-consent-choice" for="google-analytics-choice">
+          <input id="google-analytics-choice" type="checkbox" />
+          <span
+            class="analytics-consent-choice-copy"
+            data-ar="السماح لـ Google Analytics بقياس زيارات الموقع"
+            >Allow Google Analytics to measure website visits</span
+          >
+        </label>
+      </div>
+      <p class="analytics-consent-policy google-analytics-policy">
+        <span
+          data-ar="يقيس Google Analytics 4 مشاهدات الصفحات ومعلومات عامة عن المتصفح والإحالة، وقد يقيس التفاعلات المفعّلة في مصدر GA4. لا نرسل قيم نموذج الاستفسار أو معلومات الاتصال إلى GA4."
+          >Google Analytics 4 measures page views, general browser and referral
+          information, and interactions enabled in the GA4 stream. We do not
+          send enquiry form values or contact details to GA4.</span
+        >
+        <a
+          class="google-analytics-privacy-link"
+          href="/website/google-analytics-privacy.html"
+          data-ar="اقرأ إشعار خصوصية Google Analytics"
+          >Read the Google Analytics privacy notice</a
+        >
       </p>
       <div class="analytics-consent-options">
         <label class="analytics-consent-choice" for="openai-analytics-choice">
@@ -1319,7 +1341,16 @@
           >
         </label>
       </div>
-      <p class="analytics-consent-policy">
+      <p
+        class="analytics-consent-policy openai-analytics-policy"
+        data-ar="يساعدنا ذلك على معرفة الإعلانات التي تجلب طلبات العروض التجريبية. إذا وافقت، لن نرسل حدثاً إلا بعد حفظ طلبك بنجاح. قد يعالج OpenAI حقول الاتصال المدعومة ويجزّئها في متصفحك لمطابقة الحدث. يمكنك تغيير اختيارك في أي وقت."
+      >
+        This helps us understand which ads bring demo enquiries. If you allow it,
+        we send a conversion event only after your request is saved successfully.
+        OpenAI may process and hash supported contact fields in your browser to
+        match the event. You can change your choice at any time.
+      </p>
+      <p class="analytics-consent-policy openai-analytics-policy">
         <a
           href="/website/meta-privacy.html"
           data-ar="اقرأ إشعار الخصوصية لقياس OpenAI"
@@ -1331,17 +1362,17 @@
           class="analytics-consent-reject"
           id="analytics-reject"
           type="button"
-          data-ar="رفض القياس الاختياري"
+          data-ar="رفض جميع القياسات الاختيارية"
         >
-          Reject optional measurement
+          Reject all optional measurement
         </button>
         <button
           class="analytics-consent-accept"
           id="analytics-accept"
           type="button"
-          data-ar="حفظ الاختيار"
+          data-ar="حفظ الاختيارات"
         >
-          Save choice
+          Save choices
         </button>
       </div>
     </aside>
