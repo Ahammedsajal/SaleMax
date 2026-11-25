@@ -221,6 +221,19 @@ def check_preimages(stage, release, backup, info):
     return mounts
 
 
+def pending_migration_payload(info, stage):
+    artifacts = {**info['runtime'], **info['tools']}
+    payload = {}
+    for relative in info['pending']:
+        if relative not in artifacts:
+            raise RuntimeError('Pending migration is missing from staged artifacts')
+        payload[Path(relative).name] = {
+            'sha256': artifacts[relative],
+            'source': base64.b64encode((stage / relative).read_bytes()).decode('ascii'),
+        }
+    return payload
+
+
 def guard_rollback(app_id, support, input_hashes):
     if ops.inspect(ops.APP)['Id'] != app_id or any(file_sha(name) != digest for name, digest in input_hashes.items()):
         raise RuntimeError('Active app or Compose inputs changed during Retail preparation')
@@ -303,10 +316,7 @@ def deploy(stage, commit):
     history.mkdir(mode=0o700)
     for item in ('migrations', 'migration-runner.js'):
         ops.run('docker', 'cp', f'{ops.APP}:/app/database/{item}', str(history / item))
-    pending = {Path(relative).name: {
-        'sha256': info['runtime'][relative],
-        'source': base64.b64encode((stage / relative).read_bytes()).decode('ascii'),
-    } for relative in info['pending']}
+    pending = pending_migration_payload(info, stage)
     request = {'migrations': pending}
     ops.write_private(backup / 'migrations.json', request)
 
