@@ -28,13 +28,14 @@
     />
     <link rel="icon" href="/favicon.ico?v=20261022-clear1" />
     <link rel="apple-touch-icon" href="/branding/7network/apple-touch-icon.png?v=20261022-clear1" />
-    <link rel="stylesheet" href="/website/website.css?v=20261112-mobile-hero-tight2" />
+    <link rel="stylesheet" href="/website/website.css?v=20261125-network-globe1" />
     <script
       defer
       src="/website/plan-presentation.js?v=20261103-whatsapp-icon1"
     ></script>
     <script defer src="/website/website.js?v=20261108-hero-bg-motion2"></script>
     <script defer src="/website/hero-scene.bundle.js?v=20261108-hero-bg-motion2"></script>
+    <script defer src="/website/network-globe.js?v=20261125-network-globe1"></script>
   </head>
   <body>
     <a class="skip" href="#main"><span data-ar="انتقل إلى المحتوى">Skip to content</span></a>
@@ -560,6 +561,46 @@
           </div>
         </div>
       </section>
+      <!-- network-globe:begin -->
+      <section class="network-showcase" id="connected-business" aria-labelledby="network-showcase-title">
+        <div class="network-showcase-stage">
+          <div
+            class="network-globe"
+            id="network-globe"
+            role="group"
+            tabindex="0"
+            aria-label="Interactive illustration of connected 7Network business workflows"
+            aria-describedby="network-globe-help"
+          >
+            <div class="network-globe-world" id="network-globe-world" aria-hidden="true"></div>
+          </div>
+          <header class="network-showcase-copy">
+            <p class="eyebrow" data-ar="مساحة واحدة مترابطة">ONE CONNECTED WORKSPACE</p>
+            <h2 id="network-showcase-title" data-ar="مساحة عمل واحدة. وخطوة تالية واضحة.">
+              One workspace. A clear next step.
+            </h2>
+            <p data-ar="اربط الاستفسارات والمبيعات ومحادثات الفريق ومتابعة التدريب والأتمتة ضمن 7Network.">
+              Connect enquiries, sales, team conversations, training follow-up and automation in 7Network.
+            </p>
+            <small class="network-showcase-disclaimer" data-ar="مشاهد توضيحية للأعمال · لا تتضمن بيانات عملاء فعلية">
+              Illustrative business scenes · no real customer data
+            </small>
+          </header>
+          <div class="network-globe-controls">
+            <p id="network-globe-help" data-ar="اسحب للتدوير أو استخدم مفاتيح الأسهم. على الكمبيوتر، مرّر المؤشر فوق بطاقة لتكبيرها.">
+              Drag to rotate or use the arrow keys. On desktop, hover over a card to zoom.
+            </p>
+            <button
+              class="network-globe-toggle"
+              id="network-globe-toggle"
+              type="button"
+              aria-controls="network-globe-world"
+              aria-pressed="false"
+            >Pause rotation</button>
+          </div>
+        </div>
+      </section>
+      <!-- network-globe:end -->
       <section class="section solutions" id="solutions">
         <div class="section-heading reveal">
           <div>
