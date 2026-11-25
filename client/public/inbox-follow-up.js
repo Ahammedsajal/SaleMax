@@ -86,5 +86,101 @@
       register.addEventListener('click',openRegistration);action.append(register);
     }).catch(()=>{});
 }
-  let queued=false;const observer=new MutationObserver(()=>{if(queued)return;queued=true;requestAnimationFrame(()=>{queued=false;mount();});});observer.observe(document.documentElement,{childList:true,subtree:true});mount();
+
+  function inboxSearch() {
+    for (const input of document.querySelectorAll('input[type="text"]')) {
+      if (!/search|بحث/i.test(input.getAttribute('placeholder') || '') || !visible(input)) continue;
+      let parent=input.parentElement;
+      for (let depth=0;parent&&depth<9;depth++,parent=parent.parentElement) {
+        const children=Array.from(parent.children || []);
+        const position=children.findIndex(child=>child.contains(input));
+        if(position>0&&position+1<children.length&&children[0].querySelector('h6,[role="heading"]'))return input;
+      }
+    }
+    return null;
+  }
+  function todayLocal(value, timezone) {
+    const date=new Date(value);
+    if(Number.isNaN(date.getTime()))return false;
+    const formatter=new Intl.DateTimeFormat('en-CA',{timeZone:timezone,year:'numeric',month:'2-digit',day:'2-digit'});
+    return formatter.format(date)<=formatter.format(new Date());
+  }
+  async function showToday(session) {
+    const ar=(document.documentElement.lang||localStorage.getItem('language')||'').toLowerCase().startsWith('ar');
+    const tr=(en,arabic)=>ar?arabic:en;
+    const appHome=session.role==='agent'?'/agent':'/user';
+    addStyles();
+    const dialog=document.createElement('dialog');
+    dialog.className='sx-followup-dialog';
+    const heading=document.createElement('h2');
+    heading.textContent=tr('Today','اليوم');
+    const status=document.createElement('div');
+    status.setAttribute('role','status');
+    status.textContent=tr('Loading your work…','جارٍ تحميل مهامك…');
+    const close=document.createElement('button');
+    close.type='button';close.textContent=tr('Close','إغلاق');
+    close.addEventListener('click',()=>dialog.close());
+    dialog.addEventListener('close',()=>dialog.remove());
+    dialog.append(heading,status,close);document.body.append(dialog);dialog.showModal();
+    const results=await Promise.allSettled([
+      window.SaleMaxWorkspace.request('tasks','?status=active&scope=mine&limit=100'),
+      window.SaleMaxWorkspace.request('pipeline','/reports/follow-up-brief?includeItems=true')
+    ]);
+    if(!dialog.isConnected)return;
+    status.replaceChildren();
+    function section(title) {
+      const wrapper=document.createElement('section');
+      const label=document.createElement('h3');label.textContent=title;
+      wrapper.append(label);status.append(wrapper);return wrapper;
+    }
+    function row(wrapper,title,detail,url) {
+      const article=document.createElement('article');
+      article.style.cssText='padding:10px 0;border-bottom:1px solid currentColor;overflow-wrap:anywhere';
+      const link=document.createElement('a');link.href=url;link.target='_top';link.textContent=title;
+      const text=document.createElement('p');text.textContent=detail;text.style.margin='6px 0';
+      article.append(link,text);wrapper.append(article);
+    }
+    const taskSection=section(tr('Callbacks due','المتابعات المستحقة'));
+    if(results[0].status==='fulfilled'){
+      const result=results[0].value.data;
+      const due=(result.items||[]).filter(item=>['lead_follow_up','chatbot_handoff'].includes(item.task_type)&&item.due_at&&todayLocal(item.due_at,session.timezone||'Asia/Qatar'));
+      for(const item of due)row(taskSection,item.title,item.description||tr('Open the task for details.','افتح المهمة للاطلاع على التفاصيل.'),appHome+'?page=tasks&task='+encodeURIComponent(item.id));
+      if(!due.length)taskSection.append(document.createTextNode(tr('No callbacks due in the loaded tasks.','لا توجد متابعات مستحقة في المهام المحمّلة.')));
+      if(result.hasMore)taskSection.append(document.createTextNode(tr(' More tasks are available in Tasks.',' توجد مهام أخرى في صفحة المهام.')));
+    } else taskSection.append(document.createTextNode(tr('Could not load tasks.','تعذر تحميل المهام.')));
+    const chatSection=section(tr('Learners awaiting a reply','متدربون بانتظار الرد'));
+    if(results[1].status==='fulfilled'){
+      const result=results[1].value.data;
+      const items=[...(result.items||[]),...(result.reviewItems||[])];
+      for(const item of items.slice(0,30)){
+        const detail=[item.latestCustomerMessage,item.ownerName,item.suggestedNextStep].filter(Boolean).join(' · ');
+        row(chatSection,item.customerName,detail,appHome+'?page=inbox&chatId='+encodeURIComponent(item.chatId));
+      }
+      if(!items.length)chatSection.append(document.createTextNode(tr('No linked conversations are waiting.','لا توجد محادثات مرتبطة بانتظار الرد.')));
+      if(items.length>30||result.allHasMore)chatSection.append(document.createTextNode(tr(' More are available in Lead Reports.',' توجد محادثات أخرى في تقارير العملاء.')));
+    } else chatSection.append(document.createTextNode(tr('Could not load conversations.','تعذر تحميل المحادثات.')));
+  }
+  let mountingToday=false;
+  async function mountToday() {
+    if(mountingToday||new URLSearchParams(location.search).get('page')!=='inbox')return;
+    const input=inboxSearch();
+    const searchBox=input?.closest('.MuiFormControl-root')||input?.parentElement;
+    if(!searchBox||searchBox.previousElementSibling?.hasAttribute('data-sx-today'))return;
+    mountingToday=true;
+    try {
+      const session=await window.SaleMaxWorkspace?.session?.();
+      if(session?.categoryKey!=='training_center'||!input.isConnected||searchBox.previousElementSibling?.hasAttribute('data-sx-today'))return;
+      const button=document.createElement('button');
+      button.type='button';button.dataset.sxToday='1';button.className='sx-followup-button';
+      button.textContent=(document.documentElement.lang||'').toLowerCase().startsWith('ar')?'اليوم':'Today';
+      button.addEventListener('click',async()=>{
+        try {
+          const current=await window.SaleMaxWorkspace.session();
+          if(current?.categoryKey==='training_center')await showToday(current);
+        } catch {}
+      });
+      searchBox.before(button);
+    } catch {} finally { mountingToday=false; }
+  }
+  let queued=false;const observer=new MutationObserver(()=>{if(queued)return;queued=true;requestAnimationFrame(()=>{queued=false;mount();mountToday();});});observer.observe(document.documentElement,{childList:true,subtree:true});mount();mountToday();
 })();
