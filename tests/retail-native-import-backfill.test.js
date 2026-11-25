@@ -129,3 +129,13 @@ test('redaction is enforced at the snapshot boundary', () => {
     shippingAddress: safe.shippingAddress }, { customerId: null, customer: null, contactConsent: 'unknown', shippingAddress: null });
   assert.equal(original.customer.email, 'private@example.test');
 });
+
+test('customer backfill compares source identity hashes using the database ASCII collation', async () => {
+  const statements = [];
+  const pool = { async query(sql) { statements.push(sql); return [[{ n: 0 }], []]; } };
+
+  await backfill.pendingCounts(pool, { id: connectionId, tenant_id: tenantId });
+
+  assert.equal(statements.length, 4);
+  assert.match(statements[2], /CONVERT\(SHA2\(CONCAT\(c\.connection_id,CHAR\(0\),c\.external_customer_id\),256\) USING ascii\) COLLATE ascii_bin/);
+});
