@@ -5,7 +5,7 @@ const directory = require('./retail-customer-directory');
 const nativeImports = require('./retail-native-imports');
 
 const MAX_BATCH_SIZE = 100;
-const SOURCE_ID_HASH_SQL = "SHA2(CONCAT(c.connection_id,CHAR(0),c.external_customer_id),256)";
+const SOURCE_ID_HASH_SQL = "CONVERT(SHA2(CONCAT(c.connection_id,CHAR(0),c.external_customer_id),256) USING ascii) COLLATE ascii_bin";
 
 function validLimit(limit) {
   if (!Number.isSafeInteger(limit) || limit < 1 || limit > MAX_BATCH_SIZE) {
