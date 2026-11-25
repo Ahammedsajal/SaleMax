@@ -156,6 +156,12 @@ async function staffChatLead(pool,actor,chatId){
   const db=await pool.getConnection();
   try{
     await staffContext(db,actor);
+    if(/^\d{8,15}$/.test(chatId)){
+      const [chats]=await db.query("SELECT chat_id FROM beta_chats WHERE uid=? AND origin='qr' AND sender_mobile IN (?,?) ORDER BY updatedAt DESC LIMIT 2",[actor.uid,chatId,`+${chatId}`]);
+      if(chats.length>1)fail('CHAT_LEAD_AMBIGUOUS');
+      if(!chats.length)fail('LEAD_NOT_ACCESSIBLE');
+      chatId=String(chats[0].chat_id);
+    }
     const params=[sha(actor.uid),actor.uid,chatId];
     let scope='';
     if(actor.role==='agent'){scope=' AND l.owner_agent_id=?';params.push(actor.agentId);}

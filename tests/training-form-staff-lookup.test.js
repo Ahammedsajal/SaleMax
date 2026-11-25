@@ -28,6 +28,7 @@ function fakePool(role, rows, calls) {
         legacy_uid_hash: crypto.createHash('sha256').update(ownerUid).digest('hex')
       }]];
       if (sql.includes('FROM agents WHERE')) return [[{id: 7, uid: 'agent-uid'}]];
+      if (sql.includes('FROM beta_chats')) return [rows.map(row=>({chat_id:row.chat_id||'resolved-chat'}))];
       if (sql.includes('FROM pipeline_conversations pc')) return [rows];
       if (sql.includes('FROM pipeline_leads l')) return [rows];
       if (sql.includes('FROM sx_training_forms f JOIN')) return [rows];
@@ -96,4 +97,18 @@ test('both pipeline entry points authorize staff capture instead of form managem
     }
     assert.equal(routePermission({baseUrl,path:'/training-forms/registration/submissions',method:'POST'}),'forms.capture');
   }
+});
+
+test('phone fallback resolves a unique QR chat and preserves lead scope', async () => {
+  const calls = [], pool = fakePool('agent', [{id: 'lead'}], calls);
+  const result = await forms.staffChatLead(pool, {uid: ownerUid, role: 'agent', agentId: 7, agentUid: 'agent-uid'}, '97450000000');
+  assert.deepEqual(result, {leadId: 'lead'});
+  const query = calls.find(call => call.sql.includes('FROM pipeline_conversations pc'));
+  assert.equal(query.params[2], 'resolved-chat');
+  assert.equal(query.params[3], 7);
+});
+
+test('phone fallback refuses several matching conversations', async () => {
+  const calls = [], pool = fakePool('owner', [{id: 'one'}, {id: 'two'}], calls);
+  await assert.rejects(forms.staffChatLead(pool, {uid: ownerUid, role: 'owner'}, '97450000000'), {code: 'CHAT_LEAD_AMBIGUOUS'});
 });
