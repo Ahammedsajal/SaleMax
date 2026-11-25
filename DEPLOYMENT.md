@@ -5713,3 +5713,37 @@ The saved release report records a healthy app, healthy public `/healthz` and Em
 ## Production email template creation — 25 November 2026
 
 A requested workspace template was created using the running template service and read back through the same workspace's library. Verification compared the saved subject, visual design and plain-text rendering with the approved input. Revision 1 contains 22 editable blocks. This was a data operation with no source deployment, migration or service restart. The app image was `salemax-app:email-marketing-21a07cc41fa9-20261112`, the active release pointer was `training-pipeline-correction-v3-9867ca72-20261104`, and the application and database were healthy. The scoped pre-create state and inserted record reference are held under `/opt/salemax/shared/email-template-create-20261125-meta6/`. For rollback, verify ownership, revision and campaign references before removing only that new template. No email dispatch or recipient inbox preview was performed.
+
+## Responsive business showcase globe — production, 25 November 2026
+
+Source/release commit `0fcdfc882867fcdef004bee9d81d96d8588c9ea3` is pushed to `Ahammedsajal/SaleMax` `main`. The public homepage now has a responsive interactive globe of varied 7Network business scenes. Pointer drag and keyboard arrows rotate it; hovering a post enlarges it. The hero copy and controls support English and Arabic RTL, and the interaction honors reduced-motion preferences. The source adds the marked globe section and styles to `client/public/website/index.html` and `client/public/website/website.css`, `client/public/website/network-globe.js`, and twelve generated WebP scenes under `client/public/website/media/network-globe/`.
+
+The app-only overlay is `/opt/salemax/releases/website-network-globe-0fcdfc882867-20261125T150438Z` over base `/opt/salemax/releases/training-pipeline-correction-v3-9867ca72-20261104`. The guarded release helper patched only the marked source section and stylesheet onto the exact production homepage/CSS preimages, preserving the live production-only page content. The running app image remained `sha256:753d77d421b3160872df0812e7b38505a1db7104cdb9d6c8b17415b2420de667`; the overlay has 344 Compose inputs, 11 environment inputs and 322 app mounts. The app is healthy with zero restarts; unrelated container identities remained unchanged. No migration ran and no customer/account data changed.
+
+Protected rollback snapshot: `/opt/salemax/shared/rollback-website-network-globe-0fcdfc882867-20261125T150438Z`. While this overlay is active, restore it under the production lock with:
+
+```sh
+sudo -n /opt/salemax/shared/with-production-lock.sh python3 /opt/salemax/releases/website-network-globe-0fcdfc882867-20261125T150438Z/deploy/website-network-globe-release.py restore /opt/salemax/shared/rollback-website-network-globe-0fcdfc882867-20261125T150438Z
+```
+
+The backup contains the exact prior homepage/CSS preimages, prior Compose configuration and service identity, and the list of paths that were absent before deployment. The deployed runtime file SHA-256 values are:
+
+| Runtime file | SHA-256 |
+|---|---|
+| `client/public/website/index.html` | `8628703faa8a5c10f52854716d501b954957763af8b090596ca07bc97fbd3609` |
+| `client/public/website/website.css` | `1d3ffc311968eec09cf122adfb8a5223b39659275d9f2d5b9b779c9b5942bf3a` |
+| `client/public/website/network-globe.js` | `d7376d8cde6e5e45c486b701b06588e203f8c168e3f803f0b67600a88df0f1c0` |
+| `client/public/website/media/network-globe/agency-workshop.webp` | `bd4b7cc23399ba9e1f623e48e1e08a001b3200c9144d557b1a9b9941ac4d7864` |
+| `client/public/website/media/network-globe/auto-service.webp` | `16b975063145e932ae3196cf6dbe6fb338349590ff1514b131afbb28e27b1306` |
+| `client/public/website/media/network-globe/bakery-team.webp` | `5f74ef3eee83a6812b841bdbd11b55e4fc52cde714383faf526f9d0457fd70e5` |
+| `client/public/website/media/network-globe/cafe-service.webp` | `70c4ac3b33e4bf24c9c1191ebe0689958881be2620368a414e41763dba718252` |
+| `client/public/website/media/network-globe/customer-support.webp` | `08e4215c406df2c79b1d9576d6aff86a3cf2751933542a6b89debf4cd7fd1a43` |
+| `client/public/website/media/network-globe/event-coordination.webp` | `724b52bf939c98f83b764c5463f5b2d98c7f68501a0a7c34e46f6d47c799ab03` |
+| `client/public/website/media/network-globe/home-goods-retail.webp` | `154ba598c99da2666b44c5d269e258e3265ff2f923e37b0d05d47370cf172bd1` |
+| `client/public/website/media/network-globe/property-consultation.webp` | `8f76bbe32d7708272e8362c90d4cbdb3a0248d583062c5c2231fcad03a27e4eb` |
+| `client/public/website/media/network-globe/retail-boutique.webp` | `edc65d7563afc5849d9581e7ac67f6402e881e32eec254344e1600ce2acde8dd` |
+| `client/public/website/media/network-globe/salon-consultation.webp` | `dd7d2e338faa71c965a7260b0337ad0a25d08b52a0169d6112d5e7c022165caa` |
+| `client/public/website/media/network-globe/trainer-class.webp` | `4c4a6a29027142e6cac12f8af2de542a36a35194627e9f834e6d8939446f79e5` |
+| `client/public/website/media/network-globe/training-workshop.webp` | `65b22e6d3699d023860a54205e6ad47ecd074240fe8cd49c9f2222168cea76aa` |
+
+Verification: production `/healthz`, homepage, versioned CSS/JavaScript, and all twelve WebP assets returned HTTP 200; served HTML/CSS/JavaScript hashes matched the deployed files. In the browser, desktop layout rendered at 1280×720, arrow-key rotation changed the globe angle, and hover enlarged a card to 1.34×. Arabic RTL rendered at 390×844 with no horizontal overflow (`scrollWidth` 390); image loading and the English/Arabic switch were checked. JavaScript syntax, Python release-helper parsing and `git diff --check` passed; no automated test suite ran. The release-retention dry run, executed from the checked-in helper because its documented server-installed copy was absent, found 325 release directories, 2 eligible directories and 1,024,000 estimated reclaimable bytes. No cleanup was applied. The full 42-ticket upgrade and its remaining release gates continue.
