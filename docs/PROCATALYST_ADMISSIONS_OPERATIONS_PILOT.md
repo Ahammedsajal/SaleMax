@@ -1,18 +1,77 @@
 # ProCatalyst admissions operations pilot
 
-Status: in development. The outcome is one auditable journey from a WhatsApp enquiry to a verified paid enrollment, within the existing training-center workspace.
+Status: production pilot in progress. The objective is one auditable learner
+journey from a WhatsApp enquiry to a verified paid enrollment in the existing
+training-center workspace. Several workflow improvements are live, but the
+pilot is not complete until center records and staff operations are reconciled
+and the end-to-end journey is accepted.
 
-## Delivery order
+## Delivery status
 
-1. Establish an advisor queue from existing tasks, handoff claims and registration exceptions. Apply the existing workspace permissions and team scope to every row. Show the latest actionable incoming message, owner and next action with links to the source. Define staffed hours, holidays and backup membership before activating automatic rerouting. Preserve claim history and use transactional, idempotent reassignment.
-2. Connect the registration action in the Inbox to the published staff form and its existing lead. Prefill only authorized, verified fields, including course where unambiguous. Retain the original lead and referral history. Surface possible existing invoices without treating a provisional registration document as payment.
-3. Extend the existing chatbot facts and handoff flow for fee plus schedule questions. Answer from the current offer and confirmed batch, retain a learner's preferred schedule and send the unresolved question to an advisor. Employment and placement wording requires approved center content. Evaluate English and Arabic examples, missing and expired offers, unconfirmed dates, handoff and duplicate message scenarios before enabling additional customer-facing answers.
-4. Repair registration notification configuration and give reception a reviewable list of blocked deliveries. Reconcile the three pending reviews with actual center records before retrying any notification. Keep retries idempotent and distinguish provider acceptance from delivery.
-5. Introduce role-aware landing views with existing navigation and permission checks. Provide a morning owner view with links to underlying callbacks, open handoffs, pending approvals and pending payments. Connect source attribution to the existing lead and finance records. Label unknown attribution and never infer payment.
-6. Compare first useful human answer and registration handling time with a reception baseline. Trace an actual approved, posted payment to the originating enquiry and ad source. Validate synthetic data and staff workflows before accepting the pilot.
+1. **Advisor Today queue — initial release live.** The existing Inbox Today
+   view surfaces due callbacks, learner conversations waiting for a person,
+   registrations needing attention and pending payments, with scoped team
+   visibility, assignees, follow-up context and next actions. The owner can
+   open an in-app morning brief. Automatic next-shift backup routing is not
+   enabled: staffed hours, holidays and backup membership must be supplied
+   first. Counts remain limited to what current scoped endpoints load.
+2. **Conversation to registration — initial path live.** Register learner opens
+   the staff form with the linked learner/lead. The form shows responsible
+   advisor and provider-verified ad source when available; ambiguous lead
+   lookups are rejected. Course prefill is only used when the existing saved
+   course can be matched safely. Full acceptance across roles/channels and
+   payment verification is still open.
+3. **Course questions and AI — partial safeguards live.** Existing approved
+   course offers remain the source for fees. Unconfirmed weekday availability
+   goes to a coordinator, and employment/placement questions in English or
+   Arabic receive a safe coordinator handoff without job guarantees. The
+   account has no confirmed active batches, so batch dates cannot yet be
+   answered from verified schedule data. Approved placement copy, preferred
+   schedule persistence and voice-note transcription remain open.
+4. **Blocked registration notifications — not reconciled.** The three pending
+   notification reviews still need to be checked against reception records.
+   Fix the notification configuration and determine the original delivery
+   state before any retry; do not resend blindly.
+5. **Role navigation and morning brief — initial release live.** Existing
+   permission-filtered landing defaults route agents/managers to Inbox,
+   admissions/reception staff to Forms and accountants to Finance. Owner
+   briefing is available in the app with links to underlying work. Live
+   acceptance for each role and scheduled delivery are open.
+6. **Paid enrollment attribution and baseline — open.** New inbound referrals
+   are retained on the existing lead attribution path, and verified Meta ad
+   sources appear in sale review. Historical referrals have not been
+   backfilled. Paid-seat/ad reporting must wait for finance and reception to
+   reconcile historical registrations, invoices and posted payments. Measure
+   first useful human response and registration handling time with reception.
 
-## Existing dependencies and open decisions
+## Production increments
 
-Production has current course offers and an existing form submission path that accepts a selected lead. The inspected account has no recorded batches and its historical registration and finance records require reconciliation. Reception must establish actual staffed hours, a backup advisor, the active batch and a baseline. Keep changes disabled or manual where these facts are missing.
+- `4c869e148f2e51ed8693a3e9f96db08db96cb85b` — Today task scoping and advisor
+  labels, linked registration/advisor context, payment-verification deep link,
+  permission-aware role landing defaults and English/Arabic coordinator
+  handoffs for placement and unconfirmed weekday questions. Live release:
+  `/opt/salemax/releases/admissions-operations-completion-4c869e14f2e-20261125T112247Z`.
+- `292dd5012192970a4b0f21a7c656e50d1d3273a5` — owner sale review displays
+  same-lead provider-verified Meta source when available.
+- `48ce8cc3b2de8bf16ca208767bb46d78c5efd788` — new chatbot leads retain
+  inbound provider referral in the existing pipeline attribution ledger.
+- Earlier Inbox/registration and Today UI increments are recorded in
+  `DEPLOYMENT.md`.
 
-Before release, validate tenant and role isolation, agent and owner sessions, concurrency, retry behavior, English and Arabic, RTL, light and dark themes, mobile and desktop. Verify the existing production overlay inputs, snapshot changed assets, deploy through the protected release workflow and record the source revision, migrations, rollback and live checks in DEPLOYMENT.md.
+## Remaining acceptance and dependencies
+
+Reception/owner must provide actual staffed hours, holiday schedule, backup
+advisor and baseline workflow. The center coordinator must provide approved
+employment/placement language and confirmed batch data. Reception and finance
+must reconcile the three blocked notifications and historical enrollment,
+invoice and posted-payment records. Only then can the pilot validate true
+paid-seat attribution and ad return.
+
+Before declaring the pilot complete, verify tenant and role isolation,
+agent/manager/admissions/finance access, idempotent retries, owner morning-brief
+links, English and Arabic, RTL, light and dark themes, mobile/tablet/desktop,
+and safe PWA navigation. Use synthetic records for concurrency and retry
+testing. Compare the reception baseline with the live workflow. Keep the
+broader 42-ticket application upgrade, load/restore and remaining provider
+gates open until separately verified. No customer messages or notification
+retries were sent by the completion increment.

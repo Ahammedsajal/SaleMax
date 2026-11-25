@@ -5821,3 +5821,71 @@ release report verified the served hashes against the staged files. A signed-in
 browser review of a representative sale-review record was not completed, and
 historical referral attribution was not backfilled. The remaining paid-seat
 reconciliation and full pilot acceptance are still open.
+
+## Admissions operations completion increment — production, 25 November 2026
+
+Source commit `4c869e148f2e51ed8693a3e9f96db08db96cb85b` is deployed in
+`/opt/salemax/releases/admissions-operations-completion-4c869e14f2e-20261125T112247Z`
+over base `/opt/salemax/releases/training-pipeline-correction-v3-9867ca72-20261104`.
+The app image remains `salemax-app:email-marketing-21a07cc41fa9-20261112`
+(`sha256:753d77d421b3160872df0812e7b38505a1db7104cdb9d6c8b17415b2420de667`).
+The guarded release resolved 343 Compose inputs, 11 environment inputs and 309
+app mounts; all seven non-app container identities were unchanged. No database
+migration ran, and the release made no customer-record changes or external
+message sends.
+
+The existing Inbox Today queue now includes scoped team task visibility,
+assignee labels, follow-up details and a morning-brief entry point. Application
+review/form records include responsible advisor and same-lead provider-verified
+ad source when available. The existing chat-to-registration action preserves
+linked learner/lead context. The payment action opens the verification queue.
+Permission-filtered landing defaults route agents/managers to Inbox,
+admissions/receptionists to Forms and accountants to Finance. Employment and
+placement questions in English and Arabic use a safe coordinator handoff that
+does not promise a job; unconfirmed weekday availability also routes to a
+coordinator. Automatic shift escalation remains off until staffed hours,
+holidays and a backup are configured.
+
+Runtime hashes verified against the staged source:
+
+| Runtime file | SHA-256 |
+|---|---|
+| `client/public/inbox-follow-up.js` | `968fa1db4dd9d9c1b81167b033f40074ca5e8d458512e5cacd845351d526dd23` |
+| `client/public/training-finance.js` | `5cfdab7eaf847aff47b5b5780f035347f43c7f4b16421c690f38e64c4298defd` |
+| `client/public/training-forms.js` | `f5f72cd7c690384dc4b6e4f2c39e2d9310c6ba1a53e1bc7233c384079c0f6325` |
+| `client/public/training-public-form.js` | `2fcf3ce48fb110508b1d33699a0b16cf1d94e2210b3cebcbcd11642e37ee3855` |
+| `client/public/training-sidebar.js` | `036be0c3a55529ae5ef7a4fefd0999eda8eae9e6d7afdf6eb12941ee1d9e89b0` |
+| `client/public/training-form.html` | `aaeba61e3a7378994c8a4dd7959154c4f9199809a02bb4b172b6da0de3dc21b1` |
+| `client/public/index.html` | `e0ab3e07c94fdcac68472652b68f00b4e8212f8c472b76ed4848bac668d30abe` |
+| `modules/platform/task-management.js` | `94e8c5dd1d37e2a79db6053c9c17b484d6186f10a10fd216dcbda2436eb6c47d` |
+| `modules/platform/training-forms.js` | `b6a66c37a7d8b971f621256a45b47db6803f27be37148bdabffe4e9af606b122` |
+| `modules/platform/chatbot-business-context.js` | `37d6f89bafde523d12533fbce9b8861cee2abd33d3956b6bd66e488971105784` |
+| `modules/platform/chatbot-runtime.js` | `5f83e5c1d00018909b878b6139e331c8f99c87bc6bdaa549e687d28a41815f9f` |
+
+Verification: the production helper confirmed the active Compose chain, source
+hashes, app health and public `/healthz` HTTP 200; anonymous workspace API
+returned HTTP 401. Seven support containers were unchanged. The focused
+chatbot/business-context and role-sidebar suites pass 228/228; changed
+JavaScript and Python syntax plus `git diff --check` passed. Task-management
+and training-form integration suites could not start because this checkout has
+no installed `moment-timezone` dependency and no lockfile; no dependency changes
+were made. An authenticated Edge session showed the live 7Network admin shell,
+but workflow-level agent/admissions/finance acceptance was not completed.
+
+Protected rollback snapshot:
+`/opt/salemax/shared/rollback-admissions-operations-completion-4c869e14f2e-20261125T112247Z`.
+If this remains the active app overlay, restore prior Compose inputs under the
+production lock with:
+
+```sh
+sudo -n /opt/salemax/shared/with-production-lock.sh python3 /opt/salemax/releases/admissions-operations-completion-4c869e14f2e-20261125T112247Z/deploy/admissions-operations-completion-release.py restore /opt/salemax/shared/rollback-admissions-operations-completion-4c869e14f2e-20261125T112247Z
+```
+
+Restore any later app overlays first. No database rollback applies. The pilot
+is still incomplete: staffing hours/backup, approved placement language,
+confirmed batch data, the three blocked notification reviews, historical
+finance/enrollment reconciliation, verified paid-enrollment attribution,
+voice transcription, broad role/device/theme/language acceptance and the
+42-ticket program remain open. See
+`docs/PROCATALYST_ADMISSIONS_OPERATIONS_PILOT.md` for the current delivery
+status.

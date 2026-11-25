@@ -2723,6 +2723,43 @@ presented as complete until pagination and source-data reconciliation are
 verified. The broader 42-ticket application program, restore/load gates and
 production release work remain open.
 
+### Admissions operations completion increment — production, 25 November 2026
+
+The follow-up increment improves the existing Inbox Today queue with team
+scoping for owner/manager roles, visible task assignees and follow-up details,
+and a morning-brief entry point. Training application records now expose the
+responsible advisor and provider-verified ad source when available; the
+conversation registration form carries that context into staff review. The
+Finance link opens the payment verification queue. Existing role-aware landing
+defaults direct agents/managers to Inbox, admissions/reception to Forms and
+accountants to Finance, subject to the current permission-filtered navigation.
+Employment and placement questions in English and Arabic now use the existing
+coordinator handoff with wording that avoids job or placement guarantees;
+unconfirmed weekday availability also routes to a coordinator.
+
+Source `4c869e148f2e51ed8693a3e9f96db08db96cb85b` is deployed in
+`/opt/salemax/releases/admissions-operations-completion-4c869e14f2e-20261125T112247Z`.
+The app image and seven support containers were unchanged; no migration,
+customer record update or external message occurred. Production health,
+anonymous API denial, served assets and all mounted runtime hashes matched the
+source. The focused chatbot/business-context and role-sidebar suites pass
+228/228, and changed JavaScript/Python syntax plus whitespace checks pass.
+Task-management and training-form integration suites could not start because
+this checkout has no installed `moment-timezone` dependency and no lockfile;
+no dependency changes were made. The authenticated Edge session showed the
+live platform shell, but workflow-level agent/admissions/finance acceptance
+was not completed.
+
+Remaining pilot gates: staffed hours, holidays and backup membership are still
+needed before automatic handoff escalation can be configured; the center must
+approve placement wording and reconcile its three blocked registration
+notifications before retries; voice transcription is not included; historical
+referrals have not been backfilled; batches and historical finance/enrollment
+records still require reception/finance reconciliation; and paid-enrollment
+attribution and the reception baseline are not established. Arabic/RTL,
+mobile/tablet, dark-theme, concurrency, restore/load and the broader 42-ticket
+program remain open. The morning brief is an in-app view, not a scheduled push.
+
 ### Sale review ad-source checkpoint — production, 25 November 2026
 
 The existing owner sale-review list now surfaces the most recent Meta ad name
