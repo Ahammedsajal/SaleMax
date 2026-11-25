@@ -34,6 +34,57 @@
   function dialog(){let d=document.getElementById('sxFollowUpDialog');if(d)return d;const c=copy();d=document.createElement('dialog');d.id='sxFollowUpDialog';d.className='sx-followup-dialog';d.innerHTML=`<form id="sxFollowUpForm"><h2>${c.title}</h2><label for="sxFollowUpDate">${c.date}</label><input id="sxFollowUpDate" name="dueAt" type="datetime-local" required><label for="sxFollowUpDetails">${c.details}</label><textarea id="sxFollowUpDetails" name="details" maxlength="1000"></textarea><p class="sx-followup-state" role="status" aria-live="polite"></p><footer><button type="button" data-cancel>${c.cancel}</button><button type="submit">${c.create}</button></footer></form>`;document.body.append(d);d.querySelector('[data-cancel]').onclick=()=>d.close();d.querySelector('form').onsubmit=submit;enableDragging(d);return d;}
   async function submit(event){event.preventDefault();const d=event.currentTarget.closest('dialog'),c=copy(),info=chatInfo(),form=event.currentTarget;if(!info){d.querySelector('[role=status]').textContent=c.failed;return;}const submitButton=form.querySelector('[type=submit]');submitButton.disabled=true;d.querySelector('[role=status]').textContent='…';let saved=false;try{const [headers,session]=await Promise.all([window.SaleMaxWorkspace?.headers?.(),window.SaleMaxWorkspace?.session?.()]);if(!headers)throw new Error('AUTH');const dueAt=dueInstant(form.elements.dueAt.value,session?.timezone||session?.tenant?.timezone||'Asia/Qatar');const requestHeaders=new Headers(headers);requestHeaders.set('Content-Type','application/json');const response=await fetch('/api/workspace/tasks/inbox-follow-up',{method:'POST',credentials:'same-origin',headers:requestHeaders,body:JSON.stringify({chatId:info.chatId,dueAt,details:form.elements.details.value})});const body=await response.json().catch(()=>({}));if(!response.ok||!body.success)throw new Error(body.code||'CREATE_FAILED');const task=body.data||{};if(!task.id)throw new Error('CREATE_FAILED');const link=document.createElement('a'),status=d.querySelector('[role=status]');link.href=`/user?page=tasks&task=${encodeURIComponent(task.id)}`;link.target='_top';link.textContent=task.duplicate?c.duplicate:c.success;link.style.cssText='color:#075bcc;font-weight:600;text-decoration:underline;text-underline-offset:2px';status.replaceChildren(link);form.elements.dueAt.disabled=true;form.elements.details.disabled=true;form.querySelector('[data-cancel]').textContent=c.close;saved=true;}catch(error){const code=error.message;d.querySelector('[role=status]').textContent=code==='CHAT_AGENT_REQUIRED'?c.owner:code==='INVALID_DATE'?c.required:code==='CHAT_ID_AMBIGUOUS'?c.ambiguous:code==='CHAT_NOT_FOUND'?c.notFound:code==='PERMISSION_DENIED'||code==='TEAM_ROLE_PERMISSION_DENIED'?c.denied:code==='AUTH'||code==='AUTH_REQUIRED'?c.auth:c.failed;}finally{submitButton.disabled=saved?true:false;}}
   async function openDialog(){const d=dialog();let timezone='Asia/Qatar';try{const session=await window.SaleMaxWorkspace?.session?.();timezone=session?.timezone||session?.tenant?.timezone||timezone;}catch{}const form=d.querySelector('form');form.elements.dueAt.disabled=false;form.elements.details.disabled=false;form.querySelector('[type=submit]').disabled=false;form.querySelector('[data-cancel]').textContent=copy().cancel;d.querySelector('input[name=dueAt]').value=timeInput(timezone);d.querySelector('textarea[name=details]').value='';d.querySelector('[role=status]').textContent='';d.showModal();}
-  function mount(){const info=chatInfo();if(!info||info.panel?.querySelector('.sx-followup-action'))return;addStyles();const action=document.createElement('div');action.className='sx-followup-action';const button=document.createElement('button');button.type='button';button.className='sx-followup-button';button.textContent=copy().button;button.addEventListener('click',openDialog);action.append(button);(info.section?.nextElementSibling||info.section)?.after(action);}
+  async function openRegistration() {
+    const info=chatInfo();
+    if(!info)return;
+    const ar=(document.documentElement.lang||localStorage.getItem('language')||'').toLowerCase().startsWith('ar');
+    const d=document.createElement('dialog');
+    d.className='sx-followup-dialog';
+    const heading=document.createElement('h2');
+    heading.textContent=ar?'تسجيل متدرب':'Register a learner';
+    const status=document.createElement('p');
+    status.setAttribute('role','status');
+    status.textContent=ar?'جارٍ تحميل النماذج…':'Loading forms…';
+    const close=document.createElement('button');
+    close.type='button';
+    close.textContent=ar?'إغلاق':'Close';
+    close.addEventListener('click',()=>d.close());
+    d.addEventListener('close',()=>d.remove());
+    d.append(heading,status,close);
+    document.body.append(d);
+    d.showModal();
+    try {
+      const result=await window.SaleMaxWorkspace.request('pipeline','/training-form-chat/'+encodeURIComponent(info.chatId));
+      const data=result.data;
+      status.textContent=data.items.length?'':(ar?'لا توجد نماذج منشورة.':'No published forms are available.');
+      for(const form of data.items){
+        const url=new URL('/p/'+encodeURIComponent(data.tenantSlug)+'/forms/'+encodeURIComponent(form.slug),location.origin);
+        url.searchParams.set('mode','staff');
+        url.searchParams.set('leadId',data.leadId);
+        url.searchParams.set('lang',ar?'ar':'en');
+        const link=document.createElement('a');
+        link.href=url.href;
+        link.target='_blank';
+        link.rel='noopener';
+        link.textContent=ar?(form.nameAr||form.nameEn):(form.nameEn||form.nameAr);
+        link.style.cssText='display:block;padding:12px 0';
+        status.append(link);
+      }
+    } catch(error) {
+      status.textContent=error.message==='CHAT_LEAD_AMBIGUOUS'
+        ? (ar?'توجد عدة سجلات مرتبطة بالمحادثة. افتح العميل الصحيح من مسار العملاء.':'Several leads are linked to this conversation. Open the correct lead in Pipeline.')
+        : (ar?'تعذر فتح التسجيل. تحقق من تعيين العميل وصلاحياتك.':'Registration is unavailable. Check the lead assignment and your access.');
+    }
+  }
+  function mount(){const info=chatInfo();if(!info||info.panel?.querySelector('.sx-followup-action'))return;addStyles();const action=document.createElement('div');action.className='sx-followup-action';const button=document.createElement('button');button.type='button';button.className='sx-followup-button';button.textContent=copy().button;button.addEventListener('click',openDialog);action.append(button);(info.section?.nextElementSibling||info.section)?.after(action);
+    window.SaleMaxWorkspace?.session?.().then(session=>{
+      const category=session?.categoryKey||session?.tenant?.categoryKey;
+      if(category!=='training_center'||!action.isConnected)return;
+      const register=document.createElement('button');
+      register.type='button';register.className='sx-followup-button';register.style.marginTop='8px';
+      register.textContent=(document.documentElement.lang||localStorage.getItem('language')||'').toLowerCase().startsWith('ar')?'تسجيل متدرب':'Register learner';
+      register.addEventListener('click',openRegistration);action.append(register);
+    }).catch(()=>{});
+}
   let queued=false;const observer=new MutationObserver(()=>{if(queued)return;queued=true;requestAnimationFrame(()=>{queued=false;mount();});});observer.observe(document.documentElement,{childList:true,subtree:true});mount();
 })();

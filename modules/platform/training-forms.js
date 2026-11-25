@@ -140,6 +140,37 @@ async function publishedFormForTenant(db,tenantId,formSlug){
 async function staffForm(pool,actor,formSlug){
   const db=await pool.getConnection();try{const ctx=await staffContext(db,actor);const form=await publishedFormForTenant(db,ctx.tenant.id,formSlug);const definition=await publicForm(db,ctx.tenantSlug,form.slug);if(!definition)fail('FORM_NOT_FOUND');return {...definition,staff:await registration.staffOptions(db,ctx.tenant.id,actor.uid),captureMode:'staff'};}finally{db.release();}
 }
+async function staffForms(pool,actor){
+  const db=await pool.getConnection();
+  try{
+    const ctx=await staffContext(db,actor);
+    const [items]=await db.query(`SELECT v.slug,v.name_en AS nameEn,v.name_ar AS nameAr
+      FROM sx_training_forms f JOIN sx_training_form_versions v
+        ON v.tenant_id=f.tenant_id AND v.form_id=f.id AND v.version=f.published_version
+      WHERE f.tenant_id=? AND f.status='published' ORDER BY v.name_en,v.slug`,[ctx.tenant.id]);
+    return {tenantSlug:ctx.tenantSlug,items};
+  }finally{db.release();}
+}
+async function staffChatLead(pool,actor,chatId){
+  if(typeof chatId!=='string'||!chatId.trim()||chatId.length>191||/[\u0000-\u001f\u007f]/u.test(chatId))fail('CHAT_NOT_FOUND');
+  const db=await pool.getConnection();
+  try{
+    await staffContext(db,actor);
+    const params=[sha(actor.uid),actor.uid,chatId];
+    let scope='';
+    if(actor.role==='agent'){scope=' AND l.owner_agent_id=?';params.push(actor.agentId);}
+    if(actor.role==='manager'&&Array.isArray(actor.scopeAgentIds)){
+      if(!actor.scopeAgentIds.length)fail('LEAD_NOT_ACCESSIBLE');
+      scope=' AND l.owner_agent_id IN (?)';params.push(actor.scopeAgentIds);
+    }
+    const [rows]=await db.query(`SELECT DISTINCT l.id FROM pipeline_conversations pc
+      JOIN pipeline_leads l ON l.uid_hash=pc.uid_hash AND l.id=pc.lead_id
+      WHERE l.uid_hash=? AND l.uid=? AND pc.chat_id=?${scope} LIMIT 2`,params);
+    if(!rows.length)fail('LEAD_NOT_ACCESSIBLE');
+    if(rows.length>1)fail('CHAT_LEAD_AMBIGUOUS');
+    return {leadId:rows[0].id};
+  }finally{db.release();}
+}
 async function searchStaffLeads(pool,actor,search){
   const term=String(search||'').trim().slice(0,100);
   if(term.length<2)fail('SEARCH_TERM_TOO_SHORT');
@@ -152,6 +183,26 @@ async function searchStaffLeads(pool,actor,search){
       WHERE l.uid_hash=? AND (l.contact_name LIKE ? OR l.learner_name LIKE ? OR l.mobile LIKE ? OR c.normalized_email LIKE ?)${scope}
       ORDER BY l.updated_at DESC,l.created_at DESC LIMIT 20`,params);
     return rows.map(r=>({...r,qualificationData:typeof r.qualificationData==='string'?JSON.parse(r.qualificationData):r.qualificationData||{}}));
+  }finally{db.release();}
+}
+async function staffLead(pool,actor,leadId){
+  if(typeof leadId!=='string'||!leadId.trim()||leadId.length>191)fail('LEAD_NOT_ACCESSIBLE');
+  const db=await pool.getConnection();
+  try{
+    await staffContext(db,actor);
+    const params=[sha(actor.uid),leadId];
+    let scope=actor.role==='agent'?' AND l.owner_agent_id=?':'';
+    if(actor.role==='agent')params.push(actor.agentId);
+    if(actor.role==='manager'&&Array.isArray(actor.scopeAgentIds)){
+      if(!actor.scopeAgentIds.length)fail('LEAD_NOT_ACCESSIBLE');
+      scope+=' AND l.owner_agent_id IN (?)';
+      params.push(actor.scopeAgentIds);
+    }
+    const [[row]]=await db.query(`SELECT l.id,l.contact_name AS contactName,l.learner_name AS learnerName,l.mobile AS phone,c.normalized_email AS email,l.qualification_data AS qualificationData
+      FROM pipeline_leads l LEFT JOIN pipeline_contacts c ON c.uid_hash=l.uid_hash AND c.id=l.contact_id
+      WHERE l.uid_hash=? AND l.id=?${scope} LIMIT 1`,params);
+    if(!row)fail('LEAD_NOT_ACCESSIBLE');
+    return {...row,qualificationData:typeof row.qualificationData==='string'?JSON.parse(row.qualificationData):row.qualificationData||{}};
   }finally{db.release();}
 }
 async function persistSubmission(db,{form,tenantId,uid,formSlug,submissionToken,values,captureMode,visitorHash,actor,campaignAttribution,expectedFormVersion}){
@@ -175,8 +226,12 @@ async function persistSubmission(db,{form,tenantId,uid,formSlug,submissionToken,
   if(visitorHash){const visitors=[visitorHash,sha('form:'+tenantId+':'+form.form_id)];for(const visitor of visitors){await db.query(`INSERT INTO sx_training_form_rate_limits(tenant_id,form_id,visitor_hash,window_started_at,attempts) VALUES (?,?,?,UTC_TIMESTAMP(3),1) ON DUPLICATE KEY UPDATE attempts=IF(window_started_at<TIMESTAMPADD(HOUR,-1,UTC_TIMESTAMP(3)),1,attempts+1),window_started_at=IF(window_started_at<TIMESTAMPADD(HOUR,-1,UTC_TIMESTAMP(3)),UTC_TIMESTAMP(3),window_started_at)`,[tenantId,form.form_id,visitor]);const [[limit]]=await db.query('SELECT attempts FROM sx_training_form_rate_limits WHERE tenant_id=? AND form_id=? AND visitor_hash=?',[tenantId,form.form_id,visitor]);if(Number(limit.attempts)>(visitor===visitorHash?10:500))fail('FORM_RATE_LIMITED');}}
   let leadId=null;
   if(captureMode==='staff'&&actor.selectedLeadId){
-    const uidHash=sha(uid),scope=actor.role==='agent'?' AND owner_agent_id=?':'';
+    const uidHash=sha(uid);let scope=actor.role==='agent'?' AND owner_agent_id=?':'';
     const params=[uidHash,actor.selectedLeadId];if(actor.role==='agent')params.push(actor.agentId);
+    if(actor.role==='manager'&&Array.isArray(actor.scopeAgentIds)){
+      if(!actor.scopeAgentIds.length)fail('LEAD_NOT_ACCESSIBLE');
+      scope+=' AND owner_agent_id IN (?)';params.push(actor.scopeAgentIds);
+    }
     const [[linked]]=await db.query(`SELECT id,qualification_data FROM pipeline_leads WHERE uid_hash=? AND id=?${scope} LIMIT 1 FOR UPDATE`,params);
     if(!linked)fail('LEAD_NOT_ACCESSIBLE');leadId=linked.id;
     if(schema.leadFields){const qualification=require('./lead-field-runtime').qualification(linked.qualification_data);qualification.customFields=leadFormFields.save(schema.leadFields,leadFormFields.values(data.customFields),qualification.customFields);await db.query('UPDATE pipeline_leads SET qualification_data=?,last_activity_at=UTC_TIMESTAMP(3) WHERE uid_hash=? AND uid=? AND id=?',[JSON.stringify(qualification),uidHash,uid,leadId]);}
@@ -204,9 +259,9 @@ async function submitStaff(pool,actor,formSlug,{submissionToken,values,selectedL
   if(selectedLeadId!==undefined&&(typeof selectedLeadId!=='string'||!/^[0-9a-f-]{36}$/i.test(selectedLeadId)))fail('INVALID_SUBMISSION');
   const db=await pool.getConnection();let begun=false;try{
     await db.beginTransaction();begun=true;const ctx=await staffContext(db,actor);const form=await publishedFormForTenant(db,ctx.tenant.id,formSlug);
-    const result=await persistSubmission(db,{form,tenantId:ctx.tenant.id,uid:ctx.ownerUid,formSlug,submissionToken,values,expectedFormVersion,captureMode:'staff',actor:{actorType:actor.role==='agent'?'agent':'user',actorId:actor.role==='agent'?String(actor.agentId):actor.role==='manager'?actor.identityId:actor.uid,agentId:actor.agentId,role:actor.role,selectedLeadId}});
+    const result=await persistSubmission(db,{form,tenantId:ctx.tenant.id,uid:ctx.ownerUid,formSlug,submissionToken,values,expectedFormVersion,captureMode:'staff',actor:{actorType:actor.role==='agent'?'agent':'user',actorId:actor.role==='agent'?String(actor.agentId):actor.role==='manager'?actor.identityId:actor.uid,agentId:actor.agentId,role:actor.role,scopeAgentIds:actor.scopeAgentIds,selectedLeadId}});
     await db.commit();begun=false;return {...result,collectorRole:actor.role};
   }catch(error){if(begun)try{await db.rollback();}catch{}if(error.code==='ER_DUP_ENTRY')fail('FORM_SUBMISSION_CONFLICT');throw error;}finally{db.release();}
 }
 async function leadFieldOptions(db,ctx){context(ctx);return leadFormFields.options(db,ctx);}
-module.exports={leadFieldOptions,formInput,list,submissions,setSubmissionArchived,create,createRegistration,update,publish,publicForm,cleanSubmission,cleanCampaignAttribution,submitPublic,staffForm,searchStaffLeads,submitStaff};
+module.exports={leadFieldOptions,formInput,list,submissions,setSubmissionArchived,create,createRegistration,update,publish,publicForm,cleanSubmission,cleanCampaignAttribution,submitPublic,staffForms,staffChatLead,staffForm,staffLead,searchStaffLeads,submitStaff};

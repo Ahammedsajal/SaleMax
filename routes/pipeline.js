@@ -144,6 +144,20 @@ router.get('/training-forms', async (req,res) => {
   catch(error) { const code=error.code||'STAFF_FORM_UNAVAILABLE';const status=code==='PERMISSION_DENIED'?403:['CATEGORY_UNAVAILABLE','FEATURE_UNAVAILABLE'].includes(code)||code==='BUSINESS_LINK_INVALID'?409:500;res.status(status).json({success:false,code:status===500?'STAFF_FORM_UNAVAILABLE':code}); }
 });
 
+router.get('/training-form-chat/:chatId', async (req,res) => {
+  res.setHeader('Cache-Control','no-store');
+  try {
+    const pool=require('../database/config.js').promise();
+    const data=await trainingForms.staffChatLead(pool,req.pipelineActor,req.params.chatId);
+    const forms=await trainingForms.staffForms(pool,req.pipelineActor);
+    res.json({success:true,data:{...data,...forms}});
+  } catch(error) {
+    const code=error.code||'STAFF_FORM_UNAVAILABLE';
+    const status=['PERMISSION_DENIED','LEAD_NOT_ACCESSIBLE'].includes(code)?403:code==='CHAT_NOT_FOUND'?404:code==='CHAT_LEAD_AMBIGUOUS'?409:['CATEGORY_UNAVAILABLE','FEATURE_UNAVAILABLE'].includes(code)?409:500;
+    res.status(status).json({success:false,code:status===500?'STAFF_FORM_UNAVAILABLE':code});
+  }
+});
+
 router.get('/training-forms/:formSlug', async (req,res) => {
   try {
     const data=await trainingForms.staffForm(require('../database/config.js').promise(),req.pipelineActor,req.params.formSlug);

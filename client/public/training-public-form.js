@@ -205,6 +205,20 @@
     const input=root.querySelector('#lead-search'),results=root.querySelector('#lead-search-results'),selected=root.querySelector('#lead-selected');
     if(!input||!results)return;
     if(selectedLead)selected.textContent=tr(`Selected lead: ${selectedLead.contactName||selectedLead.learnerName||selectedLead.phone||selectedLead.email}` ,`تم اختيار العميل المحتمل: ${selectedLead.contactName||selectedLead.learnerName||selectedLead.phone||selectedLead.email}`);
+    function selectLead(lead){
+      selectedLead=lead;
+            const form=root.querySelector('#enquiry-form');const fill=(name,value)=>{const control=form.elements[name];if(control)control.value=value??'';};
+            fill('contact_name',selectedLead.contactName);fill('learner_name',selectedLead.learnerName||selectedLead.contactName);fill('phone',selectedLead.phone);fill('email',selectedLead.email);for(const key of ['certificate_name','qid','nationality','phone_res','address','city','social_contact','emergency_phone','local_address','city_state','birth_date','gender','graduated','referral_name']){const value=selectedLead.qualificationData?.[key]||'';const c=form.elements[key];if(c?.tagName==='SELECT'&&value&&!Array.from(c.options).some(o=>o.value===value))c.add(new Option(value,value));fill(key,value);}for(const field of data.form.schema.leadFields?.fields||[])fill('custom_'+field.key,selectedLead.qualificationData?.customFields?.[field.key]?.value??'');fill('source','Lead');window.__sxRegistrationControls?.refresh();
+            selected.textContent=tr(`Selected lead: ${selectedLead.contactName||selectedLead.learnerName||selectedLead.phone||selectedLead.email}. You can edit the form details.` ,`تم اختيار العميل المحتمل: ${selectedLead.contactName||selectedLead.learnerName||selectedLead.phone||selectedLead.email}. يمكنك تعديل بيانات النموذج.`);
+            results.innerHTML='';input.value='';
+    }
+    const leadId=query.get('leadId');
+    if(leadId){
+      fetch(`/api/pipeline/training-forms/${encodeURIComponent(formSlug)}/leads/${encodeURIComponent(leadId)}`,{cache:'no-store',credentials:'same-origin',headers:{Authorization:`Bearer ${actorToken()}`}})
+        .then(async response=>{const result=await response.json();if(!response.ok||!result.success)throw Error('LOOKUP_FAILED');return result.data;})
+        .then(lead=>{selectLead(lead);root.querySelector('[name="source"]')?.dispatchEvent(new Event('change'));})
+        .catch(()=>{selected.textContent=tr('The selected lead could not be loaded. Search for the lead to continue.','تعذر تحميل العميل المحتمل المحدد. ابحث عن العميل للمتابعة.');});
+    }
     let timer;
     input.addEventListener('input',()=>{
       clearTimeout(timer);selectedLead=null;selected.textContent='';
@@ -217,11 +231,8 @@
           if(input.value.trim()!==term)return;if(!body.data.length){results.innerHTML=`<p>${tr('No matching leads found.','لم يتم العثور على عملاء محتملين مطابقين.')}</p>`;return;}
           results.innerHTML=body.data.map(lead=>`<button type="button" class="lead-result" role="option" data-lead-id="${esc(lead.id)}"><strong>${esc(lead.contactName||lead.learnerName||tr('Unnamed lead','عميل محتمل بلا اسم'))}</strong><span>${[lead.phone,lead.email].filter(Boolean).map(esc).join(' · ')}</span></button>`).join('');
           results.querySelectorAll('[data-lead-id]').forEach(button=>button.addEventListener('click',()=>{
-            selectedLead=body.data.find(lead=>lead.id===button.dataset.leadId)||null;if(!selectedLead)return;
-            const form=root.querySelector('#enquiry-form');const fill=(name,value)=>{const control=form.elements[name];if(control)control.value=value??'';};
-            fill('contact_name',selectedLead.contactName);fill('learner_name',selectedLead.learnerName||selectedLead.contactName);fill('phone',selectedLead.phone);fill('email',selectedLead.email);for(const key of ['certificate_name','qid','nationality','phone_res','address','city','social_contact','emergency_phone','local_address','city_state','birth_date','gender','graduated','referral_name']){const value=selectedLead.qualificationData?.[key]||'';const c=form.elements[key];if(c?.tagName==='SELECT'&&value&&!Array.from(c.options).some(o=>o.value===value))c.add(new Option(value,value));fill(key,value);}for(const field of data.form.schema.leadFields?.fields||[])fill('custom_'+field.key,selectedLead.qualificationData?.customFields?.[field.key]?.value??'');fill('source','Lead');window.__sxRegistrationControls?.refresh();
-            selected.textContent=tr(`Selected lead: ${selectedLead.contactName||selectedLead.learnerName||selectedLead.phone||selectedLead.email}. You can edit the form details.` ,`تم اختيار العميل المحتمل: ${selectedLead.contactName||selectedLead.learnerName||selectedLead.phone||selectedLead.email}. يمكنك تعديل بيانات النموذج.`);
-            results.innerHTML='';input.value='';
+            const lead=body.data.find(item=>item.id===button.dataset.leadId);
+            if(lead) selectLead(lead);
           }));
         }catch{results.innerHTML=`<p class="error-message">${tr('Lead search is unavailable.','البحث عن العميل المحتمل غير متاح.')}</p>`;}
       },250);
@@ -339,6 +350,9 @@
       let body;
       try { body = await response.json(); } catch { throw Error('SERVER_ERROR'); }
       if (!response.ok || body.success !== true) throw Error(body.code || 'SUBMISSION_FAILED');
+      if(staffCapture && selectedLead && window.parent!==window){
+        window.parent.postMessage({type:'sx-training-application-submitted',leadId:selectedLead.id,referenceCode:body.data.referenceCode},location.origin);
+      }
       sessionStorage.removeItem(storageKey);
       selectedLead=null;
       const reference = esc(body.data.referenceCode);const registrationResult=body.data.studentNumber?'<p>'+tr('Total','الإجمالي')+': QAR '+(Number(body.data.totalMinor)/100).toFixed(2)+'</p>'+ (body.data.registrations||[body.data]).map(r=>'<p><strong>'+esc(language==='ar'?r.courseNameAr:r.courseNameEn)+'</strong><br>'+tr('Student ID','رقم الطالب')+': '+esc(r.studentNumber)+'<br>'+tr('Provisional invoice','فاتورة مبدئية')+': '+esc(r.provisionalInvoiceNumber)+' · QAR '+(Number(r.totalMinor)/100).toFixed(2)+'</p>').join(''):'';
