@@ -22,6 +22,10 @@ test('actual discovery excludes destructive rollback', () => {
   const providerProfiles = migrations.find(m => m.file === '20270120_chatbot_provider_profiles.sql');
   assert.ok(providerProfiles?.statements.some(sql => /CREATE TABLE sx_chatbot_provider_profiles/i.test(sql)));
   assert.ok(providerProfiles?.statements.some(sql => /INSERT IGNORE INTO sx_chatbot_provider_profiles[\s\S]*FROM sx_chatbot_provider_configs/i.test(sql)), 'the current encrypted provider config is backfilled without decrypting or overwriting saved profiles');
+  const retailNativeImports = migrations.find(m => m.file === '20270213_retail_native_store_imports.sql');
+  assert.ok(retailNativeImports?.statements.some(sql => /credentials_verified_at DATETIME\(3\) DEFAULT NULL/i.test(sql)), 'previous store credentials require an explicit revalidation before sync resumes');
+  assert.ok(retailNativeImports?.statements.some(sql => /CREATE TABLE sx_retail_catalogue_imports/i.test(sql)), 'source products map to native catalogue records');
+  assert.ok(retailNativeImports?.statements.some(sql => /CREATE TABLE sx_retail_customer_search_tokens/i.test(sql)), 'customer search indexes store only tenant-keyed token hashes');
   const teamRoles=migrations.findIndex(m=>m.file==='20261113_team_role_profiles.sql');
   const salesOrg=migrations.findIndex(m=>m.file==='20261114_sales_organization.sql');
   const salesFinance=migrations.findIndex(m=>m.file==='20261115_sales_commissions.sql');

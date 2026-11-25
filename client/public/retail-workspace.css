@@ -199,3 +199,33 @@ html[data-sx-theme=dark] #sx-retail-workspace.sx-retail-finance button { color: 
   #sx-retail-workspace .sx-retail-stock-mapping-controls .sx-retail-unit-confirm { grid-column: 1; }
   #sx-retail-workspace .sx-retail-stock-mapping-controls { grid-template-columns: minmax(0,1fr); }
 }
+
+#sx-retail-workspace .sx-retail-customers{max-width:1280px;margin-inline:auto;border:0;padding:0;background:transparent}
+#sx-retail-workspace .sx-retail-customer-search{display:grid;grid-template-columns:minmax(0,1fr) auto auto;align-items:end;gap:10px;margin:0 0 14px;padding:16px;border:1px solid var(--retail-border);border-radius:13px;background:var(--retail-card)}
+#sx-retail-workspace .sx-retail-customer-search label{display:grid;width:100%;max-width:none;margin:0;color:var(--retail-text);font-weight:600}
+#sx-retail-workspace .sx-retail-customer-search input{width:100%;margin:0}
+#sx-retail-workspace .sx-retail-customer-search button{margin:0;white-space:nowrap}
+#sx-retail-workspace .sx-retail-customer-list{display:grid;gap:10px}
+#sx-retail-workspace article.sx-retail-customer-card{display:grid;grid-template-columns:minmax(160px,.7fr) minmax(200px,1fr) minmax(260px,1.3fr);align-items:center;gap:8px 16px;margin:0;padding:15px 18px}
+#sx-retail-workspace .sx-retail-customer-open{width:max-content;max-width:100%;margin:0;padding:6px 0;border:0;background:transparent;color:var(--retail-brand);text-align:start;font-size:16px;font-weight:750;overflow-wrap:anywhere}
+#sx-retail-workspace .sx-retail-customer-card>p{margin:0;overflow-wrap:anywhere}
+#sx-retail-workspace .sx-retail-customer-facts{display:flex;flex-wrap:wrap;gap:6px}
+#sx-retail-workspace .sx-retail-customer-facts span{padding:5px 8px;border:1px solid var(--retail-border);border-radius:999px;background:var(--retail-bg);color:var(--retail-muted);font-size:12px}
+#sx-retail-workspace .sx-retail-customer-pagination{justify-content:flex-end;margin-top:14px;padding-top:14px;border-top:1px solid var(--retail-border)}
+#sx-retail-workspace .sx-retail-customer-pagination span{padding-inline:8px;color:var(--retail-muted)}
+#sx-retail-workspace .sx-retail-customer-detail{max-width:1120px;margin:14px auto}
+#sx-retail-workspace .sx-retail-customer-detail>h2{font-size:24px}
+#sx-retail-workspace .sx-retail-customer-panel{max-width:none;margin:12px 0;padding:16px;border:1px solid var(--retail-border);border-radius:12px;background:var(--retail-card)}
+#sx-retail-workspace .sx-retail-customer-panel p{overflow-wrap:anywhere}
+#sx-retail-workspace .sx-retail-customer-panels{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+#sx-retail-workspace .sx-retail-customer-panels .sx-retail-customer-panel{display:grid;gap:4px;margin:0}
+#sx-retail-workspace .sx-retail-customer-panels span{color:var(--retail-muted);font-size:12px}
+#sx-retail-workspace .sx-retail-customer-panels strong{font-size:19px}
+#sx-retail-workspace .sx-retail-customer-panel h4{margin:12px 0 4px;font-size:13px}
+#sx-retail-workspace .sx-retail-customer-orders{display:grid;gap:9px}
+#sx-retail-workspace .sx-retail-customer-order{margin:0;padding:15px;border:1px solid var(--retail-border);border-radius:12px;background:var(--retail-card)}
+#sx-retail-workspace .sx-retail-customer-order-heading{display:flex;justify-content:space-between;align-items:flex-start;gap:10px;flex-wrap:wrap}
+#sx-retail-workspace .sx-retail-customer-order-heading time{color:var(--retail-muted);font-size:12px}
+#sx-retail-workspace .sx-retail-customer-order p{margin:6px 0;overflow-wrap:anywhere}
+@media(max-width:900px){#sx-retail-workspace article.sx-retail-customer-card{grid-template-columns:minmax(0,1fr) minmax(0,1fr)}#sx-retail-workspace .sx-retail-customer-facts{grid-column:1/-1}}
+@media(max-width:620px){#sx-retail-workspace .sx-retail-customer-search{grid-template-columns:minmax(0,1fr) minmax(0,1fr)}#sx-retail-workspace .sx-retail-customer-search label{grid-column:1/-1}#sx-retail-workspace .sx-retail-customer-search button{width:100%}#sx-retail-workspace article.sx-retail-customer-card{grid-template-columns:minmax(0,1fr)}#sx-retail-workspace .sx-retail-customer-facts{grid-column:auto}#sx-retail-workspace .sx-retail-customer-panels{grid-template-columns:minmax(0,1fr)}}

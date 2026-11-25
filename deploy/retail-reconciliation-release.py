@@ -274,7 +274,10 @@ def deploy(stage, commit):
     input_hashes = {name: file_sha(name) for name in files + env_files}
 
     suffix = datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%SZ')
-    name = f'retail-reconciliation-{commit[:12]}-{suffix}'
+    release_name = info.get('releaseName', 'retail-reconciliation')
+    if not re.fullmatch(r'[a-z0-9-]{3,80}', release_name):
+        raise RuntimeError('Unexpected Retail release name')
+    name = f'{release_name}-{commit[:12]}-{suffix}'
     release = ops.ROOT / 'releases' / name
     backup = ops.ROOT / 'shared' / ('rollback-' + name)
     release.mkdir(mode=0o700)
@@ -353,10 +356,12 @@ def deploy(stage, commit):
 def restore(backup):
     ops.require_lock()
     backup = Path(backup).resolve()
-    if backup.parent != ops.ROOT / 'shared' or not backup.name.startswith('rollback-retail-reconciliation-'):
+    if backup.parent != ops.ROOT / 'shared' or not backup.name.startswith('rollback-'):
         raise RuntimeError('Unexpected Retail rollback path')
     state = json.loads((backup / 'state.json').read_text())
     release = Path(state['release'])
+    if backup.name != 'rollback-' + release.name or release.parent != ops.ROOT / 'releases':
+        raise RuntimeError('Retail rollback snapshot does not match its release')
     app = ops.inspect(ops.APP)
     files, env_files, workdir = ops.compose_context(app)
     if files != state['files'] + [str(release / OVERLAY_FILE)]:

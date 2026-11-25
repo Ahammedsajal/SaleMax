@@ -4,10 +4,10 @@ const express = require('express');
 const crypto = require('node:crypto');
 const {buildConnectorArchive} = require('./woocommerce-connector-package');
 const connector = require('./retail-connected-stores');
-const connectorPilot=require('./retail-connector-pilot');
 const { decision } = require('./policy');
 const originCheck = require('./request-origin');
 const quantity = require('./retail-quantity');
+const shopifySync = require('./retail-shopify-sync');
 
 const handle = fn => (req, res, next) => Promise.resolve(fn(req, res)).catch(next);
 const reply = (res, data) => res.json({ success: true, data });
@@ -16,15 +16,21 @@ const fail = connector.fail;
 const stockManagementModes = new Set(['unknown','managed','unmanaged','parent']);
 const validVersion = value => /^20\d{2}-(01|04|07|10)$/.test(value || '');
 const safeConnection = row => {
-  const woo = row.provider === 'woocommerce' ? parseJson(row.sync_cursor, {}).woocommerce || {} : null;
+  const cursors = parseJson(row.sync_cursor, {});
+  const woo = row.provider === 'woocommerce' ? cursors.woocommerce || {} : null;
+  const shopify = row.provider === 'shopify' ? cursors.shopify || {} : null;
   return { id: row.id, provider: row.provider, storeDomain: row.store_domain, displayName: row.display_name,
     currency: row.default_currency, status: row.status, scopes: parseJson(row.scopes, []), lastSyncAt: row.last_sync_at,
+    credentialsVerifiedAt: row.credentials_verified_at || null, syncEnabled: Boolean(row.credentials_verified_at),
     lastErrorCode: row.last_error_code, counts: row.counts || { orders: 0, customers: 0, products: 0, variations: 0, checkouts: 0, mappings: 0 },
     syncProgress: woo ? { scanStartedAt: woo.scanStartedAt || null, lastCompleteScanAt: woo.lastCompleteScan?.completedAt || null,
       resources: Object.fromEntries(['products','orders','customers'].map(resource => [resource, {
         complete: Boolean(woo[resource]?.complete), page: Number(woo[resource]?.page) || 1,
         sourceTotal: woo[resource]?.sourceTotal ?? null, scanned: Number(woo[resource]?.scanned) || 0,
-      }])), pendingVariationParents: (woo.variationQueue || []).length } : null };
+      }])), pendingVariationParents: (woo.variationQueue || []).length } : shopify ? {
+      resources: Object.fromEntries(['products','orders','customers'].map(resource => [resource, { complete: Boolean(shopify[resource]?.complete) }])),
+      pendingVariantProducts: Array.isArray(shopify.variantQueue) ? shopify.variantQueue.length : 0,
+    } : null };
 };
 function parseJson(value, fallback) { try { return typeof value === 'string' ? JSON.parse(value) : value || fallback; } catch { return fallback; } }
 function jsonFromEncrypted(row, tenantId, connectionId, kind) { return connector.openJson(row, tenantId, connectionId, kind); }
@@ -73,16 +79,6 @@ function publicOrigin(value) {
   return parsed.origin;
 }
 function webhookUrl(origin, provider, id) { return `${origin}/api/retail-connectors/${provider}/${encodeURIComponent(id)}`; }
-function compactShopifyQueries() {
-  const after = '$after: String';
-  const pageInfo = 'pageInfo { hasNextPage endCursor }';
-  return {
-    products: `query Products(${after}) { products(first: 25, after: $after, sortKey: UPDATED_AT) { edges { cursor node { id title handle status updatedAt featuredImage { url altText } priceRangeV2 { minVariantPrice { amount currencyCode } } variants(first: 5) { nodes { id title sku price } pageInfo { hasNextPage } } } } ${pageInfo} } }`,
-    orders: `query Orders(${after}) { orders(first: 10, after: $after, sortKey: UPDATED_AT) { edges { cursor node { id name displayFinancialStatus displayFulfillmentStatus cancelledAt closed currency totalPriceSet { shopMoney { amount currencyCode } } createdAt updatedAt customer { id firstName lastName email phone emailMarketingConsent { marketingState marketingOptInLevel consentUpdatedAt } defaultAddress { address1 address2 city province zip countryCodeV2 } } lineItems(first: 20) { nodes { id title quantity sku originalUnitPriceSet { shopMoney { amount currencyCode } } } pageInfo { hasNextPage } } transactions(first: 20) { nodes { id kind status gateway createdAt amountSet { shopMoney { amount currencyCode } } } pageInfo { hasNextPage } } refunds { id createdAt totalRefundedSet { shopMoney { amount currencyCode } } transactions(first: 20) { nodes { id kind status gateway createdAt amountSet { shopMoney { amount currencyCode } } } pageInfo { hasNextPage } } } } } ${pageInfo} } }`,
-    customers: `query Customers(${after}) { customers(first: 50, after: $after, sortKey: UPDATED_AT) { edges { cursor node { id firstName lastName email phone emailMarketingConsent { marketingState marketingOptInLevel consentUpdatedAt } updatedAt defaultAddress { address1 address2 city province zip countryCodeV2 } } } ${pageInfo} } }`,
-    checkouts: `query Checkouts(${after}) { abandonedCheckouts(first: 20, after: $after, sortKey: ID) { edges { cursor node { id createdAt updatedAt completedAt abandonedCheckoutUrl totalPriceSet { shopMoney { amount currencyCode } } customer { id firstName lastName email phone emailMarketingConsent { marketingState marketingOptInLevel consentUpdatedAt } } lineItems(first: 20) { nodes { id title sku quantity originalUnitPriceSet { shopMoney { amount currencyCode } } } pageInfo { hasNextPage } } } } ${pageInfo} } }`,
-  };
-}
 async function shopifyApi(connection, query, variables = {}) {
   const token = credentials(connection).accessToken;
   if (!token) fail('STORE_CONNECTION_NOT_READY', 409);
@@ -128,6 +124,7 @@ async function saveCursor(db, connection, cursors, errorCode = null) {
     WHERE tenant_id=? AND id=?`, [JSON.stringify(cursors), errorCode, connection.tenant_id, connection.id]);
 }
 async function syncShopify(pool, connection) {
+  if (!connection.credentials_verified_at) fail('STORE_CREDENTIALS_REVALIDATION_REQUIRED', 409);
   const db = await pool.getConnection();
   const lock = crypto.randomUUID();
   try {
@@ -135,7 +132,8 @@ async function syncShopify(pool, connection) {
       WHERE tenant_id=? AND id=? AND status='active' AND (sync_lock_until IS NULL OR sync_lock_until<UTC_TIMESTAMP(3))`, [lock, connection.tenant_id, connection.id]);
     if (!result.affectedRows) fail('STORE_SYNC_ALREADY_RUNNING', 409);
   } finally { db.release(); }
-  const local = cursorState(connection), next = local.shopify || {}, queries = compactShopifyQueries(), result = {};
+  const local = cursorState(connection), next = local.shopify || {}, queries = shopifySync.compactShopifyQueries(), result = {};
+  if (!Array.isArray(next.variantQueue)) next.variantQueue = [];
   const mapping = { products: 'products', orders: 'orders', customers: 'customers', checkouts: 'abandonedCheckouts' };
   try {
     for (const resource of Object.keys(mapping)) {
@@ -151,7 +149,10 @@ async function syncShopify(pool, connection) {
         try {
           await writer.beginTransaction();
           for (const row of rows) {
-            if (resource === 'products') await connector.upsertProduct(writer, connection, row);
+            if (resource === 'products') {
+              await connector.upsertProduct(writer, connection, row);
+              shopifySync.queueVariantPage(next.variantQueue, row);
+            }
             if (resource === 'customers') await connector.upsertCustomer(writer, connection, row);
             if (resource === 'orders') {
               const customer = row.customer;
@@ -173,6 +174,31 @@ async function syncShopify(pool, connection) {
         result[resource] = { imported: 0, hasMore: false, errorCode: clean.code };
       }
     }
+    let variantsImported = 0, variantRequests = 0;
+    while (next.variantQueue.length && variantRequests < 2) {
+      const pending = next.variantQueue[0];
+      if (!/^gid:\/\/shopify\/Product\/\d+$/.test(pending.productId) || typeof pending.after !== 'string' || !pending.after) {
+        fail('SHOPIFY_SYNC_FAILED', 502);
+      }
+      const data = await shopifyApi(connection, queries.productVariants, { productId: pending.productId, after: pending.after });
+      const product = data?.product, variants = product?.variants;
+      if (!product || product.id !== pending.productId || !variants || !Array.isArray(variants.nodes)) {
+        fail('SHOPIFY_SYNC_FAILED', 502);
+      }
+      const page = variants.pageInfo || {};
+      if (page.hasNextPage && (!page.endCursor || page.endCursor === pending.after)) fail('SHOPIFY_SYNC_FAILED', 502);
+      const writer = await pool.getConnection();
+      try {
+        await writer.beginTransaction();
+        const imported = await connector.persistShopifyProductVariants(writer, connection, product.id, variants.nodes);
+        if (page.hasNextPage) pending.after = page.endCursor;
+        else next.variantQueue.shift();
+        await writer.commit();
+        variantsImported += imported.accepted;
+      } catch (error) { await writer.rollback(); throw error; } finally { writer.release(); }
+      variantRequests++;
+    }
+    result.variants = { imported: variantsImported, hasMore: next.variantQueue.length > 0, pendingProducts: next.variantQueue.length };
     const firstError = Object.values(result).find(value => value.errorCode)?.errorCode || null;
     await pool.query(`UPDATE sx_retail_store_connections SET sync_cursor=?,last_sync_at=UTC_TIMESTAMP(3),last_error_code=?,
       sync_lock_token=NULL,sync_lock_until=NULL WHERE tenant_id=? AND id=? AND sync_lock_token=?`,
@@ -244,6 +270,7 @@ async function checkpointWooCursor(db, connection, lock, local, next) {
   if (!saved.affectedRows) fail('STORE_SYNC_LEASE_LOST', 409);
 }
 async function syncWoo(pool, connection) {
+  if (!connection.credentials_verified_at) fail('STORE_CREDENTIALS_REVALIDATION_REQUIRED', 409);
   const lock = crypto.randomUUID();
   const [locked] = await pool.query(`UPDATE sx_retail_store_connections SET sync_lock_token=?,sync_lock_until=UTC_TIMESTAMP(3)+INTERVAL 5 MINUTE
     WHERE tenant_id=? AND id=? AND status='active' AND (sync_lock_until IS NULL OR sync_lock_until<UTC_TIMESTAMP(3))`, [lock, connection.tenant_id, connection.id]);
@@ -401,7 +428,9 @@ async function connectionData(pool, connection, kind, pageValue, parentProductId
   const limit = 50, offset = (page - 1) * limit, { tenant_id: tenantId, id } = connection;
   if (kind === 'variations') {
     const parentId = String(parentProductId || '');
-    if (connection.provider !== 'woocommerce' || !/^\d{1,191}$/.test(parentId)) fail('INVALID_STORE_RESOURCE', 400);
+    const validParent = connection.provider === 'woocommerce' ? /^\d{1,191}$/.test(parentId) :
+      connection.provider === 'shopify' ? /^gid:\/\/shopify\/Product\/\d+$/.test(parentId) : false;
+    if (!validParent) fail('INVALID_STORE_RESOURCE', 400);
     const [rows] = await pool.query(`SELECT external_variant_id AS id,external_product_id AS productId,sku,variant_status AS status,
       currency,price,variant_ciphertext AS ciphertext,variant_iv AS iv,variant_auth_tag AS authTag,
       source_stock_management AS sourceStockManagement,
@@ -892,14 +921,14 @@ async function processWebhook(pool, connection, event) {
   } finally { db.release(); }
 }
 async function webhookConnectionDetails(pool,provider,id,tenantId){
-  const [[connection]]=await pool.query(`SELECT id,tenant_id,provider,store_domain,status,webhook_secret_ciphertext,webhook_secret_iv,webhook_secret_auth_tag
+  const [[connection]]=await pool.query(`SELECT id,tenant_id,provider,store_domain,status,credentials_verified_at,webhook_secret_ciphertext,webhook_secret_iv,webhook_secret_auth_tag
     FROM sx_retail_store_connections WHERE id=? AND tenant_id=? AND provider=?`,[id,tenantId,provider]);
   return connection||null;
 }
 async function webhookConnection(pool, provider, id, env=process.env) {
   if (!connector.validateId(id)) fail('WEBHOOK_NOT_FOUND', 404);
   const [[identity]]=await pool.query(`SELECT tenant_id FROM sx_retail_store_connections WHERE id=? AND provider=?`,[id,provider]);
-  if(!identity||!connectorPilot.isPilotTenant(identity.tenant_id,env))return null;
+  if(!identity)return null;
   return webhookConnectionDetails(pool,provider,id,identity.tenant_id);
 }
 
@@ -910,10 +939,7 @@ function workspaceRouter({ pool, authenticate, origin, env=process.env }) {
     if (!decision(context, { capability: 'retail.commerce', permission: 'retail.connect' }).allowed) return res.sendStatus(403);
     return fn(req, res, context);
   });
-  router.use(noStore, authenticate, express.json({ limit: '16kb' }), (req,res,next)=>{
-    if(!connectorPilot.isPilotTenant(req.businessContext?.tenant?.id,env))return res.status(403).json({success:false,code:'RETAIL_CONNECTOR_PILOT_DISABLED'});
-    next();
-  });
+  router.use(noStore, authenticate, express.json({ limit: '16kb' }));
   router.use((req, res, next) => ['POST','PUT','DELETE'].includes(req.method) ? originGuard(origin)(req, res, next) : next());
 
   router.get('/', owner(async (req, res, context) => reply(res, { connections: await listConnections(pool, context.tenant.id) })));
@@ -926,14 +952,14 @@ function workspaceRouter({ pool, authenticate, origin, env=process.env }) {
     const [[storeOwner]] = await pool.query(`SELECT tenant_id FROM sx_retail_store_connections
       WHERE provider='shopify' AND store_domain=? LIMIT 1`, [shop]);
     if (storeOwner && storeOwner.tenant_id !== context.tenant.id) fail('STORE_CONNECTION_EXISTS', 409);
-    const [existingRows] = await pool.query(`SELECT id,status FROM sx_retail_store_connections
+    const [existingRows] = await pool.query(`SELECT id,status,credentials_verified_at AS credentialsVerifiedAt FROM sx_retail_store_connections
       WHERE tenant_id=? AND provider='shopify' AND store_domain=? LIMIT 1`, [context.tenant.id, shop]);
     let id;
     if (existingRows[0]) {
       id = existingRows[0].id;
-      if (['active','paused'].includes(existingRows[0].status)) fail('STORE_CONNECTION_EXISTS', 409);
+      if (existingRows[0].status==='pending') fail('STORE_CONNECTION_EXISTS', 409);
       await pool.query(`UPDATE sx_retail_store_connections SET status='pending',default_currency=?,credentials_ciphertext=NULL,credentials_iv=NULL,
-        credentials_auth_tag=NULL,last_error_code=NULL,created_by_identity_id=? WHERE tenant_id=? AND id=?`, [defaultCurrency, context.identity.id, context.tenant.id, id]);
+        credentials_auth_tag=NULL,credentials_verified_at=NULL,last_error_code=NULL,created_by_identity_id=? WHERE tenant_id=? AND id=?`, [defaultCurrency, context.identity.id, context.tenant.id, id]);
     } else {
       id = crypto.randomUUID();
       await pool.query(`INSERT INTO sx_retail_store_connections(id,tenant_id,provider,store_domain,display_name,default_currency,status,scopes,
@@ -967,23 +993,23 @@ function workspaceRouter({ pool, authenticate, origin, env=process.env }) {
     let id, reconnected = false;
     try {
       await db.beginTransaction();
-      const [[existing]] = await db.query(`SELECT id,tenant_id,status FROM sx_retail_store_connections
+      const [[existing]] = await db.query(`SELECT id,tenant_id,status,credentials_verified_at AS credentialsVerifiedAt FROM sx_retail_store_connections
         WHERE provider='woocommerce' AND store_domain=? FOR UPDATE`, [storeUrl]);
-      if (existing && existing.tenant_id !== context.tenant.id || existing && ['active','paused','pending'].includes(existing.status)) fail('STORE_CONNECTION_EXISTS', 409);
+      if (existing && existing.tenant_id !== context.tenant.id || existing && existing.status==='pending') fail('STORE_CONNECTION_EXISTS', 409);
       id = existing?.id || crypto.randomUUID();
       reconnected = Boolean(existing);
       const encryptedCredentials = connector.seal({ consumerKey, consumerSecret }, context.tenant.id, id, 'credentials');
       const encryptedWebhook = connector.seal(Buffer.from(webhookSecret), context.tenant.id, id, 'webhook-secret');
       if (existing) {
         await db.query(`UPDATE sx_retail_store_connections SET display_name=?,default_currency=?,status='active',scopes=JSON_ARRAY('read_products','read_orders','read_customers'),
-          credentials_ciphertext=?,credentials_iv=?,credentials_auth_tag=?,webhook_secret_ciphertext=?,webhook_secret_iv=?,webhook_secret_auth_tag=?,
+          credentials_ciphertext=?,credentials_iv=?,credentials_auth_tag=?,credentials_verified_at=UTC_TIMESTAMP(3),webhook_secret_ciphertext=?,webhook_secret_iv=?,webhook_secret_auth_tag=?,
           sync_cursor=NULL,sync_lock_token=NULL,sync_lock_until=NULL,last_error_code=NULL,created_by_identity_id=? WHERE tenant_id=? AND id=?`,
         [displayName, currency, encryptedCredentials.ciphertext, encryptedCredentials.iv, encryptedCredentials.authTag,
           encryptedWebhook.ciphertext, encryptedWebhook.iv, encryptedWebhook.authTag, context.identity.id, context.tenant.id, id]);
       } else {
         await db.query(`INSERT INTO sx_retail_store_connections(id,tenant_id,provider,store_domain,display_name,default_currency,status,scopes,
-          credentials_ciphertext,credentials_iv,credentials_auth_tag,webhook_secret_ciphertext,webhook_secret_iv,webhook_secret_auth_tag,created_by_identity_id)
-          VALUES (?,?,'woocommerce',?,?,?,'active',JSON_ARRAY('read_products','read_orders','read_customers'),?,?,?,?,?,?,?)`,
+          credentials_ciphertext,credentials_iv,credentials_auth_tag,credentials_verified_at,webhook_secret_ciphertext,webhook_secret_iv,webhook_secret_auth_tag,created_by_identity_id)
+          VALUES (?,?,'woocommerce',?,?,?,'active',JSON_ARRAY('read_products','read_orders','read_customers'),?,?,?,UTC_TIMESTAMP(3),?,?,?,?)`,
         [id, context.tenant.id, storeUrl, displayName, currency, encryptedCredentials.ciphertext, encryptedCredentials.iv, encryptedCredentials.authTag,
           encryptedWebhook.ciphertext, encryptedWebhook.iv, encryptedWebhook.authTag, context.identity.id]);
       }
@@ -1015,6 +1041,7 @@ function workspaceRouter({ pool, authenticate, origin, env=process.env }) {
     if (Object.keys(req.body || {}).length) fail('INVALID_STORE_SYNC', 400);
     const connection = await loadConnection(pool, context.tenant.id, req.params.id);
     if (connection.status !== 'active') fail('STORE_CONNECTION_NOT_ACTIVE', 409);
+    if (!connection.credentials_verified_at) fail('STORE_CREDENTIALS_REVALIDATION_REQUIRED', 409);
     const result = connection.provider === 'shopify' ? await syncShopify(pool, connection) : await syncWoo(pool, connection);
     await pool.query(`INSERT INTO sx_audit_events(id,tenant_id,actor_identity_id,actor_kind,action,resource_type,resource_id,changes,correlation_id)
       VALUES (?, ?, ?, 'identity', 'retail.store-sync-requested', 'retail-store-connection', ?, ?, ?)`,
@@ -1259,8 +1286,8 @@ function workspaceRouter({ pool, authenticate, origin, env=process.env }) {
     const db = await pool.getConnection();
     try {
       await db.beginTransaction();
-      for (const table of ['sx_retail_external_product_mappings','sx_retail_external_transactions','sx_retail_external_orders','sx_retail_external_checkouts',
-        'sx_retail_external_customers','sx_retail_external_product_variants','sx_retail_external_products','sx_retail_external_events','sx_retail_store_privacy_requests']) {
+      await connector.eraseConnectionData(db, connection);
+      for (const table of ['sx_retail_external_events']) {
         await db.query(`DELETE FROM ${table} WHERE tenant_id=? AND connection_id=?`, [context.tenant.id, connection.id]);
       }
       await db.query(`INSERT INTO sx_audit_events(id,tenant_id,actor_identity_id,actor_kind,action,resource_type,resource_id,changes,correlation_id)
@@ -1287,7 +1314,6 @@ async function callbackShopify(pool, req, res, origin, env=process.env) {
   let connectionId = null;
   try {
     const context = req.businessContext;
-    if(!connectorPilot.isPilotTenant(context?.tenant?.id,env))fail('RETAIL_CONNECTOR_PILOT_DISABLED',403);
     const config = shopifyConfig();
     if (!decision(context, { capability: 'retail.commerce', permission: 'retail.connect' }).allowed) return res.sendStatus(403);
     if (req.query.error) return res.redirect(303, '/user?page=retail-connected-stores&connectionError=SHOPIFY_INSTALL_CANCELLED');
@@ -1313,7 +1339,7 @@ async function callbackShopify(pool, req, res, origin, env=process.env) {
     if (missingScopes.length) fail('SHOPIFY_REQUIRED_SCOPE_MISSING', 403);
     const encrypted = connector.seal(exchanged, context.tenant.id, connectionId, 'credentials');
     await pool.query(`UPDATE sx_retail_store_connections SET status='active',scopes=?,credentials_ciphertext=?,credentials_iv=?,
-      credentials_auth_tag=?,last_error_code=NULL,sync_cursor=NULL WHERE tenant_id=? AND id=?`,
+      credentials_auth_tag=?,credentials_verified_at=UTC_TIMESTAMP(3),last_error_code=NULL,sync_cursor=NULL WHERE tenant_id=? AND id=?`,
     [JSON.stringify(exchanged.scopes), encrypted.ciphertext, encrypted.iv, encrypted.authTag, context.tenant.id, connectionId]);
     const connection = await loadConnection(pool, context.tenant.id, connectionId);
     const subscriptions = await registerShopifyWebhooks(connection, publicOrigin(origin));
@@ -1334,7 +1360,6 @@ async function callbackShopify(pool, req, res, origin, env=process.env) {
 
 async function handleWebhook(pool, provider, connection, req, res, env=process.env) {
   if (!connection || !Buffer.isBuffer(req.body)) return res.sendStatus(404);
-  if(!connectorPilot.isPilotTenant(connection.tenant_id,env))return res.sendStatus(404);
   const raw = req.body;
   if (raw.length > 2 * 1024 * 1024) return res.sendStatus(413);
   const topic = String(provider === 'shopify' ? req.get('X-Shopify-Topic') || '' : req.get('X-WC-Webhook-Topic') || req.get('X-7Network-Event') || '');
@@ -1346,6 +1371,12 @@ async function handleWebhook(pool, provider, connection, req, res, env=process.e
   if (!valid) return res.sendStatus(401);
   const shopHeader = provider === 'shopify' ? String(req.get('X-Shopify-Shop-Domain') || '').toLowerCase() : null;
   if (provider === 'shopify' && shopHeader !== connection.store_domain) return res.sendStatus(401);
+  const complianceEvent=/app\/uninstalled|shop\/redact|customers\/(?:redact|data_request)|customer\.deleted|customers\/delete/i.test(topic);
+  if (!complianceEvent) {
+    if (!connection.credentials_verified_at) return res.sendStatus(200);
+    const entitlement=await require('./plans').loadEntitlements(pool,connection.tenant_id);
+    if (!entitlement||!['active','trial','grace'].includes(entitlement.status)||!entitlement.capabilities?.includes('retail.commerce'))return res.sendStatus(200);
+  }
   if (!['active','paused','revoked'].includes(connection.status)) return res.sendStatus(410);
   if (connection.status !== 'active' && !/app\/uninstalled|shop\/redact|customers\/(redact|data_request)/i.test(topic)) return res.sendStatus(200);
   try {
@@ -1367,7 +1398,7 @@ function publicRouter({ pool, authenticate, origin, env=process.env }) {
     let shop;
     try { shop = connector.normalizeShop(req.get('X-Shopify-Shop-Domain')); } catch { return res.sendStatus(401); }
     const [[identity]]=await pool.query(`SELECT id,tenant_id FROM sx_retail_store_connections WHERE provider='shopify' AND store_domain=? LIMIT 1`,[shop]);
-    if(!identity||!connectorPilot.isPilotTenant(identity.tenant_id,env))return res.sendStatus(404);
+    if(!identity)return res.sendStatus(404);
     const connection=await webhookConnectionDetails(pool,'shopify',identity.id,identity.tenant_id);
     return handleWebhook(pool, 'shopify', connection, req, res,env);
   }));
@@ -1392,4 +1423,5 @@ function publicRouter({ pool, authenticate, origin, env=process.env }) {
   return router;
 }
 
-module.exports = { workspaceRouter, publicRouter, syncShopify, syncWoo, connectionData, connectionReconciliation, compareOrderAmountGroups, processWebhook, listConnections };
+module.exports = { workspaceRouter, publicRouter, syncShopify, syncWoo, connectionData, connectionReconciliation,
+  compareOrderAmountGroups, processWebhook, listConnections };

@@ -1,5 +1,4 @@
 const { decision } = require('./policy');
-const retailConnectorPilot=require('./retail-connector-pilot');
 const items = [
   ['dashboard', 'tenant.settings', 'tenant.read', 'Dashboard', 'لوحة التحكم', 'Overview', 'نظرة عامة'],
   ['notifications', 'tenant.settings', 'tenant.read', 'Web Notifications', 'إشعارات الويب', 'Overview', 'نظرة عامة'],
@@ -26,7 +25,8 @@ const items = [
   ['sales-organization', 'team.members', 'team.read', 'Organization', 'الهيكل التنظيمي', 'Sales', 'المبيعات'],
   ['commission-policy', 'sales.commissions', 'commission.policy.manage', 'Commission Policy', 'سياسة العمولات', 'Administration', 'الإدارة'],
   ['retail-orders', 'retail.commerce', 'retail.orders', 'Retail orders', 'طلبات التجزئة', 'Business Operations', 'عمليات الأعمال'],
-  ['retail-connected-stores', 'retail.commerce', 'retail.connect', 'Connected Stores', 'المتاجر المتصلة', 'Business Operations', 'عمليات الأعمال'],
+  ['retail-connected-stores', 'retail.commerce', 'retail.connect', 'Store Connections', 'اتصالات المتاجر', 'Integrations & Imports', 'التكاملات والاستيراد'],
+  ['retail-customers', 'retail.commerce', 'retail.customers.read', 'Customers', 'العملاء', 'Business Operations', 'عمليات الأعمال'],
   ['retail-deliveries', 'retail.commerce', 'retail.deliver', 'My deliveries', 'عمليات التوصيل الخاصة بي', 'Business Operations', 'عمليات الأعمال'],
   ['business-inventory', 'retail.inventory', 'inventory.read', 'Inventory', 'المخزون', 'Business Operations', 'عمليات الأعمال'],
   ['products-services', 'products.catalog', 'products.read', 'Products & services', 'المنتجات والخدمات', 'Sales', 'المبيعات'],
@@ -60,8 +60,7 @@ function navigationFor(context,env=process.env) {
   const visible = context.category?.key === '7network_sales' && context.membership.role === 'accountant'
     ? items.filter(item => ['sales-finance', 'sales-commissions'].includes(item.key))
     : items;
-  return visible.filter(item => (item.key!=='retail-connected-stores'||retailConnectorPilot.isPilotTenant(context.tenant.id,env)) &&
-    (!item.ownerOnly||context.membership.role==='owner') && decision(context, item).allowed &&
+  return visible.filter(item => (!item.ownerOnly||context.membership.role==='owner') && decision(context, item).allowed &&
     (item.key!=='finance-reports'||decision(context,{capability:'finance.invoices',permission:'invoices.read'}).allowed))
     .map(item => ({ ...item, scope: decision(context, item).scope }));
 }
@@ -83,7 +82,16 @@ async function sidebarForMembership(pool,context,rows){
 // The existing Finance screen contains invoices, installments, payments and
 // receipts in one workspace. A screen assignment admits those views; the
 // member's action permissions still decide which operations are available.
-function keysForCapability(capability){
+function keysForCapability(capability,permission){
+  if(capability==='retail.commerce'&&permission){
+    const screens={
+      'retail.connect':['retail-connected-stores'],
+      'retail.customers.read':['retail-customers'],
+      'retail.orders':['retail-orders'],
+      'retail.deliver':['retail-deliveries'],
+    };
+    if(screens[permission])return screens[permission];
+  }
   if(capability==='email.marketing')return ['email'];
   if(['finance.invoices','finance.installments','finance.payments','finance.receipts'].includes(capability))return ['invoices','installments','payments','receipts'];
   return items.filter(item=>item.capability===capability).map(item=>item.key);

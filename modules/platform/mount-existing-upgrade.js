@@ -85,6 +85,7 @@ function mountExistingUpgrade(app,{pool,key,origin,insecureLoopback=false,legacy
   const retailConnectors=require('./retail-connected-stores-router');
   app.use('/api/retail-connectors',retailConnectors.publicRouter({pool,authenticate:featureSession.guard,origin}));
   app.use('/api/workspace/retail/connectors',retailConnectors.workspaceRouter({pool,authenticate:featureSession.guard,origin}));
+  require('./retail-connected-stores-worker').start(pool);
   app.use('/api/workspace/retail',retail.workspaceRouter({pool,authenticate:featureSession.guard}));
   app.use('/api/workspace/business-inventory',require('./business-inventory-router')({pool,authenticate:featureSession.guard}));
   app.use('/api/workspace/products-services',createTrainingCourseRouter({pool,origin,userGuard,canonicalGuard:businessBoundary.guard,sessionGuard:featureSession.guard,products:true}));

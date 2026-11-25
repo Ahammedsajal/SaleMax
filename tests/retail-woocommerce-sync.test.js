@@ -152,7 +152,8 @@ test('Woo sync paginates resources, retries transient GET failures, and imports 
   const connectionId = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb';
   process.env.SALEMAX_PLATFORM_KEY_BASE64 = Buffer.alloc(32, 7).toString('base64');
   const creds = connector.seal({consumerKey: 'ck_' + 'A'.repeat(32), consumerSecret: 'cs_' + 'B'.repeat(32)}, tenantId, connectionId, 'credentials');
-  const connection = {id: connectionId, tenant_id: tenantId, provider: 'woocommerce', status: 'active', default_currency: 'QAR',
+  const connection = {id: connectionId, tenant_id: tenantId, provider: 'woocommerce', status: 'active',
+    credentials_verified_at: new Date('2026-11-15T09:00:00Z'), default_currency: 'QAR',
     store_domain: 'https://store.example.com', sync_cursor: null, credentials_ciphertext: creds.ciphertext,
     credentials_iv: creds.iv, credentials_auth_tag: creds.authTag};
   const requests = [], writes = [];
@@ -184,7 +185,8 @@ test('Woo sync paginates resources, retries transient GET failures, and imports 
   const writer = {beginTransaction: async()=>{stagedCursor = null;}, commit: async()=>{if(stagedCursor)committedCursor=stagedCursor;}, rollback: async()=>{stagedCursor=null;}, release: ()=>{}, query: async(sql,params)=>{
     writes.push({sql,params});
     if(sql.includes('SET sync_cursor=?'))stagedCursor=params[0];
-    return sql.startsWith('SELECT source_updated_at') ? [[],[]] : [{affectedRows: 1},[]];
+    if (sql.includes('COALESCE(MAX(version),0) AS version')) return [[{version: 0}],[]];
+    return sql.trimStart().startsWith('SELECT') ? [[],[]] : [{affectedRows: 1},[]];
   }};
   const pool = {get cursor(){return committedCursor;}, query: async(sql,params)=>{
     if (sql.includes('SET sync_cursor=?')) committedCursor = params[0];
@@ -211,6 +213,10 @@ test('Woo sync paginates resources, retries transient GET failures, and imports 
     assert.ok(requests.filter(request => /\/products(?:\/\d+\/variations)?$/.test(new URL(request.url).pathname) || /\/orders$/.test(new URL(request.url).pathname))
       .every(request => new URL(request.url).searchParams.get('status') === 'any'));
     assert.ok(writes.some(write => write.sql.includes('external_variant_id')));
+    assert.ok(writes.some(write => write.sql.startsWith('INSERT INTO sx_product_catalog')));
+    assert.ok(writes.some(write => write.sql.startsWith('INSERT INTO sx_retail_catalogue_imports')));
+    assert.ok(writes.some(write => write.sql.startsWith('INSERT INTO sx_retail_orders')));
+    assert.ok(writes.some(write => write.sql.startsWith('INSERT IGNORE INTO sx_retail_customer_search_tokens')));
     const variationStockWrite=writes.find(write=>write.sql.includes('source_stock_quantity')&&write.sql.includes('external_variant_id'));
     assert.equal(variationStockWrite.params[11],1);
     assert.equal(variationStockWrite.params[12],'managed');
@@ -248,7 +254,7 @@ test('WooCommerce connection persists a verified read-only store without startin
     beginTransaction: async () => {},
     query: async (sql, params) => {
       connectionWrites.push({sql, params});
-      if (sql.startsWith('SELECT id,tenant_id,status FROM sx_retail_store_connections')) return [[],[]];
+      if (sql.startsWith('SELECT id,tenant_id,status,credentials_verified_at AS credentialsVerifiedAt FROM sx_retail_store_connections')) return [[],[]];
       return [{affectedRows: 1},[]];
     },
     commit: async () => {}, rollback: async () => {}, release: () => {},
@@ -282,6 +288,7 @@ test('WooCommerce connection persists a verified read-only store without startin
     assert.equal(requests[0].method, 'GET');
     assert.match(new URL(requests[0].url).pathname, /\/wp-json\/wc\/v3\/orders$/);
     assert.equal(connectionWrites.filter(item=>item.sql.startsWith('INSERT INTO sx_retail_store_connections')).length, 1);
+    assert.match(connectionWrites.find(item=>item.sql.startsWith('INSERT INTO sx_retail_store_connections')).sql,/credentials_verified_at/);
     assert.equal(connectionWrites.filter(item=>/sx_retail_external_(products|product_variants|orders|customers)/.test(item.sql)).length, 0);
   } finally {
     connector.requestHttps = originalRequest;
@@ -296,7 +303,7 @@ test('reconnecting a revoked Woo store reuses its ID and resets the resumable cu
   const tenantId='aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',connectionId='bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb';
   const calls=[],requests=[],db={beginTransaction:async()=>{},commit:async()=>{},rollback:async()=>{},release:()=>{},query:async(sql,params)=>{
     calls.push({sql,params});
-    if(sql.startsWith('SELECT id,tenant_id,status FROM sx_retail_store_connections'))return [[{id:connectionId,tenant_id:tenantId,status:'revoked'}],[]];
+    if(sql.startsWith('SELECT id,tenant_id,status,credentials_verified_at AS credentialsVerifiedAt FROM sx_retail_store_connections'))return [[{id:connectionId,tenant_id:tenantId,status:'revoked',credentialsVerifiedAt:null}],[]];
     return [{affectedRows:1},[]];
   }};
   const pool={getConnection:async()=>db},router=workspaceRouter({pool,authenticate:(_req,_res,next)=>next(),origin:'https://workspace.example.invalid'});
@@ -625,11 +632,12 @@ test('redacted customers are not restored by later order or checkout imports', a
   const connection = {id: connectionId, tenant_id: tenantId, provider: 'woocommerce', default_currency: 'QAR'};
   const writes = [];
   const db = {query: async(sql,params)=>{
-    if (sql.startsWith('SELECT source_updated_at AS sourceUpdatedAt,customer_status AS customerStatus FROM sx_retail_external_customers')) {
-      return [[{sourceUpdatedAt: new Date('2026-11-15T10:00:00Z'), customerStatus: 'redacted'}],[]];
+    if (sql.startsWith('SELECT source_updated_at AS sourceUpdatedAt,customer_status AS customerStatus,customer_directory_key AS customerDirectoryKey FROM sx_retail_external_customers')) {
+      return [[{sourceUpdatedAt: new Date('2026-11-15T10:00:00Z'), customerStatus: 'redacted', customerDirectoryKey: null}],[]];
     }
     if (sql.startsWith('SELECT source_updated_at AS sourceUpdatedAt FROM sx_retail_external_orders') ||
         sql.startsWith('SELECT source_updated_at AS sourceUpdatedAt FROM sx_retail_external_checkouts')) return [[],[]];
+    if (sql.trimStart().startsWith('SELECT')) return [[],[]];
     writes.push({sql,params});return [{affectedRows:1},[]];
   }};
   try {
@@ -644,9 +652,10 @@ test('redacted customers are not restored by later order or checkout imports', a
     const checkoutWrite = writes.find(write => write.sql.startsWith('INSERT INTO sx_retail_external_checkouts'));
     assert.ok(orderWrite && checkoutWrite);
     assert.equal(orderWrite.params[14], null);
-    assert.equal(orderWrite.params[15], 'unknown');
-    assert.equal(orderWrite.params[17], null);
-    const order = connector.openJson({ciphertext: orderWrite.params[20], iv: orderWrite.params[21], authTag: orderWrite.params[22]}, tenantId, connectionId, 'order:900');
+    assert.equal(orderWrite.params[15], null);
+    assert.equal(orderWrite.params[16], null);
+    assert.equal(orderWrite.params[17], 'unknown');
+    const order = connector.openJson({ciphertext: orderWrite.params[22], iv: orderWrite.params[23], authTag: orderWrite.params[24]}, tenantId, connectionId, 'order:900');
     assert.equal(order.customer, null);
     assert.equal(checkoutWrite.params[6], null);
     assert.equal(checkoutWrite.params[7], 'unknown');
