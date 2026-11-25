@@ -36,7 +36,7 @@ PREIMAGES = {
     'modules/platform/chatbot-business-context.js': '8d1642620cbfbbdf14393d30f386cfb3e238944715358f2a8611987942a2649c',
     'routes/pipeline.js': 'bd210f1a2f549b50da319acd6f45c470d457470232baca78dce28e1e0ea2a600',
     'modules/platform/team-role-request-guard.js': 'f7a56d20cdb4c8dbf9e9d44076cb48e22eb4538b6272ad3dd7cff3eae3a99a81',
-    INDEX: '214d763c0857944e899716e733c898c65801ad03ed57dcaa2f7f668724d8d965',
+    INDEX: '214d763c0857944e899716a733c898c65801ad03ed57dcaa2f7f668724d8d965',
 }
 MINIMUM_FREE_BYTES = 4 * 1024**3
 
