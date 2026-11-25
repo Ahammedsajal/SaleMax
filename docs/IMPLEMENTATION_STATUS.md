@@ -2722,3 +2722,23 @@ records its existing scoped endpoints load, so report totals must not be
 presented as complete until pagination and source-data reconciliation are
 verified. The broader 42-ticket application program, restore/load gates and
 production release work remain open.
+
+### Sale review ad-source checkpoint — production, 25 November 2026
+
+The existing owner sale-review list now surfaces the most recent Meta ad name
+and headline only when a provider-verified attribution record belongs to that
+same lead. This adds a human review checkpoint on the existing path from an ad
+enquiry toward an approved enrollment. It does not infer an ad for unverified
+referrals and does not claim paid-enrollment return before finance records are
+reconciled.
+
+Source `292dd5012192970a4b0f21a7c656e50d1d3273a5` is deployed. The focused
+sale-review and business-contract suites pass 6/6; the deployment health,
+anonymous-access denial and served asset hashes were verified. No migration or
+customer-data mutation occurred. Historical attribution was not backfilled,
+and signed-in browser verification of a representative review row remains open.
+The earlier lead-referral capture increment is also live, so newly captured
+verified referrals can reach this review point. End-to-end paid-seat tracing,
+finance/reception reconciliation, owner reporting and the broader admissions
+pilot remain incomplete; this is one production increment in the 42-ticket
+application upgrade, not completion of the full program.

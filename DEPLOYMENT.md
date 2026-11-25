@@ -5779,3 +5779,45 @@ No database rollback applies. Attribution was not backfilled from historical
 conversation data; that requires a separate tenant-scoped, previewable and
 idempotent reconciliation. Later enrollment/payment attribution and live Meta
 referral acceptance remain open.
+
+## Admissions sale-review attribution — production, 25 November 2026
+
+Source commit `292dd5012192970a4b0f21a7c656e50d1d3273a5` is deployed at
+`/opt/salemax/releases/admissions-sale-attribution-292dd5012192-20261125T105126Z`,
+over the existing training pipeline base release
+`/opt/salemax/releases/training-pipeline-correction-v3-9867ca72-20261104`.
+The existing sale-review list now includes the latest verified Meta ad source
+and headline for that same lead, when available. The server only returns
+provider-verified attribution with the matching lead UID hash; unverified or
+unmatched referral data is not displayed as a confirmed ad. This gives the
+reviewer an ad-source checkpoint while approving a sale and preserves a
+traceable link for later enrollment/payment reporting.
+
+No schema migration ran and no production record, sale, payment or message was
+created or changed. The app image remains `salemax-app:email-marketing-21a07cc41fa9-20261112`
+(`sha256:753d77d421b3160872df0812e7b38505a1db7104cdb9d6c8b17415b2420de667`).
+The guarded app-only deployment resolved 342 Compose inputs, 11 environment
+inputs and 308 runtime mounts; all seven non-app container identities stayed
+unchanged. The active release report records these runtime hashes:
+
+- `modules/platform/training-sale-reviews.js`: `382ce692f9bcfd0751ac75de610a6ed4388d88c9d268e285e82932163196ab37`
+- `public/js/pipeline.js`: `8e9e214c1feeffd48e726c56c7a2613a4b9728cd003bdd4a7c524dc3285b38f0`
+- `public/css/pipeline.css`: `c643145b192f17c9865df9eb55bc091bf4eae433f24a0f16b1aed684c682e018`
+- `public/pipeline/index.html`: `168bf3a269c8351cf158558afab54ef83da0143c04abc864b571234904f73f4d`
+
+Protected rollback snapshot:
+`/opt/salemax/shared/rollback-admissions-sale-attribution-292dd5012192-20261125T105126Z`.
+While this release remains the chain head, restore under the production lock
+with:
+
+```sh
+sudo -n /opt/salemax/shared/with-production-lock.sh python3 /opt/salemax/releases/admissions-sale-attribution-292dd5012192-20261125T105126Z/deploy/admissions-sale-attribution-release.py restore /opt/salemax/shared/rollback-admissions-sale-attribution-292dd5012192-20261125T105126Z
+```
+
+No database rollback applies. The focused sale-review and business-contract
+tests pass 6/6, including verified-source shaping. App/database health and
+public `/healthz` passed; the anonymous workspace API returned HTTP 401. The
+release report verified the served hashes against the staged files. A signed-in
+browser review of a representative sale-review record was not completed, and
+historical referral attribution was not backfilled. The remaining paid-seat
+reconciliation and full pilot acceptance are still open.
