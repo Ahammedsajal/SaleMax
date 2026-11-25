@@ -78,7 +78,7 @@ function routePermission(req){
     if(path.startsWith('/tasks'))return read?'tasks.read':'tasks.manage';
     if(path.startsWith('/reports'))return path.includes('schedule')?'reports.schedule':'reports.read';
     if(path==='/settings')return read?'leads.read':'leads.assign';
-    if(path.startsWith('/training-forms'))return read?'forms.manage':'forms.capture';
+    if(path==='/training-forms'||path.startsWith('/training-forms/')||path.startsWith('/training-form-chat/'))return 'forms.capture';
     if(path.includes('/assign')||path.endsWith('/move')||path==='/stages'||path.includes('/stages/'))return read?'leads.read':'leads.assign';
     return read?'leads.read':'leads.manage';
   }

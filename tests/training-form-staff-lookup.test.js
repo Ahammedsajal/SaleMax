@@ -83,3 +83,17 @@ test('conversation registration refuses ambiguous linked leads', async () => {
   await assert.rejects(forms.staffChatLead(pool, {uid: ownerUid, role: 'owner'}, 'chat-1'), {code: 'CHAT_LEAD_AMBIGUOUS'});
   assert.ok(pool.released());
 });
+
+test('both pipeline entry points authorize staff capture instead of form management', () => {
+  const databasePath=require.resolve('../database/dbpromise');
+  const previous=require.cache[databasePath];
+  require.cache[databasePath]={id:databasePath,filename:databasePath,loaded:true,exports:{}};
+  const { routePermission } = require('../modules/platform/team-role-request-guard');
+  if(previous)require.cache[databasePath]=previous;else delete require.cache[databasePath];
+  for(const baseUrl of ['/api/pipeline','/api/workspace/pipeline']){
+    for(const path of ['/training-forms','/training-forms/registration','/training-forms/registration/leads/123','/training-form-chat/chat']){
+      assert.equal(routePermission({baseUrl,path,method:'GET'}),'forms.capture');
+    }
+    assert.equal(routePermission({baseUrl,path:'/training-forms/registration/submissions',method:'POST'}),'forms.capture');
+  }
+});
