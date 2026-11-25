@@ -105,23 +105,68 @@
     const formatter=new Intl.DateTimeFormat('en-CA',{timeZone:timezone,year:'numeric',month:'2-digit',day:'2-digit'});
     return formatter.format(date)<=formatter.format(new Date());
   }
+  function addTodayStyles() {
+    if(document.getElementById('sx-today-style'))return;
+    const style=document.createElement('style');
+    style.id='sx-today-style';
+    style.textContent=`
+      .sx-today-trigger{display:flex;align-items:center;justify-content:center;gap:8px;flex:0 0 auto;min-height:44px;padding:0 12px;border:1px solid #d7e3f7;border-radius:10px;background:#eef5ff;color:#1758b8;font:inherit;font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap}
+      .sx-today-trigger:hover{background:#dfeeff;border-color:#aac8ef}
+      .sx-today-trigger:focus-visible,.sx-today-dialog :is(button,a):focus-visible{outline:3px solid #6da8fa;outline-offset:2px}
+      .sx-today-trigger-icon{display:grid;place-items:center;width:20px;height:20px;border-radius:6px;background:#d8e9ff;font-size:13px;line-height:1}
+      .sx-today-dialog{--today-surface:#fff;--today-soft:#f6f8fc;--today-ink:#17253c;--today-muted:#65758e;--today-border:#e3eaf3;--today-accent:#135ac3;position:fixed;inset:0;margin:auto;box-sizing:border-box;width:min(720px,calc(100vw - 32px));max-width:calc(100vw - 32px);max-height:min(760px,calc(100vh - 32px));max-height:min(760px,calc(100dvh - 32px));padding:0;border:1px solid var(--today-border);border-radius:20px;background:var(--today-surface);color:var(--today-ink);box-shadow:0 25px 80px #091a3340;overflow:hidden;font-family:Roboto,system-ui,sans-serif}
+      .sx-today-dialog::backdrop{background:rgba(14,28,49,.48)}
+      .sx-today-header{display:flex;align-items:flex-start;justify-content:space-between;gap:20px;padding:24px 28px 20px;border-bottom:1px solid var(--today-border)}
+      .sx-today-header h2{margin:0;color:var(--today-ink);font-size:22px;line-height:1.2}
+      .sx-today-date{margin:6px 0 0;color:var(--today-muted);font-size:13px}
+      .sx-today-close{display:grid;place-items:center;flex:none;width:44px;height:44px;border:1px solid var(--today-border);border-radius:11px;background:var(--today-surface);color:var(--today-muted);font:inherit;font-size:23px;line-height:1;cursor:pointer}
+      .sx-today-close:hover{background:var(--today-soft);color:var(--today-ink)}
+      .sx-today-content{max-height:calc(min(760px,100dvh - 32px) - 90px);overflow:auto;overscroll-behavior:contain;padding:22px 28px 28px}
+      .sx-today-section+.sx-today-section{margin-top:24px}
+      .sx-today-section h3{margin:0 0 10px;color:var(--today-ink);font-size:14px;font-weight:700;line-height:1.35}
+      .sx-today-section>p{margin:0;padding:12px 14px;border:1px solid var(--today-border);border-radius:12px;background:var(--today-soft);color:var(--today-muted);font-size:13px;line-height:1.5}
+      .sx-today-row{display:flex;align-items:center;gap:12px;margin-top:7px;padding:13px 14px;border:1px solid var(--today-border);border-radius:12px;background:var(--today-surface);color:var(--today-ink);text-decoration:none;transition:background .15s,border-color .15s}
+      .sx-today-row:hover{background:var(--today-soft);border-color:#b9cff0}
+      .sx-today-avatar{display:grid;place-items:center;flex:none;width:38px;height:38px;border-radius:11px;background:#eaf2ff;color:var(--today-accent);font-size:14px;font-weight:800}
+      .sx-today-row-body{min-width:0;flex:1}
+      .sx-today-row-title{display:block;overflow:hidden;color:var(--today-ink);font-size:14px;font-weight:700;text-overflow:ellipsis;white-space:nowrap}
+      .sx-today-row-detail{display:-webkit-box;overflow:hidden;margin-top:4px;color:var(--today-muted);font-size:12px;line-height:1.45;overflow-wrap:anywhere;-webkit-box-orient:vertical;-webkit-line-clamp:2}
+      .sx-today-arrow{flex:none;color:#8293ac;font-size:19px}
+      .sx-today-more{display:block;margin-top:10px;color:var(--today-muted);font-size:12px}
+      html[data-theme="dark"] .sx-today-dialog,html.dark .sx-today-dialog,body.dark .sx-today-dialog{--today-surface:#192333;--today-soft:#222f41;--today-ink:#edf3fb;--today-muted:#aab9cc;--today-border:#35445a;--today-accent:#94bfff}
+      html[data-theme="dark"] .sx-today-avatar,html.dark .sx-today-avatar,body.dark .sx-today-avatar{background:#293f60}
+      @media(max-width:540px){.sx-today-dialog{width:calc(100vw - 16px);max-width:calc(100vw - 16px);max-height:calc(100dvh - 16px);border-radius:16px}.sx-today-header{padding:20px}.sx-today-content{padding:18px 20px 24px;max-height:calc(100dvh - 108px)}}
+    `;
+    document.head.append(style);
+  }
   async function showToday(session) {
     const ar=(document.documentElement.lang||localStorage.getItem('language')||'').toLowerCase().startsWith('ar');
     const tr=(en,arabic)=>ar?arabic:en;
     const appHome=session.role==='agent'?'/agent':'/user';
-    addStyles();
+    addTodayStyles();
     const dialog=document.createElement('dialog');
-    dialog.className='sx-followup-dialog';
+    dialog.className='sx-today-dialog';
+    dialog.dir=ar?'rtl':'ltr';
+    const header=document.createElement('header');
+    header.className='sx-today-header';
+    const headingBlock=document.createElement('div');
     const heading=document.createElement('h2');
     heading.textContent=tr('Today','اليوم');
-    const status=document.createElement('div');
-    status.setAttribute('role','status');
-    status.textContent=tr('Loading your work…','جارٍ تحميل مهامك…');
+    const date=document.createElement('p');
+    date.className='sx-today-date';
+    date.textContent=new Intl.DateTimeFormat(ar?'ar-QA':'en-GB',{weekday:'long',day:'numeric',month:'long',timeZone:session.timezone||'Asia/Qatar'}).format(new Date());
+    headingBlock.append(heading,date);
     const close=document.createElement('button');
-    close.type='button';close.textContent=tr('Close','إغلاق');
+    close.className='sx-today-close';close.type='button';close.textContent='×';
+    close.setAttribute('aria-label',tr('Close','إغلاق'));
     close.addEventListener('click',()=>dialog.close());
+    header.append(headingBlock,close);
+    const status=document.createElement('div');
+    status.className='sx-today-content';
+    status.setAttribute('aria-live','polite');
+    status.textContent=tr('Loading your work…','جارٍ تحميل مهامك…');
     dialog.addEventListener('close',()=>dialog.remove());
-    dialog.append(heading,status,close);document.body.append(dialog);dialog.showModal();
+    dialog.append(header,status);document.body.append(dialog);dialog.showModal();
     const results=await Promise.allSettled([
       window.SaleMaxWorkspace.request('tasks','?status=active&scope=mine&limit=100'),
       window.SaleMaxWorkspace.request('pipeline','/reports/follow-up-brief?includeItems=true'),
@@ -131,25 +176,31 @@
     if(!dialog.isConnected)return;
     status.replaceChildren();
     function section(title) {
-      const wrapper=document.createElement('section');
+      const wrapper=document.createElement('section');wrapper.className='sx-today-section';
       const label=document.createElement('h3');label.textContent=title;
       wrapper.append(label);status.append(wrapper);return wrapper;
     }
     function row(wrapper,title,detail,url) {
-      const article=document.createElement('article');
-      article.style.cssText='padding:10px 0;border-bottom:1px solid currentColor;overflow-wrap:anywhere';
-      const link=document.createElement('a');link.href=url;link.target='_top';link.textContent=title;
-      const text=document.createElement('p');text.textContent=detail;text.style.margin='6px 0';
-      article.append(link,text);wrapper.append(article);
+      const link=document.createElement('a');link.className='sx-today-row';link.href=url;link.target='_top';
+      const avatar=document.createElement('span');avatar.className='sx-today-avatar';avatar.setAttribute('aria-hidden','true');
+      avatar.textContent=String(title||'•').trim().charAt(0).toLocaleUpperCase();
+      const body=document.createElement('span');body.className='sx-today-row-body';
+      const label=document.createElement('span');label.className='sx-today-row-title';label.textContent=title;
+      const text=document.createElement('span');text.className='sx-today-row-detail';text.textContent=detail;
+      const arrow=document.createElement('span');arrow.className='sx-today-arrow';arrow.setAttribute('aria-hidden','true');arrow.textContent=ar?'‹':'›';
+      body.append(label,text);link.append(avatar,body,arrow);wrapper.append(link);
+    }
+    function note(wrapper,message) {
+      const line=document.createElement('p');line.textContent=message;wrapper.append(line);
     }
     const taskSection=section(tr('Callbacks due','المتابعات المستحقة'));
     if(results[0].status==='fulfilled'){
       const result=results[0].value.data;
       const due=(result.items||[]).filter(item=>['lead_follow_up','chatbot_handoff'].includes(item.task_type)&&item.due_at&&todayLocal(item.due_at,session.timezone||'Asia/Qatar'));
       for(const item of due)row(taskSection,item.title,item.description||tr('Open the task for details.','افتح المهمة للاطلاع على التفاصيل.'),appHome+'?page=tasks&task='+encodeURIComponent(item.id));
-      if(!due.length)taskSection.append(document.createTextNode(tr('No callbacks due in the loaded tasks.','لا توجد متابعات مستحقة في المهام المحمّلة.')));
-      if(result.hasMore)taskSection.append(document.createTextNode(tr(' More tasks are available in Tasks.',' توجد مهام أخرى في صفحة المهام.')));
-    } else taskSection.append(document.createTextNode(tr('Could not load tasks.','تعذر تحميل المهام.')));
+      if(!due.length)note(taskSection,tr('No callbacks due in the loaded tasks.','لا توجد متابعات مستحقة في المهام المحمّلة.'));
+      if(result.hasMore)note(taskSection,tr('More tasks are available in Tasks.','توجد مهام أخرى في صفحة المهام.'));
+    } else note(taskSection,tr('Could not load tasks.','تعذر تحميل المهام.'));
     if(results[2].status==='fulfilled' && results[2].value){
       const applications=results[2].value.data;
       const pending=(applications.items||[]).filter(item=>item.saleReviewStatus==='pending'||Number(item.attentionDeliveries)>0);
@@ -168,8 +219,8 @@
         ].filter(Boolean).join(' · ');
         row(applicationSection,name,detail,appHome+'?page=forms&submissionId='+encodeURIComponent(item.id));
       }
-      if(!pending.length)applicationSection.append(document.createTextNode(tr('No issues in the loaded registrations.','لا توجد مشكلات في الطلبات المحمّلة.')));
-      if((applications.total||0)>(applications.items||[]).length)applicationSection.append(document.createTextNode(tr(' More registrations are available in Forms.',' توجد طلبات أخرى في النماذج.')));
+      if(!pending.length)note(applicationSection,tr('No issues in the loaded registrations.','لا توجد مشكلات في الطلبات المحمّلة.'));
+      if((applications.total||0)>(applications.items||[]).length)note(applicationSection,tr('More registrations are available in Forms.','توجد طلبات أخرى في النماذج.'));
     } else if(results[2].status==='rejected') {
       const applicationSection=section(tr('Registrations awaiting approval','طلبات تسجيل بانتظار الموافقة'));
       applicationSection.textContent=tr('Could not load registrations.','تعذر تحميل طلبات التسجيل.');
@@ -182,16 +233,18 @@
       const paymentSection=section(tr('Payments awaiting verification','مدفوعات بانتظار التحقق'));
       paymentSection.textContent=tr('Could not load payments.','تعذر تحميل المدفوعات.');
     }
-    const chatSection=section(tr('Learners awaiting a reply','متدربون بانتظار الرد'));
+    const chatSection=section(tr('Conversations to review','محادثات للمراجعة'));
     if(results[1].status==='fulfilled'){
       const result=results[1].value.data;
       const items=[...(result.items||[]),...(result.reviewItems||[])];
+      const actionable=item=>/[?؟]|\b(?:how|when|where|price|fee|cost|schedule|class|register|enrol|enroll|call|payment|discount|job|course)\b|كم|رسوم|متى|موعد|دورة|تسجيل|اتصل|اتصال|الدفع/iu.test(item.latestCustomerMessage||'');
+      items.sort((a,b)=>Number(actionable(b))-Number(actionable(a))||Date.parse(b.lastCustomerAt||0)-Date.parse(a.lastCustomerAt||0));
       for(const item of items.slice(0,30)){
         const detail=[item.latestCustomerMessage,item.ownerName,item.suggestedNextStep].filter(Boolean).join(' · ');
         row(chatSection,item.customerName,detail,appHome+'?page=inbox&chatId='+encodeURIComponent(item.chatId));
       }
-      if(!items.length)chatSection.append(document.createTextNode(tr('No linked conversations are waiting.','لا توجد محادثات مرتبطة بانتظار الرد.')));
-      if(items.length>30||result.allHasMore)chatSection.append(document.createTextNode(tr(' More are available in Lead Reports.',' توجد محادثات أخرى في تقارير العملاء.')));
+      if(!items.length)note(chatSection,tr('No linked conversations are waiting.','لا توجد محادثات مرتبطة بانتظار الرد.'));
+      if(items.length>30||result.allHasMore)note(chatSection,tr('More are available in Lead Reports.','توجد محادثات أخرى في تقارير العملاء.'));
     } else chatSection.append(document.createTextNode(tr('Could not load conversations.','تعذر تحميل المحادثات.')));
   }
   let mountingToday=false;
@@ -205,8 +258,10 @@
       const session=await window.SaleMaxWorkspace?.session?.();
       if(session?.categoryKey!=='training_center'||!input.isConnected||searchBox.previousElementSibling?.hasAttribute('data-sx-today'))return;
       const button=document.createElement('button');
-      button.type='button';button.dataset.sxToday='1';button.className='sx-followup-button';
-      button.textContent=(document.documentElement.lang||'').toLowerCase().startsWith('ar')?'اليوم':'Today';
+      addTodayStyles();button.type='button';button.dataset.sxToday='1';button.className='sx-today-trigger';
+      const icon=document.createElement('span');icon.className='sx-today-trigger-icon';icon.setAttribute('aria-hidden','true');icon.textContent='✓';
+      const label=document.createElement('span');label.textContent=(document.documentElement.lang||'').toLowerCase().startsWith('ar')?'اليوم':'Today';
+      button.append(icon,label);
       button.addEventListener('click',async()=>{
         try {
           const current=await window.SaleMaxWorkspace.session();
