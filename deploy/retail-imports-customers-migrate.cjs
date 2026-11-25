@@ -145,13 +145,24 @@ async function main() {
       return;
     }
 
-    assert.equal(before.total, baseline.total, 'The selected Retail migration already exists');
     if (!restored) assert(!process.env.SALEMAX_RETAIL_CONNECTOR_PILOT_TENANTS?.trim(),
       'Active connector pilot requires separate readiness verification');
     const beforeCounts = await operationalCounts(connection);
-    const result = await runner.applyMigrations(connection, discovered, { only: migrations });
-    assert.deepEqual(result, { applied: migrations, skipped: [] });
-    const after = await ledger(connection);
+    const selectedRows = before.rows.filter(row => migrations.includes(row.migration_name));
+    let result, after;
+    if (selectedRows.length) {
+      // Follow-up overlays may reuse this release helper after the reviewed
+      // Retail schema migration is already active. Verify its exact ledger
+      // record and schema instead of trying to apply it a second time.
+      verifyApplied(baseline, before, manifest, plans);
+      result = { applied: [], skipped: migrations };
+      after = before;
+    } else {
+      assert.equal(before.total, baseline.total, 'Unexpected migration ledger changes before Retail migration');
+      result = await runner.applyMigrations(connection, discovered, { only: migrations });
+      assert.deepEqual(result, { applied: migrations, skipped: [] });
+      after = await ledger(connection);
+    }
     verifyApplied(baseline, after, manifest, plans);
     await checkSchema(connection);
     if (restored) {
@@ -159,7 +170,8 @@ async function main() {
       const repeat = await runner.applyMigrations(connection, discovered, { only: migrations });
       assert.deepEqual(repeat, { applied: [], skipped: migrations });
     }
-    console.log(JSON.stringify({ mode, baseline, applied: migrations, total: after.total, counts: await resultCounts(connection) }));
+    console.log(JSON.stringify({ mode, baseline, applied: result.applied, skipped: result.skipped, total: after.total,
+      counts: await resultCounts(connection) }));
   } catch (error) {
     if (connection) {
       const state = await ledger(connection).catch(() => null);

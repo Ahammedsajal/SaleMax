@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Deploy the reviewed Retail store imports, native catalogue and customer directory."""
+"""Deploy the safe Retail local-snapshot backfill overlay."""
 import importlib.util
 import re
 import sys
@@ -8,46 +8,25 @@ from pathlib import Path
 BASE_HELPER = 'retail-reconciliation-release.py'
 MIGRATOR_FILE = 'retail-imports-customers-migrate.cjs'
 OVERLAY_FILE = 'compose.retail-imports-customers.json'
-RELEASE_NAME = 'retail-imports-customers'
+RELEASE_NAME = 'retail-native-import-backfill'
 PILOT_ENV = 'SALEMAX_RETAIL_CONNECTOR_PILOT_TENANTS'
 ORIGIN = 'https://7network.live'
 IMAGE = 'sha256:753d77d421b3160872df0812e7b38505a1db7104cdb9d6c8b17415b2420de667'
-LAST_OVERLAY = '/opt/salemax/releases/website-network-globe-0fcdfc882867-20261125T150438Z/compose.website-network-globe.json'
+LAST_OVERLAY = '/opt/salemax/releases/website-google-analytics-e4730af5c9bb-20261125T153830Z/compose.website-google-analytics.json'
 MIGRATION = '20270213_retail_native_store_imports.sql'
-CACHE = '20261125-retail-imports-customers1'
 
 RUNTIME = {
-    'client/public/index.html',
-    'client/public/retail-workspace.css',
-    'client/public/retail-workspace.js',
-    'client/public/training-courses.js',
-    'client/public/training-sidebar.js',
-    'modules/platform/mount-existing-upgrade.js',
-    'modules/platform/navigation.js',
-    'modules/platform/policy.js',
-    'modules/platform/retail-commerce-router.js',
-    'modules/platform/retail-commerce.js',
-    'modules/platform/retail-connected-stores-router.js',
-    'modules/platform/retail-connected-stores.js',
-    'modules/platform/training-course-router.js',
     'modules/platform/retail-connected-stores-worker.js',
-    'modules/platform/retail-customer-directory.js',
-    'modules/platform/retail-native-imports.js',
-    'modules/platform/retail-shopify-sync.js',
-    'database/migrations/' + MIGRATION,
+    'modules/platform/retail-native-import-backfill.js',
 }
 TOOLS = {
-    'deploy/' + BASE_HELPER,
+    'deploy/retail-reconciliation-release.py',
     'deploy/pro-catalyst-center-visit-signal-release.py',
     'deploy/retail-imports-customers-release.py',
     'deploy/' + MIGRATOR_FILE,
+    'database/migrations/' + MIGRATION,
 }
-ASSETS = {
-    'client/public/retail-workspace.css',
-    'client/public/retail-workspace.js',
-    'client/public/training-sidebar.js',
-    'client/public/training-courses.js',
-}
+ASSETS = set()
 
 spec = importlib.util.spec_from_file_location('retail_release_base', Path(__file__).with_name(BASE_HELPER))
 release = importlib.util.module_from_spec(spec)
@@ -69,7 +48,7 @@ def stage_manifest(stage, commit):
         raise RuntimeError('Retail stage tool or migration allowlist differs')
     if set(info.get('publicAssets', {})) != ASSETS:
         raise RuntimeError('Retail stage public asset set differs')
-    if not re.fullmatch(r'[0-9a-f]{64}', info['runtime']['database/migrations/' + MIGRATION]):
+    if not re.fullmatch(r'[0-9a-f]{64}', info['tools']['database/migrations/' + MIGRATION]):
         raise RuntimeError('Retail migration checksum is invalid')
     return info
 
@@ -86,6 +65,7 @@ def public_checks(hashes):
         '/healthz': 200,
         '/user/login': 200,
         '/admin/login': 200,
+        '/user?page=products-services': 200,
         '/user?page=retail-connected-stores': 200,
         '/user?page=retail-customers': 200,
         '/api/workspace/retail/connectors': 401,
@@ -95,24 +75,9 @@ def public_checks(hashes):
     actual = {path: status(path)[0] for path in expected}
     if actual != expected:
         raise RuntimeError('Public Retail routes or anonymous-access checks differ')
-    for relative, query in (
-        ('client/public/retail-workspace.css', CACHE),
-        ('client/public/retail-workspace.js', CACHE),
-        ('client/public/training-sidebar.js', CACHE),
-        ('client/public/training-courses.js', CACHE),
-    ):
-        filename = relative.rsplit('/', 1)[1]
-        code, data = status('/' + filename + '?v=' + query)
-        if code != 200 or release.ops.sha(data) != hashes[relative]:
-            raise RuntimeError('Public Retail asset differs: ' + filename)
     code, shell = status('/user?page=retail-connected-stores')
-    if code != 200 or any(token.encode() not in shell for token in (
-        '/training-sidebar.js?v=' + CACHE,
-        '/training-courses.js?v=' + CACHE,
-        '/retail-workspace.js?v=' + CACHE,
-        '/pwa-install.js?v=20261123-sidebar-install1',
-    )):
-        raise RuntimeError('Live business shell is missing a reviewed Retail asset or preserved PWA reference')
+    if code != 200 or any(token not in shell for token in (b'training-sidebar.js', b'retail-workspace.js', b'pwa-install.js')):
+        raise RuntimeError('Live business shell is missing the previously reviewed Retail or PWA assets')
     return actual
 
 
