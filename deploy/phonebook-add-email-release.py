@@ -280,7 +280,7 @@ def deploy(source, source_commit):
         if app.get('Image') != EXPECTED_IMAGE:
             raise RuntimeError('app image changed unexpectedly')
         verify_support_services(support)
-        hashes = {target: sha((runtime / 'client/public' / Path(key).name).read_bytes()) for key, target in APP_TARGETS.items()}
+        hashes = {key: sha((runtime / 'client/public' / Path(key).name).read_bytes()) for key in APP_TARGETS}
         actual = run('docker', 'exec', APP, 'sha256sum', *APP_TARGETS.values()).stdout
         for line in actual.splitlines():
             expected_hash, path = line.split(None, 1)
