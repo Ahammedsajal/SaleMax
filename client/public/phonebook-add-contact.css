@@ -1,0 +1,5 @@
+.sx-phonebook-email-field{display:grid;gap:6px;min-width:0;margin:12px 0;font-size:12px;font-weight:600;color:#172033}
+.sx-phonebook-email-field input{box-sizing:border-box;width:100%;min-width:0;height:41px;padding:8px 11px;border:1px solid #dce1ea;border-radius:8px;background:#fff;color:#172033;font:inherit;font-size:14px}
+.sx-phonebook-email-field input:focus-visible{outline:3px solid #d997b4;outline-offset:2px}
+.sx-phonebook-email-field small{color:#6b7588;font-size:11px;font-weight:400}
+[data-sx-phonebook-email-error]{display:block;margin-top:12px;padding:10px 12px;border:1px solid #facad5;border-radius:8px;background:#fff0f3;color:#a20b36;font-size:13px}
