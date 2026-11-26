@@ -44,6 +44,59 @@ def compose_args(files, env_files, workdir):
     return args
 
 
+def compose_variables(files, env_files, workdir, app):
+    env_paths = [Path(path) for path in env_files]
+    project_env = Path(workdir) / '.env'
+    if project_env.is_file() and project_env not in env_paths:
+        env_paths.append(project_env)
+    manual_path = ROOT / 'shared/rollback-private-inventory-84644fdfebee/compose-manual-vars.json'
+    manual = json.loads(manual_path.read_text())
+    supplied = {key for path in env_paths if path.is_file()
+                for key in re.findall(r'^\s*(?:export\s+)?([A-Za-z_][A-Za-z0-9_]*)=', path.read_text(), re.M)}
+    supplied.update(os.environ)
+    live = dict(item.split('=', 1) for item in app['Config'].get('Env', []) if '=' in item)
+    mounts = {mount['Destination']: mount['Source'] for mount in app.get('Mounts', [])}
+    expressions = {}
+    for name in files:
+        content = Path(name).read_text()
+        for match in re.finditer(r'\$\{([A-Za-z_][A-Za-z0-9_]*)([^}]*)\}', content):
+            key, operator = match.groups()
+            if not operator.startswith((':-', '-', ':+', '+')):
+                expressions.setdefault(key, []).append((name, content))
+
+    variables = {}
+    for key, references in expressions.items():
+        if key in supplied:
+            continue
+        if key in manual:
+            variables[key] = manual[key]
+        elif key in live:
+            variables[key] = live[key]
+        elif key.endswith(('_BASE_IMAGE', '_APP_IMAGE')):
+            variables[key] = app['Config']['Image']
+        else:
+            inferred = set()
+            release_candidates = []
+            pattern = re.compile(r'\$\{' + re.escape(key) + r'(?::[-?+][^}]*)?\}([^:\s]*)\s*:\s*(/app/[^:\s]+)')
+            for name, content in references:
+                config_dir = Path(name).parent
+                release_root = config_dir.parent if config_dir.name == 'deploy' else config_dir
+                if release_root.parent.name == 'releases':
+                    release_candidates.append(str(release_root))
+                for match in pattern.finditer(content):
+                    suffix, target = match.groups()
+                    source = mounts.get(target)
+                    if source and (not suffix or source.endswith(suffix)):
+                        inferred.add(source[:-len(suffix)] if suffix else source)
+            if release_candidates:
+                variables[key] = release_candidates[-1]
+            elif len(inferred) == 1:
+                variables[key] = inferred.pop()
+            else:
+                raise RuntimeError('Missing Compose interpolation variable: ' + key)
+    return dict(os.environ, **variables)
+
+
 def wait_healthy():
     for _ in range(45):
         app = inspect(APP)
@@ -85,31 +138,7 @@ def deploy(stage, commit):
     if release.exists() or backup.exists():
         raise RuntimeError('Release or rollback path already exists')
     input_hashes = {name: sha(Path(name).read_bytes()) for name in files + env_files}
-
-    prior_vars_path = ROOT / 'shared/rollback-private-inventory-84644fdfebee/compose-manual-vars.json'
-    manual = json.loads(prior_vars_path.read_text())
-    supplied = {key for name in env_files for key in re.findall(r'^\s*([A-Za-z_][A-Za-z0-9_]*)=', Path(name).read_text(), re.M)}
-    referenced = set()
-    for name in files:
-        for expression in re.findall(r'\$\{([^}]+)\}', Path(name).read_text()):
-            match = re.match(r'^([A-Za-z_][A-Za-z0-9_]*)(.*)$', expression)
-            if not match:
-                continue
-            key, operator = match.groups()
-            # Optional Compose substitutions resolve from their declared
-            # default, so they do not need an unrelated live environment value.
-            if operator.startswith((':-', '-', ':+', '+')):
-                continue
-            referenced.add(key)
-    live_env = dict(item.split('=', 1) for item in app['Config']['Env'] if '=' in item)
-    variables = {}
-    for key in referenced - supplied:
-        if key in manual:
-            variables[key] = manual[key]
-        elif key in live_env:
-            variables[key] = live_env[key]
-        else:
-            raise RuntimeError('Missing Compose interpolation variable: ' + key)
+    variables = compose_variables(files, env_files, workdir, app)
     os.umask(0o077)
     release.mkdir(mode=0o755)
     backup.mkdir(mode=0o700)
@@ -120,7 +149,7 @@ def deploy(stage, commit):
     (backup / 'base-release.txt').write_text(BASE + '\n')
     (backup / 'compose-input-hashes.json').write_text(json.dumps(input_hashes))
     (backup / 'compose-vars.json').write_text(json.dumps(variables))
-    env = dict(os.environ, **variables)
+    env = variables
 
     live_path = '/app/' + ASSET
     preimage = backup / 'preimages' / ASSET
