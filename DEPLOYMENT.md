@@ -5860,3 +5860,39 @@ sudo -n /opt/salemax/shared/with-production-lock.sh python3 /opt/salemax/release
 ```
 
 Verification on production confirmed `/healthz`, the homepage and versioned CSS/JavaScript returned HTTP 200; served bytes matched the deployed hashes, and checks confirmed no manual rotation control plus the English/Arabic auto-rotation copy. At 390px, browser review confirmed the control is absent, help text is localized and there is no horizontal overflow. The browser environment had `prefers-reduced-motion: reduce`, so visible globe movement with that preference disabled was not visually verified; motion remains intentionally disabled for users who request reduced motion. JavaScript/helper syntax and `git diff --check` passed. The full 42-ticket upgrade and its remaining release gates continue.
+
+## 2026-11-26 — Public website globe rotation correction — production
+
+Source commit `4aad677bbd5a6537a74dce8fb335da6a07248bd8` is pushed to `Ahammedsajal/SaleMax` `main`. This supersedes the previous entry's reduced-motion behavior: that setting had prevented all rotation in the review browser. The visible instruction sentence and Pause/Resume control are removed. The globe now rotates whenever visible, does not stop on hover, and rotates more slowly when reduced motion is requested. It pauses only while the visitor is dragging or viewing an enlarged photo. Drag/touch and arrow-key controls remain available.
+
+The guarded app-only overlay is `/opt/salemax/releases/website-network-globe-auto-rotation-4aad677bbd5a-20261126T060500Z`, layered over the existing production release chain. Production-only homepage content and styles were preserved by applying the reviewed section changes to their verified live preimages. The running app image remained `sha256:753d77d421b3160872df0812e7b38505a1db7104cdb9d6c8b17415b2420de667`; the active Compose chain had 352 inputs, 11 environment inputs and 329 app mounts. The app was healthy with zero restarts; the database was healthy. No database migration or customer-data change occurred.
+
+Live runtime SHA-256 values:
+
+| Runtime file | SHA-256 |
+|---|---|
+| `client/public/website/index.html` | `150f759d00623c0f0a6352843c690544000521644d07c638d6bbbddc0a14d1fb` |
+| `client/public/website/website.css` | `b45440dc42899b669bdf64fdcc222d7ccaf81299c90e305d5f3d91791b1637c7` |
+| `client/public/website/network-globe.js` | `a063927099d8206b6fbb8add4de0d906baccd2287edc51aae3a4319361828d4a` |
+
+Protected rollback snapshot: `/opt/salemax/shared/rollback-website-network-globe-auto-rotation-4aad677bbd5a-20261126T060500Z`. If this remains the newest app overlay, roll back later app overlays first, then run under the production lock:
+
+```sh
+sudo -n /opt/salemax/shared/with-production-lock.sh python3 /opt/salemax/releases/website-network-globe-auto-rotation-4aad677bbd5a-20261126T060500Z/deploy/website-network-globe-auto-rotation-release.py restore /opt/salemax/shared/rollback-website-network-globe-auto-rotation-4aad677bbd5a-20261126T060500Z
+```
+
+Verification confirmed `/healthz`, homepage, versioned CSS and JavaScript returned HTTP 200 and served hashes matched the values above. Live-page inspection confirmed the instruction sentence and rotation control are absent. Two browser screenshots taken during review showed different globe card orientations in a browser with reduced motion enabled. The script uses a slower rotation rate for that preference (`0.0012` versus `0.0028` normally); hover no longer suspends animation. No schema/API change occurred. The full 42-ticket upgrade and its remaining release gates continue.
+
+## 2026-11-26 — Training Centre demo video upload — production
+
+The user-supplied 9-minute walkthrough is installed at `/opt/salemax/shared/meta-media/WKXIAG_qr.mp4`, the existing `/meta-media/WKXIAG_qr.mp4` URL already referenced by the Training Centre player and Open video link. The public copy is H.264/AAC, 3840×2160 at 30 fps, duration 556.599349 seconds, size 132,119,630 bytes. The video includes QR codes and a connected-account identifier in one segment; those areas are obscured in this public copy. The original iCloud file was not changed or added to Git.
+
+The source video SHA-256 is `92f43f36cb6b024d0253941026e468e901f391b2fee975388167f12efa708f3a`. The redacted public MP4 SHA-256 is `4b01d05aadee64055cf37c5e67cc60512ccb08e543233fa7b2a1b706f6884822`. The media file was absent before installation, so no existing media was replaced. The upload did not change the application image, restart a service or run a database migration. The app remained healthy with zero restarts and the database remained healthy on base release `/opt/salemax/releases/training-pipeline-correction-v3-9867ca72-20261104` and the existing overlay chain.
+
+Protected rollback record: `/opt/salemax/shared/rollback-training-center-video-4b01d05aadee-20261126T061529Z`. Its preimage manifest records that the target was absent. To remove this deployment safely, the restore helper verifies the deployed video hash and runs under the production lock:
+
+```sh
+sudo -n /opt/salemax/shared/with-production-lock.sh python3 /opt/salemax/shared/rollback-training-center-video-4b01d05aadee-20261126T061529Z/restore-video.py
+```
+
+Verification confirmed the public URL returns HTTP 206 with `Content-Type: video/mp4`, `Accept-Ranges: bytes`, and `Content-Range: bytes 0-63/132119630`; the initial bytes identify an MP4 (`ftyp`). The public health endpoint returned HTTP 200 with status `ok`. Live browser playback advanced between frames. No database migration ran and no app restart occurred. The full 42-ticket upgrade and its remaining release gates continue.

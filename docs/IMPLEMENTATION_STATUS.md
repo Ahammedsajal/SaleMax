@@ -1,6 +1,10 @@
-## Public website globe — automatic rotation; manual control removed, deployed 26 November 2026
+## Public website globe — automatic rotation with manual control; deployed 26 November 2026
 
-Removed the globe’s Pause/Resume rotation control and localized help text. Rotation starts automatically when the globe is visible and idle, and resumes after hover, drag or photo-viewer interaction; the OS reduced-motion preference is respected. Production health, cache-busted assets and the 390px English/Arabic mobile controls were verified. The browser used for visual review had reduced motion enabled, so visible movement under a no-preference setting remains unconfirmed. See DEPLOYMENT.md for release hashes, rollback and evidence.
+The visible instruction sentence and Pause/Resume control are removed. The globe rotates automatically while visible, continues rotating on hover, and uses a slower rate when reduced motion is requested. Rotation pauses during an active drag or while a photo viewer is open. Drag, touch and arrow-key controls remain. Live browser screenshots confirmed the card orientation changes in a reduced-motion browser. See DEPLOYMENT.md for release hashes, rollback and evidence.
+
+## Training Centre walkthrough video — uploaded and playback verified 26 November 2026
+
+The supplied walkthrough is installed at the existing public media URL used by the Training Centre section. A public-safe copy masks QR codes and a connected-account identifier visible in the recording; the original iCloud file was left unchanged. The live MP4 returns byte-range responses and was opened in a browser, where playback advanced. See DEPLOYMENT.md for artifact hashes, rollback and evidence.
 
 ## Public website GA4 for all visitors — deployed; Realtime confirmation pending, 25 November 2026
 
