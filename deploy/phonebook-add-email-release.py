@@ -21,8 +21,8 @@ APP_TARGETS = {
 }
 
 
-def run(*args, check=True):
-    result = subprocess.run(args, capture_output=True, text=True)
+def run(*args, check=True, env=None):
+    result = subprocess.run(args, capture_output=True, text=True, env=env)
     if check and result.returncode:
         raise RuntimeError('production command failed: ' + Path(args[0]).name)
     return result
@@ -75,8 +75,26 @@ def compose_args(files, workdir, override=None):
     return args
 
 
-def compose_config(args):
-    return json.loads(run(*args, 'config', '--format', 'json').stdout)
+def compose_env(files, app):
+    env_files = [ROOT / 'shared/stack.env', ROOT / 'shared/runtime.env']
+    manual_path = ROOT / 'shared/rollback-private-inventory-84644fdfebee/compose-manual-vars.json'
+    manual = json.loads(manual_path.read_text())
+    supplied = {key for name in env_files for key in re.findall(r'^\s*([A-Za-z_][A-Za-z0-9_]*)=', Path(name).read_text(), re.M)}
+    referenced = {key for name in files for key in re.findall(r'\$\{([A-Za-z_][A-Za-z0-9_]*)', Path(name).read_text())}
+    live = dict(item.split('=', 1) for item in app['Config']['Env'] if '=' in item)
+    variables = {}
+    for key in referenced - supplied:
+        if key in manual:
+            variables[key] = manual[key]
+        elif key in live:
+            variables[key] = live[key]
+        else:
+            raise RuntimeError('production Compose input is missing a required interpolation variable')
+    return dict(os.environ, **variables)
+
+
+def compose_config(args, env):
+    return json.loads(run(*args, 'config', '--format', 'json', env=env).stdout)
 
 
 def support_services():
@@ -143,7 +161,8 @@ def deploy(source, source_commit):
     if app.get('Image') != EXPECTED_IMAGE or app['State'].get('Health', {}).get('Status') != 'healthy':
         raise RuntimeError('app image or health differs from reviewed production state')
     files, workdir, service = compose_state(app)
-    before = compose_config(compose_args(files, workdir))
+    env = compose_env(files, app)
+    before = compose_config(compose_args(files, workdir), env)
     support = support_services()
     stamp = datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%SZ')
     release_name = f'phonebook-add-email-{source_commit[:12]}-{stamp}'
@@ -183,11 +202,11 @@ def deploy(source, source_commit):
         compose_file.write_text(json.dumps({'services': {'app': {'volumes': volumes}}, 'name': 'salemax'}, indent=2) + '\n')
         compose_file.chmod(0o640)
         run('cp', str(source / 'phonebook-add-email-release.py'), str(deploy_dir / 'phonebook-add-email-release.py'))
-        after = compose_config(compose_args(files, workdir, compose_file))
+        after = compose_config(compose_args(files, workdir, compose_file), env)
         paths = {k: runtime / 'client/public' / Path(k).name for k in APP_TARGETS}
         validate_overlay(before, after, paths)
         compose = compose_args(files, workdir, compose_file)
-        run(*compose, 'up', '-d', '--no-deps', '--no-build', service)
+        run(*compose, 'up', '-d', '--no-deps', '--no-build', service, env=env)
         for _ in range(45):
             app = inspect(APP)
             if app['State'].get('Health', {}).get('Status') == 'healthy':
@@ -221,7 +240,7 @@ def deploy(source, source_commit):
         try:
             # Restore the pre-change Compose chain. No database state is touched.
             rollback = compose_args(files, workdir)
-            run(*rollback, 'up', '-d', '--no-deps', '--no-build', service, check=False)
+            run(*rollback, 'up', '-d', '--no-deps', '--no-build', service, check=False, env=env)
             for _ in range(45):
                 if inspect(APP)['State'].get('Health', {}).get('Status') == 'healthy':
                     break
@@ -243,7 +262,8 @@ def restore(snapshot_path):
     if len(extra) != 1 or 'phonebook-add-email' not in extra[0]:
         raise RuntimeError('phonebook overlay is not the sole newest Compose input')
     compose = compose_args(prior['config_files'], prior['working_dir'])
-    run(*compose, 'up', '-d', '--no-deps', '--no-build', prior['service'])
+    env = compose_env(prior['config_files'], app)
+    run(*compose, 'up', '-d', '--no-deps', '--no-build', prior['service'], env=env)
     for _ in range(45):
         app = inspect(APP)
         if app['State'].get('Health', {}).get('Status') == 'healthy':
