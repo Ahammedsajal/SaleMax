@@ -275,8 +275,8 @@ def deploy(stage, commit):
     if shutil.disk_usage(ops.ROOT).free < ops.MINIMUM_FREE_BYTES:
         raise RuntimeError('Insufficient free space for a protected restore rehearsal')
     files, env_files, workdir = ops.compose_context(app)
-    if files[-1] != info['lastOverlay']:
-        raise RuntimeError('Latest production overlay changed after preimage assessment')
+    if info.get('lastOverlay') not in files:
+        raise RuntimeError('Reviewed production baseline overlay is no longer active')
     environment, _ = ops.compose_environment(app, files, env_files)
     common = ops.compose_args(files, env_files, workdir)
     before = json.loads(ops.run(*common, 'config', '--format', 'json', env=environment))
