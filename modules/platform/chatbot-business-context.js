@@ -5,7 +5,11 @@ const { normalizeDigits, isCourseCatalogueRequest } = require('./chatbot-trainin
 const { keywordReply } = require('./chatbot-keyword-replies');
 const { findApprovedFaq, keywords: faqKeywords } = require('./chatbot-faq');
 
-const normalized = value => normalizeDigits(value).toLowerCase().normalize('NFKC').replace(/[أإآ]/g, 'ا').replace(/ى/g, 'ي').replace(/[^\p{L}\p{N}]+/gu, ' ').replace(/\bcare\s+givers?\b/gu, 'caregiver').trim();
+const normalized = value => normalizeDigits(value).toLowerCase().normalize('NFKC').replace(/[أإآ]/g, 'ا').replace(/ى/g, 'ي').replace(/[^\p{L}\p{N}]+/gu, ' ')
+  // Customers use these common names for the published Nursing Assistance or
+  // Caregiver course. Canonicalizing the whole phrase prevents the generic
+  // word "care" from making the broader Health & Social Care diploma win.
+  .replace(/\b(?:care\s*givers?|care\s*takers?|caretakers?|nursing\s+assistants?|nursing\s+assistance|nursing\s+aides?)\b/gu, 'caregiver').trim();
 const STOP_WORDS = new Set('the a an and or to of in on at by with from it this that i im m ve am already visited visit visiting been went your our are can you what how want would like tell about course courses training please help certificate certification professional class classes session sessions certificates certifications accreditation accredited attestation attested certified office application center centre skill skills program programme diploma workshop شهادة الشهادة شهادات الشهادات اعتماد معتمدة تصديق مصدقة احترافي اريد دورة الدورات التدريب ماهي ممكن لو سمحت'.split(' '));
 const tokens = value => normalized(value).split(' ').filter(word => word.length > 2 && !STOP_WORDS.has(word));
 const courseMatchTokens = value => tokens(value);
@@ -154,11 +158,13 @@ function controlRoute(message, config, state = {}, facts = [], { courseCertifica
 function isScheduleQuestion(message) {
   const text = normalized(message);
   const scheduleWords = /\b(?:schedule|timetable|batch|batches|start date|start time|when does .{0,45} start|when is the next intake|class timing|next class)\b|مواعيد|جدول|دفعة|موعد البدء|متى تبدأ|متى يبدا|متى يبدأ/u.test(text);
+  const weekday = /\b(?:monday|tuesday|wednesday|thursday|friday|saturday|sunday)\b|الاثنين|الثلاثاء|الاربعاء|الخميس|الجمعة|السبت|الاحد/u.test(text);
+  const classQuestion = /\b(?:class|classes|course|training|available|start)\b|حصه|حصص|دورة|تدريب|متاح|تبدأ|تبدا/u.test(text);
   const month = '(?:january|february|march|april|may|june|july|august|september|october|november|december|يناير|فبراير|مارس|ابريل|مايو|يونيو|يوليو|اغسطس|سبتمبر|اكتوبر|نوفمبر|ديسمبر)';
   const date = new RegExp(`(?:^|\\s)(?:\\d{1,2}(?:st|nd|rd|th)?\\s+${month}|${month}\\s+\\d{1,2}(?:st|nd|rd|th)?|\\d{1,2}\\s+\\d{1,2}(?:\\s+\\d{2,4})?)(?=\\s|$)`, 'iu').test(text);
   const availability = /^(?:is|would|could|can|will)\b.{0,60}\b(?:ok|okay|available|possible|fine|work)\b|\b(?:ok|okay|available|possible|fine|work)$/u.test(text);
   const arabicAvailability = /^(?:هل\s*)?.{1,60}\s+(?:مناسب|مناسبة|متاح|متاحة|ممكن)$/u.test(text);
-  return scheduleWords || (date && (availability || arabicAvailability));
+  return scheduleWords || (weekday && classQuestion) || (date && (availability || arabicAvailability));
 }
 
 function hasPublishedSchedule(facts, selectedCourseCode = null) {
@@ -183,6 +189,9 @@ function courseDetailNeedsCoordinator(message, facts, selectedCourseCode = null)
 function trainingCenterCoordinatorReason(message, facts, selectedCourseCode = null) {
   const text = normalized(message);
   const course = selectedCourseCode && (facts || []).find(item => item.code === selectedCourseCode && !item.kind);
+  if (/\b(?:job placement|employment|employability|career placement|placement support|job guarantee|employment guarantee|job opportunities)\b|التوظيف|التوظيفية|فرص عمل|وظيفة|وظائف|ضمان التوظيف/u.test(text)) return 'EMPLOYMENT_DETAILS_REQUIRE_COORDINATOR';
+  // A published start date does not establish which weekday classes meet.
+  if (isScheduleQuestion(message) && /\b(?:monday|tuesday|wednesday|thursday|friday|saturday|sunday)\b|الاثنين|الثلاثاء|الاربعاء|الخميس|الجمعة|السبت|الاحد/u.test(text)) return 'SCHEDULE_REQUIRES_COORDINATOR';
   if (course && /\b(?:not flexible|can only start|must start|need a fixed date)\b|لست مرنا|موعد محدد/u.test(text)
     && !hasPublishedSchedule(facts, selectedCourseCode)) return 'SCHEDULE_REQUIRES_COORDINATOR';
   if (course && /^(?:everything|all details|all the details|كل التفاصيل|جميع التفاصيل)$/u.test(text)
