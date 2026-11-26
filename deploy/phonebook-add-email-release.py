@@ -102,7 +102,13 @@ def compose_env(files, app, workdir):
             release_candidates = []
             pattern = re.compile(r'\$\{' + re.escape(key) + r'(?::[-?+][^}]*)?\}([^:\s]*)\s*:\s*(/app/[^:\s]+)')
             for name in files:
-                for match in pattern.finditer(Path(name).read_text()):
+                content = Path(name).read_text()
+                if '${' + key in content:
+                    config_dir = Path(name).parent
+                    release_root = config_dir.parent if config_dir.name == 'deploy' else config_dir
+                    if release_root.parent.name == 'releases':
+                        release_candidates.append(str(release_root))
+                for match in pattern.finditer(content):
                     suffix, target = match.groups()
                     config_dir = Path(name).parent
                     release_root = config_dir.parent if config_dir.name == 'deploy' else config_dir
