@@ -823,6 +823,7 @@ async function processWebhook(pool, connection, event) {
   const externalId = String(parsed?.id ?? parsed?.customer?.id ?? parsed?.shop_id ?? 'unknown').slice(0, 191);
   const encrypted = connector.seal(event.raw, connection.tenant_id, connection.id, `event:${providerEventId}`);
   const db = await pool.getConnection();
+  let erasedMediaFiles = [];
   try {
     await db.beginTransaction();
     const [insert] = await db.query(`INSERT IGNORE INTO sx_retail_external_events
@@ -839,7 +840,7 @@ async function processWebhook(pool, connection, event) {
       await db.query(`UPDATE sx_retail_store_connections SET status='revoked',credentials_ciphertext=NULL,credentials_iv=NULL,
         credentials_auth_tag=NULL,last_error_code='SHOPIFY_APP_UNINSTALLED' WHERE tenant_id=? AND id=?`, [connection.tenant_id, connection.id]);
     } else if (topic.includes('shop/redact')) {
-      await connector.eraseConnectionData(db, connection);
+      erasedMediaFiles = await connector.eraseConnectionData(db, connection);
       await db.query(`UPDATE sx_retail_store_connections SET status='revoked',credentials_ciphertext=NULL,credentials_iv=NULL,
         credentials_auth_tag=NULL,last_error_code='SHOPIFY_SHOP_REDACTED' WHERE tenant_id=? AND id=?`, [connection.tenant_id, connection.id]);
     } else if (topic.includes('customers/data_request')) {
@@ -903,6 +904,7 @@ async function processWebhook(pool, connection, event) {
     await db.query(`UPDATE sx_retail_external_events SET status='processed',payload_ciphertext=NULL,payload_iv=NULL,payload_auth_tag=NULL,
       processed_at=UTC_TIMESTAMP(3) WHERE id=?`, [record.id]);
     await db.commit();
+    if (erasedMediaFiles.length) await require('./retail-product-media-imports').removeFiles(erasedMediaFiles);
     return { duplicate: !insert.affectedRows };
   } catch (error) {
     await db.rollback();
@@ -1284,9 +1286,10 @@ function workspaceRouter({ pool, authenticate, origin, env=process.env }) {
     if (connection.status !== 'revoked' || req.body?.confirmStoreDomain !== connection.store_domain ||
         Object.keys(req.body || {}).some(key => key !== 'confirmStoreDomain')) fail('STORE_DATA_ERASURE_CONFIRMATION_REQUIRED', 409);
     const db = await pool.getConnection();
+    let erasedMediaFiles = [];
     try {
       await db.beginTransaction();
-      await connector.eraseConnectionData(db, connection);
+      erasedMediaFiles = await connector.eraseConnectionData(db, connection);
       for (const table of ['sx_retail_external_events']) {
         await db.query(`DELETE FROM ${table} WHERE tenant_id=? AND connection_id=?`, [context.tenant.id, connection.id]);
       }
@@ -1296,6 +1299,7 @@ function workspaceRouter({ pool, authenticate, origin, env=process.env }) {
         JSON.stringify({ provider: connection.provider, storeDomain: connection.store_domain }), crypto.randomUUID()]);
       await db.commit();
     } catch (error) { try { await db.rollback(); } catch {} throw error; } finally { db.release(); }
+    if (erasedMediaFiles.length) await require('./retail-product-media-imports').removeFiles(erasedMediaFiles);
     reply(res, { id: connection.id, importedDataRetained: false, connectionMetadataRetained: true });
   }));
 
