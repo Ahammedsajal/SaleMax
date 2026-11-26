@@ -5840,3 +5840,23 @@ Verification: /healthz, /user/login, /admin/login, /user?page=products-services,
 The installed release-retention helper dry-run found 3 eligible release directories and estimated 1,454,080 reclaimable bytes among 331 release directories; no cleanup was applied. Current Retail overlays and rollback snapshots remain retained.
 
 Open gates: fresh WooCommerce credential verification and Shopify OAuth/protected-customer approval; provider pagination beyond saved snapshots; signed-in role and customer-detail acceptance; English/Arabic RTL, theme, responsive and PWA verification. The full 42-ticket upgrade remains in progress.
+
+## 2026-11-26 — Public website globe automatic rotation — production
+
+Source commit `1187cd30dcbdbe52e1ca002c32e05067b2191e48` is pushed to `Ahammedsajal/SaleMax` `main`. The Pause/Resume button and its styles and toggle behavior were removed. The globe rotates automatically when visible and idle, then resumes after pointer hover, drag or photo-viewer interaction. English and Arabic instructions describe automatic rotation. The browser’s operating-system reduced-motion preference is respected.
+
+The guarded app-only release is `/opt/salemax/releases/website-network-globe-auto-rotation-1187cd30dcbd-20261126T052342Z`, layered on the existing release chain. The production app image remained `sha256:753d77d421b3160872df0812e7b38505a1db7104cdb9d6c8b17415b2420de667`; the Compose chain had 351 inputs, 11 environment inputs and 329 app mounts. The app and database were healthy, the app had zero restarts, and support-container identities were unchanged. No database migration or customer-data change occurred.
+
+| Runtime file | SHA-256 |
+|---|---|
+| `client/public/website/index.html` | `68b5d0fbbbbaa34fe6e9e0696d504610debdc038c99bc03136b5d571d324d904` |
+| `client/public/website/website.css` | `7110a8be57d741eac3e00ca2a310d75110c43a432de1df90e45b7eaa4c057b32` |
+| `client/public/website/network-globe.js` | `84d1b84ab3046ceca91a90f886d71edcdd5783cc5ab23f5061ca6380b0653eb5` |
+
+Protected rollback snapshot: `/opt/salemax/shared/rollback-website-network-globe-auto-rotation-1187cd30dcbd-20261126T052342Z`. If this remains the newest app overlay, restore it under the production lock; roll back later app overlays first:
+
+```sh
+sudo -n /opt/salemax/shared/with-production-lock.sh python3 /opt/salemax/releases/website-network-globe-auto-rotation-1187cd30dcbd-20261126T052342Z/deploy/website-network-globe-auto-rotation-release.py restore /opt/salemax/shared/rollback-website-network-globe-auto-rotation-1187cd30dcbd-20261126T052342Z
+```
+
+Verification on production confirmed `/healthz`, the homepage and versioned CSS/JavaScript returned HTTP 200; served bytes matched the deployed hashes, and checks confirmed no manual rotation control plus the English/Arabic auto-rotation copy. At 390px, browser review confirmed the control is absent, help text is localized and there is no horizontal overflow. The browser environment had `prefers-reduced-motion: reduce`, so visible globe movement with that preference disabled was not visually verified; motion remains intentionally disabled for users who request reduced motion. JavaScript/helper syntax and `git diff --check` passed. The full 42-ticket upgrade and its remaining release gates continue.

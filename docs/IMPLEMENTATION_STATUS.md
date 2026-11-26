@@ -1,3 +1,7 @@
+## Public website globe — automatic rotation; manual control removed, deployed 26 November 2026
+
+Removed the globe’s Pause/Resume rotation control and localized help text. Rotation starts automatically when the globe is visible and idle, and resumes after hover, drag or photo-viewer interaction; the OS reduced-motion preference is respected. Production health, cache-busted assets and the 390px English/Arabic mobile controls were verified. The browser used for visual review had reduced motion enabled, so visible movement under a no-preference setting remains unconfirmed. See DEPLOYMENT.md for release hashes, rollback and evidence.
+
 ## Public website GA4 for all visitors — deployed; Realtime confirmation pending, 25 November 2026
 
 The public website now loads the existing GA4 measurement ID on every public page visit without a Google Analytics opt-in or saved GA choice. Advertising storage, advertising user data and ad personalization remain denied. The separate OpenAI ad-measurement choice is unchanged. The bilingual privacy notice now describes automatic measurement and its browser/network limitations. The app-only release is healthy and the served homepage, JavaScript, privacy notice and CSP were verified. GA4 Realtime was not independently checked because the Edge session was unavailable. See DEPLOYMENT.md for release hashes, rollback and evidence.
