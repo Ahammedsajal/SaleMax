@@ -67,14 +67,17 @@ def compose_env(app,configs,workdir):
   elif key in live:variables[key]=live[key]
   elif key.endswith(('_BASE_IMAGE','_APP_IMAGE')):variables[key]=app['Config']['Image']
   else:
-   inferred=set()
+   inferred=set();release_candidates=[]
    pattern=re.compile(r'\$\{'+re.escape(key)+r'(?::[-?+][^}]*)?\}([^:\s]*)\s*:\s*(/app/[^:\s]+)')
    for p in configs:
-    content=Path(p).read_text()
+    content=Path(p).read_text();config_dir=Path(p).parent;release_root=config_dir.parent if config_dir.name=='deploy' else config_dir
+    if '${'+key in content and release_root.parent.name=='releases':release_candidates.append(str(release_root))
     for suffix,target in pattern.findall(content):
+     if release_root.parent.name=='releases':release_candidates.append(str(release_root));continue
      if target in mounts and (not suffix or mounts[target].endswith(suffix)):inferred.add(mounts[target][:-len(suffix)] if suffix else mounts[target])
-   if len(inferred)!=1:raise RuntimeError('cannot resolve required Compose variable: '+key)
-   variables[key]=inferred.pop()
+   if release_candidates:variables[key]=release_candidates[-1]
+   elif len(inferred)==1:variables[key]=inferred.pop()
+   else:raise RuntimeError('cannot resolve required Compose variable: '+key)
  return dict(os.environ,**variables)
 def db_probe():
  code="const p=require('/app/database/config').promise();(async()=>{try{const [[c]]=await p.query(\"SELECT COUNT(*) n FROM information_schema.columns WHERE table_schema=DATABASE() AND table_name='sx_email_campaigns' AND column_name='deleted_at'\");const [m]=await p.query(\"SELECT migration_name,status,checksum,statement_count,statements_completed FROM salemax_schema_migrations WHERE migration_name='20270211_email_campaign_soft_delete.sql'\");console.log(JSON.stringify({columns:Number(c.n),ledger:m}))}finally{await p.end()}})().catch(e=>{console.log(e.code||'db-probe-failed');process.exit(1)})"
