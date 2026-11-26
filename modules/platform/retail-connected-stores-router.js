@@ -19,17 +19,62 @@ const safeConnection = row => {
   const cursors = parseJson(row.sync_cursor, {});
   const woo = row.provider === 'woocommerce' ? cursors.woocommerce || {} : null;
   const shopify = row.provider === 'shopify' ? cursors.shopify || {} : null;
+  const lastComplete = woo?.lastCompleteScan || null;
+  const sourceRows = lastComplete?.orderAmounts && typeof lastComplete.orderAmounts === 'object' && !Array.isArray(lastComplete.orderAmounts)
+    ? Object.values(lastComplete.orderAmounts) : [];
+  const safeCount = value => value !== null && value !== undefined && String(value).trim() !== '' &&
+    Number.isSafeInteger(Number(value)) && Number(value) >= 0 ? Number(value) : null;
+  const safeText = (value, fallback = 'unknown') => String(value || fallback).trim().slice(0, 64) || fallback;
+  const safeMoney = value => {
+    const amount = String(value ?? '').trim();
+    return amount.length <= 64 && /^-?\\d{1,20}(?:\\.\\d{1,6})?$/.test(amount) ? amount : null;
+  };
+  const sourceCounts = lastComplete ? Object.fromEntries(['products','orders','customers'].map(resource => {
+    const item = lastComplete.sourceCounts?.[resource] || {};
+    return [resource, { total: safeCount(item.total), scanned: safeCount(item.scanned),
+      sourceChangedDuringScan: typeof item.sourceChangedDuringScan === 'boolean' ? item.sourceChangedDuringScan : null }];
+  })) : null;
+  const groups = sourceRows.slice(0, 250).map(item => {
+    const count = safeCount(item?.count);
+    if (count === null) return null;
+    const amounts = {};
+    for (const [name, field] of [['total','total'],['subtotal','subtotal'],['discount','discount'],['shipping','shipping'],
+      ['tax','tax'],['fees','fee'],['refunds','refund']]) {
+      amounts[name] = item?.[field] == null || (field !== 'total' && item?.[field + 'Complete'] === false)
+        ? null : safeMoney(item[field]);
+    }
+    return { currency: /^[A-Z]{3}$/.test(String(item.currency || '').toUpperCase()) ? String(item.currency).toUpperCase() : row.default_currency,
+      status: safeText(item.status), financialStatus: safeText(item.financialStatus), count, amounts };
+  }).filter(Boolean);
+  const aggregateOrderCount = sourceRows.reduce((sum, item) => {
+    const count = safeCount(item?.count);
+    return sum === null || count === null ? null : sum + count;
+  }, 0);
+  const sourceOrderCount = sourceCounts?.orders?.scanned;
+  const sourceCountMetadataAvailable = Boolean(sourceCounts && ['products','orders','customers'].every(resource =>
+    sourceCounts[resource].total !== null && sourceCounts[resource].scanned !== null &&
+    sourceCounts[resource].sourceChangedDuringScan !== null));
+  const countsFullyScanned = Boolean(sourceCountMetadataAvailable && ['products','orders','customers'].every(resource =>
+    sourceCounts[resource].total === sourceCounts[resource].scanned));
+  const stableSourceCounts = Boolean(sourceCountMetadataAvailable && ['products','orders','customers'].every(resource =>
+    sourceCounts[resource].sourceChangedDuringScan === false));
+  const orderAmountMetadataAvailable = aggregateOrderCount !== null && Number.isSafeInteger(aggregateOrderCount) && aggregateOrderCount === sourceOrderCount;
   return { id: row.id, provider: row.provider, storeDomain: row.store_domain, displayName: row.display_name,
     currency: row.default_currency, status: row.status, scopes: parseJson(row.scopes, []), lastSyncAt: row.last_sync_at,
     credentialsVerifiedAt: row.credentials_verified_at || null, syncEnabled: Boolean(row.credentials_verified_at),
     lastErrorCode: row.last_error_code, counts: row.counts || { orders: 0, customers: 0, products: 0, variations: 0, checkouts: 0, mappings: 0 },
-    syncProgress: woo ? { scanStartedAt: woo.scanStartedAt || null, lastCompleteScanAt: woo.lastCompleteScan?.completedAt || null,
+    syncProgress: woo ? { scanStartedAt: woo.scanStartedAt || null, lastCompleteScanAt: lastComplete?.completedAt || null,
       resources: Object.fromEntries(['products','orders','customers'].map(resource => [resource, {
         complete: Boolean(woo[resource]?.complete), page: Number(woo[resource]?.page) || 1,
-        sourceTotal: woo[resource]?.sourceTotal ?? null, scanned: Number(woo[resource]?.scanned) || 0,
+        sourceTotal: safeCount(woo[resource]?.sourceTotal), scanned: safeCount(woo[resource]?.scanned),
       }])), pendingVariationParents: (woo.variationQueue || []).length } : shopify ? {
       resources: Object.fromEntries(['products','orders','customers'].map(resource => [resource, { complete: Boolean(shopify[resource]?.complete) }])),
       pendingVariantProducts: Array.isArray(shopify.variantQueue) ? shopify.variantQueue.length : 0,
+    } : null,
+    orderSummary: row.provider === 'woocommerce' && lastComplete ? {
+      startedAt: lastComplete.startedAt || null, completedAt: lastComplete.completedAt || null,
+      sourceCounts, groups, groupCount: sourceRows.length, truncated: sourceRows.length > groups.length,
+      sourceCountMetadataAvailable, countsFullyScanned, stableSourceCounts, orderAmountMetadataAvailable,
     } : null };
 };
 function parseJson(value, fallback) { try { return typeof value === 'string' ? JSON.parse(value) : value || fallback; } catch { return fallback; } }
