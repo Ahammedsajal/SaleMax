@@ -173,7 +173,7 @@ async function loadProfiles(pool, tenantId, keys, { includeOrders = false, order
     FROM sx_retail_external_customers c JOIN sx_retail_store_connections s
       ON s.tenant_id=c.tenant_id AND s.id=c.connection_id
     WHERE c.tenant_id=? AND c.customer_status='active' AND c.customer_directory_key IN (?)`, [tenantId, keys]);
-  const [sourceStats] = await pool.query(`SELECT customer_directory_key AS customerDirectoryKey,COUNT(*) AS orderCount,MAX(source_created_at) AS lastOrderAt
+  const [sourceStats] = await pool.query(`SELECT customer_directory_key AS customerDirectoryKey,COUNT(*) AS orderCount,MAX(source_created_at) AS lastOrderAt,MAX(imported_at) AS lastImportedAt
     FROM sx_retail_external_orders WHERE tenant_id=? AND customer_directory_key IN (?) GROUP BY customer_directory_key`, [tenantId, keys]);
   const [nativeStats] = await pool.query(`SELECT customer_directory_key AS customerDirectoryKey,COUNT(*) AS orderCount,MAX(created_at) AS lastOrderAt
     FROM sx_retail_orders WHERE tenant_id=? AND external_source_connection_id IS NULL AND customer_directory_key IN (?) GROUP BY customer_directory_key`, [tenantId, keys]);
@@ -202,7 +202,7 @@ async function loadProfiles(pool, tenantId, keys, { includeOrders = false, order
   const connector = require('./retail-connected-stores');
   const profiles = new Map(keys.map(key => [key, {
     id: key, name: '', email: null, phone: null, address: null, marketingConsent: null, sourceRecords: [], orders: [],
-    amountSpent: [], recordedPayments: [], orderCount: 0, lastOrderAt: null,
+    amountSpent: [], recordedPayments: [], orderCount: 0, lastOrderAt: null, lastImportedAt: null,
   }]));
   const touch = (key, customer, updatedAt, source) => {
     const profile = profiles.get(key); if (!profile || !customer) return;
@@ -226,7 +226,6 @@ async function loadProfiles(pool, tenantId, keys, { includeOrders = false, order
     const profile = profiles.get(key);
     if (profile) profile.sourceRecords.push({ connectionId: row.connectionId, provider: row.provider, storeName: row.storeName, externalCustomerId: row.externalCustomerId });
   }
-  const sourceCount = new Map(sourceStats.map(row => [row.customerDirectoryKey, Number(row.orderCount)]));
   const nativeCount = new Map(nativeStats.map(row => [row.customerDirectoryKey, Number(row.orderCount)]));
   const latestPeople = await Promise.all([
     pool.query(`SELECT customerDirectoryKey,buyerName,buyerEmail,buyerPhone,deliveryAddress,createdAt FROM (
@@ -262,6 +261,7 @@ async function loadProfiles(pool, tenantId, keys, { includeOrders = false, order
     const profile = profiles.get(row.customerDirectoryKey); if (!profile) continue;
     profile.orderCount += Number(row.orderCount);
     if (row.lastOrderAt && (!profile.lastOrderAt || new Date(row.lastOrderAt) > new Date(profile.lastOrderAt))) profile.lastOrderAt = row.lastOrderAt;
+    if (row.lastImportedAt && (!profile.lastImportedAt || new Date(row.lastImportedAt) > new Date(profile.lastImportedAt))) profile.lastImportedAt = row.lastImportedAt;
   }
   for (const row of nativeStats) {
     const profile = profiles.get(row.customerDirectoryKey); if (!profile) continue;
