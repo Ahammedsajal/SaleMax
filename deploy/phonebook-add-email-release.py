@@ -99,6 +99,7 @@ def compose_env(files, app, workdir):
             variables[key] = app['Config']['Image']
         else:
             inferred = set()
+            release_candidates = []
             pattern = re.compile(r'\$\{' + re.escape(key) + r'(?::[-?+][^}]*)?\}([^:\s]*)\s*:\s*(/app/[^:\s]+)')
             for name in files:
                 for match in pattern.finditer(Path(name).read_text()):
@@ -106,12 +107,14 @@ def compose_env(files, app, workdir):
                     config_dir = Path(name).parent
                     release_root = config_dir.parent if config_dir.name == 'deploy' else config_dir
                     if release_root.parent.name == 'releases':
-                        inferred.add(str(release_root))
+                        release_candidates.append(str(release_root))
                         continue
                     source = mounts.get(target)
                     if source and (not suffix or source.endswith(suffix)):
                         inferred.add(source[:-len(suffix)] if suffix else source)
-            if len(inferred) == 1:
+            if release_candidates:
+                variables[key] = release_candidates[-1]
+            elif len(inferred) == 1:
                 variables[key] = inferred.pop()
             else:
                 raise RuntimeError('production Compose input is missing required variable: ' + key)
