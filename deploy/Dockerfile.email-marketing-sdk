@@ -4,15 +4,14 @@ FROM $BASE_IMAGE
 USER root
 ENV NODE_PATH=/opt/7network-email-node-modules/node_modules
 
-RUN npm install \
+COPY deploy/email-marketing-sdk/package.json deploy/email-marketing-sdk/package-lock.json /opt/7network-email-node-modules/
+
+RUN npm ci \
     --prefix /opt/7network-email-node-modules \
-    --package-lock=false \
-    --no-save \
     --omit=dev \
     --ignore-scripts \
     --no-audit \
     --no-fund \
-    @aws-sdk/client-sesv2@3.1166.0 \
- && node -e "require.resolve('@aws-sdk/client-sesv2')"
+ && node -e "require.resolve('@aws-sdk/client-sesv2');require.resolve('@aws-sdk/client-ses')"
 
 USER node

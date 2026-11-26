@@ -22,7 +22,8 @@ async function claim(pool,{limit=8,now=new Date()}={}){
     await db.query("UPDATE sx_email_campaign_recipients SET status='unknown',lease_owner=NULL,lease_expires_at=NULL,last_error_code='DELIVERY_OUTCOME_UNKNOWN' WHERE status='sending' AND lease_expires_at<=UTC_TIMESTAMP(3)");
     const expiredCampaigns=new Map(expiredRows.map(row=>[`${row.tenantId}:${row.campaignId}`,row]));
     for(const campaign of expiredCampaigns.values())await emailReconciliation.reconcileCampaignFromEvents(db,campaign.tenantId,campaign.campaignId);
-    const [rows]=await db.query(`SELECT r.id,r.tenant_id AS tenantId,r.campaign_id AS campaignId,r.contact_id AS contactId,r.recipient_email AS recipientEmail,
+    const [rows]=await db.query(`SELECT r.id,r.tenant_id AS tenantId,r.campaign_id AS campaignId,r.contact_id AS contactId,
+      r.follow_up_source_recipient_id AS followUpSourceRecipientId,c.follow_up_of_campaign_id AS followUpOfCampaignId,r.recipient_email AS recipientEmail,
       r.normalized_email AS normalizedEmail,r.attempt_count AS attemptCount,c.subject,c.text_body AS textBody,c.design_json AS designJson,c.status AS campaignStatus,
       s.id AS senderId,s.email AS senderEmail,s.verification_status AS senderStatus,d.region,d.domain,d.verification_status AS domainStatus,d.dkim_status AS dkimStatus,
       i.reply_domain AS replyDomain,i.receiving_status AS receivingStatus,c.reply_to_email AS replyToEmail
@@ -45,7 +46,7 @@ async function claim(pool,{limit=8,now=new Date()}={}){
   }catch(error){try{await db.rollback();}catch{}throw error;}finally{db.release();}
 }
 
-async function currentContact(db,item){
+async function currentContact(db,item,key){
   const [rows]=await db.query(`SELECT c.name,c.email,c.mobile,c.var1,c.var2,c.var3,c.var4,c.var5,c.email_unsubscribed_at,
       s.normalized_email AS suppressedEmail
     FROM sx_email_campaign_recipients r
@@ -57,9 +58,18 @@ async function currentContact(db,item){
     WHERE r.tenant_id=? AND r.campaign_id=? AND r.id=? LIMIT 2`,[item.tenantId,item.campaignId,item.id]);
   if(rows.length!==1)return {blocked:true,code:'PHONEBOOK_CONTACT_UNAVAILABLE'};
   const contact=rows[0],email=service.normalizeEmail(contact.email);
+  if(item.followUpOfCampaignId){
+    const [[sourceRecipient]]=await db.query(`SELECT r.id FROM sx_email_campaign_recipients r
+      WHERE r.tenant_id=? AND r.campaign_id=? AND r.id=? AND r.contact_id=? AND r.normalized_email=? AND r.status='accepted'
+        AND EXISTS(SELECT 1 FROM sx_email_provider_events e WHERE e.tenant_id=r.tenant_id AND e.campaign_id=r.campaign_id AND e.recipient_id=r.id AND e.event_type='Delivery')
+        AND NOT EXISTS(SELECT 1 FROM sx_email_provider_events e WHERE e.tenant_id=r.tenant_id AND e.campaign_id=r.campaign_id AND e.recipient_id=r.id AND e.event_type IN ('Open','Click','Bounce','Complaint','Reject'))
+      LIMIT 1`,[item.tenantId,item.followUpOfCampaignId,item.followUpSourceRecipientId,item.contactId,item.normalizedEmail]);
+    if(!sourceRecipient)return {blocked:true,code:'FOLLOWUP_RECIPIENT_NO_LONGER_ELIGIBLE'};
+  }
   if(contact.email_unsubscribed_at)return {blocked:true,code:'CONTACT_UNSUBSCRIBED'};
   if(!service.validEmail(email)||email!==item.normalizedEmail)return {blocked:true,code:'CONTACT_EMAIL_CHANGED'};
   if(contact.suppressedEmail)return {blocked:true,code:'EMAIL_SUPPRESSED'};
+  if(item.followUpOfCampaignId&&await service.bounceSuppressed(db,key,item.tenantId,email))return {blocked:true,code:'EMAIL_BOUNCED'};
   return {contact:{...contact,email}};
 }
 
@@ -115,7 +125,7 @@ async function dispatch(pool,item,{key,origin,send=ses.sendSimple,providerCache=
       LEFT JOIN sx_email_sender_domain_shares x ON x.domain_id=d.id AND x.owner_tenant_id=d.tenant_id AND x.shared_tenant_id=s.tenant_id AND x.sender_email=s.email AND x.status='active'
       WHERE s.tenant_id=? AND s.id=? AND (d.tenant_id=s.tenant_id OR x.id IS NOT NULL) LIMIT 1`,[item.tenantId,item.senderId]);
     shareAllowed=Boolean(senderAccess);if(!shareAllowed)return finish(pool,item,{status:'failed',errorCode:'EMAIL_DOMAIN_SHARE_REVOKED'});
-    current=await currentContact(db,item);if(current.blocked)return finish(pool,item,{status:'suppressed',errorCode:current.code});attachments=await campaignAttachments(db,item);
+    current=await currentContact(db,item,key);if(current.blocked)return finish(pool,item,{status:'suppressed',errorCode:current.code});attachments=await campaignAttachments(db,item);
   }finally{db.release();}
   let design=null;
   if(item.designJson){

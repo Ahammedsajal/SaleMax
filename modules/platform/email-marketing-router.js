@@ -35,6 +35,7 @@ function createEmailMarketingRouter({pool:injectedPool,authenticate,origin,key,b
   router.post('/domains/:id/replies/refresh',run(async(db,ctx,req)=>service.refreshReplies(db,ctx,req.params.id,key)));
   router.post('/senders',run(async(db,ctx,req)=>service.addSender(db,ctx,req.body,key)));
   router.post('/senders/:id/refresh',run(async(db,ctx,req)=>service.refreshSender(db,ctx,req.params.id,key)));
+  router.post('/senders/:id/resend-verification',run(async(db,ctx,req)=>service.resendSenderVerification(db,ctx,req.params.id,key)));
   router.post('/senders/:id/test',run(async(db,ctx,req)=>{
     const result=await service.testSend(db,ctx,{senderId:req.params.id,recipient:req.body?.recipient},key);
     const [local,domain]=result.recipient.split('@');
@@ -68,6 +69,8 @@ function createEmailMarketingRouter({pool:injectedPool,authenticate,origin,key,b
   router.delete('/campaigns/:id',run(async(db,ctx,req)=>service.deleteCampaign(db,ctx,req.params.id)));
   router.get('/analytics',run(async(db,ctx,req)=>service.analytics(db,ctx,req.query?.days)));
   router.post('/campaigns',run(async(db,ctx,req)=>service.createCampaign(db,ctx,req.body,key)));
+  router.post('/campaigns/:id/follow-up/preview',run(async(db,ctx,req)=>service.previewFollowUpAudience(db,ctx,req.params.id,req.body,key)));
+  router.post('/campaigns/:id/follow-up',run(async(db,ctx,req)=>service.createFollowUpCampaign(db,ctx,req.params.id,req.body,key)));
   router.get('/campaigns/:id',run(async(db,ctx,req)=>service.campaignDetail(db,ctx,req.params.id,req.query)));
   router.post('/campaigns/:id/reconcile',run(async(db,ctx,req)=>service.reconcileCampaign(db,ctx,req.params.id)));
   router.get('/inbox',run(async(db,ctx)=>service.inbox(db,ctx)));

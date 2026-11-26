@@ -85,6 +85,18 @@ async function createSenderIdentity(value,email,credentials=null){
   return {region:selected,status:result.VerificationStatus||'PENDING'};
 }
 
+async function resendSenderVerificationEmail(value,email,credentials=null){
+  const selected=region(value);
+  let sdk;
+  try{sdk=require('@aws-sdk/client-ses');}
+  catch{throw Object.assign(Error('SES_PROVIDER_NOT_INSTALLED'),{code:'SES_PROVIDER_NOT_CONFIGURED'});}
+  const options={region:selected};
+  if(credentials)options.credentials={accessKeyId:credentials.accessKeyId,secretAccessKey:credentials.secretAccessKey};
+  const client=new sdk.SESClient(options);
+  try{await client.send(new sdk.VerifyEmailIdentityCommand({EmailAddress:email}));return {region:selected};}
+  finally{client.destroy();}
+}
+
 async function sendSimple(value,message,credentials=null){
   const {client,sdk}=createClient(value,credentials);
   const result=await client.send(new sdk.SendEmailCommand(message));
@@ -110,4 +122,4 @@ async function eventDestinationConfigured(value,configurationSetName,topicArn,cr
   }catch(error){if(error?.name==='NotFoundException'||error?.$metadata?.httpStatusCode===404)return false;throw error;}
 }
 
-module.exports={regions,region,defaultRegion,publicCode,getAccount,getIdentity,createDomainIdentity,createSenderIdentity,sendSimple,configureEventDestination,eventDestinationConfigured};
+module.exports={regions,region,defaultRegion,publicCode,getAccount,getIdentity,createDomainIdentity,createSenderIdentity,resendSenderVerificationEmail,sendSimple,configureEventDestination,eventDestinationConfigured};
