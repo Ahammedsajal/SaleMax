@@ -12,9 +12,10 @@ async function main() {
     if (!host.includes('.') || url.username || url.password || url.port || url.pathname !== '/' || url.search || url.hash) {
       throw Object.assign(Error('RETAIL_PRODUCT_IMAGE_TARGET_DENIED'), { code: 'RETAIL_PRODUCT_IMAGE_TARGET_DENIED' });
     }
+    const storeUrl = `https://${host}`;
     const [rows] = await pool.query(`SELECT id,tenant_id,provider,store_domain,default_currency,created_by_identity_id
       FROM sx_retail_store_connections WHERE status='active' AND provider='woocommerce' AND store_domain=? LIMIT 2`,
-    [host]);
+    [storeUrl]);
     if (rows.length !== 1) throw Object.assign(Error('RETAIL_PRODUCT_IMAGE_TARGET_NOT_UNIQUE'), { code: 'RETAIL_PRODUCT_IMAGE_TARGET_NOT_UNIQUE' });
     connection = rows[0];
     let imported = 0, failures = 0, remaining = 0, rounds = 0;
