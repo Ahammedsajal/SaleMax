@@ -5773,6 +5773,45 @@ sudo -n /opt/salemax/shared/with-production-lock.sh python3 /opt/salemax/release
 
 Verification: `/healthz`, the public homepage, cache-busted JavaScript and the new privacy notice returned HTTP 200; served JS and notice hashes matched the staged files, and the homepage CSP includes the Google tag and Analytics endpoints. The Edge DOM showed the deployed Privacy settings control. The Mac was locked and browser input dispatch failed, so a visitor opt-in and the resulting GA4 Realtime event could not be verified in this rollout. No automated test suite ran; JavaScript syntax, helper parsing, the targeted live-index patch preflight and `git diff --check` passed. GA4 collection remains off for visitors until they explicitly allow it in Privacy settings. The full 42-ticket upgrade and its other release gates continue.
 
+## GA4 enabled for all public website visits — production, 25 November 2026
+
+Source commit 661542351fcc70fa772dbe8936de4e048a9d3b7b is pushed to Ahammedsajal/SaleMax main. This follow-up removes the Google Analytics opt-in from the public homepage and loads the existing GA4 measurement ID automatically on every public page visit. The browser no longer reads or saves a GA consent choice. Analytics storage is granted by default; Google advertising storage, advertising user data and ad personalization remain denied. The separate OpenAI ad-measurement choice remains unchanged. The English/Arabic privacy notice now describes automatic collection, page/referrer and allowlisted UTM data, the form-data boundary, cookies and browser/network blocking.
+
+The guarded app-only overlay is /opt/salemax/releases/website-google-analytics-all-visitors-661542351fcc-20261125T165341Z/compose.website-google-analytics-all-visitors.json, layered over base /opt/salemax/releases/training-pipeline-correction-v3-9867ca72-20261104 and the previously active website, GA4 and Retail overlays. The app image remained sha256:753d77d421b3160872df0812e7b38505a1db7104cdb9d6c8b17415b2420de667. The active Compose chain has 349 inputs, 11 environment-file inputs and 329 app mounts. The app and database are healthy; the helper verified every non-app service identity remained unchanged. No migration ran and no customer or account data changed. The public-website handler and its GA4 CSP allowance were unchanged.
+
+| Runtime file | Previous live SHA-256 | Deployed SHA-256 |
+|---|---|---|
+| client/public/website/index.html | 27b76b789dbce873cef60c8d0c9be5cf5c6ce11e5a91eb0954d2e896961fb2e8 | 0202003c68c7a251a36f71ff80aaae81076a7291ce4bc5778e6854845964fede |
+| client/public/website/website.js | 725753dec08031d0ba04b7f31f52df806e1b8ad16da972b576f935e700c9fb37 | db27186d1c6dd37c9a961ba8e09f629f8289b6e004b84ad83f6f8c5fc9dfa474 |
+| client/public/website/google-analytics-privacy.html | d2b13de6345d0dc44249010c1b130d9fb61937c28e517bc43cc3834c2c1df6a5 | cb15502c2e559f82f7d2dde00ed915e2e759e73c127dbfc70636090951b148eb |
+| modules/web/public-website.js (unchanged) | 2e197a3c813098c30609f33ceb779c0c2d46bb2d79a014fc9a027f1e52693ff0 | 2e197a3c813098c30609f33ceb779c0c2d46bb2d79a014fc9a027f1e52693ff0 |
+
+Protected rollback snapshot: /opt/salemax/shared/rollback-website-google-analytics-all-visitors-661542351fcc-20261125T165341Z. This snapshot returns the site to the immediately preceding consent-gated GA4 release. Roll back only if this remains the newest app overlay; first roll back any later app overlays. Restore under the production lock with:
+
+    sudo -n /opt/salemax/shared/with-production-lock.sh python3 /opt/salemax/releases/website-google-analytics-all-visitors-661542351fcc-20261125T165341Z/deploy/website-google-analytics-all-visitors-release.py restore /opt/salemax/shared/rollback-website-google-analytics-all-visitors-661542351fcc-20261125T165341Z
+
+Verification on carsqatar-prod-01: /healthz, homepage, cache-busted JavaScript and privacy notice returned HTTP 200; their served hashes matched the release report. The homepage contains the new cache key and OpenAI choice but no GA opt-in. The served JavaScript calls the GA4 loader unconditionally, grants analytics storage and denies the three advertising settings; the homepage CSP allows the GA endpoints. The app is healthy with zero restarts, and the database is healthy. Node syntax, release-helper syntax, targeted live-index/stage preflight and git diff --check passed. No automated test suite ran. An actual GA4 Realtime event was not independently observed because the Edge session was unavailable during the preceding browser check. The full 42-ticket upgrade and its remaining release gates continue.
+
+## Globe photo tiles and tap-to-enlarge — production, 25 November 2026
+
+Source commit `55ddfe27e2326f923210d2934bf5f66b6a0ad3c6` is pushed to `Ahammedsajal/SaleMax` `main`. The globe had two stale image paths that returned the website's HTML document (`text/html`) instead of images, producing browser question-mark icons; other tiles were text-only badges. The globe now uses twelve verified local WebP photos, preloads them, and falls back to a verified photo if one fails. Tapping/clicking a photo opens an accessible enlarged viewer with localized caption and close controls. Desktop hover zoom remains, and keyboard activation and Escape/backdrop close are supported. English and Arabic control instructions now explain how to enlarge a photo.
+
+The guarded app-only release is `/opt/salemax/releases/website-network-globe-zoom-55ddfe27e232-20261125T170015Z`, layered over `/opt/salemax/releases/training-pipeline-correction-v3-9867ca72-20261104` and the previously active Retail and GA4 overlays. The app image remained `sha256:753d77d421b3160872df0812e7b38505a1db7104cdb9d6c8b17415b2420de667`; the active chain has 350 Compose inputs, 11 environment inputs and 329 app mounts. App and database are healthy, with zero app restarts; non-app service identities remained unchanged. No migration ran and no customer/account data changed.
+
+Protected rollback snapshot: `/opt/salemax/shared/rollback-website-network-globe-zoom-55ddfe27e232-20261125T170015Z`. Roll back under the production lock if this remains the newest app overlay; first roll back any later overlays:
+
+```sh
+sudo -n /opt/salemax/shared/with-production-lock.sh python3 /opt/salemax/releases/website-network-globe-zoom-55ddfe27e232-20261125T170015Z/deploy/website-network-globe-zoom-release.py restore /opt/salemax/shared/rollback-website-network-globe-zoom-55ddfe27e232-20261125T170015Z
+```
+
+| Runtime file | SHA-256 |
+|---|---|
+| `client/public/website/index.html` | `2573fb2963861315ee164d0558e041331bc250c4ce45b19908632380915ba50c` |
+| `client/public/website/website.css` | `34226c3b32d3c97de3a0a60e80f95dc859d2333af8be7b1a388cf71edd9a3465` |
+| `client/public/website/network-globe.js` | `f26447bc17fc6af512d117f1eb1ea0c8d8e1f4da0f987e128ee9bfd46888df9d` |
+
+Verification on `carsqatar-prod-01`: `/healthz`, homepage, versioned CSS/JavaScript, and all twelve unique photo assets returned HTTP 200; each photo response had `image/webp` content type, and served HTML/CSS/JavaScript hashes matched the release. Browser verification at 390×844 confirmed photos render without broken-image icons and tapping opens an enlarged photo with localized Arabic caption and close button; English and Arabic UI states were checked. JavaScript/helper syntax and `git diff --check` passed; no automated suite ran. No release cleanup was applied. The full 42-ticket upgrade and remaining release gates continue.
+
 ## Retail Store Connections, local imports and customer directory — production, 25 November 2026
 
 Source commit 30f63fce8bbd5ebbf5848d0c6913bb28f491d3cb is on main and contains the reviewed Retail source plus the release-helper and MariaDB collation fixes (PRs #180–#183).
