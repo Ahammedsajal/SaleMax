@@ -1,3 +1,7 @@
+## Pro Catalyst caregiver course phrase matching — deployed; WhatsApp acceptance pending, 26 November 2026
+
+The customer phrase “care takers” was not recognized as the published Caregiver course. The generic token `care` then made the broader Diploma Health & Social Care course appear relevant, so the bot sent the wrong course/PDF. Training Center normalization now maps common “care giver,” “care taker,” “caretaker,” nursing-assistant and nursing-aide wording to the existing caregiver course before broad topic matching. The same published course ID feeds verified course facts and its existing media path; if more than one course is plausible, the bot should clarify. The fix is live for all chats using this shared runtime. No migration or customer record change occurred. Production health and mounted source hash passed. A real WhatsApp caregiver enquiry has not yet been used to verify the reply or attachment; see `DEPLOYMENT.md` for release, rollback and evidence.
+
 ## Public website globe — automatic rotation with manual control; deployed 26 November 2026
 
 The visible instruction sentence and Pause/Resume control are removed. The globe rotates automatically while visible, continues rotating on hover, and uses a slower rate when reduced motion is requested. Rotation pauses during an active drag or while a photo viewer is open. Drag, touch and arrow-key controls remain. Live browser screenshots confirmed the card orientation changes in a reduced-motion browser. See DEPLOYMENT.md for release hashes, rollback and evidence.

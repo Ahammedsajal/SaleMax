@@ -1,3 +1,19 @@
+## 2026-11-26 — Pro Catalyst caregiver phrase matching — production
+
+Source commit `30e85f940f18c0fc6a71012b60f5c3e9f368a81a` is pushed to `Ahammedsajal/SaleMax` `main`. It includes the caregiver phrase-matching change from `25e14d48`: “care taker(s),” “caretaker(s),” “care giver(s),” and nursing-assistant/aide phrases normalize to the existing published Caregiver course before broad topic scoring. This keeps a caregiver enquiry from matching the unrelated Diploma Health & Social Care course merely because both names contain “care.” The matched published course ID continues through the existing verified-facts and course-media path; multiple plausible course matches still require clarification. Live weekday schedule and employment-claim routing safeguards were preserved in the source.
+
+The guarded app-only release is `/opt/salemax/releases/pro-catalyst-caregiver-course-match-30e85f940f18-20261126T090146Z`, layered over base `/opt/salemax/releases/training-pipeline-correction-v3-9867ca72-20261104`. It retained image `sha256:753d77d421b3160872df0812e7b38505a1db7104cdb9d6c8b17415b2420de667`. The release helper verified 362 Compose inputs, 2 environment-file inputs and 333 app mounts, and confirmed the five monitored support container identities were unchanged. No database migration or customer-data write occurred.
+
+Runtime `modules/platform/chatbot-business-context.js` SHA-256 before release: `37d6f89bafde523d12533fbce9b8861cee2abd33d3956b6bd66e488971105784`; deployed: `8dc53cbca0c0f06cb800a8155972d5ca781ce3069a3c369c9981b957e7e9bbb8`. The app is healthy with zero restarts, and `https://7network.live/healthz` returned HTTP 200. JavaScript syntax, Python AST parsing, and `git diff --check` passed. No test suite or WhatsApp message was run; live customer-message acceptance is still open, so the intended reply and attachment selection should be confirmed on the next caregiver enquiry.
+
+Protected rollback snapshot: `/opt/salemax/shared/rollback-pro-catalyst-caregiver-course-match-30e85f940f18-20261126T090146Z`. With the production lock, restore the prior app mount chain using:
+
+```sh
+sudo -n /opt/salemax/shared/with-production-lock.sh python3 -B /opt/salemax/releases/pro-catalyst-caregiver-course-match-30e85f940f18-20261126T090146Z/deploy/pro-catalyst-caregiver-course-match-release.py restore /opt/salemax/shared/rollback-pro-catalyst-caregiver-course-match-30e85f940f18-20261126T090146Z
+```
+
+No database rollback applies.
+
 ## 2026-11-26 — Phonebook manual-entry email field — production
 
 Source commit `2f22bc7b3ff76163d094e7468e0e90dcba4809b8` is pushed to `Ahammedsajal/SaleMax` `main`. The guarded app-only overlay is `/opt/salemax/releases/phonebook-add-email-2f22bc7b3ff7-20261126T080042Z`, layered over the existing live Compose chain and base `/opt/salemax/releases/training-pipeline-correction-v3-9867ca72-20261104`. The existing app image was retained (`sha256:753d77d421b3160872df0812e7b38505a1db7104cdb9d6c8b17415b2420de667`). The overlay preserves all 331 prior app mounts and adds only the two email-entry asset mounts, for 333 total. Non-app services were checked unchanged by the guarded release helper. No migration, database write, contact write or email send occurred.
