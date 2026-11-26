@@ -9,7 +9,7 @@ async function main() {
     const raw = String(process.argv[2] || '').trim();
     const url = new URL(raw.includes('://') ? raw : `https://${raw}`);
     const host = url.hostname.toLowerCase().replace(/\.$/, '');
-    if (host !== 'essentialsbyd.com' || url.username || url.password || url.port || url.pathname !== '/' || url.search || url.hash) {
+    if (!host.includes('.') || url.username || url.password || url.port || url.pathname !== '/' || url.search || url.hash) {
       throw Object.assign(Error('RETAIL_PRODUCT_IMAGE_TARGET_DENIED'), { code: 'RETAIL_PRODUCT_IMAGE_TARGET_DENIED' });
     }
     const [rows] = await pool.query(`SELECT id,tenant_id,provider,store_domain,default_currency,created_by_identity_id
