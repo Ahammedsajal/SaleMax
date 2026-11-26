@@ -6013,3 +6013,27 @@ Post-deploy verification: the app and database were healthy, the app restart cou
 An earlier pre-fix attempt created a separate rehearsal snapshot at `/opt/salemax/shared/rollback-retail-store-control-9e1b609723ac-20261126T090035Z`, recorded zero migration changes, and stopped before app recreation because the no-migration audit summary used a different field shape. A subsequent app overlay changed the running container, so this superseded snapshot was not used for rollback. No production database restore or cleanup was performed from it.
 
 Authenticated visual acceptance was unavailable because this chat had no browser session. Verification of the authenticated screen across roles, English/Arabic RTL, themes, and responsive layouts remains open.
+
+## 2026-11-26 — Email campaign removal — production
+
+Source `8ab982fc87ec2f427297fa6f8c636761e54def45` is pushed to `Ahammedsajal/SaleMax` `main` and deployed as an app-only overlay at `/opt/salemax/releases/email-campaign-delete-8ab982fc87ec-20261126T094037Z`, layered over base `/opt/salemax/releases/training-pipeline-correction-v3-9867ca72-20261104`. The production app image remains `sha256:753d77d421b3160872df0812e7b38505a1db7104cdb9d6c8b17415b2420de667`.
+
+The existing Email Marketing campaign list now has a row-level Delete action. Only complete, failed or cancelled campaigns with no unresolved recipients can be removed. Sending and `Needs review` rows remain disabled; the API also locks and rechecks campaign and recipient state before acting. Confirmation states that the campaign is hidden from the normal list while recipient records, SES events and the audit history remain. This is a tenant-scoped soft delete; no campaign or recipient data was erased and no email was sent.
+
+Additive migration `20270211_email_campaign_soft_delete.sql` applied successfully (checksum `d303aa68e63d04f494f5bf970b0e96e7c11ec77cbe3cd196e33771e16d135ed7`; one statement completed). The `deleted_at` column remains on app rollback. The protected rollback snapshot is `/opt/salemax/shared/rollback-email-campaign-delete-8ab982fc87ec-20261126T094037Z`. If rollback is necessary, while this is still the newest app overlay, run:
+
+```sh
+sudo -n /opt/salemax/shared/with-production-lock.sh python3 /opt/salemax/releases/email-campaign-delete-8ab982fc87ec-20261126T094037Z/deploy/email-campaign-delete-release.py restore /opt/salemax/shared/rollback-email-campaign-delete-8ab982fc87ec-20261126T094037Z
+```
+
+This restores the prior app mount/Compose chain and keeps the additive column. The prior code ignores `deleted_at`, so previously hidden campaigns would reappear in its list during rollback; after owners use Delete, a forward fix is preferable unless that reappearance is intended. The snapshot holds exact runtime preimages and prior Compose/service identities.
+
+Deployed runtime SHA-256 values:
+
+- `modules/platform/email-marketing.js`: `839c79313f6470daa852588c76f65a7cc9a6978366fa62e0f29f736e5b4fe2a4`
+- `modules/platform/email-marketing-router.js`: `69b7b51a60ab7a1e7dda6d22f5068d12e902660f2ee4b7245268c7ba76045148`
+- `client/public/email-marketing-workspace.js`: `cf7c5494447136e6ec2b8c9e6651c6db04fb25a0097883f58e96d0ecfcedd46f`
+- `client/public/email-marketing-workspace.css`: `50d9d0fda948d34ce8058946969828a97fed272fe2d107d5f23d6dd813d6a9ed`
+- `client/public/index.html` (derived from the live shell to preserve its prior release references): `3fd19e914b8c2cc1502d7dfa6b6c65318938044984730504fc36bdd381b1e41d`
+
+Post-deploy verification: production app and database report healthy; app restart count is zero; app image unchanged; all four non-app container identities remained unchanged during deployment; migration ledger and column were verified; `/healthz`, Email Marketing workspace shell and both cache-versioned assets returned HTTP 200 with hashes matching the release. Anonymous `GET /api/workspace/email-marketing/campaigns` returned HTTP 401 (`AUTH_REQUIRED`). No user session was available in this chat's Edge/browser bridge, so authenticated list rendering, row action/confirmation behavior, Arabic/RTL and responsive/theme checks remain owner acceptance items. No test suite was run for this increment; JavaScript/Python syntax, migration parsing and `git diff --check` passed before deployment.
