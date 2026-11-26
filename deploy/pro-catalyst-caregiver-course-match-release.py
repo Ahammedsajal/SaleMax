@@ -89,7 +89,18 @@ def deploy(stage, commit):
     prior_vars_path = ROOT / 'shared/rollback-private-inventory-84644fdfebee/compose-manual-vars.json'
     manual = json.loads(prior_vars_path.read_text())
     supplied = {key for name in env_files for key in re.findall(r'^\s*([A-Za-z_][A-Za-z0-9_]*)=', Path(name).read_text(), re.M)}
-    referenced = {key for name in files for key in re.findall(r'\$\{([A-Za-z_][A-Za-z0-9_]*)', Path(name).read_text())}
+    referenced = set()
+    for name in files:
+        for expression in re.findall(r'\$\{([^}]+)\}', Path(name).read_text()):
+            match = re.match(r'^([A-Za-z_][A-Za-z0-9_]*)(.*)$', expression)
+            if not match:
+                continue
+            key, operator = match.groups()
+            # Optional Compose substitutions resolve from their declared
+            # default, so they do not need an unrelated live environment value.
+            if operator.startswith((':-', '-', ':+', '+')):
+                continue
+            referenced.add(key)
     live_env = dict(item.split('=', 1) for item in app['Config']['Env'] if '=' in item)
     variables = {}
     for key in referenced - supplied:
