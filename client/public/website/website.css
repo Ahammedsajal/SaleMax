@@ -5066,6 +5066,7 @@ a.footer-contact-item:hover .footer-contact-icon { transform: translateY(-2px); 
   box-shadow: 0 5px 16px rgba(0, 0, 0, 0.36);
   transform-style: preserve-3d;
   backface-visibility: hidden;
+  cursor: zoom-in;
 }
 .network-globe-card-inner {
   position: relative;
@@ -5088,6 +5089,7 @@ a.footer-contact-item:hover .footer-contact-icon { transform: translateY(-2px); 
   filter: saturate(0.84) brightness(0.86);
   backface-visibility: hidden;
 }
+.network-globe-card img.is-unavailable { display: none; }
 .network-globe-card-label {
   position: absolute;
   inset-inline: 3px;
@@ -5102,41 +5104,6 @@ a.footer-contact-item:hover .footer-contact-icon { transform: translateY(-2px); 
   line-height: 1.25;
   letter-spacing: 0.035em;
   text-align: center;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.network-globe-card--feature {
-  display: grid;
-  place-items: center;
-  border-color: rgba(77, 213, 227, 0.72);
-  background: linear-gradient(155deg, #1599ae, #126782 65%, #0e4c68);
-  box-shadow: 0 0 22px rgba(26, 174, 194, 0.17), 0 5px 16px rgba(0, 0, 0, 0.42);
-}
-.network-globe-card--feature .network-globe-card-inner {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 6px;
-  padding: 4px;
-  text-align: center;
-  background: linear-gradient(155deg, #1599ae, #126782 65%, #0e4c68);
-}
-.network-globe-card-symbol {
-  color: #c8fbff;
-  font-size: clamp(8px, 1.45vw, 17px);
-  font-weight: 850;
-  line-height: 1;
-  letter-spacing: -0.06em;
-  text-shadow: 0 1px 9px rgba(3, 32, 48, 0.38);
-}
-.network-globe-card-feature-label {
-  color: #f5feff;
-  font-size: clamp(5px, 0.65vw, 8px);
-  font-weight: 750;
-  line-height: 1.25;
-  max-width: 100%;
-  overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -5220,6 +5187,78 @@ a.footer-contact-item:hover .footer-contact-icon { transform: translateY(-2px); 
   outline: 2px solid #65d5e6;
   outline-offset: 3px;
 }
+.network-globe-viewer {
+  position: fixed;
+  width: min(92vw, 780px);
+  max-width: none;
+  max-height: 90vh;
+  max-height: 90dvh;
+  margin: auto;
+  padding: 54px 16px 18px;
+  border: 1px solid rgba(166, 226, 237, 0.32);
+  border-radius: 20px;
+  color: #f7fbff;
+  background: linear-gradient(160deg, #102231, #07111e 72%);
+  box-shadow: 0 24px 90px rgba(0, 0, 0, 0.6);
+}
+body.network-globe-viewer-open { overflow: hidden; }
+.network-globe-viewer::backdrop {
+  background: rgba(2, 8, 15, 0.84);
+  -webkit-backdrop-filter: blur(7px);
+  backdrop-filter: blur(7px);
+}
+.network-globe-viewer__figure {
+  display: grid;
+  justify-items: center;
+  gap: 13px;
+  margin: 0;
+}
+.network-globe-viewer__image {
+  display: block;
+  width: auto;
+  height: auto;
+  max-width: 100%;
+  max-height: 72vh;
+  max-height: 72dvh;
+  margin-inline: auto;
+  border-radius: 13px;
+  object-fit: contain;
+  box-shadow: 0 12px 36px rgba(0, 0, 0, 0.38);
+}
+.network-globe-viewer__caption {
+  max-width: 640px;
+  padding-inline: 20px;
+  color: #d8e5ec;
+  font-size: 14px;
+  line-height: 1.55;
+  text-align: center;
+}
+.network-globe-viewer__close {
+  position: absolute;
+  inset-block-start: 9px;
+  inset-inline-end: 9px;
+  display: grid;
+  width: 44px;
+  height: 44px;
+  place-items: center;
+  border: 1px solid rgba(196, 230, 237, 0.3);
+  border-radius: 50%;
+  color: #f7fbff;
+  background: rgba(255, 255, 255, 0.08);
+  font: inherit;
+  font-size: 27px;
+  line-height: 1;
+  cursor: pointer;
+}
+.network-globe-viewer__close:hover,
+.network-globe-viewer__close:focus-visible {
+  border-color: #65d5e6;
+  background: rgba(101, 213, 230, 0.18);
+}
+.network-globe-viewer__close:focus-visible {
+  outline: 2px solid #65d5e6;
+  outline-offset: 3px;
+}
 @media (hover: hover) and (pointer: fine) {
   .network-globe-card:hover { z-index: 8; border-color: rgba(149, 247, 255, 0.95); }
   .network-globe-card:hover .network-globe-card-inner {
@@ -5245,6 +5284,11 @@ a.footer-contact-item:hover .footer-contact-icon { transform: translateY(-2px); 
   .network-showcase-copy { right: 13px; left: 13px; }
   .network-showcase-copy h2 { font-size: 1.8rem; }
   .network-globe-controls { flex-direction: column; gap: 6px; }
+}
+@media (max-width: 480px) {
+  .network-globe-viewer { width: 94vw; padding: 52px 10px 15px; border-radius: 16px; }
+  .network-globe-viewer__image { max-height: 70vh; max-height: 70dvh; }
+  .network-globe-viewer__caption { padding-inline: 8px; font-size: 12px; }
 }
 @media (min-width: 701px) and (max-width: 900px) {
   .network-showcase-stage { height: clamp(560px, 66vw, 620px); }

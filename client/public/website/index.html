@@ -28,14 +28,14 @@
     />
     <link rel="icon" href="/favicon.ico?v=20261022-clear1" />
     <link rel="apple-touch-icon" href="/branding/7network/apple-touch-icon.png?v=20261022-clear1" />
-    <link rel="stylesheet" href="/website/website.css?v=20261125-network-globe1" />
+    <link rel="stylesheet" href="/website/website.css?v=20261125-network-globe2" />
     <script
       defer
       src="/website/plan-presentation.js?v=20261103-whatsapp-icon1"
     ></script>
-    <script defer src="/website/website.js?v=20261125-ga4-consent1"></script>
+    <script defer src="/website/website.js?v=20261125-ga4-all-visitors1"></script>
     <script defer src="/website/hero-scene.bundle.js?v=20261108-hero-bg-motion2"></script>
-    <script defer src="/website/network-globe.js?v=20261125-network-globe1"></script>
+    <script defer src="/website/network-globe.js?v=20261125-network-globe2"></script>
   </head>
   <body>
     <a class="skip" href="#main"><span data-ar="انتقل إلى المحتوى">Skip to content</span></a>
@@ -587,8 +587,8 @@
             </small>
           </header>
           <div class="network-globe-controls">
-            <p id="network-globe-help" data-ar="اسحب للتدوير أو استخدم مفاتيح الأسهم. على الكمبيوتر، مرّر المؤشر فوق بطاقة لتكبيرها.">
-              Drag to rotate or use the arrow keys. On desktop, hover over a card to zoom.
+            <p id="network-globe-help" data-ar="اسحب الكرة أو استخدم الأسهم لتدويرها. اضغط على صورة لتكبيرها؛ مرّر المؤشر على الكمبيوتر أو اضغط Enter لعرض الصورة الأمامية.">
+              Drag or use the arrow keys to rotate. Tap a photo to enlarge; hover on desktop or press Enter for the front photo.
             </p>
             <button
               class="network-globe-toggle"
@@ -1298,28 +1298,18 @@
       aria-labelledby="analytics-consent-title"
       hidden
     >
-      <h2 id="analytics-consent-title" data-ar="إعدادات الخصوصية والقياس">
-        Privacy and measurement settings
+      <h2 id="analytics-consent-title" data-ar="إعدادات الخصوصية">
+        Privacy settings
       </h2>
       <p
-        data-ar="اختر كل خدمة على حدة. تظل خدمات القياس متوقفة حتى توافق عليها، ويمكنك تغيير اختيارك في أي وقت."
+        data-ar="نستخدم Google Analytics لقياس زيارات الموقع. قياس إعلانات OpenAI اختياري ويمكن تفعيله أدناه."
       >
-        Choose each service separately. Measurement stays off until you opt in,
-        and you can change your choices at any time.
+        This site uses Google Analytics to measure visits. OpenAI ad
+        measurement is optional and can be enabled below.
       </p>
-      <div class="analytics-consent-options">
-        <label class="analytics-consent-choice" for="google-analytics-choice">
-          <input id="google-analytics-choice" type="checkbox" />
-          <span
-            class="analytics-consent-choice-copy"
-            data-ar="السماح لـ Google Analytics بقياس زيارات الموقع"
-            >Allow Google Analytics to measure website visits</span
-          >
-        </label>
-      </div>
       <p class="analytics-consent-policy google-analytics-policy">
         <span
-          data-ar="يقيس Google Analytics 4 مشاهدات الصفحات ومعلومات عامة عن المتصفح والإحالة، وقد يقيس التفاعلات المفعّلة في مصدر GA4. لا نرسل قيم نموذج الاستفسار أو معلومات الاتصال إلى GA4."
+          data-ar="يقيس Google Analytics 4 مشاهدات الصفحات ومعلومات عامة عن المتصفح والإحالة والتفاعلات المفعّلة في المصدر. لا نرسل قيم نماذج الاستفسار أو معلومات الاتصال إلى GA4."
           >Google Analytics 4 measures page views, general browser and referral
           information, and interactions enabled in the GA4 stream. We do not
           send enquiry form values or contact details to GA4.</span
@@ -1362,17 +1352,17 @@
           class="analytics-consent-reject"
           id="analytics-reject"
           type="button"
-          data-ar="رفض جميع القياسات الاختيارية"
+          data-ar="رفض قياس إعلانات OpenAI"
         >
-          Reject all optional measurement
+          Reject OpenAI ad measurement
         </button>
         <button
           class="analytics-consent-accept"
           id="analytics-accept"
           type="button"
-          data-ar="حفظ الاختيارات"
+          data-ar="حفظ اختيار OpenAI"
         >
-          Save choices
+          Save OpenAI choice
         </button>
       </div>
     </aside>

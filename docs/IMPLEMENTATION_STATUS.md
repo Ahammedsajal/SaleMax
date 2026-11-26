@@ -1,3 +1,7 @@
+## Public website GA4 for all visitors — deployed; Realtime confirmation pending, 25 November 2026
+
+The public website now loads the existing GA4 measurement ID on every public page visit without a Google Analytics opt-in or saved GA choice. Advertising storage, advertising user data and ad personalization remain denied. The separate OpenAI ad-measurement choice is unchanged. The bilingual privacy notice now describes automatic measurement and its browser/network limitations. The app-only release is healthy and the served homepage, JavaScript, privacy notice and CSP were verified. GA4 Realtime was not independently checked because the Edge session was unavailable. See DEPLOYMENT.md for release hashes, rollback and evidence.
+
 ## Retail Store Connections, imports and customer directory — production deployed; provider acceptance open, 25 November 2026
 
 The existing business sidebar now places Store Connections under Integrations & Imports and adds Customers under Business Operations. WooCommerce and Shopify connections use the existing business workspace. Imported catalogue items appear in Products & services as drafts; connected orders appear in Retail orders; imported customers are indexed in the customer directory. Customer profiles include related orders and store-reported payment evidence. Payment information is not treated as verified settlement.

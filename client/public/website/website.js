@@ -4,15 +4,12 @@
   const OPENAI_PIXEL_ID = "7f1xi4bh2i2PvmUAM8RNCh";
   const OPENAI_CONSENT_KEY = "7network_openai_ads_measurement_consent_v1";
   const GOOGLE_ANALYTICS_ID = "G-EJGL58NV96";
-  const GOOGLE_ANALYTICS_CONSENT_KEY = "7network_google_analytics_consent_v1";
   const consentPanel = document.getElementById("analytics-consent");
   const consentSave = document.getElementById("analytics-accept");
   const consentReject = document.getElementById("analytics-reject");
   const consentSettings = document.getElementById("analytics-settings");
   const openAiConsentChoice = document.getElementById("openai-analytics-choice");
-  const googleAnalyticsChoice = document.getElementById("google-analytics-choice");
   let openAiConsent = readConsent(OPENAI_CONSENT_KEY);
-  let googleAnalyticsConsent = readConsent(GOOGLE_ANALYTICS_CONSENT_KEY);
   let openAiPixelLoaded = false;
   let googleAnalyticsConfigured = false;
   let googleAnalyticsScript = null;
@@ -34,7 +31,6 @@
   }
   function showConsentPanel(focusSave = true) {
     openAiConsentChoice.checked = openAiConsent === "granted";
-    googleAnalyticsChoice.checked = googleAnalyticsConsent === "granted";
     consentSettings.hidden = true;
     consentPanel.hidden = false;
     if (focusSave) consentSave.focus({ preventScroll: true });
@@ -55,42 +51,6 @@
     }
     window.oaiq("consent", true);
     window.oaiq("init", { pixelId: OPENAI_PIXEL_ID });
-  }
-  function disableGoogleAnalytics() {
-    window[`ga-disable-${GOOGLE_ANALYTICS_ID}`] = true;
-    if (window.gtag) {
-      window.gtag("consent", "update", {
-        analytics_storage: "denied",
-        ad_storage: "denied",
-        ad_user_data: "denied",
-        ad_personalization: "denied",
-      });
-    }
-    if (googleAnalyticsScript && !googleAnalyticsScriptLoaded) {
-      googleAnalyticsScript.remove();
-      googleAnalyticsScript = null;
-    }
-    clearGoogleAnalyticsCookies();
-  }
-  function clearGoogleAnalyticsCookies() {
-    try {
-      const names = document.cookie
-        .split(";")
-        .map((cookie) => cookie.trim().split("=", 1)[0])
-        .filter((name) => /^_ga(?:_|$)/i.test(name));
-      const labels = location.hostname.split(".");
-      const domains = new Set([location.hostname]);
-      for (let i = 0; i <= labels.length - 2; i++) {
-        domains.add(`.${labels.slice(i).join(".")}`);
-      }
-      for (const name of names) {
-        for (const domain of domains) {
-          document.cookie = `${name}=; Max-Age=0; Expires=Thu, 01 Jan 1970 00:00:00 GMT; Path=/; SameSite=Lax; Secure; Domain=${domain}`;
-        }
-      }
-    } catch (_) {
-      // Disabling analytics consent remains effective if cookie access is blocked.
-    }
   }
   function safeReferrerOrigin() {
     try {
@@ -124,7 +84,7 @@
     return `${location.origin}${location.pathname}${query ? `?${query}` : ""}`;
   }
   function sendGoogleAnalyticsPageView() {
-    if (googleAnalyticsConsent !== "granted" || !window.gtag) return;
+    if (!window.gtag) return;
     window.gtag("event", "page_view", {
       page_location: safePageLocation(),
       page_referrer: safeReferrerOrigin(),
@@ -132,7 +92,6 @@
     });
   }
   function loadGoogleAnalytics() {
-    if (googleAnalyticsConsent !== "granted") return;
     window[`ga-disable-${GOOGLE_ANALYTICS_ID}`] = false;
     window.dataLayer = window.dataLayer || [];
     window.gtag = window.gtag || function () {
@@ -140,12 +99,6 @@
     };
     if (!googleAnalyticsConfigured) {
       window.gtag("consent", "default", {
-        analytics_storage: "denied",
-        ad_storage: "denied",
-        ad_user_data: "denied",
-        ad_personalization: "denied",
-      });
-      window.gtag("consent", "update", {
         analytics_storage: "granted",
         ad_storage: "denied",
         ad_user_data: "denied",
@@ -158,13 +111,6 @@
         allow_ad_personalization_signals: false,
       });
       googleAnalyticsConfigured = true;
-    } else {
-      window.gtag("consent", "update", {
-        analytics_storage: "granted",
-        ad_storage: "denied",
-        ad_user_data: "denied",
-        ad_personalization: "denied",
-      });
     }
     if (!googleAnalyticsScript && !googleAnalyticsScriptLoaded) {
       googleAnalyticsScript = document.createElement("script");
@@ -180,28 +126,23 @@
     }
     sendGoogleAnalyticsPageView();
   }
-  function saveConsentChoices() {
+  function saveOpenAiConsentChoice() {
     openAiConsent = openAiConsentChoice.checked ? "granted" : "denied";
-    googleAnalyticsConsent = googleAnalyticsChoice.checked ? "granted" : "denied";
     persistConsent(OPENAI_CONSENT_KEY, openAiConsent);
-    persistConsent(GOOGLE_ANALYTICS_CONSENT_KEY, googleAnalyticsConsent);
     if (openAiConsent === "granted") loadOpenAiPixel();
     else if (window.oaiq) window.oaiq("consent", false);
-    if (googleAnalyticsConsent === "granted") loadGoogleAnalytics();
-    else disableGoogleAnalytics();
     consentPanel.hidden = true;
     consentSettings.hidden = false;
     consentSettings.focus({ preventScroll: true });
   }
-  // Optional measurement is off until the visitor makes a separate choice.
+  // GA4 measures all public website visits; its advertising features stay off.
   consentSettings.hidden = false;
   if (openAiConsent === "granted") loadOpenAiPixel();
-  if (googleAnalyticsConsent === "granted") loadGoogleAnalytics();
-  consentSave.addEventListener("click", saveConsentChoices);
+  loadGoogleAnalytics();
+  consentSave.addEventListener("click", saveOpenAiConsentChoice);
   consentReject.addEventListener("click", () => {
     openAiConsentChoice.checked = false;
-    googleAnalyticsChoice.checked = false;
-    saveConsentChoices();
+    saveOpenAiConsentChoice();
   });
   consentSettings.addEventListener("click", () => showConsentPanel());
   let language =
@@ -409,7 +350,6 @@
   const languageButton = document.getElementById("language");
   const floatingWhatsApp = document.querySelector(".floating-cta");
   const openAiPrivacyLink = document.querySelector(".openai-analytics-policy a");
-  const googleAnalyticsPrivacyLink = document.querySelector(".google-analytics-privacy-link");
   const status = document.getElementById("form-status");
   let statusMessage = null;
   function updateFloatingWhatsApp() {
@@ -430,9 +370,6 @@
     if (openAiPrivacyLink)
       openAiPrivacyLink.href =
         "/website/meta-privacy.html" + (language === "ar" ? "?lang=ar" : "");
-    if (googleAnalyticsPrivacyLink)
-      googleAnalyticsPrivacyLink.href =
-        "/website/google-analytics-privacy.html#" + (language === "ar" ? "arabic" : "english");
     translations.forEach(([node, en, ar]) => {
       node.textContent = language === "ar" ? ar : en;
     });
