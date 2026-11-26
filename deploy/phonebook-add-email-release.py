@@ -162,14 +162,20 @@ def patch_index(content):
 def volume_specs(app, replacements=None):
     replacements = replacements or {}
     volumes = []
+    existing = set()
     for mount in app.get('Mounts', []):
-        item = {'type': mount['Type'], 'source': replacements.get(mount['Destination'], mount['Source']),
-                'target': mount['Destination']}
+        target = mount['Destination']
+        existing.add(target)
+        item = {'type': mount['Type'], 'source': replacements.get(target, mount['Source']),
+                'target': target}
         if not mount.get('RW', True):
             item['read_only'] = True
         if mount['Type'] == 'bind' and mount.get('Propagation') not in (None, '', 'rprivate'):
             item['bind'] = {'propagation': mount['Propagation']}
         volumes.append(item)
+    for target, source in replacements.items():
+        if target not in existing:
+            volumes.append({'type': 'bind', 'source': source, 'target': target})
     return volumes
 
 
