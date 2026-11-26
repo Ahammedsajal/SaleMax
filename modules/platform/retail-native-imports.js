@@ -315,7 +315,7 @@ async function listProducts(pool, context, { page = 1, limit = 20, search = '', 
       c.catalogue_kind AS catalogueKind,c.parent_product_id AS parentProductId,
       (SELECT im.image_media_id FROM sx_retail_catalogue_import_media im JOIN sx_product_media pm
         ON pm.tenant_id=im.tenant_id AND pm.id=im.image_media_id AND pm.course_id=im.product_id AND pm.deleted_at IS NULL
-        WHERE im.tenant_id=c.tenant_id AND im.product_id=c.id AND im.image_state='ready'
+        WHERE im.tenant_id=c.tenant_id AND im.product_id=c.id AND im.image_media_id IS NOT NULL
         ORDER BY im.updated_at DESC LIMIT 1) AS imageMediaId,
       (SELECT COUNT(*) FROM sx_product_catalog child JOIN sx_retail_catalogue_imports ci
         ON ci.tenant_id=child.tenant_id AND ci.product_id=child.id AND ci.review_state<>'source_deleted'
