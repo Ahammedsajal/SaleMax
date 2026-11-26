@@ -162,7 +162,7 @@ def schema_probe():
     return json.loads(run('docker', 'exec', APP, 'node', '-e', code).splitlines()[-1])
 
 
-def apply_candidate_migration(image, app, env):
+def candidate_database_env(image, app, env):
     container_env = dict(env)
     container_env.update(dict(value.split('=', 1) for value in app['Config'].get('Env', []) if '=' in value))
     required = ('DBHOST', 'DBUSER', 'DBPASS', 'DBNAME')
@@ -172,6 +172,23 @@ def apply_candidate_migration(image, app, env):
     for key in (*required, 'DBPORT'):
         if key in container_env:
             args += ['--env', key]
+    return args, container_env
+
+
+def candidate_migration_probe(image, app, env, expected_checksum):
+    args, container_env = candidate_database_env(image, app, env)
+    expected_name = Path(MIGRATION).name
+    history_name = Path(MIGRATION_HISTORY[0]).name
+    code = "const r=require('/app/database/migration-runner'),mysql=require('mysql2/promise'),expected=" + json.dumps({
+        'migration': expected_name, 'checksum': expected_checksum,
+        'history': history_name, 'historyChecksum': MIGRATION_HISTORY_HASHES[MIGRATION_HISTORY[0]],
+    }) + ";(async()=>{const c=await mysql.createConnection({host:process.env.DBHOST,port:+(process.env.DBPORT||3306),user:process.env.DBUSER,password:process.env.DBPASS,database:process.env.DBNAME,charset:'utf8mb4'});try{const files=r.discover('/app/database/migrations'),known=new Map(files.map(x=>[x.file,x.checksum])),[rows]=await c.query('SELECT migration_name,checksum,status FROM salemax_schema_migrations ORDER BY migration_name'),completed=new Set(rows.map(x=>x.migration_name)),missing=rows.filter(x=>!known.has(x.migration_name)).map(x=>x.migration_name),mismatch=rows.filter(x=>known.has(x.migration_name)&&known.get(x.migration_name)!==x.checksum).map(x=>x.migration_name),incomplete=rows.filter(x=>x.status!=='applied').map(x=>x.migration_name),pending=files.filter(x=>!completed.has(x.file)).map(x=>x.file),migration=files.find(x=>x.file===expected.migration),history=rows.find(x=>x.migration_name===expected.history),actual={fileCount:files.length,missing,mismatch,incomplete,pending,followupChecksum:migration?.checksum||null,historyChecksum:history?.checksum||null,followupAlreadyApplied:rows.some(x=>x.migration_name===expected.migration)};if(missing.length||mismatch.length||incomplete.length||JSON.stringify(pending)!==JSON.stringify([expected.migration])||actual.followupChecksum!==expected.checksum||actual.historyChecksum!==expected.historyChecksum||actual.followupAlreadyApplied)throw Object.assign(Error('CANDIDATE_MIGRATION_HISTORY_MISMATCH'),{code:'CANDIDATE_MIGRATION_HISTORY_MISMATCH'});console.log(JSON.stringify(actual))}finally{await c.end()}})().catch(e=>{console.error(e.code||e.name||'candidate-probe-failed');process.exit(1)})"
+    output = run(*(args + ['--entrypoint', 'node', image, '-e', code]), env=container_env)
+    return json.loads(output.splitlines()[-1])
+
+
+def apply_candidate_migration(image, app, env):
+    args, container_env = candidate_database_env(image, app, env)
     args += ['--entrypoint', 'node', image, 'database/migrate-pipeline.js', '--apply', '--only', MIGRATION.split('/')[-1]]
     result = json.loads(run(*args, env=container_env))
     if result.get('mode') != 'apply' or result.get('only') != MIGRATION.split('/')[-1] or MIGRATION.split('/')[-1] not in result.get('applied', []):
@@ -252,7 +269,34 @@ def deploy(stage_path, commit):
         output.parent.mkdir(mode=0o755, parents=True, exist_ok=True)
         output.write_bytes(files[source_name])
         output.chmod(0o644)
-    shutil.copytree(stage_path / 'source', release / 'build-context')
+    build_context = release / 'build-context'
+    shutil.copytree(stage_path / 'source', build_context)
+    migration_context = build_context / 'database' / 'migrations'
+    if migration_context.is_symlink() or not migration_context.is_dir():
+        raise RuntimeError('staged migration build context is invalid')
+    shutil.rmtree(migration_context)
+    migration_context.mkdir(mode=0o755, parents=True)
+    run('docker', 'cp', APP + ':/app/database/migrations/.', str(migration_context))
+    if any(path.is_symlink() or not path.is_file() for path in migration_context.iterdir()):
+        raise RuntimeError('production migration snapshot contains an unexpected filesystem entry')
+    for source_name in (*MIGRATION_HISTORY, MIGRATION):
+        filename = Path(source_name).name
+        target = migration_context / filename
+        expected_hash = digest(files[source_name])
+        if target.exists():
+            if target.is_symlink() or not target.is_file() or digest(target.read_bytes()) != expected_hash:
+                raise RuntimeError('staged migration conflicts with the reviewed production history: ' + filename)
+        else:
+            target.write_bytes(files[source_name])
+            target.chmod(0o644)
+    migration_snapshot = {
+        path.name: digest(path.read_bytes())
+        for path in sorted(migration_context.iterdir()) if path.is_file()
+    }
+    if migration_snapshot.get(Path(MIGRATION_HISTORY[0]).name) != MIGRATION_HISTORY_HASHES[MIGRATION_HISTORY[0]] or migration_snapshot.get(Path(MIGRATION).name) != digest(files[MIGRATION]):
+        raise RuntimeError('candidate migration snapshot is incomplete')
+    (backup / 'migration-tree.json').write_text(json.dumps(migration_snapshot, indent=2) + '\n')
+    (backup / 'migration-tree.json').chmod(0o600)
 
     previous = {
         'base': BASE, 'config_files': configs, 'workdir': workdir, 'service': service,
@@ -292,7 +336,6 @@ def deploy(stage_path, commit):
     migration_path.chmod(0o644)
 
     image_tag = f'salemax-app:email-followup-resend-{commit[:12]}-{stamp}'
-    build_context = stage_path / 'source'
     run('docker', 'build', '--build-arg', 'BASE_IMAGE=' + IMAGE,
         '--label', 'org.7network.source-commit=' + commit,
         '--label', 'org.opencontainers.image.revision=' + commit,
@@ -303,6 +346,10 @@ def deploy(stage_path, commit):
     image_id = run('docker', 'image', 'inspect', '--format', '{{.Id}}', image_tag).strip()
     if sdk.get('ses') != 'ready' or sdk.get('verifyEmailIdentity') != 'ready' or sdk.get('sesv2') != 'ready' or sdk.get('migrationChecksums') != migration_checksums or not image_id.startswith('sha256:'):
         raise RuntimeError('candidate SES SDK image validation failed')
+
+    candidate_history = candidate_migration_probe(image_tag, app, env, digest(files[MIGRATION]))
+    if candidate_history.get('missing') or candidate_history.get('mismatch') or candidate_history.get('incomplete') or candidate_history.get('pending') != [Path(MIGRATION).name]:
+        raise RuntimeError('candidate migration history does not match the live database')
 
     overlay = deploy_dir / ('compose.' + name + '.json')
     overlay.write_text(json.dumps(release_compose(name, release, previous, image_tag), indent=2) + '\n')
@@ -380,6 +427,7 @@ def deploy(stage_path, commit):
         'imageTag': image_tag, 'imageId': app['Image'], 'candidateSdk': sdk,
         'appHealthy': True, 'databaseHealthy': inspect(DB)['State']['Health']['Status'] == 'healthy',
         'migration': migration, 'migrationChecksum': expected_migration,
+        'migrationSnapshotFiles': len(migration_snapshot),
         'runtimeHashes': hashes, 'publicAssets': public_hashes, 'anonymousApis': anonymous_checks,
         'healthHttp': 200, 'workspaceShellHttp': 200,
         'supportServicesUnchanged': len(support), 'emailSent': False,
