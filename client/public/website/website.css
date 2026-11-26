@@ -5148,23 +5148,6 @@ a.footer-contact-item:hover .footer-contact-icon { transform: translateY(-2px); 
   font-size: 10px;
   letter-spacing: 0.015em;
 }
-.network-globe-controls {
-  position: absolute;
-  z-index: 4;
-  right: 22px;
-  bottom: 17px;
-  left: 22px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 14px;
-  color: #c5d2dc;
-}
-.network-globe-controls p {
-  margin: 0;
-  font-size: 11px;
-  line-height: 1.5;
-}
 .network-globe-viewer {
   position: fixed;
   width: min(92vw, 780px);
@@ -5253,14 +5236,11 @@ body.network-globe-viewer-open { overflow: hidden; }
   .network-showcase-copy h2 { font-size: clamp(1.95rem, 8vw, 2.8rem); line-height: 1.16; }
   .network-showcase-copy > p:not(.eyebrow) { margin-top: 9px; font-size: 12px; line-height: 1.65; }
   .network-showcase-disclaimer { margin-top: 7px; font-size: 9px; }
-  .network-globe-controls { right: 12px; bottom: 12px; left: 12px; gap: 8px; }
-  .network-globe-controls p { font-size: 9px; }
 }
 @media (max-width: 390px) {
   .network-showcase-stage { height: 490px; }
   .network-showcase-copy { right: 13px; left: 13px; }
   .network-showcase-copy h2 { font-size: 1.8rem; }
-  .network-globe-controls { flex-direction: column; gap: 6px; }
 }
 @media (max-width: 480px) {
   .network-globe-viewer { width: 94vw; padding: 52px 10px 15px; border-radius: 16px; }

@@ -18,7 +18,7 @@ APP = 'salemax-app-1'
 BASE = '/opt/salemax/releases/training-pipeline-correction-v3-9867ca72-20261104'
 PRIOR_VARS = ROOT / 'shared/rollback-private-inventory-84644fdfebee/compose-manual-vars.json'
 EXPECTED_IMAGE = 'sha256:753d77d421b3160872df0812e7b38505a1db7104cdb9d6c8b17415b2420de667'
-VERSION = '20261126-network-globe3'
+VERSION = '20261126-network-globe4'
 SOURCE_FILES = (
     'client/public/website/index.html',
     'client/public/website/website.css',
@@ -26,9 +26,9 @@ SOURCE_FILES = (
 )
 STAGE_FILES = SOURCE_FILES + ('deploy/website-network-globe-auto-rotation-release.py',)
 PREIMAGE_HASHES = {
-    'client/public/website/index.html': '2573fb2963861315ee164d0558e041331bc250c4ce45b19908632380915ba50c',
-    'client/public/website/website.css': '34226c3b32d3c97de3a0a60e80f95dc859d2333af8be7b1a388cf71edd9a3465',
-    'client/public/website/network-globe.js': 'f26447bc17fc6af512d117f1eb1ea0c8d8e1f4da0f987e128ee9bfd46888df9d',
+    'client/public/website/index.html': '68b5d0fbbbbaa34fe6e9e0696d504610debdc038c99bc03136b5d571d324d904',
+    'client/public/website/website.css': '7110a8be57d741eac3e00ca2a310d75110c43a432de1df90e45b7eaa4c057b32',
+    'client/public/website/network-globe.js': '84d1b84ab3046ceca91a90f886d71edcdd5783cc5ab23f5061ca6380b0653eb5',
 }
 ASSETS = (
     'client/public/website/media/network-globe/agency-workshop.webp',
@@ -154,7 +154,7 @@ def patch_live_css(live, source):
     live_start = live.index('.network-showcase {')
     end_pattern = re.compile(
         r'@media\s*\(prefers-reduced-motion:\s*reduce\)\s*\{\s*'
-        r'\.network-globe-card-inner,\s*\.network-globe-toggle\s*'
+        r'\.network-globe-card-inner(?:,\s*\.network-globe-toggle)?\s*'
         r'\{\s*transition:\s*none;\s*\}\s*\}\s*$',
         re.S,
     )
@@ -210,11 +210,20 @@ def check_stage(stage, commit):
         or 'network-globe-toggle' in css + js
         or 'setPaused' in js
         or 'let paused' in js
-        or '!reducedMotion.matches' not in js
+        or 'hoveringWithMouse' in js
+        or '!reducedMotion.matches' in js
+        or 'network-globe-help' in index
+        or 'network-globe-controls' in index + css
+        or 'The globe rotates automatically.' in index
+        or 'تدور الكرة تلقائياً.' in index
     ):
-        raise RuntimeError('Staged globe must not expose a manual pause/resume control')
-    if 'The globe rotates automatically.' not in index or 'تدور الكرة تلقائياً.' not in index:
-        raise RuntimeError('Staged globe must explain automatic rotation in English and Arabic')
+        raise RuntimeError('Staged globe must rotate without visible helper text or manual pause controls')
+    if (
+        'return visible && !dragging && !viewer.open;' not in js
+        or 'rotationY += elapsed * (reducedMotion.matches ? 0.0012 : 0.0028);' not in js
+        or 'aria-keyshortcuts="ArrowLeft ArrowRight ArrowUp ArrowDown Enter"' not in index
+    ):
+        raise RuntimeError('Staged globe automatic or manual rotation support is incomplete')
     if 'function openViewer' not in js or 'viewer.showModal()' not in js:
         raise RuntimeError('Staged globe has no accessible photo viewer')
     if any('/website/media/network-globe/' + Path(name).name not in js for name in ASSETS):

@@ -98,7 +98,6 @@
   let rotationX = -8;
   let rotationY = -18;
   let visible = !("IntersectionObserver" in window);
-  let hoveringWithMouse = false;
   let dragging = false;
   let pointerMoved = false;
   let pointerDownStoryIndex = null;
@@ -262,7 +261,7 @@
   }
 
   function shouldAnimate() {
-    return visible && !reducedMotion.matches && !hoveringWithMouse && !dragging && !viewer.open;
+    return visible && !dragging && !viewer.open;
   }
 
   function animate(timestamp) {
@@ -274,7 +273,7 @@
 
     if (previousFrame) {
       const elapsed = Math.min(timestamp - previousFrame, 48);
-      rotationY += elapsed * 0.0028;
+      rotationY += elapsed * (reducedMotion.matches ? 0.0012 : 0.0028);
       world.style.transform = `rotateX(${rotationX}deg) rotateY(${rotationY}deg)`;
     }
     previousFrame = timestamp;
@@ -291,14 +290,8 @@
     }
   }
 
-  globe.addEventListener("pointerenter", (event) => {
-    if (event.pointerType === "mouse") hoveringWithMouse = true;
-    updateAnimation();
-  });
-  globe.addEventListener("pointerleave", (event) => {
-    if (event.pointerType === "mouse") hoveringWithMouse = false;
+  globe.addEventListener("pointerleave", () => {
     if (dragging) finishDrag();
-    updateAnimation();
   });
   globe.addEventListener("pointerdown", (event) => {
     if (event.button !== undefined && event.button !== 0) return;
@@ -379,7 +372,6 @@
     globe.focus({ preventScroll: true });
     updateAnimation();
   });
-  reducedMotion.addEventListener("change", updateAnimation);
   new MutationObserver(() => {
     updateGlobeLanguage();
     updateCardLanguage();
