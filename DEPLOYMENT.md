@@ -6014,6 +6014,24 @@ An earlier pre-fix attempt created a separate rehearsal snapshot at `/opt/salema
 
 Authenticated visual acceptance was unavailable because this chat had no browser session. Verification of the authenticated screen across roles, English/Arabic RTL, themes, and responsive layouts remains open.
 
+## 2026-11-26 — Email follow-up campaigns and sender verification resend — production
+
+Source commit `4cd5b2750f22189debc63cbf0f9d7d1f1d01d3fa` is deployed to `7network.live`. The existing campaign report now opens a follow-up composer. It previews only source-campaign recipients with an accepted send and SES `Delivery`, and excludes recorded opens, clicks, bounces, complaints, rejects, unsubscribes, and current suppression entries. The worker repeats the source-event and suppression checks before sending. The preview states that open tracking can miss reads. Per the owner’s instruction, recipients without recorded marketing opt-in can be included; unsubscribed and suppressed addresses remain excluded.
+
+The same composer supports existing templates, custom subject/body, attachments, reply-to and optional scheduling, followed by an explicit recipient review and `Queue follow-up` action. A production browser preview verified 215 eligible recipients for a completed campaign; the dialog was closed without queuing, so no follow-up campaign or email was sent. Pending SES sender addresses also have a `Resend verification email` action, and the Super Admin permission guidance includes `ses:VerifyEmailIdentity`. No verification email or AWS credential change was made during this release.
+
+The release is `/opt/salemax/releases/email-followup-resend-4cd5b2750f22-20261126T114538Z`, image `salemax-app:email-followup-resend-4cd5b2750f22-20261126T114538Z` (`sha256:c496b845778b8b4258dc3eda2757a18240ced0b0cd70c4ad6baf8328e508e577`). Additive migration `20270215_email_campaign_followups.sql` is applied (SHA-256 `d95929acada575faac316c8345301ae34a43b86691d419ac651fa7b3a38abc81`; two statements completed). It adds `follow_up_of_campaign_id` and `follow_up_source_recipient_id`. The candidate image included the effective production migration tree, the active migration runner, pipeline and DB configuration; post-deploy history verification found no missing entries or checksum mismatches.
+
+Protected rollback snapshot: `/opt/salemax/shared/rollback-email-followup-resend-4cd5b2750f22-20261126T114538Z`. With this still the newest app overlay, restore the prior app Compose chain under the production lock with:
+
+```sh
+sudo -n /opt/salemax/shared/with-production-lock.sh python3 /opt/salemax/releases/email-followup-resend-4cd5b2750f22-20261126T114538Z/deploy/email-sender-verification-followup-release.py restore /opt/salemax/shared/rollback-email-followup-resend-4cd5b2750f22-20261126T114538Z
+```
+
+Post-deploy checks: app and database healthy; four non-app service identities unchanged; all seven mounted runtime targets matched the release; the migration ledger is fully applied with no missing history, checksum mismatch or pending migration; `/healthz`, the workspace shell and both updated JavaScript assets returned HTTP 200. Anonymous campaign-list access returned 401. Anonymous preview and sender-resend POSTs returned 403 `CSRF_DENIED`, the global CSRF middleware response; the release helper now accepts 401 or 403 for these protected unauthenticated checks. In the signed-in Edge session, the campaign report, `Create follow-up` composer and authenticated audience preview rendered successfully. No queue action was taken.
+
+Static Python/JavaScript syntax, package JSON and `git diff --check` passed before deployment; no test suite was run. Desktop browser acceptance was checked. Arabic RTL, light/dark themes, tablet and mobile layouts, and staff-role permission coverage remain unverified. The successful open signal is SES tracking data, not proof of a human read.
+
 ## 2026-11-26 — Email campaign removal — production
 
 Source `8ab982fc87ec2f427297fa6f8c636761e54def45` is pushed to `Ahammedsajal/SaleMax` `main` and deployed as an app-only overlay at `/opt/salemax/releases/email-campaign-delete-8ab982fc87ec-20261126T094037Z`, layered over base `/opt/salemax/releases/training-pipeline-correction-v3-9867ca72-20261104`. The production app image remains `sha256:753d77d421b3160872df0812e7b38505a1db7104cdb9d6c8b17415b2420de667`.

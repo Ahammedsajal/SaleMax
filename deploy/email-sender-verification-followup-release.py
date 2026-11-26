@@ -436,8 +436,8 @@ def deploy(stage_path, commit):
                 status = response.status
         except Exception as error:
             status = getattr(error, 'code', None)
-        if status != 401:
-            raise RuntimeError('anonymous protected API did not return HTTP 401: ' + path)
+        if status not in (401, 403):
+            raise RuntimeError('anonymous protected API did not return an authentication or CSRF denial: ' + path)
         anonymous_checks[path] = status
     result = {
         'sourceCommit': commit, 'release': str(release), 'rollback': str(backup),
