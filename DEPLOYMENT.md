@@ -5961,3 +5961,10 @@ sudo -n /opt/salemax/shared/with-production-lock.sh python3 /opt/salemax/release
 ```
 
 Verification confirmed public `/healthz` returned HTTP 200, all four cache-busted phonebook assets returned HTTP 200 with hashes matching their mounted files, and `/user?page=phonebook` served the new cache keys. The release helper validated the candidate Compose overlay preserved the app mount set and all non-app services. JavaScript/Python syntax and index-reference preflight passed before deployment. Authenticated visual/save/edit/delete/import acceptance was unavailable during this release, so browser acceptance across roles, English/Arabic RTL and responsive layouts remains open.
+
+
+## 2026-11-26 — Email 6 link in visual preview — production
+
+Source commit `860e9d859550dbe3e5f4e68b55ba0a91803493ec` is deployed. The Email 6 outgoing renderer already linkified safe website text, but the template builder’s sample preview still showed plain text. The maintained builder now renders `www.` and safe web URLs as underlined links in the preview, matching the outgoing HTML. The `Email 6 – After the Meta Ad Click` editor was reopened after deployment; the accessibility tree exposed `www.7network.live` as a link to `https://www.7network.live/`, and Edge visually showed the blue, underlined link. No template was edited or saved and no email was sent.
+
+The app-only release is `/opt/salemax/releases/email-marketing-preview-link-860e9d859550-20261126T085607Z`; protected rollback snapshot: `/opt/salemax/shared/rollback-email-marketing-preview-link-860e9d859550-20261126T085607Z`. Runtime hashes: `client/public/index.html` `5a8552bc7e64a60c4975e13536da38271b0d4a23bdc6f808a1df33e12296b7bf`; `client/public/email-marketing-template-builder.js` `fa1efc6a9dfcc8ea013726c415f8e0813e8fa895477be7a2fa869646a478a754`. The app image remained `sha256:753d77d421b3160872df0812e7b38505a1db7104cdb9d6c8b17415b2420de667`; `/healthz` and the versioned builder asset returned HTTP 200. No migration or database change ran. Roll back newer app overlays first, then restore the prior Compose chain using the helper and snapshot above under the production lock.

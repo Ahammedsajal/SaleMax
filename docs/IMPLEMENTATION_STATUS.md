@@ -2730,3 +2730,6 @@ Manual contact entry now displays a success state inside the open dialog, clears
 ## Email 6 website link — production deployed, 26 November 2026
 
 The visual Email 6 template’s plain website footer is now rendered as a safe clickable `https://www.7network.live/` link. The deployed renderer was applied to the account’s saved Email 6 design and produced an anchor. The saved template record was not rewritten and no test email or campaign was sent. Production and rollback evidence are in `DEPLOYMENT.md`; acceptance in a sent test email remains pending.
+
+
+The Email 6 preview was subsequently updated and visually checked in the signed-in Edge editor: the footer URL is blue, underlined and exposed as a link to `https://www.7network.live/`. The existing saved template was not changed during this preview check. A fresh one-recipient test send after this release remains unverified; Edge changed during recipient selection, so no message was sent.
