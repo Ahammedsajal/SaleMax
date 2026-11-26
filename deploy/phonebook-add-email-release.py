@@ -95,6 +95,8 @@ def compose_env(files, app, workdir):
             variables[key] = manual[key]
         elif key in live:
             variables[key] = live[key]
+        elif key.endswith(('_BASE_IMAGE', '_APP_IMAGE')):
+            variables[key] = app['Config']['Image']
         else:
             inferred = set()
             pattern = re.compile(r'\$\{' + re.escape(key) + r'(?::[-?+][^}]*)?\}([^:\s]*)\s*:\s*(/app/[^:\s]+)')
