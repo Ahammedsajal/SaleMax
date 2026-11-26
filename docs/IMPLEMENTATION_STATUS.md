@@ -2719,3 +2719,14 @@ Campaigns marked **Needs review** now link directly to recipient outcomes. The r
 ## Phonebook manual-entry email field — 26 November 2026
 
 **Status: deployed; authenticated browser acceptance pending.** The legacy manual Add Contacts dialog was missing an email input even though the current Phonebook workspace API supports permission-checked email storage. A maintained browser hook adds a labelled email field to that existing dialog, captures its manual save only when an email is entered, and submits through the existing `/add-contacts` workspace operation. It keeps email-marketing consent false, blocks submission with a clear message if the actor lacks email marketing access, retains the account's bounce-suppression checks, and leaves ordinary phone-only saves untouched. English and Arabic labels are included. No database migration is required. The public shell and new JavaScript/CSS assets are verified live; see `DEPLOYMENT.md`. The signed-in dialog still needs visual and save-flow acceptance.
+
+
+## Phonebook contact management — source and production deployed, 26 November 2026
+
+Manual contact entry now displays a success state inside the open dialog, clears the entry fields, and focuses Name for the next contact. Email takes a full-width row. The maintained Phonebook screen provides manager-gated Edit and confirmed Delete actions for each contact. CSV samples display and download the current configured contact-field names, and the import path maps those names to the existing contact variables. Email marketing consent remains unchecked by default and can be imported only after the operator confirms explicit opt-in data; existing bounce suppression is retained. No schema change was needed. Production release, rollback and asset evidence are in `DEPLOYMENT.md`.
+
+**Status: deployed; signed-in acceptance pending.** The release helper verified the live shell references, all four served assets, public health and unchanged support services. The authenticated manual-save/reset, edit/delete and CSV import flows and the responsive English/Arabic RTL screen still need owner acceptance.
+
+## Email 6 website link — production deployed, 26 November 2026
+
+The visual Email 6 template’s plain website footer is now rendered as a safe clickable `https://www.7network.live/` link. The deployed renderer was applied to the account’s saved Email 6 design and produced an anchor. The saved template record was not rewritten and no test email or campaign was sent. Production and rollback evidence are in `DEPLOYMENT.md`; acceptance in a sent test email remains pending.

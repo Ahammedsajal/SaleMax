@@ -5932,3 +5932,32 @@ sudo -n /opt/salemax/shared/with-production-lock.sh python3 /opt/salemax/shared/
 ```
 
 Verification confirmed the public URL returns HTTP 206 with `Content-Type: video/mp4`, `Accept-Ranges: bytes`, and `Content-Range: bytes 0-63/132119630`; the initial bytes identify an MP4 (`ftyp`). The public health endpoint returned HTTP 200 with status `ok`. Live browser playback advanced between frames. No database migration ran and no app restart occurred. The full 42-ticket upgrade and its remaining release gates continue.
+
+
+## 2026-11-26 — Email 6 designed website link — production
+
+Source commit `ea63d9231f5221b6027f93b3984f0797246523f4` (renderer change `e146a6ba`) is deployed. Email 6 for the `sales@7network.live` workspace was saved as a visual design block containing plain `www.7network.live` text, so it rendered without a link. The maintained designed-email renderer now turns safe `https://` and `www.` URLs in visual text blocks into escaped, clickable HTTPS anchors. The saved Email 6 footer was rendered with the deployed renderer and returned an anchor for `www.7network.live`. No template content or database record was rewritten, and no test email or campaign was sent.
+
+The app-only release is `/opt/salemax/releases/email-marketing-designed-url-ea63d9231f52-20261126T083727Z`; its protected rollback snapshot is `/opt/salemax/shared/rollback-email-marketing-designed-url-ea63d9231f52-20261126T083727Z`. The mounted `modules/platform/email-marketing-content.js` SHA-256 is `1238b436e5b498df082e76e5f00a85b08d411a36125730a669b109ea7baae363`; the app image remained `sha256:753d77d421b3160872df0812e7b38505a1db7104cdb9d6c8b17415b2420de667`. `/healthz` and static assets returned HTTP 200. No migration or database change ran. If rolling back, first roll back newer app overlays, then restore the previous app Compose chain under the production lock using the release helper stored in that release; the snapshot records the exact preimage and service identity.
+
+## 2026-11-26 — Phonebook contact entry, edit/delete and CSV field headers — production
+
+Source commit `2b3e97b5fe2c9504daebf07a85fb061851559508` is deployed. The existing Phonebook screen now shows a visible success message after manual contact saves, clears the form for the next contact while keeping the selected phonebook, and keeps email entry full-width and readable. Managed contacts have row-level Edit and Delete actions; deletion asks for confirmation. CSV sample downloads and header chips reflect the configured field labels, and imports map those current labels into the existing five custom contact fields. Marketing consent remains opt-in only: importing records it only when the operator confirms the consent column and a row contains a recognized affirmative value. Existing bounce suppression and workspace role checks remain in the service path.
+
+The guarded app-only overlay is `/opt/salemax/releases/phonebook-contact-management-2b3e97b5fe2c-20261126T084804Z`, layered over base `/opt/salemax/releases/training-pipeline-correction-v3-9867ca72-20261104` and the previously active Compose overlays. The app image remained `sha256:753d77d421b3160872df0812e7b38505a1db7104cdb9d6c8b17415b2420de667`; the app recovered healthy with zero restarts, MariaDB stayed healthy, and all non-app service identities were preserved. No migration or database/contact change ran during deployment.
+
+| Runtime file | Deployed SHA-256 |
+|---|---|
+| `client/public/index.html` | `6bb8ea63a0db423758cb70b2f79e1150e7609cb8178cff0d5944bec47fc6448b` |
+| `client/public/phonebook-workspace.js` | `468419cc2e8688f14c945b4f3b395f1ceb189f0ac7eb6392e4e9899d92b71adc` |
+| `client/public/phonebook-workspace.css` | `89a3d6b9308390df762eb9efa248fdfb1bd1f46634d7a357506e13e20c387fd3` |
+| `client/public/phonebook-add-contact.js` | `9acf38197f6d0b56ca08f91a4744146e23ca0f529748417db569a3baf411cb33` |
+| `client/public/phonebook-add-contact.css` | `b56d0969cbb39594fb665f46e57ce90d18f22700ecfdc82bfc0a89bbf78f255e` |
+
+Protected rollback snapshot: `/opt/salemax/shared/rollback-phonebook-contact-management-2b3e97b5fe2c-20261126T084804Z`. If this remains the newest app overlay, restore under the production lock with:
+
+```sh
+sudo -n /opt/salemax/shared/with-production-lock.sh python3 /opt/salemax/releases/phonebook-contact-management-2b3e97b5fe2c-20261126T084804Z/deploy/phonebook-contact-management-release.py restore /opt/salemax/shared/rollback-phonebook-contact-management-2b3e97b5fe2c-20261126T084804Z
+```
+
+Verification confirmed public `/healthz` returned HTTP 200, all four cache-busted phonebook assets returned HTTP 200 with hashes matching their mounted files, and `/user?page=phonebook` served the new cache keys. The release helper validated the candidate Compose overlay preserved the app mount set and all non-app services. JavaScript/Python syntax and index-reference preflight passed before deployment. Authenticated visual/save/edit/delete/import acceptance was unavailable during this release, so browser acceptance across roles, English/Arabic RTL and responsive layouts remains open.
