@@ -935,7 +935,13 @@
     await refreshConnections();
   }
   async function customerWorkspace(root,status){
-    const intro=add(root,'p',t('Search customers imported from connected stores or created with Retail orders. Open a customer to review contact details, orders and payment evidence.','ابحث عن العملاء المستوردين من المتاجر المتصلة أو المسجلين مع طلبات التجزئة. افتح العميل لمراجعة بيانات التواصل والطلبات وسجلات الدفع.'));
+    const consentLabel=value=>{
+      const normalized=String(value??'').trim().toLowerCase();
+      if(['yes','true','1','subscribed','opted_in','opted-in','granted'].includes(normalized))return t('Opted in (reported by store)','موافق، حسب المتجر');
+      if(['no','false','0','unsubscribed','opted_out','opted-out','denied'].includes(normalized))return t('Opted out (reported by store)','غير موافق، حسب المتجر');
+      return t('Unknown or not provided','غير معروف أو غير مسجل');
+    };
+    const intro=add(root,'p',t('Search customers from connected stores and Retail orders. Open a profile to review contact details, order history and payment evidence.','ابحث عن العملاء من المتاجر المتصلة وطلبات التجزئة. افتح الملف لمراجعة بيانات التواصل وسجل الطلبات وإثباتات الدفع.'));
     intro.className='sx-retail-page-subtitle';
     const view=add(root,'section');view.className='sx-retail-customers';
     const state={page:1,search:''};
@@ -945,44 +951,103 @@
       if(key&&orderPage>1)url.searchParams.set('customerOrdersPage',String(orderPage));else url.searchParams.delete('customerOrdersPage');
       if(replace)history.replaceState(history.state,'',url);else history.pushState(history.state,'',url);
     };
+    const initials=value=>{
+      const parts=String(value||'').trim().split(/[\s@._-]+/).filter(Boolean);
+      return (parts.length>1?parts[0][0]+parts[1][0]:String(parts[0]||'C').slice(0,2)).toLocaleUpperCase();
+    };
+    const countLabel=count=>{
+      const value=Number(count||0),formatted=new Intl.NumberFormat(t('en-QA','ar-QA')).format(value);
+      return formatted+' '+t(value===1?'order':'orders',value===1?'طلب':'طلبات');
+    };
     const showList=async()=>{
       view.replaceChildren();
-      const tools=add(view,'form');tools.className='sx-retail-customer-search';
-      const search=input(tools,t('Search by name, email or phone','ابحث بالاسم أو البريد أو الهاتف'),state.search,'search');search.maxLength=100;search.autocomplete='off';
-      const find=add(tools,'button',t('Search customers','بحث عن العملاء'));find.type='submit';find.className='sx-retail-primary';
+      const searchPanel=add(view,'section');searchPanel.className='sx-retail-customer-search-panel';
+      const searchHeading=add(searchPanel,'div');searchHeading.className='sx-retail-customer-panel-heading';
+      add(searchHeading,'h2',t('Find a customer','ابحث عن عميل'));
+      add(searchHeading,'p',t('Search by name, email or phone number.','ابحث بالاسم أو البريد الإلكتروني أو رقم الهاتف.'));
+      const tools=add(searchPanel,'form');tools.className='sx-retail-customer-search';
+      const search=input(tools,t('Name, email or phone','الاسم أو البريد أو الهاتف'),state.search,'search');
+      search.maxLength=100;search.autocomplete='off';search.placeholder=t('e.g. customer name or email','مثال: اسم العميل أو بريده الإلكتروني');
+      search.setAttribute('aria-label',t('Search customers by name, email or phone','ابحث عن العملاء بالاسم أو البريد أو الهاتف'));
+      const find=add(tools,'button',t('Search','بحث'));find.type='submit';find.className='sx-retail-primary';
       const clear=add(tools,'button',t('Clear','مسح'));clear.type='button';clear.className='sx-retail-secondary';
-      const list=add(view,'div');list.className='sx-retail-customer-list';
-      const pageTools=add(view,'div');pageTools.className='sx-retail-filter-actions sx-retail-customer-pagination';
-      const previous=add(pageTools,'button',t('Previous','السابق'));previous.type='button';
-      const pageLabel=add(pageTools,'span');
-      const next=add(pageTools,'button',t('Next','التالي'));next.type='button';
+      const results=add(view,'div');results.className='sx-retail-customer-results';
+      const resultHeading=add(results,'div');resultHeading.className='sx-retail-customer-results-heading';
+      add(resultHeading,'h2',t('Customer directory','دليل العملاء'));
+      const resultCount=add(resultHeading,'span');resultCount.className='sx-retail-customer-result-count';
+      const list=add(results,'div');list.className='sx-retail-customer-list';
+      const pageTools=add(view,'div');pageTools.className='sx-retail-customer-pagination';
+      const range=add(pageTools,'span');range.className='sx-retail-customer-range';
+      const controls=add(pageTools,'div');controls.className='sx-retail-customer-page-controls';
+      const previous=add(controls,'button',t('Previous','السابق'));previous.type='button';previous.className='sx-retail-secondary';
+      const pageLabel=add(controls,'span');pageLabel.className='sx-retail-customer-page-label';
+      const next=add(controls,'button',t('Next','التالي'));next.type='button';next.className='sx-retail-secondary';
       const render=async()=>{
         status.textContent=t('Loading customers…','جارٍ تحميل العملاء…');list.replaceChildren();
         try{
           const result=await api('/customers?page='+state.page+'&limit=20&search='+encodeURIComponent(state.search));
-          pageLabel.textContent=t('Page ','صفحة ')+result.page+' · '+result.total+' '+t('customers','عملاء');
+          const total=Number(result.total||0),first=total?(result.page-1)*result.limit+1:0,last=Math.min(result.page*result.limit,total);
+          resultCount.textContent=new Intl.NumberFormat(t('en-QA','ar-QA')).format(total)+' '+t(total===1?'customer':'customers',total===1?'عميل':'عملاء');
+          range.textContent=total?t('Showing ','عرض ')+first+'–'+last+t(' of ',' من ')+total:t('No customers','لا يوجد عملاء');
+          pageLabel.textContent=t('Page ','صفحة ')+result.page;
           previous.disabled=result.page<=1;next.disabled=!result.hasMore;
           if(!result.items.length){
-            const empty=add(list,'div');empty.className='sx-retail-empty';
+            const empty=add(list,'div');empty.className='sx-retail-empty sx-retail-customer-empty';
+            const mark=add(empty,'span','');mark.className='sx-retail-customer-empty-mark';mark.setAttribute('aria-hidden','true');
             add(empty,'strong',t('No customers found','لم يتم العثور على عملاء'));
-            add(empty,'p',state.search?t('Try another name, email or phone.','جرّب اسماً أو بريداً أو هاتفاً آخر.'):
-              t('Import store customers from Store Connections, or receive your first Retail order.','استورد العملاء من اتصالات المتاجر أو استقبل أول طلب تجزئة.'));
+            add(empty,'p',state.search?t('Try a different name, email or phone number.','جرّب اسماً أو بريداً إلكترونياً أو رقم هاتف آخر.'):
+              t('Customers will appear here when they are imported from a connected store or included in a Retail order.','سيظهر العملاء هنا بعد استيرادهم من متجر متصل أو تسجيلهم في طلب تجزئة.'));
             if(!state.search){const link=add(empty,'a',t('Open Store Connections','فتح اتصالات المتاجر'));link.href=location.pathname+'?page=retail-connected-stores';}
           }
           for(const customer of result.items){
             const card=add(list,'article');card.className='sx-retail-customer-card';
-            const name=add(card,'button',customer.name||t('Customer','العميل'));name.type='button';name.className='sx-retail-customer-open';
-            name.setAttribute('aria-label',t('Open customer details for ','افتح تفاصيل العميل ')+(customer.name||customer.email||customer.id.slice(0,8)));
-            name.onclick=()=>showDetail(customer.id,true);
-            add(card,'p',[customer.email,customer.phone].filter(Boolean).join(' · ')||t('No contact details','لا توجد بيانات تواصل'));
-            const stats=add(card,'div');stats.className='sx-retail-customer-facts';
-            add(stats,'span',Number(customer.orderCount||0)+' '+t('orders','طلبات'));
-            if(customer.amountSpent?.length)add(stats,'span',customer.amountSpent.map(row=>sourceMoney(row.amount,row.currency)).join(' · ')+' '+t('reported by store','حسب المتجر'));
-            if(customer.recordedPayments?.length)add(stats,'span',customer.recordedPayments.map(row=>sourceMoney(row.amount,row.currency)).join(' · ')+' '+t('recorded in 7Network','مسجل في 7Network'));
-            add(stats,'span',customer.lastOrderAt?t('Last order ','آخر طلب ')+orderDate(customer.lastOrderAt):t('No orders yet','لا توجد طلبات بعد'));
+            const nameValue=customer.name||customer.email||customer.phone||t('Customer','العميل');
+            const open=add(card,'button');open.type='button';open.className='sx-retail-customer-open';
+            open.setAttribute('aria-label',t('Open customer profile for ','افتح ملف العميل ')+nameValue);
+            open.onclick=()=>showDetail(customer.id,true);
+            const avatar=add(open,'span',initials(nameValue));avatar.className='sx-retail-customer-avatar';avatar.setAttribute('aria-hidden','true');
+            const identity=add(open,'span');identity.className='sx-retail-customer-identity';
+            add(identity,'span',nameValue).className='sx-retail-customer-name';
+            const contact=add(identity,'span');contact.className='sx-retail-customer-contact';
+            const showEmail=customer.email&&String(customer.email).toLowerCase()!==String(nameValue).toLowerCase();
+            if(showEmail){const email=add(contact,'bdi',customer.email);email.dir='auto';}
+            if(showEmail&&customer.phone)add(contact,'span',' · ').setAttribute('aria-hidden','true');
+            if(customer.phone){const phone=add(contact,'bdi',customer.phone);phone.dir='ltr';}
+            if(!showEmail&&!customer.phone)add(contact,'span',t('Email is used as the customer name','يُستخدم البريد الإلكتروني اسماً للعميل'));
+            const activity=add(open,'span');activity.className='sx-retail-customer-activity';
+            add(activity,'span',t('Order activity','نشاط الطلبات')).className='sx-retail-customer-fact-label';
+            add(activity,'strong',countLabel(customer.orderCount));
+            const latest=customer.lastOrderAt? t('Last order ','آخر طلب ')+orderDate(customer.lastOrderAt):
+              Number(customer.orderCount||0)>0&&customer.lastImportedAt?t('Last imported ','آخر استيراد ')+orderDate(customer.lastImportedAt):
+              Number(customer.orderCount||0)>0?t('Order date unavailable','تاريخ الطلب غير متاح'):t('No orders yet','لا توجد طلبات بعد');
+            add(activity,'span',latest).className='sx-retail-customer-fact-note';
+            const value=add(open,'span');value.className='sx-retail-customer-value';
+            let hasPaymentEvidence=false;
+            if(customer.amountSpent?.length){
+              hasPaymentEvidence=true;
+              add(value,'span',t('Store-reported','حسب المتجر')).className='sx-retail-customer-fact-label';
+              for(const row of customer.amountSpent){const amount=add(value,'bdi',sourceMoney(row.amount,row.currency));amount.dir='auto';}
+            }
+            if(customer.recordedPayments?.length){
+              hasPaymentEvidence=true;
+              add(value,'span',t('7Network receipts','إيصالات 7Network')).className='sx-retail-customer-fact-label';
+              for(const row of customer.recordedPayments){const amount=add(value,'bdi',sourceMoney(row.amount,row.currency));amount.dir='auto';}
+            }
+            if(!hasPaymentEvidence){
+              add(value,'span',t('Payment evidence','إثبات الدفع')).className='sx-retail-customer-fact-label';
+              add(value,'span',t('No payment data','لا توجد بيانات دفع')).className='sx-retail-customer-fact-note';
+            }
+            const affordance=add(open,'span',t('View profile','عرض الملف'));affordance.className='sx-retail-customer-view';
           }
           status.textContent='';
-        }catch{status.textContent=t('Unable to load customers. Check your connection and try again.','تعذر تحميل العملاء. تحقق من الاتصال وحاول مرة أخرى.');}
+        }catch{
+          resultCount.textContent='';range.textContent='';
+          const error=add(list,'div');error.className='sx-retail-empty sx-retail-customer-empty';
+          add(error,'strong',t('Customers could not be loaded','تعذر تحميل العملاء'));
+          add(error,'p',t('Check your connection and try again.','تحقق من الاتصال وحاول مرة أخرى.'));
+          const retry=add(error,'button',t('Try again','إعادة المحاولة'));retry.type='button';retry.className='sx-retail-secondary';retry.onclick=render;
+          status.textContent='';
+        }
       };
       tools.onsubmit=event=>{event.preventDefault();state.search=search.value.trim();state.page=1;render();};
       clear.onclick=()=>{state.search='';state.page=1;showList();};
@@ -992,62 +1057,175 @@
     };
     const showDetail=async(key,addHistory=false)=>{
       if(!/^[a-f0-9]{64}$/i.test(String(key||'')))return showList();
-      let orderPage=Math.max(1,Number(new URLSearchParams(location.search).get('customerOrdersPage'))||1),profile=null;
+      let orderPage=Math.max(1,Number(new URLSearchParams(location.search).get('customerOrdersPage'))||1);
       if(addHistory)updateCustomerUrl(key,orderPage);
       const render=async()=>{
         view.replaceChildren();
-        const back=add(view,'button',t('Back to customers','العودة إلى العملاء'));back.type='button';back.className='sx-retail-secondary';back.onclick=()=>{updateCustomerUrl('',1,true);showList();};
         const detail=add(view,'div');detail.className='sx-retail-customer-detail';
+        const toolbar=add(detail,'div');toolbar.className='sx-retail-customer-detail-toolbar';
+        const back=add(toolbar,'button',t('Back to customers','العودة إلى العملاء'));back.type='button';back.className='sx-retail-secondary';
+        back.onclick=()=>{updateCustomerUrl('',1,true);showList();};
         status.textContent=t('Loading customer details…','جارٍ تحميل تفاصيل العميل…');
         try{
-          profile=await api('/customers/'+encodeURIComponent(key)+'?page='+orderPage+'&limit=25');
-          add(detail,'h2',profile.name||t('Customer','العميل'));
-          const contact=add(detail,'section');contact.className='sx-retail-customer-panel';add(contact,'h3',t('Contact details','بيانات التواصل'));
-          for(const [label,value] of [[t('Email','البريد الإلكتروني'),profile.email],[t('Phone','الهاتف'),profile.phone]])if(value){const line=add(contact,'p');add(line,'strong',label+': ');const bdi=add(line,'bdi',value);bdi.dir='auto';}
-          if(profile.address){
-            const address=profile.address,parts=[address.address1,address.address2,address.city,address.region,address.postalCode,address.country].filter(Boolean);
-            if(parts.length)add(contact,'p',parts.join(' · '));
+          const profile=await api('/customers/'+encodeURIComponent(key)+'?page='+orderPage+'&limit=25');
+          const hero=add(detail,'section');hero.className='sx-retail-customer-hero';
+          const heroAvatar=add(hero,'span',initials(profile.name||profile.email||profile.phone));heroAvatar.className='sx-retail-customer-avatar sx-retail-customer-avatar-large';heroAvatar.setAttribute('aria-hidden','true');
+          const identity=add(hero,'div');identity.className='sx-retail-customer-hero-identity';
+          add(identity,'h2',profile.name||t('Customer','العميل')).tabIndex=-1;
+          const primaryContact=add(identity,'p');primaryContact.className='sx-retail-customer-hero-contact';
+          const showEmail=profile.email&&String(profile.email).toLowerCase()!==String(profile.name||'').toLowerCase();
+          if(showEmail){const email=add(primaryContact,'bdi',profile.email);email.dir='auto';}
+          if(showEmail&&profile.phone)add(primaryContact,'span',' · ').setAttribute('aria-hidden','true');
+          if(profile.phone){const phone=add(primaryContact,'bdi',profile.phone);phone.dir='ltr';}
+          if(!showEmail&&!profile.phone)add(primaryContact,'span',t('Email is used as the profile name','يُستخدم البريد الإلكتروني اسماً للملف'));
+          const stores=add(identity,'div');stores.className='sx-retail-customer-store-badges';
+          for(const source of profile.sourceRecords||[]){
+            const badge=add(stores,'span',(source.storeName||t('Connected store','متجر متصل'))+' · '+(source.provider==='woocommerce'?'WooCommerce':String(source.provider||'').toUpperCase()));
+            badge.className='sx-retail-customer-store-badge';
           }
-          if(profile.marketingConsent)add(contact,'p',t('Marketing consent reported by store','موافقة التسويق حسب المتجر')+': '+profile.marketingConsent);
-          if(profile.sourceRecords?.length)add(contact,'p',t('Connected stores','المتاجر المتصلة')+': '+profile.sourceRecords.map(row=>(row.storeName||row.provider)+' ('+row.provider+')').join(' · '));
-          const summaries=add(detail,'section');summaries.className='sx-retail-customer-panels';
-          const ordersPanel=add(summaries,'article');ordersPanel.className='sx-retail-customer-panel';add(ordersPanel,'span',t('Total orders','إجمالي الطلبات'));add(ordersPanel,'strong',String(profile.orderCount||0));
-          const last=add(summaries,'article');last.className='sx-retail-customer-panel';add(last,'span',t('Last order','آخر طلب'));add(last,'strong',profile.lastOrderAt?orderDate(profile.lastOrderAt):'—');
-          const spend=add(detail,'section');spend.className='sx-retail-customer-panel';add(spend,'h3',t('Amount spent and payment evidence','المبلغ المدفوع وسجلات الدفع'));
-          if(profile.amountSpent?.length){add(spend,'h4',t('Store-reported net paid (not verified by 7Network)','صافي المدفوع حسب المتجر (غير متحقق من 7Network)'));for(const row of profile.amountSpent)add(spend,'p',sourceMoney(row.amount,row.currency));}
-          else add(spend,'p',t('No store-reported payments were found.','لم يتم العثور على مدفوعات مُبلغ عنها من المتجر.'));
-          if(profile.recordedPayments?.length){add(spend,'h4',t('Cash receipts recorded in 7Network','إيصالات النقد المسجلة في 7Network'));for(const row of profile.recordedPayments)add(spend,'p',sourceMoney(row.amount,row.currency));}
-          const orders=add(detail,'section');orders.className='sx-retail-customer-orders';add(orders,'h3',t('Orders and payments','الطلبات والمدفوعات'));
-          if(!profile.orders?.length)add(orders,'p',t('No orders found for this customer.','لا توجد طلبات لهذا العميل.'));
+          const orderCount=Number(profile.orderCount||0),activityAt=profile.lastOrderAt||null,importedAt=profile.lastImportedAt||null;
+          const activityTitle=activityAt?t('Last order','آخر طلب'):importedAt?t('Last imported order','آخر طلب مستورد'):orderCount?t('Order date','تاريخ الطلب'):t('Last order','آخر طلب');
+          const activityValue=activityAt?orderDate(activityAt):importedAt?orderDate(importedAt):orderCount?t('Date unavailable','التاريخ غير متاح'):'—';
+          const metrics=add(detail,'section');metrics.className='sx-retail-customer-metrics';
+          const addMetric=(label,value,note)=>{
+            const metric=add(metrics,'article');metric.className='sx-retail-customer-metric';
+            add(metric,'span',label).className='sx-retail-customer-fact-label';
+            add(metric,'strong',value);
+            if(note)add(metric,'span',note).className='sx-retail-customer-fact-note';
+            return metric;
+          };
+          addMetric(t('Total orders','إجمالي الطلبات'),new Intl.NumberFormat(t('en-QA','ar-QA')).format(orderCount),countLabel(orderCount));
+          addMetric(activityTitle,activityValue,orderCount&&!activityAt&&!importedAt?t('The store did not provide an order date.','لم يوفر المتجر تاريخ الطلب.'):null);
+          const spendMetric=addMetric(t('Net paid reported by store','صافي المدفوع حسب المتجر'),profile.amountSpent?.length?profile.amountSpent.map(row=>sourceMoney(row.amount,row.currency)).join(' · '):t('No data','لا توجد بيانات'),t('Not verified by 7Network','غير متحقق منه من 7Network'));
+          spendMetric.classList.add('sx-retail-customer-metric-multiline');
+          const receiptsMetric=addMetric(t('7Network receipts','إيصالات 7Network'),profile.recordedPayments?.length?profile.recordedPayments.map(row=>sourceMoney(row.amount,row.currency)).join(' · '):t('None recorded','لا توجد إيصالات مسجلة'),t('Recorded business receipts','إيصالات النشاط المسجلة'));
+          receiptsMetric.classList.add('sx-retail-customer-metric-multiline');
+          const overview=add(detail,'div');overview.className='sx-retail-customer-overview';
+          const contact=add(overview,'section');contact.className='sx-retail-customer-panel sx-retail-customer-contact-panel';
+          add(contact,'h3',t('Contact details','بيانات التواصل'));
+          const fields=add(contact,'dl');fields.className='sx-retail-customer-fields';
+          const field=(label,value,{dir='auto',wide=false}={})=>{
+            const row=add(fields,'div');row.className='sx-retail-customer-field'+(wide?' sx-retail-customer-field-wide':'');
+            add(row,'dt',label);const dd=add(row,'dd');
+            if(value&&typeof value==='object'&&value.nodeType){dd.append(value);return dd;}
+            const present=value!==null&&value!==undefined&&value!=='';
+            const text=add(dd,'bdi',present?value:t('Not provided','غير مسجل'));text.dir=dir;return dd;
+          };
+          field(t('Email','البريد الإلكتروني'),profile.email);
+          field(t('Phone','الهاتف'),profile.phone,{dir:'ltr'});
+          const address=profile.address,parts=address?[address.address1,address.address2,address.city,address.region,address.postalCode,address.country].filter(Boolean):[];
+          field(t('Address','العنوان'),parts.length?parts.join(' · '):null,{wide:true});
+          field(t('Marketing consent reported by store','موافقة التسويق حسب المتجر'),consentLabel(profile.marketingConsent),{wide:true});
+          const storeField=field(t('Connected stores','المتاجر المتصلة'),null,{wide:true});
+          storeField.replaceChildren();
+          if(profile.sourceRecords?.length){const badges=add(storeField,'span');badges.className='sx-retail-customer-store-badges';
+            for(const source of profile.sourceRecords)add(badges,'span',(source.storeName||t('Connected store','متجر متصل'))+' · '+(source.provider==='woocommerce'?'WooCommerce':String(source.provider||'').toUpperCase())).className='sx-retail-customer-store-badge';
+          }else add(storeField,'span',t('No connected store source','لا يوجد متجر مصدر متصل'));
+          const evidence=add(overview,'section');evidence.className='sx-retail-customer-panel sx-retail-customer-payment-panel';
+          const evidenceHeading=add(evidence,'div');evidenceHeading.className='sx-retail-customer-panel-heading';
+          add(evidenceHeading,'h3',t('Payment evidence','إثباتات الدفع'));
+          add(evidenceHeading,'p',t('Store reports and 7Network receipts are shown separately.','تُعرض بلاغات المتجر وإيصالات 7Network كلٌ على حدة.'));
+          const evidenceGrid=add(evidence,'div');evidenceGrid.className='sx-retail-customer-evidence-grid';
+          const evidenceGroup=(title,rows,empty,helper)=>{
+            const group=add(evidenceGrid,'article');group.className='sx-retail-customer-evidence-group';
+            add(group,'h4',title);
+            if(rows?.length){const list=add(group,'ul');list.className='sx-retail-customer-money-list';
+              for(const row of rows){const item=add(list,'li'),amount=add(item,'bdi',sourceMoney(row.amount,row.currency));amount.dir='auto';}
+            }else add(group,'p',empty);
+            add(group,'p',helper).className='sx-retail-customer-evidence-note';
+          };
+          evidenceGroup(t('Store-reported net paid','صافي المدفوع حسب المتجر'),profile.amountSpent,t('No payment totals were provided by the store.','لم يقدم المتجر إجماليات للمدفوعات.'),t('This is provider data and is not verified settlement.','هذه بيانات من المزوّد وليست تسوية متحققاً منها.'));
+          evidenceGroup(t('Recorded in 7Network','مسجل في 7Network'),profile.recordedPayments,t('No 7Network cash receipts are recorded.','لا توجد إيصالات نقدية مسجلة في 7Network.'),t('These are business-recorded receipts; reconcile them through Finance.','هذه إيصالات سجلها النشاط؛ طابقها عبر قسم المالية.'));
+          const orders=add(detail,'section');orders.className='sx-retail-customer-orders';
+          const ordersHeading=add(orders,'div');ordersHeading.className='sx-retail-customer-orders-heading';
+          const orderHeading=add(ordersHeading,'div');add(orderHeading,'h3',t('Order history','سجل الطلبات'));
+          add(orderHeading,'p',t('Connected-store orders are read-only. Local Retail orders retain their 7Network status and receipt history.','طلبات المتاجر المتصلة للعرض فقط. تحتفظ طلبات التجزئة المحلية بحالتها وسجل إيصالاتها في 7Network.'));
+          add(ordersHeading,'span',countLabel(orderCount)).className='sx-retail-customer-result-count';
+          if(!profile.orders?.length){
+            const empty=add(orders,'div');empty.className='sx-retail-empty sx-retail-customer-order-empty';
+            add(empty,'strong',orderPage>1?t('No orders on this page','لا توجد طلبات في هذه الصفحة'):t('No orders found','لم يتم العثور على طلبات'));
+            add(empty,'p',orderCount?t('This page has no results. Return to the first page to see the available orders.','لا توجد نتائج في هذه الصفحة. ارجع إلى الصفحة الأولى لعرض الطلبات المتاحة.'):
+              t('This customer does not have any connected-store or local Retail orders yet.','ليس لهذا العميل طلبات من متجر متصل أو طلبات تجزئة محلية حتى الآن.'));
+          }
           for(const order of profile.orders||[]){
             const card=add(orders,'article');card.className='sx-retail-customer-order';
-            const heading=add(card,'div');heading.className='sx-retail-customer-order-heading';
-            add(heading,'strong',(order.orderNumber||order.sourceOrderId||order.id)+' · '+sourceMoney(order.total,order.currency));
-            add(heading,'time',order.date?orderDate(order.date):'—');
-            add(card,'p',order.provider?t('Source store ','المتجر المصدر ')+(order.storeName||order.provider)+' · '+t('store status ','حالة المتجر ')+sourceStatus(order.status)+' · '+t('payment status ','حالة الدفع ')+sourceStatus(order.financialStatus):t('7Network status ','حالة 7Network ')+sourceStatus(order.localStatus));
-            if(order.reportedNetPaid!=null)add(card,'p',t('Net paid reported by store','صافي المدفوع حسب المتجر')+': '+sourceMoney(order.reportedNetPaid,order.currency));
-            if(order.paymentEvidence==='source_reported_unverified')add(card,'p',t('Provider payment events are source-reported and not verified settlement records.','أحداث الدفع من المزوّد بلاغات مصدر وليست سجلات تسوية متحققاً منها.'));
-            if(order.deliveryState)add(card,'p',t('Local delivery status','حالة التوصيل المحلية')+': '+(deliveryLabels[order.deliveryState]||sourceStatus(order.deliveryState)));
-            const orderAddress=order.shippingAddress||order.deliveryAddress;
-            if(orderAddress){const parts=typeof orderAddress==='string'?[orderAddress]:[orderAddress.address1,orderAddress.address2,orderAddress.city,orderAddress.region,orderAddress.postalCode,orderAddress.country].filter(Boolean);
-              if(parts.length)add(card,'p',t('Delivery address','عنوان التوصيل')+': '+parts.join(' · '));}
-            for(const lineData of order.lines||[]){
-              const line=add(card,'p');add(line,'span',String(lineData.quantity||'0')+' × '+(lineData.name||t('Item','عنصر'))+(lineData.sku?' · '+lineData.sku:''));
-              if(lineData.total!=null)add(line,'span',' · '+sourceMoney(lineData.total,lineData.currency||order.currency));
-              else if(lineData.unitPrice!=null)add(line,'span',' · '+t('Unit price ','سعر الوحدة ')+sourceMoney(lineData.unitPrice,lineData.currency||order.currency));
+            const summary=add(card,'div');summary.className='sx-retail-customer-order-summary';
+            const reference=add(summary,'div');reference.className='sx-retail-customer-order-reference';
+            const orderNumber=add(reference,'bdi',(order.provider?'#':'')+String(order.orderNumber||order.sourceOrderId||order.id));orderNumber.dir='auto';
+            add(reference,'time',order.date?orderDate(order.date):t('Date unavailable','التاريخ غير متاح'));
+            const amount=add(summary,'strong',sourceMoney(order.total,order.currency));amount.className='sx-retail-customer-order-amount';amount.dir='auto';
+            const badges=add(summary,'div');badges.className='sx-retail-customer-order-badges';
+            if(order.provider){
+              add(badges,'span',order.storeName|| (order.provider==='woocommerce'?'WooCommerce':String(order.provider).toUpperCase())).className='sx-retail-customer-store-badge';
+              add(badges,'span',sourceStatus(order.status)).className='sx-retail-customer-status';
+            }else{
+              add(badges,'span',t('7Network order','طلب 7Network')).className='sx-retail-customer-store-badge';
+              add(badges,'span',labels[order.localStatus]||sourceStatus(order.localStatus)).className='sx-retail-customer-status';
             }
-            for(const payment of [...(order.transactions||[]),...(order.payments||[])])add(card,'p',t('Payment record','سجل دفع')+': '+payment.kind+' · '+payment.status+' · '+sourceMoney(payment.amount,payment.currency)+(payment.gateway?' · '+payment.gateway:'')+(payment.processedAt?' · '+orderDate(payment.processedAt):''));
+            const details=add(card,'details');details.className='sx-retail-customer-order-details';
+            add(details,'summary',t('View order details, items and payments','عرض تفاصيل الطلب والمنتجات والمدفوعات'));
+            const body=add(details,'div');body.className='sx-retail-customer-order-body';
+            const meta=add(body,'div');meta.className='sx-retail-customer-order-meta';
+            const metaRow=(label,value)=>{const row=add(meta,'p');add(row,'strong',label);add(row,'span',value||'—').dir='auto';};
+            if(order.provider){
+              metaRow(t('Source store','المتجر المصدر'),(order.storeName||order.provider)+' · '+(order.provider==='woocommerce'?'WooCommerce':String(order.provider).toUpperCase()));
+              metaRow(t('Store order status','حالة طلب المتجر'),sourceStatus(order.status));
+              metaRow(t('Payment status reported by store','حالة الدفع حسب المتجر'),sourceStatus(order.financialStatus));
+            }else{
+              metaRow(t('7Network order status','حالة طلب 7Network'),labels[order.localStatus]||sourceStatus(order.localStatus));
+              if(order.deliveryState)metaRow(t('Delivery status','حالة التوصيل'),deliveryLabels[order.deliveryState]||sourceStatus(order.deliveryState));
+            }
+            const orderAddress=order.shippingAddress||order.deliveryAddress;
+            if(orderAddress){const addressParts=typeof orderAddress==='string'?[orderAddress]:[orderAddress.address1,orderAddress.address2,orderAddress.city,orderAddress.region,orderAddress.postalCode,orderAddress.country].filter(Boolean);
+              if(addressParts.length)metaRow(t('Delivery address','عنوان التوصيل'),addressParts.join(' · '));}
+            if(order.provider&&order.reportedNetPaid!=null){
+              metaRow(t('Net paid reported by store','صافي المدفوع حسب المتجر'),sourceMoney(order.reportedNetPaid,order.currency));
+              add(body,'p',t('Store payment events are not verified settlement records.','أحداث الدفع من المتجر ليست سجلات تسوية متحققاً منها.')).className='sx-retail-customer-evidence-note';
+            }
+            if(order.lines?.length){
+              const lines=add(body,'div');lines.className='sx-retail-customer-order-lines';
+              for(const lineData of order.lines){
+                const line=add(lines,'div');line.className='sx-retail-customer-order-line';
+                const description=add(line,'div');description.className='sx-retail-customer-order-line-description';
+                add(description,'strong',lineData.name||t('Item','عنصر'));
+                const detailText=[String(lineData.quantity||'0')+' ×',lineData.sku?'SKU '+lineData.sku:null].filter(Boolean).join(' · ');
+                add(description,'span',detailText);
+                const lineAmount=lineData.total!=null?sourceMoney(lineData.total,lineData.currency||order.currency):lineData.unitPrice!=null?t('Unit price ','سعر الوحدة ')+sourceMoney(lineData.unitPrice,lineData.currency||order.currency):'—';
+                add(line,'bdi',lineAmount).dir='auto';
+              }
+            }
+            const payments=[...(order.transactions||[]),...(order.payments||[])];
+            if(payments.length){const paymentList=add(body,'div');paymentList.className='sx-retail-customer-order-payments';
+              add(paymentList,'h4',order.provider?t('Store-reported payment events','أحداث الدفع حسب المتجر'):t('7Network receipt records','سجلات إيصالات 7Network'));
+              for(const payment of payments){
+                const row=add(paymentList,'p');
+                const kind=payment.kind==='cash_receipt'?t('Cash receipt','إيصال نقدي'):sourceStatus(payment.kind);
+                add(row,'span',kind+' · '+sourceStatus(payment.status));
+                add(row,'bdi',sourceMoney(payment.amount,payment.currency||order.currency)).dir='auto';
+                if(payment.gateway)add(row,'span',payment.gateway);
+                if(payment.processedAt)add(row,'time',orderDate(payment.processedAt));
+              }
+            }else add(body,'p',order.provider?t('No payment events were included in the imported order.','لم تتضمن بيانات الطلب المستورد أحداث دفع.'):
+              t('No 7Network receipt has been recorded for this order.','لم يسجل إيصال 7Network لهذا الطلب.')).className='sx-retail-customer-evidence-note';
           }
           const paging=profile.orderPagination;
-          if(paging?.total>paging.limit){const controls=add(orders,'div');controls.className='sx-retail-filter-actions';
-            const previous=add(controls,'button',t('Previous orders','الطلبات السابقة'));previous.type='button';previous.disabled=orderPage<=1;
-            add(controls,'span',t('Page ','صفحة ')+paging.page);
-            const next=add(controls,'button',t('More orders','المزيد من الطلبات'));next.type='button';next.disabled=!paging.hasMore;
+          if(paging?.total>paging.limit){
+            const controls=add(orders,'div');controls.className='sx-retail-customer-pagination';
+            const pageRange=add(controls,'span',t('Page ','صفحة ')+paging.page+' · '+paging.total+' '+t('orders','طلبات'));pageRange.className='sx-retail-customer-range';
+            const pageButtons=add(controls,'div');pageButtons.className='sx-retail-customer-page-controls';
+            const previous=add(pageButtons,'button',t('Previous orders','الطلبات السابقة'));previous.type='button';previous.className='sx-retail-secondary';previous.disabled=orderPage<=1;
+            const next=add(pageButtons,'button',t('Next orders','الطلبات التالية'));next.type='button';next.className='sx-retail-secondary';next.disabled=!paging.hasMore;
             previous.onclick=()=>{orderPage=Math.max(1,orderPage-1);updateCustomerUrl(key,orderPage,true);render();};
             next.onclick=()=>{orderPage++;updateCustomerUrl(key,orderPage,true);render();};
           }
           status.textContent='';
-        }catch{status.textContent=t('Unable to load this customer.','تعذر تحميل بيانات العميل.');}
+        }catch{
+          const error=add(detail,'div');error.className='sx-retail-empty sx-retail-customer-empty';
+          add(error,'strong',t('Customer profile could not be loaded','تعذر تحميل ملف العميل'));
+          add(error,'p',t('The record may have changed, or you may no longer have access. Return to the directory and try again.','ربما تغير السجل أو لم يعد لديك إذن الوصول. ارجع إلى الدليل وحاول مرة أخرى.'));
+          const retry=add(error,'button',t('Try again','إعادة المحاولة'));retry.type='button';retry.className='sx-retail-secondary';retry.onclick=render;
+          status.textContent='';
+        }
       };
       await render();
     };
@@ -1124,7 +1302,7 @@
     root.className='sx-retail-workspace';
     root.dir=t('ltr','rtl');
     syncTheme();
-    if(!document.querySelector('[data-retail-workspace-css]')){const css=document.createElement('link');css.rel='stylesheet';css.href='/retail-workspace.css?v=20261125-retail-imports-customers1';css.dataset.retailWorkspaceCss='';document.head.append(css);}
+    if(!document.querySelector('[data-retail-workspace-css]')){const css=document.createElement('link');css.rel='stylesheet';css.href='/retail-workspace.css?v=20261126-retail-customer-ux1';css.dataset.retailWorkspaceCss='';document.head.append(css);}
     new MutationObserver(syncTheme).observe(document.documentElement,{attributes:true,attributeFilter:['data-sx-theme']});
     window.addEventListener('storage',syncTheme);
     add(root,'h1',page[2]);
