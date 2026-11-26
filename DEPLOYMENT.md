@@ -1,3 +1,23 @@
+## 2026-11-26 — Phonebook manual-entry email field — production
+
+Source commit `2f22bc7b3ff76163d094e7468e0e90dcba4809b8` is pushed to `Ahammedsajal/SaleMax` `main`. The guarded app-only overlay is `/opt/salemax/releases/phonebook-add-email-2f22bc7b3ff7-20261126T080042Z`, layered over the existing live Compose chain and base `/opt/salemax/releases/training-pipeline-correction-v3-9867ca72-20261104`. The existing app image was retained (`sha256:753d77d421b3160872df0812e7b38505a1db7104cdb9d6c8b17415b2420de667`). The overlay preserves all 331 prior app mounts and adds only the two email-entry asset mounts, for 333 total. Non-app services were checked unchanged by the guarded release helper. No migration, database write, contact write or email send occurred.
+
+The existing manual Add Contacts dialog now has a bilingual email field. With an email entered, the hook submits through the existing permission-checked workspace API and leaves email-marketing consent off; normal phone-only contact saves continue through the previous path. Existing bounce suppression remains active. The shell and both new assets are mounted from readable release paths for the app's non-root Node user.
+
+| Runtime file | SHA-256 |
+|---|---|
+| `client/public/index.html` | `c7fae536f745c2a1135d244a9a76f223fcf22d98c874c41b988ae7dc46c58071` |
+| `client/public/phonebook-add-contact.js` | `bd73955ee6220eb3901193ce31ad7a6df2e4fe561071abd08a47232567fd7817` |
+| `client/public/phonebook-add-contact.css` | `fc05f8f4e47057f0c84d8fd4d9c507cf05137a2329d9a65b1aebdf4593731202` |
+
+The protected rollback snapshot is `/opt/salemax/shared/rollback-phonebook-add-email-2f22bc7b3ff7-20261126T080042Z` (mode `0700`). To restore the prior app mount set, first roll back any later app overlays, then run:
+
+```sh
+sudo -n /opt/salemax/shared/with-production-lock.sh python3 /opt/salemax/releases/phonebook-add-email-2f22bc7b3ff7-20261126T080042Z/deploy/phonebook-add-email-release.py restore /opt/salemax/shared/rollback-phonebook-add-email-2f22bc7b3ff7-20261126T080042Z
+```
+
+Verification: the app is healthy with zero restarts; public `/healthz`, `phonebook-add-contact.js` and `phonebook-add-contact.css` return HTTP 200, and the served JS/CSS hashes match the mounted release. The helper also verified the mounted shell/assets and unchanged non-app service identities. Three earlier attempts were automatically rolled back: the first exposed directory permissions that prevented the non-root app from reading the shell (brief HTTP 502); the next two exposed missing asset mounts and a hash-key comparison bug. Each rollback restored the previous 331 mounts and health; the final release passed the full guarded verification. Authenticated visual/save-flow review in the signed-in Phonebook remains open because the available browser session was unavailable. No user-facing field acceptance is claimed until that review.
+
 ## 2026-11-26 — Retail product publication and image imports — production
 
 Source commits `df4492110e0e1b86f838ae631310331524db7fe9` and `7011e1540af8f9fdcb908fed0f5f5b933e878fea` are on `Ahammedsajal/SaleMax` `main` (PRs [#186](https://github.com/Ahammedsajal/SaleMax/pull/186) and [#187](https://github.com/Ahammedsajal/SaleMax/pull/187)). The first adds published status for Retail imports, an encrypted local product-media pipeline with validated remote fetches, signed media URLs and retry/erase handling, and the responsive product-card improvements. The follow-up narrows the one-time image backfill to the exact canonical HTTPS store URL.
