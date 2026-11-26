@@ -128,7 +128,19 @@ function renderInlineText(value,personalize,contact){
       if(/^<mark>$/i.test(part))return '<mark style="background-color:#fff2a8;color:inherit">';
       return part.toLowerCase();
     }
-    return renderText(decodeInlineEntities(part),personalize,contact);
+    const plain=personalized(decodeInlineEntities(part),personalize,contact);
+    const pattern=/https?:\/\/[^\s<>"']+|www\.[a-z0-9](?:[a-z0-9-]*[a-z0-9])?(?:\.[a-z0-9](?:[a-z0-9-]*[a-z0-9])?)+(?:\/[^\s<>"']*)?/gi;
+    let html='',cursor=0,match;
+    while((match=pattern.exec(plain))){
+      const raw=match[0],trailing=(raw.match(/[.,!?;:)}\]]+$/)||[''])[0],label=raw.slice(0,raw.length-trailing.length);
+      let href='';
+      try{const parsed=new URL(/^www\./i.test(label)?'https://'+label:label);if(['http:','https:'].includes(parsed.protocol)&&parsed.hostname&&!parsed.username&&!parsed.password)href=parsed.href;}catch{}
+      html+=escapeHtml(plain.slice(cursor,match.index));
+      html+=href?`<a href="${escapeHtml(href)}" rel="noreferrer noopener" style="color:#1768d4;text-decoration:underline">${escapeHtml(label)}</a>`:escapeHtml(label);
+      html+=escapeHtml(trailing);cursor=match.index+raw.length;
+    }
+    html+=escapeHtml(plain.slice(cursor));
+    return html.replace(/\r\n|\r|\n/g,'<br>');
   });
 }
 function imageIds(design){return [...new Set((design?.blocks||[]).filter(block=>block.type==='image').map(block=>block.attachmentId))];}
