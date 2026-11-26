@@ -218,6 +218,7 @@ def deploy(source, source_commit):
     deploy_dir.mkdir(mode=0o750)
     snapshot.mkdir(mode=0o700)
     os.chmod(snapshot, 0o700)
+    rollback_ready = False
     try:
         prior = {'release': release_name, 'source_commit': source_commit, 'active_base': BASE, 'app_id': app['Id'], 'image': app['Image'],
                  'config_files': files, 'working_dir': workdir, 'service': service,
@@ -229,6 +230,7 @@ def deploy(source, source_commit):
         (snapshot / 'state.json').write_text(json.dumps(prior, indent=2) + '\n')
         (snapshot / 'state.json').chmod(0o600)
         copy_from_app(APP_TARGETS['client/public/index.html'], snapshot / 'index.before.html')
+        rollback_ready = True
         index = (snapshot / 'index.before.html').read_text()
         prior['index_sha256'] = sha(index.encode())
         (snapshot / 'state.json').write_text(json.dumps(prior, indent=2) + '\n')
@@ -281,16 +283,9 @@ def deploy(source, source_commit):
         (snapshot / 'deployment.json').chmod(0o600)
         print(json.dumps(meta, indent=2))
     except Exception:
-        try:
-            # Restore the pre-change Compose chain. No database state is touched.
-            rollback = compose_args(files, workdir)
-            run(*rollback, 'up', '-d', '--no-deps', '--no-build', service, check=False, env=env)
-            for _ in range(45):
-                if inspect(APP)['State'].get('Health', {}).get('Status') == 'healthy':
-                    break
-                time.sleep(2)
-        finally:
-            raise
+        if rollback_ready:
+            restore(snapshot)
+        raise
 
 
 def restore(snapshot_path):
