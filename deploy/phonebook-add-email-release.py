@@ -211,11 +211,18 @@ def deploy(source, source_commit):
     release_name = f'phonebook-add-email-{source_commit[:12]}-{stamp}'
     release = ROOT / 'releases' / release_name
     snapshot = ROOT / 'shared' / f'rollback-{release_name}'
-    release.mkdir(mode=0o750)
+    # The production app runs as a non-root user. Every path component of
+    # mounted files must be traversable by that UID, and static assets must be
+    # readable. The rollback snapshot remains private because it can contain a
+    # live shell copy.
+    release.mkdir(mode=0o755)
+    os.chmod(release, 0o755)
     runtime = release / 'runtime'
-    runtime.mkdir(mode=0o750)
+    runtime.mkdir(mode=0o755)
+    os.chmod(runtime, 0o755)
     deploy_dir = release / 'deploy'
-    deploy_dir.mkdir(mode=0o750)
+    deploy_dir.mkdir(mode=0o755)
+    os.chmod(deploy_dir, 0o755)
     snapshot.mkdir(mode=0o700)
     os.chmod(snapshot, 0o700)
     rollback_ready = False
@@ -236,13 +243,17 @@ def deploy(source, source_commit):
         (snapshot / 'state.json').write_text(json.dumps(prior, indent=2) + '\n')
         (snapshot / 'state.json').chmod(0o600)
         patched = patch_index(index).encode()
-        (runtime / 'client').mkdir(parents=True, mode=0o750)
-        (runtime / 'client/public').mkdir(mode=0o750)
-        (runtime / 'client/public/index.html').write_bytes(patched)
+        (runtime / 'client').mkdir(parents=True, mode=0o755)
+        os.chmod(runtime / 'client', 0o755)
+        (runtime / 'client/public').mkdir(mode=0o755)
+        os.chmod(runtime / 'client/public', 0o755)
+        index_target = runtime / 'client/public/index.html'
+        index_target.write_bytes(patched)
+        index_target.chmod(0o644)
         for filename in ('phonebook-add-contact.js', 'phonebook-add-contact.css'):
             target = runtime / 'client/public' / filename
             target.write_bytes((source / filename).read_bytes())
-            target.chmod(0o640)
+            target.chmod(0o644)
         compose_file = deploy_dir / f'compose.{release_name}.json'
         replacements = {target: str(runtime / 'client/public' / Path(key).name) for key, target in APP_TARGETS.items()}
         volumes = volume_specs(app, replacements)
