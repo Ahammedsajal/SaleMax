@@ -159,7 +159,21 @@ def patch_index(content):
     return content.replace(css, css + '\n' + css_add, 1).replace(js, js + '\n' + js_add, 1)
 
 
-def validate_overlay(before, after, paths):
+def volume_specs(app, replacements=None):
+    replacements = replacements or {}
+    volumes = []
+    for mount in app.get('Mounts', []):
+        item = {'type': mount['Type'], 'source': replacements.get(mount['Destination'], mount['Source']),
+                'target': mount['Destination']}
+        if not mount.get('RW', True):
+            item['read_only'] = True
+        if mount['Type'] == 'bind' and mount.get('Propagation') not in (None, '', 'rprivate'):
+            item['bind'] = {'propagation': mount['Propagation']}
+        volumes.append(item)
+    return volumes
+
+
+def validate_overlay(before, after, expected_volumes):
     if {k: v for k, v in before['services'].items() if k != 'app'} != {k: v for k, v in after['services'].items() if k != 'app'}:
         raise RuntimeError('candidate changes another Compose service')
     old = before['services']['app']
@@ -168,19 +182,14 @@ def validate_overlay(before, after, paths):
     old_volumes, new_volumes = old_app.pop('volumes', []), new_app.pop('volumes', [])
     if old_app != new_app:
         raise RuntimeError('candidate changes non-volume app configuration')
-    expected = {target: {'type': 'bind', 'source': str(source), 'target': APP_TARGETS[target], 'read_only': True}
-                for target, source in paths.items()}
+    expected = {volume['target']: volume for volume in expected_volumes}
     current = {volume['target']: volume for volume in new_volumes}
+    if set(current) != set(expected):
+        raise RuntimeError('candidate changes the live app mount set')
     for target, volume in expected.items():
-        actual = current.get(volume['target'])
-        if not actual or any(actual.get(k) != volume[k] for k in ('type', 'source', 'target', 'read_only')):
-            raise RuntimeError('candidate is missing a reviewed app-only asset mount')
-    previous = {volume['target']: volume for volume in old_volumes}
-    current = {volume['target']: volume for volume in new_volumes}
-    expected_targets = {volume['target'] for volume in expected.values()}
-    for target, volume in previous.items():
-        if target not in expected_targets and current.get(target) != volume:
-            raise RuntimeError('candidate changes an unrelated app mount')
+        actual = current[target]
+        if any(actual.get(k) != volume.get(k) for k in ('type', 'source', 'target')) or bool(actual.get('read_only')) != bool(volume.get('read_only')):
+            raise RuntimeError('candidate does not preserve the reviewed live app mounts')
 
 
 def deploy(source, source_commit):
@@ -214,6 +223,8 @@ def deploy(source, source_commit):
                  'config_files': files, 'working_dir': workdir, 'service': service,
                  'support_services': support,
                  'app_mounts': {m['Destination']: m['Source'] for m in app['Mounts']},
+                 'app_mount_modes': {m['Destination']: {'type': m['Type'], 'read_only': not m.get('RW', True),
+                                                        'propagation': m.get('Propagation')} for m in app['Mounts']},
                  'targets': list(APP_TARGETS.values())}
         (snapshot / 'state.json').write_text(json.dumps(prior, indent=2) + '\n')
         (snapshot / 'state.json').chmod(0o600)
@@ -231,14 +242,13 @@ def deploy(source, source_commit):
             target.write_bytes((source / filename).read_bytes())
             target.chmod(0o640)
         compose_file = deploy_dir / f'compose.{release_name}.json'
-        volumes = [{'type': 'bind', 'source': str(runtime / 'client/public' / filename), 'target': target, 'read_only': True}
-                   for filename, target in [(Path(k).name, v) for k, v in APP_TARGETS.items()]]
+        replacements = {target: str(runtime / 'client/public' / Path(key).name) for key, target in APP_TARGETS.items()}
+        volumes = volume_specs(app, replacements)
         compose_file.write_text(json.dumps({'services': {'app': {'volumes': volumes}}, 'name': 'salemax'}, indent=2) + '\n')
         compose_file.chmod(0o640)
         run('cp', str(source / 'phonebook-add-email-release.py'), str(deploy_dir / 'phonebook-add-email-release.py'))
         after = compose_config(compose_args(files, workdir, compose_file), env)
-        paths = {k: runtime / 'client/public' / Path(k).name for k in APP_TARGETS}
-        validate_overlay(before, after, paths)
+        validate_overlay(before, after, volumes)
         compose = compose_args(files, workdir, compose_file)
         run(*compose, 'up', '-d', '--no-deps', '--no-build', service, env=env)
         for _ in range(45):
@@ -293,10 +303,27 @@ def restore(snapshot_path):
     labels = app['Config']['Labels'] or {}
     current_files = labels.get('com.docker.compose.project.config_files', '').split(',')
     extra = [f for f in current_files if f not in prior['config_files']]
-    if len(extra) != 1 or 'phonebook-add-email' not in extra[0]:
+    if len(extra) > 1 or (extra and 'phonebook-add-email' not in extra[0]):
         raise RuntimeError('phonebook overlay is not the sole newest Compose input')
-    compose = compose_args(prior['config_files'], prior['working_dir'])
     env = compose_env(prior['config_files'], app, prior['working_dir'])
+    before_args = compose_args(prior['config_files'], prior['working_dir'])
+    before = compose_config(before_args, env)
+    mode_by_target = prior.get('app_mount_modes', {})
+    restored = []
+    for target, source in prior['app_mounts'].items():
+        mode = mode_by_target.get(target, {})
+        item = {'type': mode.get('type', 'bind'), 'source': source, 'target': target}
+        if mode.get('read_only'):
+            item['read_only'] = True
+        if item['type'] == 'bind' and mode.get('propagation') not in (None, '', 'rprivate'):
+            item['bind'] = {'propagation': mode['propagation']}
+        restored.append(item)
+    restore_file = snapshot / 'compose.restore-phonebook-email.json'
+    restore_file.write_text(json.dumps({'services': {'app': {'volumes': restored}}, 'name': 'salemax'}, indent=2) + '\n')
+    restore_file.chmod(0o600)
+    after = compose_config(compose_args(prior['config_files'], prior['working_dir'], restore_file), env)
+    validate_overlay(before, after, restored)
+    compose = compose_args(prior['config_files'], prior['working_dir'], restore_file)
     run(*compose, 'up', '-d', '--no-deps', '--no-build', prior['service'], env=env)
     for _ in range(45):
         app = inspect(APP)
