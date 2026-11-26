@@ -5165,28 +5165,6 @@ a.footer-contact-item:hover .footer-contact-icon { transform: translateY(-2px); 
   font-size: 11px;
   line-height: 1.5;
 }
-.network-globe-toggle {
-  flex: 0 0 auto;
-  min-height: 34px;
-  padding: 7px 12px;
-  border: 1px solid rgba(175, 222, 233, 0.3);
-  border-radius: 999px;
-  color: #e9fbff;
-  background: rgba(11, 33, 46, 0.76);
-  font: inherit;
-  font-size: 10px;
-  font-weight: 650;
-  cursor: pointer;
-  transition: background 180ms ease, border-color 180ms ease;
-}
-.network-globe-toggle:hover {
-  border-color: #65d5e6;
-  background: #103748;
-}
-.network-globe-toggle:focus-visible {
-  outline: 2px solid #65d5e6;
-  outline-offset: 3px;
-}
 .network-globe-viewer {
   position: fixed;
   width: min(92vw, 780px);
@@ -5277,7 +5255,6 @@ body.network-globe-viewer-open { overflow: hidden; }
   .network-showcase-disclaimer { margin-top: 7px; font-size: 9px; }
   .network-globe-controls { right: 12px; bottom: 12px; left: 12px; gap: 8px; }
   .network-globe-controls p { font-size: 9px; }
-  .network-globe-toggle { min-height: 32px; padding: 6px 9px; font-size: 9px; }
 }
 @media (max-width: 390px) {
   .network-showcase-stage { height: 490px; }
@@ -5295,7 +5272,6 @@ body.network-globe-viewer-open { overflow: hidden; }
   .network-globe { top: 54%; width: min(84vw, 660px); }
 }
 @media (prefers-reduced-motion: reduce) {
-  .network-globe-card-inner,
-  .network-globe-toggle { transition: none; }
+  .network-globe-card-inner { transition: none; }
 }
 /* network-globe:end */

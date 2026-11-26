@@ -3,8 +3,7 @@
 
   const globe = document.getElementById("network-globe");
   const world = document.getElementById("network-globe-world");
-  const toggle = document.getElementById("network-globe-toggle");
-  if (!globe || !world || !toggle) return;
+  if (!globe || !world) return;
 
   const stories = [
     {
@@ -98,7 +97,6 @@
 
   let rotationX = -8;
   let rotationY = -18;
-  let paused = reducedMotion.matches;
   let visible = !("IntersectionObserver" in window);
   let hoveringWithMouse = false;
   let dragging = false;
@@ -135,15 +133,8 @@
     return document.documentElement.lang === "ar" ? "ar" : "en";
   }
 
-  function updateControlLanguage() {
+  function updateGlobeLanguage() {
     const ar = currentLanguage() === "ar";
-    toggle.textContent = ar
-      ? paused ? "استئناف التدوير" : "إيقاف التدوير"
-      : paused ? "Resume rotation" : "Pause rotation";
-    toggle.setAttribute("aria-label", ar
-      ? paused ? "استئناف تدوير الكرة" : "إيقاف تدوير الكرة"
-      : paused ? "Resume globe rotation" : "Pause globe rotation");
-    toggle.setAttribute("aria-pressed", String(paused));
     globe.setAttribute("aria-label", ar
       ? "كرة صور تفاعلية تعرض أعمال 7Network"
       : "Interactive photo globe showing 7Network businesses");
@@ -271,7 +262,7 @@
   }
 
   function shouldAnimate() {
-    return visible && !paused && !hoveringWithMouse && !dragging && !viewer.open;
+    return visible && !reducedMotion.matches && !hoveringWithMouse && !dragging && !viewer.open;
   }
 
   function animate(timestamp) {
@@ -298,12 +289,6 @@
       frameId = 0;
       previousFrame = 0;
     }
-  }
-
-  function setPaused(next) {
-    paused = next;
-    updateControlLanguage();
-    updateAnimation();
   }
 
   globe.addEventListener("pointerenter", (event) => {
@@ -384,7 +369,6 @@
     world.style.transform = `rotateX(${rotationX}deg) rotateY(${rotationY}deg)`;
   });
 
-  toggle.addEventListener("click", () => setPaused(!paused));
   viewerClose.addEventListener("click", closeViewer);
   viewer.addEventListener("click", (event) => {
     if (event.target === viewer) closeViewer();
@@ -395,11 +379,9 @@
     globe.focus({ preventScroll: true });
     updateAnimation();
   });
-  reducedMotion.addEventListener("change", (event) => {
-    if (event.matches) setPaused(true);
-  });
+  reducedMotion.addEventListener("change", updateAnimation);
   new MutationObserver(() => {
-    updateControlLanguage();
+    updateGlobeLanguage();
     updateCardLanguage();
     updateViewerLanguage();
   }).observe(document.documentElement, {
@@ -421,7 +403,7 @@
   }
 
   buildGlobe();
-  updateControlLanguage();
+  updateGlobeLanguage();
   updateCardLanguage();
   updateAnimation();
 })();
