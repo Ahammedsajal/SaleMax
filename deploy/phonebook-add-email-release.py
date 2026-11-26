@@ -80,7 +80,12 @@ def compose_env(files, app):
     manual_path = ROOT / 'shared/rollback-private-inventory-84644fdfebee/compose-manual-vars.json'
     manual = json.loads(manual_path.read_text())
     supplied = {key for name in env_files for key in re.findall(r'^\s*([A-Za-z_][A-Za-z0-9_]*)=', Path(name).read_text(), re.M)}
-    referenced = {key for name in files for key in re.findall(r'\$\{([A-Za-z_][A-Za-z0-9_]*)', Path(name).read_text())}
+    referenced = set()
+    for name in files:
+        for match in re.finditer(r'\$\{([A-Za-z_][A-Za-z0-9_]*)([^}]*)\}', Path(name).read_text()):
+            key, operator = match.groups()
+            if not operator.startswith((':-', '-', ':+', '+')):
+                referenced.add(key)
     live = dict(item.split('=', 1) for item in app['Config']['Env'] if '=' in item)
     variables = {}
     for key in referenced - supplied:
@@ -89,7 +94,7 @@ def compose_env(files, app):
         elif key in live:
             variables[key] = live[key]
         else:
-            raise RuntimeError('production Compose input is missing a required interpolation variable')
+            raise RuntimeError('production Compose input is missing required variable: ' + key)
     return dict(os.environ, **variables)
 
 
