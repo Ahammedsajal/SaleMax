@@ -1,3 +1,19 @@
+## 2026-11-26 — Retail product publication and image imports — production
+
+Source commits `df4492110e0e1b86f838ae631310331524db7fe9` and `7011e1540af8f9fdcb908fed0f5f5b933e878fea` are on `Ahammedsajal/SaleMax` `main` (PRs [#186](https://github.com/Ahammedsajal/SaleMax/pull/186) and [#187](https://github.com/Ahammedsajal/SaleMax/pull/187)). The first adds published status for Retail imports, an encrypted local product-media pipeline with validated remote fetches, signed media URLs and retry/erase handling, and the responsive product-card improvements. The follow-up narrows the one-time image backfill to the exact canonical HTTPS store URL.
+
+Production release: `/opt/salemax/releases/retail-product-images-df4492110e0e-20261126T065720Z`, layered on the previously active production release. The existing app image was retained (`sha256:753d77d421b3160872df0812e7b38505a1db7104cdb9d6c8b17415b2420de667`). Migration ledger advanced from 183 to 184 with `20270214_retail_product_images_and_publication.sql`; existing imported, non-deleted drafts were activated.
+
+Before deployment, the protected database backup was restored to an isolated database and the migration rehearsal passed: 315 tables and 152,595 inserts were restored. The protected rollback snapshot is `/opt/salemax/shared/rollback-retail-product-images-df4492110e0e-20261126T065720Z` (mode `0700`). Roll back the app overlay under the production lock while keeping the additive migration applied:
+
+```sh
+sudo -n /opt/salemax/shared/with-production-lock.sh python3 /opt/salemax/releases/retail-product-images-df4492110e0e-20261126T065720Z/deploy/retail-product-images-release.py restore /opt/salemax/shared/rollback-retail-product-images-df4492110e0e-20261126T065720Z
+```
+
+Live verification: the authenticated backfill matched one connected WooCommerce store and processed all 50 imported products in two batches. The catalogue reports 50 published and 0 drafts; media reports 50 ready, 0 failed, 0 without an image, and 0 remaining. `/healthz`, login, products, customers and connected-stores pages returned HTTP 200; anonymous workspace APIs returned HTTP 401. The app remained healthy with zero restarts.
+
+Visual account verification remains open: the available signed-in browser session is the separate `7network-Sales` workspace, whose catalogue correctly showed 0 products. The Retail account is listed separately in production administration; no account impersonation was performed. Do not treat that unrelated session as evidence that the Retail catalogue is empty. No customer or store identifiers were added to this record.
+
 ## 2026-11-24 — Email Marketing campaign outcome review — production
 
 Source commit `ed7d253680a352b087eba7f50f563bbd168e6c8f` is pushed to `Ahammedsajal/SaleMax` `main`. The guarded app-only release is `/opt/salemax/releases/email-marketing-campaign-outcome-review-ed7d253680a3-20261124T143233Z/compose.email-marketing-campaign-outcome-review.json`, appended to the verified existing Compose chain on base `/opt/salemax/releases/training-pipeline-correction-v3-9867ca72-20261104`. The app image remains `salemax-app:email-marketing-21a07cc41fa9-20261112` (`sha256:753d77d421b3160872df0812e7b38505a1db7104cdb9d6c8b17415b2420de667`). The final chain has 335 Compose inputs, 11 environment-file inputs and 304 app mounts. All seven non-app containers were unchanged. The app and MariaDB are healthy. No database migration ran; no email was sent and no campaign or customer record was created or changed by the release.
