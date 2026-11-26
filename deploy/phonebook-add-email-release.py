@@ -103,7 +103,8 @@ def compose_env(files, app, workdir):
             for name in files:
                 for match in pattern.finditer(Path(name).read_text()):
                     suffix, target = match.groups()
-                    release_root = Path(name).parent.parent
+                    config_dir = Path(name).parent
+                    release_root = config_dir.parent if config_dir.name == 'deploy' else config_dir
                     if release_root.parent.name == 'releases':
                         inferred.add(str(release_root))
                         continue
