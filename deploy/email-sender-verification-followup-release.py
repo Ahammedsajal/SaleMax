@@ -41,6 +41,9 @@ MIGRATION_HISTORY = ('database/migrations/20270211_email_campaign_soft_delete.sq
 MIGRATION_HISTORY_HASHES = {
     'database/migrations/20270211_email_campaign_soft_delete.sql': 'd303aa68e63d04f494f5bf970b0e96e7c11ec77cbe3cd196e33771e16d135ed7',
 }
+MIGRATION_RUNTIME_FILES = (
+    'database/config.js', 'database/migrate-pipeline.js', 'database/migration-runner.js',
+)
 HELPER = 'deploy/email-sender-verification-followup-release.py'
 DOCKERFILE = 'deploy/Dockerfile.email-marketing-sdk'
 SDK_FILES = ('deploy/email-marketing-sdk/package.json', 'deploy/email-marketing-sdk/package-lock.json')
@@ -271,6 +274,17 @@ def deploy(stage_path, commit):
         output.chmod(0o644)
     build_context = release / 'build-context'
     shutil.copytree(stage_path / 'source', build_context)
+    migration_runtime_hashes = {}
+    for source_name in MIGRATION_RUNTIME_FILES:
+        target = build_context / source_name
+        target.parent.mkdir(mode=0o755, parents=True, exist_ok=True)
+        run('docker', 'cp', APP + ':/app/' + source_name, str(target))
+        if target.is_symlink() or not target.is_file():
+            raise RuntimeError('live database migration support file is invalid: ' + source_name)
+        migration_runtime_hashes[source_name] = digest(target.read_bytes())
+    (backup / 'migration-runtime.json').write_text(json.dumps(migration_runtime_hashes, indent=2) + '\n')
+    (backup / 'migration-runtime.json').chmod(0o600)
+
     migration_context = build_context / 'database' / 'migrations'
     if migration_context.is_symlink() or not migration_context.is_dir():
         raise RuntimeError('staged migration build context is invalid')
@@ -341,10 +355,10 @@ def deploy(stage_path, commit):
         '--label', 'org.opencontainers.image.revision=' + commit,
         '-t', image_tag, '-f', str(build_context / DOCKERFILE), str(build_context))
     migration_checksums = {MIGRATION_HISTORY[0].split('/')[-1]: MIGRATION_HISTORY_HASHES[MIGRATION_HISTORY[0]], MIGRATION.split('/')[-1]: digest(files[MIGRATION])}
-    sdk_check = "const ses=require('@aws-sdk/client-ses'),sesv2=require('@aws-sdk/client-sesv2'),r=require('/app/database/migration-runner'),m=r.discover('/app/database/migrations'),expected=" + json.dumps(migration_checksums) + ";if(typeof ses.SESClient!=='function'||typeof ses.VerifyEmailIdentityCommand!=='function'||typeof sesv2.SESv2Client!=='function')process.exit(2);const actual=Object.fromEntries(Object.keys(expected).map(name=>[name,m.find(x=>x.file===name)?.checksum||null]));if(Object.keys(expected).some(name=>actual[name]!==expected[name]))process.exit(3);console.log(JSON.stringify({ses:'ready',verifyEmailIdentity:'ready',sesv2:'ready',migrationChecksums:actual}))"
+    sdk_check = "const fs=require('fs'),crypto=require('crypto'),ses=require('@aws-sdk/client-ses'),sesv2=require('@aws-sdk/client-sesv2'),r=require('/app/database/migration-runner'),m=r.discover('/app/database/migrations'),expected=" + json.dumps(migration_checksums) + ",runtime=" + json.dumps(migration_runtime_hashes) + ";if(typeof ses.SESClient!=='function'||typeof ses.VerifyEmailIdentityCommand!=='function'||typeof sesv2.SESv2Client!=='function')process.exit(2);const actual=Object.fromEntries(Object.keys(expected).map(name=>[name,m.find(x=>x.file===name)?.checksum||null])),actualRuntime=Object.fromEntries(Object.entries(runtime).map(([name])=>[name,crypto.createHash('sha256').update(fs.readFileSync('/app/'+name)).digest('hex')]));if(Object.keys(expected).some(name=>actual[name]!==expected[name])||Object.keys(runtime).some(name=>actualRuntime[name]!==runtime[name]))process.exit(3);console.log(JSON.stringify({ses:'ready',verifyEmailIdentity:'ready',sesv2:'ready',migrationChecksums:actual,migrationRuntime:actualRuntime}))"
     sdk = json.loads(run('docker', 'run', '--rm', '--network', 'none', '--entrypoint', 'node', image_tag, '-e', sdk_check).strip().splitlines()[-1])
     image_id = run('docker', 'image', 'inspect', '--format', '{{.Id}}', image_tag).strip()
-    if sdk.get('ses') != 'ready' or sdk.get('verifyEmailIdentity') != 'ready' or sdk.get('sesv2') != 'ready' or sdk.get('migrationChecksums') != migration_checksums or not image_id.startswith('sha256:'):
+    if sdk.get('ses') != 'ready' or sdk.get('verifyEmailIdentity') != 'ready' or sdk.get('sesv2') != 'ready' or sdk.get('migrationChecksums') != migration_checksums or sdk.get('migrationRuntime') != migration_runtime_hashes or not image_id.startswith('sha256:'):
         raise RuntimeError('candidate SES SDK image validation failed')
 
     candidate_history = candidate_migration_probe(image_tag, app, env, digest(files[MIGRATION]))
@@ -389,6 +403,9 @@ def deploy(stage_path, commit):
     for source_name, target in FILES.items():
         if run('docker', 'exec', APP, 'sha256sum', target).split()[0] != hashes[source_name]:
             raise RuntimeError('runtime file hash mismatch: ' + source_name)
+    for source_name, expected_hash in migration_runtime_hashes.items():
+        if run('docker', 'exec', APP, 'sha256sum', '/app/' + source_name).split()[0] != expected_hash:
+            raise RuntimeError('live migration support file changed during release: ' + source_name)
     for source_name in ('modules/platform/email-marketing.js', 'modules/platform/email-marketing-router.js', 'modules/platform/email-marketing-ses.js', 'modules/platform/email-marketing-worker.js', 'client/public/email-marketing-workspace.js', 'client/public/admin-email-marketing-settings.js'):
         run('docker', 'exec', APP, 'node', '--check', FILES[source_name])
     run('docker', 'exec', APP, 'node', '-e', "require('/app/modules/platform/email-marketing-ses');require('/app/modules/platform/email-marketing-router')")
@@ -428,6 +445,7 @@ def deploy(stage_path, commit):
         'appHealthy': True, 'databaseHealthy': inspect(DB)['State']['Health']['Status'] == 'healthy',
         'migration': migration, 'migrationChecksum': expected_migration,
         'migrationSnapshotFiles': len(migration_snapshot),
+        'migrationRuntimeFiles': migration_runtime_hashes,
         'runtimeHashes': hashes, 'publicAssets': public_hashes, 'anonymousApis': anonymous_checks,
         'healthHttp': 200, 'workspaceShellHttp': 200,
         'supportServicesUnchanged': len(support), 'emailSent': False,
