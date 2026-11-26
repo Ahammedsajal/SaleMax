@@ -84,16 +84,7 @@ def deploy(stage, commit):
     backup = ROOT / 'shared' / f'rollback-pro-catalyst-caregiver-course-match-{commit[:12]}-{stamp}'
     if release.exists() or backup.exists():
         raise RuntimeError('Release or rollback path already exists')
-    os.umask(0o077)
-    release.mkdir(mode=0o755)
-    backup.mkdir(mode=0o700)
-    (backup / 'app-before.json').write_text(json.dumps(app))
-    (backup / 'compose-files.before.txt').write_text('\n'.join(files) + '\n')
-    (backup / 'compose-env-files.before.txt').write_text('\n'.join(env_files) + '\n')
-    (backup / 'compose-working-dir.txt').write_text(workdir + '\n')
-    (backup / 'base-release.txt').write_text(BASE + '\n')
     input_hashes = {name: sha(Path(name).read_bytes()) for name in files + env_files}
-    (backup / 'compose-input-hashes.json').write_text(json.dumps(input_hashes))
 
     prior_vars_path = ROOT / 'shared/rollback-private-inventory-84644fdfebee/compose-manual-vars.json'
     manual = json.loads(prior_vars_path.read_text())
@@ -107,7 +98,16 @@ def deploy(stage, commit):
         elif key in live_env:
             variables[key] = live_env[key]
         else:
-            raise RuntimeError('Missing Compose interpolation variable')
+            raise RuntimeError('Missing Compose interpolation variable: ' + key)
+    os.umask(0o077)
+    release.mkdir(mode=0o755)
+    backup.mkdir(mode=0o700)
+    (backup / 'app-before.json').write_text(json.dumps(app))
+    (backup / 'compose-files.before.txt').write_text('\n'.join(files) + '\n')
+    (backup / 'compose-env-files.before.txt').write_text('\n'.join(env_files) + '\n')
+    (backup / 'compose-working-dir.txt').write_text(workdir + '\n')
+    (backup / 'base-release.txt').write_text(BASE + '\n')
+    (backup / 'compose-input-hashes.json').write_text(json.dumps(input_hashes))
     (backup / 'compose-vars.json').write_text(json.dumps(variables))
     env = dict(os.environ, **variables)
 
