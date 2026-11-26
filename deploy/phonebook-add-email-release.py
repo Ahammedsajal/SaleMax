@@ -88,6 +88,7 @@ def compose_env(files, app, workdir):
             if not operator.startswith((':-', '-', ':+', '+')):
                 referenced.add(key)
     live = dict(item.split('=', 1) for item in app['Config']['Env'] if '=' in item)
+    mounts = {mount['Destination']: mount['Source'] for mount in app.get('Mounts', [])}
     variables = {}
     for key in referenced - supplied:
         if key in manual:
@@ -95,7 +96,18 @@ def compose_env(files, app, workdir):
         elif key in live:
             variables[key] = live[key]
         else:
-            raise RuntimeError('production Compose input is missing required variable: ' + key)
+            inferred = set()
+            pattern = re.compile(r'\$\{' + re.escape(key) + r'\}([^:\s]*)\s*:\s*(/app/[^:\s]+)')
+            for name in files:
+                for match in pattern.finditer(Path(name).read_text()):
+                    suffix, target = match.groups()
+                    source = mounts.get(target)
+                    if source and (not suffix or source.endswith(suffix)):
+                        inferred.add(source[:-len(suffix)] if suffix else source)
+            if len(inferred) == 1:
+                variables[key] = inferred.pop()
+            else:
+                raise RuntimeError('production Compose input is missing required variable: ' + key)
     return dict(os.environ, **variables)
 
 
