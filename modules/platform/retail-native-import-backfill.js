@@ -77,7 +77,54 @@ async function pendingCounts(db, connection) {
     LEFT JOIN sx_retail_orders o ON o.tenant_id=e.tenant_id AND o.external_source_connection_id=e.connection_id
       AND o.external_source_order_id=e.external_order_id
     WHERE e.tenant_id=? AND e.connection_id=? AND e.order_ciphertext IS NOT NULL AND o.id IS NULL`, [connection.tenant_id, connection.id]);
-  return { products: Number(products?.n || 0), variants: Number(variants?.n || 0), customers: Number(customers?.n || 0), orders: Number(orders?.n || 0) };
+  const [[images]] = await db.query(`SELECT COUNT(*) AS n FROM sx_retail_external_products p
+    JOIN sx_retail_catalogue_imports i ON i.tenant_id=p.tenant_id AND i.connection_id=p.connection_id
+      AND i.external_product_id=p.external_product_id AND i.external_variant_id=''
+    LEFT JOIN sx_retail_catalogue_import_media m ON m.tenant_id=i.tenant_id AND m.connection_id=i.connection_id
+      AND m.external_product_id=i.external_product_id
+    WHERE p.tenant_id=? AND p.connection_id=? AND p.product_status<>'deleted' AND p.product_ciphertext IS NOT NULL
+      AND (m.external_product_id IS NULL OR m.image_state='pending' OR
+        (m.image_state='failed' AND (m.retry_after IS NULL OR m.retry_after<=UTC_TIMESTAMP(3))))`, [connection.tenant_id, connection.id]);
+  return { products: Number(products?.n || 0), variants: Number(variants?.n || 0), customers: Number(customers?.n || 0),
+    orders: Number(orders?.n || 0), images: Number(images?.n || 0) };
+}
+
+async function backfillProductImages(pool, connection, { limit, result, cryptoConnector, imports }) {
+  if (typeof imports?.importProductImage !== 'function') return;
+  const [rows] = await pool.query(`SELECT p.external_product_id AS externalProductId,p.product_ciphertext AS ciphertext,
+      p.product_iv AS iv,p.product_auth_tag AS authTag,i.product_id AS productId
+    FROM sx_retail_external_products p JOIN sx_retail_catalogue_imports i
+      ON i.tenant_id=p.tenant_id AND i.connection_id=p.connection_id AND i.external_product_id=p.external_product_id AND i.external_variant_id=''
+    LEFT JOIN sx_retail_catalogue_import_media m ON m.tenant_id=i.tenant_id AND m.connection_id=i.connection_id
+      AND m.external_product_id=i.external_product_id
+    WHERE p.tenant_id=? AND p.connection_id=? AND p.product_status<>'deleted' AND p.product_ciphertext IS NOT NULL
+      AND (m.external_product_id IS NULL OR m.image_state='pending' OR
+        (m.image_state='failed' AND (m.retry_after IS NULL OR m.retry_after<=UTC_TIMESTAMP(3))))
+    ORDER BY p.external_product_id LIMIT ?`, [connection.tenant_id, connection.id, limit]);
+  for (const row of rows) {
+    let imageUrl = null;
+    try {
+      const product = cryptoConnector.openJson(row, connection.tenant_id, connection.id, `product:${row.externalProductId}`);
+      imageUrl = product.imageUrl || null;
+      await imports.importProductImage(pool, connection, row.externalProductId, row.productId, imageUrl);
+      result.images++;
+    } catch (error) {
+      result.failed++;
+      await require('./retail-product-media-imports').markFailure(pool, connection, row.externalProductId, row.productId, imageUrl, error);
+      if (result.failures.length < 20) result.failures.push({ source: 'image', code: safeCode(error) });
+    }
+  }
+}
+
+async function backfillProductImagesOnly(pool, connection, { limit = 25, dependencies = {} } = {}) {
+  validLimit(limit);
+  const result = { images: 0, failed: 0, failures: [] };
+  await backfillProductImages(pool, connection, {
+    limit, result, cryptoConnector: dependencies.connector || connector,
+    imports: dependencies.nativeImports || nativeImports,
+  });
+  const pending = await pendingCounts(pool, connection);
+  return { ...result, pendingImages: pending.images };
 }
 
 async function backfillConnection(pool, connection, { limit = 25, dependencies = {} } = {}) {
@@ -85,7 +132,7 @@ async function backfillConnection(pool, connection, { limit = 25, dependencies =
   const cryptoConnector = dependencies.connector || connector;
   const customerDirectory = dependencies.directory || directory;
   const imports = dependencies.nativeImports || nativeImports;
-  const result = { connectionId: connection.id, products: 0, variants: 0, customers: 0, orders: 0,
+  const result = { connectionId: connection.id, products: 0, variants: 0, customers: 0, orders: 0, images: 0,
     skippedRedacted: 0, failed: 0, failures: [], pending: null, hasMore: false };
 
   await inBatch(pool, connection, {
@@ -100,6 +147,8 @@ async function backfillConnection(pool, connection, { limit = 25, dependencies =
       await imports.upsertProduct(db, connection, product);
     },
   });
+
+  await backfillProductImages(pool, connection, { limit, result, cryptoConnector, imports });
 
   let pending = await pendingCounts(pool, connection);
   if (!pending.products) {
@@ -224,10 +273,10 @@ async function backfillActiveConnections(pool, { limit = 25, maxRounds = 20, log
         results.push({ connectionId: connection.id, status: 'skipped', reason: 'FEATURE_UNAVAILABLE' });
         continue;
       }
-      const total = { products: 0, variants: 0, customers: 0, orders: 0, skippedRedacted: 0, failed: 0, failures: [], pending: null };
+      const total = { products: 0, variants: 0, customers: 0, orders: 0, images: 0, skippedRedacted: 0, failed: 0, failures: [], pending: null };
       for (let round = 0; round < maxRounds; round++) {
         const current = await backfill(pool, connection, { limit });
-        for (const key of ['products', 'variants', 'customers', 'orders', 'skippedRedacted', 'failed']) total[key] += current[key] || 0;
+        for (const key of ['products', 'variants', 'customers', 'orders', 'images', 'skippedRedacted', 'failed']) total[key] += current[key] || 0;
         total.failures.push(...current.failures.slice(0, Math.max(0, 20 - total.failures.length)));
         total.pending = current.pending;
         if (current.failed || !current.hasMore) break;
@@ -243,4 +292,4 @@ async function backfillActiveConnections(pool, { limit = 25, maxRounds = 20, log
   return { checked, results };
 }
 
-module.exports = { backfillConnection, backfillActiveConnections, prepareOrderSnapshot, pendingCounts };
+module.exports = { backfillConnection, backfillActiveConnections, backfillProductImagesOnly, prepareOrderSnapshot, pendingCounts };

@@ -386,7 +386,7 @@ async function pinnedIpv4(hostname, shopify = false) {
   if (!addresses.length || addresses.length !== ipv4.length) fail('PROVIDER_HOST_REJECTED', 400);
   return addresses[0].address;
 }
-async function requestHttps(urlValue, { method = 'GET', headers = {}, body = null, shopify = false, maxBytes = MAX_RESPONSE_BYTES } = {}) {
+async function requestHttps(urlValue, { method = 'GET', headers = {}, body = null, shopify = false, maxBytes = MAX_RESPONSE_BYTES, binary = false } = {}) {
   let url; try { url = new URL(urlValue); } catch { fail('PROVIDER_REQUEST_FAILED', 502); }
   if (url.protocol !== 'https:' || url.username || url.password || url.port || url.hash || url.hostname === 'localhost') fail('INVALID_STORE_DOMAIN', 400);
   const address = await pinnedIpv4(url.hostname, shopify);
@@ -402,7 +402,8 @@ async function requestHttps(urlValue, { method = 'GET', headers = {}, body = nul
         const raw = Buffer.concat(chunks);
         if (res.statusCode >= 300 && res.statusCode < 400) return reject(Object.assign(Error('PROVIDER_REDIRECT_REJECTED'), { code: 'PROVIDER_REDIRECT_REJECTED', status: 502 }));
         let data = null;
-        if (raw.length) { try { data = JSON.parse(raw.toString('utf8')); } catch { return reject(Object.assign(Error('PROVIDER_RESPONSE_INVALID'), { code: 'PROVIDER_RESPONSE_INVALID', status: 502 })); } }
+        if (binary) data = raw;
+        else if (raw.length) { try { data = JSON.parse(raw.toString('utf8')); } catch { return reject(Object.assign(Error('PROVIDER_RESPONSE_INVALID'), { code: 'PROVIDER_RESPONSE_INVALID', status: 502 })); } }
         resolve({ status: res.statusCode, headers: res.headers, data });
       });
     });
@@ -759,7 +760,7 @@ async function redactCustomer(db, connection, externalId) {
     WHERE tenant_id=? AND connection_id=? AND status='failed'`, [connection.tenant_id, connection.id]);
 }
 async function eraseConnectionData(db, connection) {
-  await nativeImports.eraseConnection(db, connection.tenant_id, connection.id);
+  const mediaFiles = await nativeImports.eraseConnection(db, connection.tenant_id, connection.id);
   await db.query('DELETE FROM sx_retail_customer_search_tokens WHERE tenant_id=? AND connection_id=?', [connection.tenant_id, connection.id]);
   await db.query('DELETE FROM sx_retail_catalogue_imports WHERE tenant_id=? AND connection_id=?', [connection.tenant_id, connection.id]);
   for (const table of ['sx_retail_external_product_mappings','sx_retail_external_transactions','sx_retail_external_orders','sx_retail_external_checkouts',
@@ -769,6 +770,7 @@ async function eraseConnectionData(db, connection) {
   await db.query('DELETE FROM sx_retail_store_privacy_requests WHERE tenant_id=? AND connection_id=?', [connection.tenant_id, connection.id]);
   await db.query(`UPDATE sx_retail_external_events SET payload_ciphertext=NULL,payload_iv=NULL,payload_auth_tag=NULL,error_code='SHOP_REDACTED'
     WHERE tenant_id=? AND connection_id=?`, [connection.tenant_id, connection.id]);
+  return mediaFiles;
 }
 
 module.exports = {

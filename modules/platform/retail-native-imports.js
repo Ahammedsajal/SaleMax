@@ -1,10 +1,21 @@
 'use strict';
 
 const crypto = require('node:crypto');
+const net = require('node:net');
 const directory = require('./retail-customer-directory');
 const connector = () => require('./retail-connected-stores');
 const UUID = /^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i;
 const fail = (code, status = 409) => { throw Object.assign(Error(code), { code, status }); };
+
+function safeProductImageUrl(value) {
+  try {
+    const url = new URL(value), host = url.hostname.toLowerCase().replace(/\.$/, '');
+    const blocked = ['localhost','local','internal','test','invalid','example','home','lan','onion'];
+    if (url.protocol !== 'https:' || url.username || url.password || url.port || url.hash || net.isIP(host) ||
+        !host.includes('.') || blocked.some(suffix => host === suffix || host.endsWith(`.${suffix}`))) return null;
+    return url.toString();
+  } catch { return null; }
+}
 
 function deterministicUuid(value) {
   const bytes = crypto.createHash('sha256').update(value).digest().subarray(0, 16);
@@ -73,8 +84,8 @@ async function ensureNativeProduct(db, connection, sourceProductId, variantId, {
       [connection.tenant_id, id]);
     if (orphan) {
       // Reuse the local tombstone after an owner erases and later reconnects
-      // the same source item; retain Arabic copy and keep it unpublished.
-      await db.query(`UPDATE sx_product_catalog SET code=?,name_en=?,description_en=?,catalogue_kind='product',parent_product_id=?,
+      // the same source item; retain Arabic copy and publish it in the catalogue.
+      await db.query(`UPDATE sx_product_catalog SET code=?,name_en=?,description_en=?,catalogue_kind='product',parent_product_id=?,status='active',
           deleted_at=NULL,revision=revision+1,updated_at=UTC_TIMESTAMP(3)
         WHERE tenant_id=? AND id=?`, [code, plainText(title, 200) || 'Imported product', plainText(description), parentId,
         connection.tenant_id, id]);
@@ -83,7 +94,7 @@ async function ensureNativeProduct(db, connection, sourceProductId, variantId, {
         (id,tenant_id,code,name_en,name_ar,description_en,description_ar,duration_value,duration_unit,delivery_mode,
           difficulty_level,outcomes_en,outcomes_ar,prerequisites_en,prerequisites_ar,certificate_details_en,certificate_details_ar,
           source_categories,status,revision,created_by_identity_id,updated_by_identity_id,catalogue_kind,parent_product_id)
-        VALUES (?,?,?,?,'',?, '',1,'hours','in_person','all_levels','','','','','','',JSON_ARRAY(),'draft',1,?,?, 'product',?)`,
+        VALUES (?,?,?,?,'',?, '',1,'hours','in_person','all_levels','','','','','','',JSON_ARRAY(),'active',1,?,?, 'product',?)`,
       [id, connection.tenant_id, code, plainText(title, 200) || 'Imported product', plainText(description),
         connection.created_by_identity_id, connection.created_by_identity_id, parentId]);
     }
@@ -134,6 +145,7 @@ async function upsertProduct(db, connection, product) {
     priceAvailable: !product.priceUnavailable, updatedAt: product.updatedAt,
     reviewState: product.variationCount > 0 && !product.sku ? 'ready' : null,
   });
+  await require('./retail-product-media-imports').queue(db, connection, product.id, rootId, product.imageUrl || null);
   const variants = Array.isArray(product.variants) ? product.variants : [];
   for (const variant of variants) {
     const id = variant?.id == null ? '' : connection.provider === 'shopify' ? String(variant.id) : String(variant.id);
@@ -301,6 +313,10 @@ async function listProducts(pool, context, { page = 1, limit = 20, search = '', 
       c.prerequisites_en AS prerequisitesEn,c.prerequisites_ar AS prerequisitesAr,c.certificate_details_en AS certificateDetailsEn,
       c.certificate_details_ar AS certificateDetailsAr,c.source_categories AS sourceCategories,c.status,c.revision,c.updated_at AS updatedAt,
       c.catalogue_kind AS catalogueKind,c.parent_product_id AS parentProductId,
+      (SELECT im.image_media_id FROM sx_retail_catalogue_import_media im JOIN sx_product_media pm
+        ON pm.tenant_id=im.tenant_id AND pm.id=im.image_media_id AND pm.course_id=im.product_id AND pm.deleted_at IS NULL
+        WHERE im.tenant_id=c.tenant_id AND im.product_id=c.id AND im.image_media_id IS NOT NULL
+        ORDER BY im.updated_at DESC LIMIT 1) AS imageMediaId,
       (SELECT COUNT(*) FROM sx_product_catalog child JOIN sx_retail_catalogue_imports ci
         ON ci.tenant_id=child.tenant_id AND ci.product_id=child.id AND ci.review_state<>'source_deleted'
         WHERE child.tenant_id=c.tenant_id AND child.parent_product_id=c.id AND child.deleted_at IS NULL) AS variantCount,
@@ -320,7 +336,24 @@ async function listProducts(pool, context, { page = 1, limit = 20, search = '', 
       (SELECT o.currency FROM sx_product_offers o WHERE o.tenant_id=c.tenant_id AND o.course_id=c.id ORDER BY o.version DESC LIMIT 1) AS priceCurrency,
       (SELECT o.version FROM sx_product_offers o WHERE o.tenant_id=c.tenant_id AND o.course_id=c.id ORDER BY o.version DESC LIMIT 1) AS offerVersion
     FROM sx_product_catalog c WHERE ${where} ORDER BY c.updated_at DESC,c.id LIMIT ? OFFSET ?`, [...params, limit, (page - 1) * limit]);
-  return { items: rows.map(row => ({ ...row, sourceCategories: typeof row.sourceCategories === 'string' ? JSON.parse(row.sourceCategories) : row.sourceCategories || [] })),
+  const imageUrls = new Map();
+  if (rows.length) {
+    const [sources] = await pool.query(`SELECT i.product_id AS productId,i.connection_id AS connectionId,
+        p.external_product_id AS externalProductId,p.product_ciphertext AS ciphertext,p.product_iv AS iv,p.product_auth_tag AS authTag
+      FROM sx_retail_catalogue_imports i JOIN sx_retail_external_products p
+        ON p.tenant_id=i.tenant_id AND p.connection_id=i.connection_id AND p.external_product_id=i.external_product_id
+      WHERE i.tenant_id=? AND i.product_id IN (?) AND i.external_variant_id='' AND p.product_status<>'deleted'`,
+    [tenantId, rows.map(row => row.id)]);
+    for (const source of sources) {
+      try {
+        const product = connector().openJson(source, tenantId, source.connectionId, `product:${source.externalProductId}`);
+        const imageUrl = safeProductImageUrl(product.imageUrl);
+        if (imageUrl) imageUrls.set(source.productId, imageUrl);
+      } catch { /* The catalogue remains readable if an optional source image is unavailable. */ }
+    }
+  }
+  return { items: rows.map(row => ({ ...row, imageUrl: imageUrls.get(row.id) || null,
+      sourceCategories: typeof row.sourceCategories === 'string' ? JSON.parse(row.sourceCategories) : row.sourceCategories || [] })),
     total: Number(total.n), page, limit };
 }
 async function redactCustomer(db, connection, externalCustomerId) {
@@ -330,6 +363,7 @@ async function redactCustomer(db, connection, externalCustomerId) {
     WHERE o.tenant_id=? AND e.connection_id=? AND e.customer_external_id=?`, [connection.tenant_id, connection.id, externalCustomerId]);
 }
 async function eraseConnection(db, tenantId, connectionId) {
+  const imageFiles = await require('./retail-product-media-imports').eraseConnection(db, tenantId, connectionId);
   const [sources] = await db.query(`SELECT product_id AS productId FROM sx_retail_catalogue_imports
     WHERE tenant_id=? AND connection_id=?`, [tenantId, connectionId]);
   for (const source of sources) {
@@ -348,7 +382,9 @@ async function eraseConnection(db, tenantId, connectionId) {
       source_total_amount=NULL,source_refund_amount=NULL,total_minor=0
     WHERE tenant_id=? AND external_source_connection_id=?`, [tenantId, connectionId]);
   await db.query(`DELETE FROM sx_retail_catalogue_imports WHERE tenant_id=? AND connection_id=?`, [tenantId, connectionId]);
+  return imageFiles;
 }
 
 module.exports = { deterministicUuid, productUuid, plainText, minorAmount, upsertProduct, upsertProductVariants, upsertVariation,
-  upsertOrder, refreshCustomerOrders, markProductDeleted, variants, listProducts, redactCustomer, eraseConnection };
+  upsertOrder, refreshCustomerOrders, markProductDeleted, variants, listProducts, redactCustomer, eraseConnection,
+  importProductImage: (...args) => require('./retail-product-media-imports').importImage(...args) };
