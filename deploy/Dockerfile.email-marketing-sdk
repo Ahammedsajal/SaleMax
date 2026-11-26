@@ -5,6 +5,7 @@ USER root
 ENV NODE_PATH=/opt/7network-email-node-modules/node_modules
 
 COPY deploy/email-marketing-sdk/package.json deploy/email-marketing-sdk/package-lock.json /opt/7network-email-node-modules/
+COPY database/migrations/20270211_email_campaign_soft_delete.sql database/migrations/20270215_email_campaign_followups.sql /app/database/migrations/
 
 RUN npm ci \
     --prefix /opt/7network-email-node-modules \

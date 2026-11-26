@@ -37,10 +37,14 @@ PREIMAGE = {
     'client/public/index.html': '3fd19e914b8c2cc1502d7dfa6b6c65318938044984730504fc36bdd381b1e41d',
 }
 MIGRATION = 'database/migrations/20270215_email_campaign_followups.sql'
+MIGRATION_HISTORY = ('database/migrations/20270211_email_campaign_soft_delete.sql',)
+MIGRATION_HISTORY_HASHES = {
+    'database/migrations/20270211_email_campaign_soft_delete.sql': 'd303aa68e63d04f494f5bf970b0e96e7c11ec77cbe3cd196e33771e16d135ed7',
+}
 HELPER = 'deploy/email-sender-verification-followup-release.py'
 DOCKERFILE = 'deploy/Dockerfile.email-marketing-sdk'
 SDK_FILES = ('deploy/email-marketing-sdk/package.json', 'deploy/email-marketing-sdk/package-lock.json')
-SOURCE_FILES = (*FILES, MIGRATION, HELPER, DOCKERFILE, *SDK_FILES)
+SOURCE_FILES = (*FILES, MIGRATION, *MIGRATION_HISTORY, HELPER, DOCKERFILE, *SDK_FILES)
 
 
 def run(*args, env=None, input_text=None, timeout=1800):
@@ -154,14 +158,25 @@ def compose_env(app, configs, workdir):
 
 
 def schema_probe():
-    code = "const p=require('/app/database/config').promise();(async()=>{try{const [[c]]=await p.query(\"SELECT COUNT(*) n FROM information_schema.columns WHERE table_schema=DATABASE() AND ((table_name='sx_email_campaigns' AND column_name='follow_up_of_campaign_id') OR (table_name='sx_email_campaign_recipients' AND column_name='follow_up_source_recipient_id'))\");const [m]=await p.query(\"SELECT migration_name,status,checksum,statement_count,statements_completed FROM salemax_schema_migrations WHERE migration_name='20270215_email_campaign_followups.sql'\");console.log(JSON.stringify({columns:Number(c.n),ledger:m}))}finally{await p.end()}})().catch(e=>{console.log(e.code||'db-probe-failed');process.exit(1)})"
+    code = "const r=require('/app/database/migration-runner'),migrations=r.discover('/app/database/migrations'),known=new Map(migrations.map(x=>[x.file,x.checksum])),p=require('/app/database/config').promise();(async()=>{try{const [[c]]=await p.query(\"SELECT COUNT(*) n FROM information_schema.columns WHERE table_schema=DATABASE() AND ((table_name='sx_email_campaigns' AND column_name='follow_up_of_campaign_id') OR (table_name='sx_email_campaign_recipients' AND column_name='follow_up_source_recipient_id'))\");const [m]=await p.query(\"SELECT migration_name,status,checksum,statement_count,statements_completed FROM salemax_schema_migrations WHERE migration_name='20270215_email_campaign_followups.sql'\");const [history]=await p.query('SELECT migration_name,checksum,status FROM salemax_schema_migrations ORDER BY migration_name');const completed=new Set(history.map(x=>x.migration_name)),missingHistory=history.filter(x=>!known.has(x.migration_name)).map(x=>({name:x.migration_name,checksum:x.checksum,status:x.status})),checksumMismatches=history.filter(x=>known.has(x.migration_name)&&known.get(x.migration_name)!==x.checksum).map(x=>x.migration_name),pendingMigrations=migrations.filter(x=>!completed.has(x.file)).map(x=>x.file);console.log(JSON.stringify({columns:Number(c.n),ledger:m,missingHistory,checksumMismatches,pendingMigrations}))}finally{await p.end()}})().catch(e=>{console.log(e.code||'db-probe-failed');process.exit(1)})"
     return json.loads(run('docker', 'exec', APP, 'node', '-e', code).splitlines()[-1])
 
 
-def apply_migration(sql):
-    code = r"""let s='';process.stdin.setEncoding('utf8');process.stdin.on('data',x=>s+=x);process.stdin.on('end',async()=>{let c;try{const x=JSON.parse(s),r=require('/app/database/migration-runner'),crypto=require('node:crypto'),mysql=require('mysql2/promise'),name=x.name,checksum=crypto.createHash('sha256').update(x.sql,'utf8').digest('hex'),m=r.discover('/app/database/migrations');if(m.some(z=>z.file===name&&z.checksum!==checksum))throw Object.assign(Error(),{code:'MIGRATION_CHECKSUM_CHANGED'});if(!m.some(z=>z.file===name))m.push({file:name,checksum,statements:r.splitSql(x.sql)});m.sort((a,b)=>a.file.localeCompare(b.file));c=await mysql.createConnection({host:process.env.DBHOST,port:Number(process.env.DBPORT||3306),user:process.env.DBUSER,password:process.env.DBPASS,database:process.env.DBNAME});await r.applyMigrations(c,m,{only:name});const [rows]=await c.query('SELECT migration_name,status,checksum,statement_count,statements_completed FROM salemax_schema_migrations WHERE migration_name=?',[name]);console.log(JSON.stringify(rows[0]||{}))}catch(e){console.log(JSON.stringify({error:e.code||e.name||'migration-failed'}));process.exitCode=1}finally{try{await c?.end()}catch{}}});"""
-    payload = {'name': MIGRATION.split('/')[-1], 'sql': sql}
-    return json.loads(run('docker', 'exec', '-i', APP, 'node', '-e', code, input_text=json.dumps(payload)).splitlines()[-1])
+def apply_candidate_migration(image, app, env):
+    container_env = dict(env)
+    container_env.update(dict(value.split('=', 1) for value in app['Config'].get('Env', []) if '=' in value))
+    required = ('DBHOST', 'DBUSER', 'DBPASS', 'DBNAME')
+    if any(key not in container_env for key in required):
+        raise RuntimeError('candidate migration environment is incomplete')
+    args = ['docker', 'run', '--rm', '--network', 'container:' + APP]
+    for key in (*required, 'DBPORT'):
+        if key in container_env:
+            args += ['--env', key]
+    args += ['--entrypoint', 'node', image, 'database/migrate-pipeline.js', '--apply', '--only', MIGRATION.split('/')[-1]]
+    result = json.loads(run(*args, env=container_env))
+    if result.get('mode') != 'apply' or result.get('only') != MIGRATION.split('/')[-1] or MIGRATION.split('/')[-1] not in result.get('applied', []):
+        raise RuntimeError('candidate migration runner did not apply the follow-up migration')
+    return result
 
 
 def release_compose(name, release, previous, target_image):
@@ -191,6 +206,9 @@ def deploy(stage_path, commit):
     for name, data in files.items():
         if digest(data) != manifest['files'][name]:
             raise RuntimeError('stage file hash mismatch: ' + name)
+    for name, expected in MIGRATION_HISTORY_HASHES.items():
+        if digest(files[name]) != expected:
+            raise RuntimeError('tracked migration history checksum changed: ' + name)
 
     app, database = inspect(APP), inspect(DB)
     if app.get('Image') != IMAGE or app['State'].get('Health', {}).get('Status') != 'healthy' or database['State'].get('Health', {}).get('Status') != 'healthy':
@@ -202,7 +220,8 @@ def deploy(stage_path, commit):
         if actual != expected:
             raise RuntimeError('live Email Marketing preimage changed: ' + name)
     prior_schema = schema_probe()
-    if prior_schema != {'columns': 0, 'ledger': []}:
+    expected_history_gaps = [{'name': '20270211_email_campaign_soft_delete.sql', 'checksum': MIGRATION_HISTORY_HASHES[MIGRATION_HISTORY[0]], 'status': 'applied'}]
+    if prior_schema.get('columns') != 0 or prior_schema.get('ledger') != [] or prior_schema.get('missingHistory') != expected_history_gaps or prior_schema.get('checksumMismatches') != [] or prior_schema.get('pendingMigrations') != []:
         raise RuntimeError('follow-up schema preimage differs')
 
     labels = app['Config']['Labels'] or {}
@@ -278,10 +297,11 @@ def deploy(stage_path, commit):
         '--label', 'org.7network.source-commit=' + commit,
         '--label', 'org.opencontainers.image.revision=' + commit,
         '-t', image_tag, '-f', str(build_context / DOCKERFILE), str(build_context))
-    sdk_check = "const ses=require('@aws-sdk/client-ses'),sesv2=require('@aws-sdk/client-sesv2');if(typeof ses.SESClient!=='function'||typeof ses.VerifyEmailIdentityCommand!=='function'||typeof sesv2.SESv2Client!=='function')process.exit(2);console.log(JSON.stringify({ses:'ready',verifyEmailIdentity:'ready',sesv2:'ready'}))"
+    migration_checksums = {MIGRATION_HISTORY[0].split('/')[-1]: MIGRATION_HISTORY_HASHES[MIGRATION_HISTORY[0]], MIGRATION.split('/')[-1]: digest(files[MIGRATION])}
+    sdk_check = "const ses=require('@aws-sdk/client-ses'),sesv2=require('@aws-sdk/client-sesv2'),r=require('/app/database/migration-runner'),m=r.discover('/app/database/migrations'),expected=" + json.dumps(migration_checksums) + ";if(typeof ses.SESClient!=='function'||typeof ses.VerifyEmailIdentityCommand!=='function'||typeof sesv2.SESv2Client!=='function')process.exit(2);const actual=Object.fromEntries(Object.keys(expected).map(name=>[name,m.find(x=>x.file===name)?.checksum||null]));if(Object.keys(expected).some(name=>actual[name]!==expected[name]))process.exit(3);console.log(JSON.stringify({ses:'ready',verifyEmailIdentity:'ready',sesv2:'ready',migrationChecksums:actual}))"
     sdk = json.loads(run('docker', 'run', '--rm', '--network', 'none', '--entrypoint', 'node', image_tag, '-e', sdk_check).strip().splitlines()[-1])
     image_id = run('docker', 'image', 'inspect', '--format', '{{.Id}}', image_tag).strip()
-    if sdk != {'ses': 'ready', 'verifyEmailIdentity': 'ready', 'sesv2': 'ready'} or not image_id.startswith('sha256:'):
+    if sdk.get('ses') != 'ready' or sdk.get('verifyEmailIdentity') != 'ready' or sdk.get('sesv2') != 'ready' or sdk.get('migrationChecksums') != migration_checksums or not image_id.startswith('sha256:'):
         raise RuntimeError('candidate SES SDK image validation failed')
 
     overlay = deploy_dir / ('compose.' + name + '.json')
@@ -299,9 +319,7 @@ def deploy(stage_path, commit):
     if old_app != new_app or new_image != image_tag or len(new_volumes) != len(release_compose(name, release, previous, image_tag)['services']['app']['volumes']):
         raise RuntimeError('release overlay changes app configuration or mounts unexpectedly')
 
-    migration = apply_migration(files[MIGRATION].decode())
-    if migration.get('status') != 'applied' or int(migration.get('statement_count', 0)) != 2 or int(migration.get('statements_completed', -1)) != 2:
-        raise RuntimeError('follow-up migration did not apply cleanly')
+    migration = apply_candidate_migration(image_tag, app, env)
     run(*(compose_args(configs, workdir, overlay) + ['up', '-d', '--no-deps', '--no-build', service]), env=env)
     for _ in range(50):
         app = inspect(APP)
@@ -318,7 +336,7 @@ def deploy(stage_path, commit):
 
     schema = schema_probe()
     expected_migration = digest(files[MIGRATION])
-    if schema.get('columns') != 2 or len(schema.get('ledger', [])) != 1 or schema['ledger'][0].get('status') != 'applied' or schema['ledger'][0].get('checksum') != expected_migration:
+    if schema.get('columns') != 2 or len(schema.get('ledger', [])) != 1 or schema['ledger'][0].get('status') != 'applied' or schema['ledger'][0].get('checksum') != expected_migration or schema.get('missingHistory') != [] or schema.get('checksumMismatches') != [] or schema.get('pendingMigrations') != []:
         raise RuntimeError('follow-up schema or migration checksum verification failed')
     hashes = {source_name: digest((runtime / source_name).read_bytes()) for source_name in FILES}
     for source_name, target in FILES.items():
