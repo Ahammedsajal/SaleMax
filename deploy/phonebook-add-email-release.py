@@ -104,7 +104,7 @@ def compose_env(files, app, workdir):
                 for match in pattern.finditer(Path(name).read_text()):
                     suffix, target = match.groups()
                     release_root = Path(name).parent.parent
-                    if release_root.parent.name == 'releases' and (release_root / suffix.lstrip('/')).is_file():
+                    if release_root.parent.name == 'releases':
                         inferred.add(str(release_root))
                         continue
                     source = mounts.get(target)
