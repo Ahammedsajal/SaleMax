@@ -5984,3 +5984,32 @@ Verification confirmed public `/healthz` returned HTTP 200, all four cache-buste
 Source commit `860e9d859550dbe3e5f4e68b55ba0a91803493ec` is deployed. The Email 6 outgoing renderer already linkified safe website text, but the template builder’s sample preview still showed plain text. The maintained builder now renders `www.` and safe web URLs as underlined links in the preview, matching the outgoing HTML. The `Email 6 – After the Meta Ad Click` editor was reopened after deployment; the accessibility tree exposed `www.7network.live` as a link to `https://www.7network.live/`, and Edge visually showed the blue, underlined link. No template was edited or saved and no email was sent.
 
 The app-only release is `/opt/salemax/releases/email-marketing-preview-link-860e9d859550-20261126T085607Z`; protected rollback snapshot: `/opt/salemax/shared/rollback-email-marketing-preview-link-860e9d859550-20261126T085607Z`. Runtime hashes: `client/public/index.html` `5a8552bc7e64a60c4975e13536da38271b0d4a23bdc6f808a1df33e12296b7bf`; `client/public/email-marketing-template-builder.js` `fa1efc6a9dfcc8ea013726c415f8e0813e8fa895477be7a2fa869646a478a754`. The app image remained `sha256:753d77d421b3160872df0812e7b38505a1db7104cdb9d6c8b17415b2420de667`; `/healthz` and the versioned builder asset returned HTTP 200. No migration or database change ran. Roll back newer app overlays first, then restore the prior Compose chain using the helper and snapshot above under the production lock.
+
+## 2026-11-26 — Retail Store Connections control center — production
+
+Source commit `48c423870e2ee66d3096fd051dc08c451b12e7fe` (Retail update PR #189 and release-procedure PRs #190 and #191) is deployed as an app-only overlay on the existing production image `sha256:753d77d421b3160872df0812e7b38505a1db7104cdb9d6c8b17415b2420de667`.
+
+Release: `/opt/salemax/releases/retail-store-control-48c423870e2e-20261126T090906Z`. The active Compose overlay is `compose.retail-store-control.json`; the live generated shell was captured under the production lock and changed only to reference Retail cache key `20261126-retail-store-control1`.
+
+Runtime SHA-256:
+
+- `client/public/index.html`: `b727b476727f90a8aef013adbf89e9ef1906d060124a76be1b42ffcd62c06842`
+- `client/public/retail-workspace.js`: `b21af28fa4d280f8982df54217db3a38f7133b20535774fa22f5b818ce9f879c`
+- `client/public/retail-workspace.css`: `d6df4eb727019e19fefbd58d1a4f15ac985d8ab45182b141881faa4134a0f2a6`
+- `modules/platform/retail-connected-stores-router.js`: `a97ce8b452a98e13797b5c93e14acf6715fbc6245c59b0a113994225729f6ad3`
+
+No migrations were selected or applied. The Retail schema ledger remained at 184 entries and the audit reported `migrationChanges: 0`.
+
+Protected rollback snapshot: `/opt/salemax/shared/rollback-retail-store-control-48c423870e2e-20261126T090906Z`. Its database archive SHA-256 is `499e82de7a9f357d8b5df22504da3882ae1d723ce80135ee659a5f2b9637c784`; isolated restore verification matched 316 tables and 153,297 insert statements, and the migration audit matched the 184-entry baseline. Since this release made no database changes, use the app-only rollback below; do not restore the database archive over live data.
+
+Under the production lock, restore the previous app overlay with:
+
+```sh
+sudo -n /opt/salemax/shared/with-production-lock.sh python3 /opt/salemax/releases/retail-store-control-48c423870e2e-20261126T090906Z/deploy/retail-store-control-release.py restore /opt/salemax/shared/rollback-retail-store-control-48c423870e2e-20261126T090906Z
+```
+
+Post-deploy verification: the app and database were healthy, the app restart count was zero, the database and support-service identities were unchanged, all four runtime hashes matched, and the active Compose chain contained 363 inputs including this overlay. `/healthz`, login pages, Products & services, Customers, Store Connections, and connected-store Orders returned HTTP 200; anonymous connector/order APIs returned HTTP 401 as expected. The tracked retention helper dry-run listed four old Phonebook release directories as eligible (532,480 estimated bytes); no release directories were deleted.
+
+An earlier pre-fix attempt created a separate rehearsal snapshot at `/opt/salemax/shared/rollback-retail-store-control-9e1b609723ac-20261126T090035Z`, recorded zero migration changes, and stopped before app recreation because the no-migration audit summary used a different field shape. A subsequent app overlay changed the running container, so this superseded snapshot was not used for rollback. No production database restore or cleanup was performed from it.
+
+Authenticated visual acceptance was unavailable because this chat had no browser session. Verification of the authenticated screen across roles, English/Arabic RTL, themes, and responsive layouts remains open.
