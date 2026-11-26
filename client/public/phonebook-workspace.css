@@ -15,6 +15,27 @@
 .sx-pb-dialog .pb-choice label{display:flex;align-items:flex-start;gap:10px;padding:8px 4px;font-weight:500;cursor:pointer}
 .sx-pb-dialog .pb-choice label input[type=radio]{flex:none;margin:1px 0}
 .sx-pb-dialog .pb-choice .pb-pick-books{display:grid;gap:4px}
+.sx-pb-dialog .pb-contact-form{padding:16px;border:1px solid var(--pb-line);border-radius:14px;background:var(--pb-card);display:grid;gap:14px}
+.sx-pb-dialog .pb-contact-form h3{margin:0}
+.sx-pb-dialog .pb-contact-form .pb-labels{margin:0}
+.sx-pb-dialog .pb-contact-form details{border-top:1px solid var(--pb-line);padding-top:12px}
+.sx-pb-dialog .pb-contact-form summary{cursor:pointer;font-weight:650}
+.sx-pb-dialog .pb-contact-form details .pb-labels{margin-top:14px}
+.sx-pb-dialog .pb-mode{display:flex;gap:8px;padding:5px;border:1px solid var(--pb-line);border-radius:12px;background:var(--pb-soft)}
+.sx-pb-dialog .pb-mode [role=tab]{flex:1;min-height:42px}
+.sx-pb-dialog .pb-contact-form [type=file]{height:auto;padding:9px}
+.sx-pb-dialog .pb-csv-header-list{display:flex;gap:7px;flex-wrap:wrap}
+.sx-pb-dialog .pb-csv-header-list span{display:inline-flex;align-items:center;min-height:30px;padding:4px 9px;border:1px solid var(--pb-line);border-radius:999px;background:var(--pb-soft);font-size:12px;overflow-wrap:anywhere}
+.sx-pb-dialog .pb-success{color:#11633a;background:#ecfdf3;border:1px solid #abefc6;padding:10px 12px;border-radius:8px;font-size:13px}
+#sx-phonebook th[data-actions],#sx-phonebook td[data-actions]{width:150px;min-width:150px;overflow:visible}
+#sx-phonebook .pb-row-actions{display:flex;gap:6px;align-items:center}
+#sx-phonebook .pb-row-actions button{min-height:32px;padding:5px 9px;font-size:12px}
+#sx-phonebook .pb-row-actions .pb-danger{color:#b42318;border-color:#fecdca;background:#fff}
+#sx-phonebook .pb-row-actions .pb-danger:hover{background:#fef3f2}
+.sx-pb-dialog .pb-delete-warning{padding:12px;border-radius:10px;background:#fff6ed;color:#93370d;border:1px solid #fedf89}
 html[data-theme=dark] .sx-pb-dialog{--pb-card:#171a21;--pb-ink:#eaecf0;--pb-muted:#c0c5d0;--pb-line:#344054;--pb-soft:#20242d}
 html[data-theme=dark] .sx-pb-dialog .pb-error{color:#ffd7df;background:#3a1c27;border-color:#74354a}
+html[data-theme=dark] .sx-pb-dialog .pb-success{color:#a6f4c5;background:#102a20;border-color:#05603a}
+html[data-theme=dark] #sx-phonebook .pb-row-actions .pb-danger{color:#fda29b;background:#311b1b;border-color:#7a271a}
+html[data-theme=dark] .sx-pb-dialog .pb-delete-warning{color:#ffddb5;background:#351d10;border-color:#7a2e0e}
 html[data-theme=dark] .sx-pb-dialog .pb-mode[aria-selected=true]{background:#c61959;border-color:#c61959}

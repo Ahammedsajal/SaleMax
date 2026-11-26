@@ -3,3 +3,13 @@
 .sx-phonebook-email-field input:focus-visible{outline:3px solid #d997b4;outline-offset:2px}
 .sx-phonebook-email-field small{color:#6b7588;font-size:11px;font-weight:400}
 [data-sx-phonebook-email-error]{display:block;margin-top:12px;padding:10px 12px;border:1px solid #facad5;border-radius:8px;background:#fff0f3;color:#a20b36;font-size:13px}
+.sx-phonebook-email-field.sx-phonebook-email-full-row{display:grid;grid-column:1/-1;width:100%;margin:8px 0 0}
+.sx-phonebook-email-success{display:block;margin:12px 0 0;padding:10px 12px;border:1px solid #abefc6;border-radius:8px;background:#ecfdf3;color:#11633a;font-size:13px;line-height:1.45}
+.sx-phonebook-email-error{display:block;margin:12px 0 0;padding:10px 12px;border:1px solid #facad5;border-radius:8px;background:#fff0f3;color:#a20b36;font-size:13px;line-height:1.45}
+html[dir=rtl] .sx-phonebook-email-field{text-align:right}
+html[data-theme=dark] .sx-phonebook-email-field{color:#eaecf0}
+html[data-theme=dark] .sx-phonebook-email-field input{background:#171a21;color:#eaecf0;border-color:#344054}
+html[data-theme=dark] .sx-phonebook-email-field small{color:#c0c5d0}
+html[data-theme=dark] .sx-phonebook-email-success{color:#a6f4c5;background:#102a20;border-color:#05603a}
+html[data-theme=dark] .sx-phonebook-email-error{color:#ffd7df;background:#3a1c27;border-color:#74354a}
+@media(max-width:600px){.sx-phonebook-email-field.sx-phonebook-email-full-row{grid-column:1/-1}.sx-phonebook-email-field input{font-size:16px}}
