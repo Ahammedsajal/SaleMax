@@ -75,11 +75,12 @@ def compose_args(files, workdir, override=None):
     return args
 
 
-def compose_env(files, app):
-    env_files = [ROOT / 'shared/stack.env', ROOT / 'shared/runtime.env']
+def compose_env(files, app, workdir):
+    env_files = [ROOT / 'shared/stack.env', ROOT / 'shared/runtime.env', Path(workdir) / '.env']
     manual_path = ROOT / 'shared/rollback-private-inventory-84644fdfebee/compose-manual-vars.json'
     manual = json.loads(manual_path.read_text())
-    supplied = {key for name in env_files for key in re.findall(r'^\s*([A-Za-z_][A-Za-z0-9_]*)=', Path(name).read_text(), re.M)}
+    supplied = {key for name in env_files if Path(name).is_file() for key in re.findall(r'^\s*(?:export\s+)?([A-Za-z_][A-Za-z0-9_]*)=', Path(name).read_text(), re.M)}
+    supplied.update(os.environ)
     referenced = set()
     for name in files:
         for match in re.finditer(r'\$\{([A-Za-z_][A-Za-z0-9_]*)([^}]*)\}', Path(name).read_text()):
@@ -166,7 +167,7 @@ def deploy(source, source_commit):
     if app.get('Image') != EXPECTED_IMAGE or app['State'].get('Health', {}).get('Status') != 'healthy':
         raise RuntimeError('app image or health differs from reviewed production state')
     files, workdir, service = compose_state(app)
-    env = compose_env(files, app)
+    env = compose_env(files, app, workdir)
     before = compose_config(compose_args(files, workdir), env)
     support = support_services()
     stamp = datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%SZ')
@@ -267,7 +268,7 @@ def restore(snapshot_path):
     if len(extra) != 1 or 'phonebook-add-email' not in extra[0]:
         raise RuntimeError('phonebook overlay is not the sole newest Compose input')
     compose = compose_args(prior['config_files'], prior['working_dir'])
-    env = compose_env(prior['config_files'], app)
+    env = compose_env(prior['config_files'], app, prior['working_dir'])
     run(*compose, 'up', '-d', '--no-deps', '--no-build', prior['service'], env=env)
     for _ in range(45):
         app = inspect(APP)
