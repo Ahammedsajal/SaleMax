@@ -12,7 +12,7 @@ RELEASE_NAME = 'retail-store-control'
 PILOT_ENV = 'SALEMAX_RETAIL_CONNECTOR_PILOT_TENANTS'
 ORIGIN = 'https://7network.live'
 IMAGE = 'sha256:753d77d421b3160872df0812e7b38505a1db7104cdb9d6c8b17415b2420de667'
-LAST_OVERLAY = '/opt/salemax/releases/phonebook-add-email-2f22bc7b3ff7-20261126T080042Z/deploy/compose.phonebook-add-email-2f22bc7b3ff7-20261126T080042Z.json'
+BASELINE_OVERLAY = '/opt/salemax/releases/phonebook-add-email-2f22bc7b3ff7-20261126T080042Z/deploy/compose.phonebook-add-email-2f22bc7b3ff7-20261126T080042Z.json'
 CACHE = '20261126-retail-store-control1'
 
 RUNTIME = {
@@ -45,7 +45,7 @@ original_stage_manifest = release.stage_manifest
 
 def stage_manifest(stage, commit):
     info = original_stage_manifest(stage, commit)
-    if info.get('releaseName') != RELEASE_NAME or info.get('image') != IMAGE or info.get('lastOverlay') != LAST_OVERLAY:
+    if info.get('releaseName') != RELEASE_NAME or info.get('image') != IMAGE or info.get('lastOverlay') != BASELINE_OVERLAY:
         raise RuntimeError('Retail Store Connections stage targets a different production release')
     if set(info.get('runtime', {})) != RUNTIME or set(info.get('preimages', {})) != RUNTIME:
         raise RuntimeError('Retail Store Connections stage runtime/preimage allowlist differs')
