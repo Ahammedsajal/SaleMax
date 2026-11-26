@@ -81,28 +81,68 @@ def compose_args(files, env_files, workdir):
 
 
 def compose_environment(app, files, env_files):
-    referenced, supplied = set(), set()
-    for name in files:
-        referenced.update(re.findall(r'\$\{([A-Za-z_][A-Za-z0-9_]*)', Path(name).read_text()))
-    for name in env_files:
-        supplied.update(re.findall(r'^\s*([A-Za-z_][A-Za-z0-9_]*)=', Path(name).read_text(), re.M))
-    live = dict(item.split('=', 1) for item in app['Config'].get('Env', []) if '=' in item)
+    """Resolve the active Compose chain from durable files and the running app."""
+    labels = app.get('Config', {}).get('Labels') or {}
+    workdir = labels.get('com.docker.compose.project.working_dir')
+    if not workdir:
+        raise RuntimeError('Active Compose working directory is missing')
+    sources = [Path(name) for name in env_files]
+    project_env = Path(workdir) / '.env'
+    if project_env.is_file():
+        sources.append(project_env)
     manual_path = ROOT / 'shared/rollback-private-inventory-84644fdfebee/compose-manual-vars.json'
     manual = json.loads(manual_path.read_text()) if manual_path.is_file() else {}
+    supplied = {key for name in sources
+                if name.is_file()
+                for key in re.findall(r'^\s*(?:export\s+)?([A-Za-z_][A-Za-z0-9_]*)=', name.read_text(), re.M)}
+    supplied.update(os.environ)
+    referenced = set()
+    for name in files:
+        content = Path(name).read_text()
+        for match in re.finditer(r'\$\{([A-Za-z_][A-Za-z0-9_]*)([^}]*)\}', content):
+            key, operator = match.groups()
+            if not operator.startswith((':-', '-', ':+', '+')):
+                referenced.add(key)
+    live = dict(item.split('=', 1) for item in app.get('Config', {}).get('Env', []) if '=' in item)
+    mounts = {mount['Destination']: mount['Source'] for mount in app.get('Mounts', [])}
     values = {}
     for key in referenced - supplied:
         if key in manual:
             values[key] = manual[key]
         elif key in live:
             values[key] = live[key]
+        elif key.endswith(('_BASE_IMAGE', '_APP_IMAGE')):
+            values[key] = app['Config']['Image']
         else:
-            raise RuntimeError('Missing Compose interpolation input')
+            inferred = set()
+            release_candidates = []
+            pattern = re.compile(r'\$\{' + re.escape(key) + r'(?::[-?+][^}]*)?\}([^:\s]*)\s*:\s*(/app/[^:\s]+)')
+            for name in files:
+                content = Path(name).read_text()
+                if '$' + '{' + key in content:
+                    config_dir = Path(name).parent
+                    release_root = config_dir.parent if config_dir.name == 'deploy' else config_dir
+                    if release_root.parent.name == 'releases':
+                        release_candidates.append(str(release_root))
+                for match in pattern.finditer(content):
+                    suffix, target = match.groups()
+                    config_dir = Path(name).parent
+                    release_root = config_dir.parent if config_dir.name == 'deploy' else config_dir
+                    if release_root.parent.name == 'releases':
+                        release_candidates.append(str(release_root))
+                        continue
+                    source = mounts.get(target)
+                    if source and (not suffix or source.endswith(suffix)):
+                        inferred.add(source[:-len(suffix)] if suffix else source)
+            if release_candidates:
+                values[key] = release_candidates[-1]
+            elif len(inferred) == 1:
+                values[key] = inferred.pop()
+            else:
+                raise RuntimeError('Production Compose input is missing required variable: ' + key)
     env = dict(os.environ)
-    for key in referenced:
-        env.pop(key, None)
     env.update(values)
     return env, values
-
 
 def verify_live_compose_app(app, config):
     service = config.get('services', {}).get('app') or {}
