@@ -97,10 +97,14 @@ def compose_env(files, app, workdir):
             variables[key] = live[key]
         else:
             inferred = set()
-            pattern = re.compile(r'\$\{' + re.escape(key) + r'\}([^:\s]*)\s*:\s*(/app/[^:\s]+)')
+            pattern = re.compile(r'\$\{' + re.escape(key) + r'(?::[-?+][^}]*)?\}([^:\s]*)\s*:\s*(/app/[^:\s]+)')
             for name in files:
                 for match in pattern.finditer(Path(name).read_text()):
                     suffix, target = match.groups()
+                    release_root = Path(name).parent.parent
+                    if release_root.parent.name == 'releases' and (release_root / suffix.lstrip('/')).is_file():
+                        inferred.add(str(release_root))
+                        continue
                     source = mounts.get(target)
                     if source and (not suffix or source.endswith(suffix)):
                         inferred.add(source[:-len(suffix)] if suffix else source)
