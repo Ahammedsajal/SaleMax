@@ -65,6 +65,7 @@ function createEmailMarketingRouter({pool:injectedPool,authenticate,origin,key,b
   router.put('/templates/:id',run(async(db,ctx,req)=>service.saveTemplate(db,ctx,req.body,req.params.id)));
   router.post('/audience/preview',run(async(db,ctx,req)=>service.previewAudience(db,ctx,req.body,key)));
   router.get('/campaigns',run(async(db,ctx)=>({items:await service.listCampaigns(db,ctx)})));
+  router.delete('/campaigns/:id',run(async(db,ctx,req)=>service.deleteCampaign(db,ctx,req.params.id)));
   router.get('/analytics',run(async(db,ctx,req)=>service.analytics(db,ctx,req.query?.days)));
   router.post('/campaigns',run(async(db,ctx,req)=>service.createCampaign(db,ctx,req.body,key)));
   router.get('/campaigns/:id',run(async(db,ctx,req)=>service.campaignDetail(db,ctx,req.params.id,req.query)));

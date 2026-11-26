@@ -428,3 +428,13 @@ html[data-theme="dark"] #sx-email-marketing,body.dark #sx-email-marketing,html[d
 #sx-email-marketing .em-report-review p{margin:5px 0;color:var(--em-muted);font-size:13px;line-height:1.5}
 #sx-email-marketing .em-report-review>button{flex:0 0 auto}
 @media(max-width:700px){#sx-email-marketing .em-report-review{align-items:flex-start;flex-direction:column}#sx-email-marketing .em-report-review>button{width:100%}}
+
+#sx-email-marketing .em-delete-campaign{min-height:34px;padding:6px 11px;border:1px solid var(--em-line);border-radius:8px;background:var(--em-card);color:var(--em-bad);font:inherit;font-size:12px;font-weight:700;cursor:pointer}
+#sx-email-marketing .em-delete-campaign:hover:not(:disabled){background:var(--em-bad-bg);border-color:var(--em-bad)}
+#sx-email-marketing .em-delete-campaign:focus-visible{outline:3px solid color-mix(in srgb,var(--em-accent) 35%,transparent);outline-offset:2px}
+#sx-email-marketing .em-delete-campaign:disabled{color:var(--em-muted);cursor:not-allowed;opacity:.62}
+#sx-email-marketing .em-dialog .em-danger{background:#b42318;border-color:#b42318;color:#fff}
+#sx-email-marketing .em-delete-confirm{display:grid;gap:9px;padding:4px 2px}
+#sx-email-marketing .em-delete-confirm>strong{overflow-wrap:anywhere;font-size:15px}
+#sx-email-marketing .em-delete-confirm p{margin:0;color:var(--em-ink);line-height:1.55}
+#sx-email-marketing .em-delete-confirm .em-muted{color:var(--em-muted);font-size:12px}

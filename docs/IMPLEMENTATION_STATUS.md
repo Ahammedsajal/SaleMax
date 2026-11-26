@@ -2737,3 +2737,7 @@ The visual Email 6 template’s plain website footer is now rendered as a safe c
 
 
 The Email 6 preview was subsequently updated and visually checked in the signed-in Edge editor: the footer URL is blue, underlined and exposed as a link to `https://www.7network.live/`. The existing saved template was not changed during this preview check. A fresh one-recipient test send after this release remains unverified; Edge changed during recipient selection, so no message was sent.
+
+## Email campaign removal — implemented, production release pending, 26 November 2026
+
+The existing Email Marketing campaigns list has a row-level Delete action. Owner/manager access remains governed by the existing Email Marketing permission. Removal is available only after a campaign is complete, failed or cancelled and every recipient has a final outcome; sending, needs-review, and unresolved campaigns remain protected. Confirmation explains that the campaign is hidden from the regular list while SES events, recipient records and audit history are retained. A tenant-scoped soft-delete timestamp and audit event make this recoverable without erasing delivery evidence. English/Arabic UI and accessible disabled states are included. Production release, authenticated browser acceptance and broader theme/device checks remain pending.

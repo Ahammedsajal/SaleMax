@@ -1,0 +1,3 @@
+ALTER TABLE sx_email_campaigns
+  ADD COLUMN deleted_at DATETIME(3) NULL DEFAULT NULL AFTER status,
+  ALGORITHM=INSTANT;

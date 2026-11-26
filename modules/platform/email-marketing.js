@@ -518,8 +518,25 @@ async function listCampaigns(db,ctx){
   const [rows]=await db.query(`SELECT c.id,c.name,c.status,c.scheduled_at AS scheduledAt,c.created_at AS createdAt,c.recipient_count AS recipientCount,
     SUM(r.status='accepted') AS acceptedCount,SUM(r.status='failed') AS failedCount,SUM(r.status='suppressed') AS suppressedCount,SUM(r.status='unknown') AS unknownCount
     FROM sx_email_campaigns c LEFT JOIN sx_email_campaign_recipients r ON r.tenant_id=c.tenant_id AND r.campaign_id=c.id
-    WHERE c.tenant_id=? GROUP BY c.id ORDER BY c.created_at DESC,c.id LIMIT 200`,[ctx.tenantId]);
-  return rows.map(row=>({...row,recipientCount:Number(row.recipientCount),acceptedCount:Number(row.acceptedCount||0),failedCount:Number(row.failedCount||0),suppressedCount:Number(row.suppressedCount||0),unknownCount:Number(row.unknownCount||0)}));
+    WHERE c.tenant_id=? AND c.deleted_at IS NULL GROUP BY c.id ORDER BY c.created_at DESC,c.id LIMIT 200`,[ctx.tenantId]);
+  return rows.map(row=>{const item={...row,recipientCount:Number(row.recipientCount),acceptedCount:Number(row.acceptedCount||0),failedCount:Number(row.failedCount||0),suppressedCount:Number(row.suppressedCount||0),unknownCount:Number(row.unknownCount||0)};item.canDelete=['completed','failed','cancelled'].includes(item.status)&&item.unknownCount===0;return item;});
+}
+async function deleteCampaign(db,ctx,id){
+  emailMarketingAccess(ctx.context);
+  if(typeof id!=='string'||!/^[-0-9a-f]{36}$/i.test(id))fail('INVALID_EMAIL_CAMPAIGN_ID');
+  await db.beginTransaction();
+  try{
+    const [[campaign]]=await db.query('SELECT id,name,status,deleted_at AS deletedAt FROM sx_email_campaigns WHERE tenant_id=? AND id=? FOR UPDATE',[ctx.tenantId,id]);
+    if(!campaign||campaign.deletedAt)fail('EMAIL_CAMPAIGN_NOT_FOUND',404);
+    if(!['completed','failed','cancelled'].includes(campaign.status))fail('EMAIL_CAMPAIGN_NOT_REMOVABLE',409);
+    const [[pending]]=await db.query("SELECT COUNT(*) AS count FROM sx_email_campaign_recipients WHERE tenant_id=? AND campaign_id=? AND status NOT IN ('accepted','failed','suppressed')",[ctx.tenantId,id]);
+    if(Number(pending?.count||0)>0)fail('EMAIL_CAMPAIGN_NOT_REMOVABLE',409);
+    const [updated]=await db.query("UPDATE sx_email_campaigns SET deleted_at=UTC_TIMESTAMP(3) WHERE tenant_id=? AND id=? AND deleted_at IS NULL AND status IN ('completed','failed','cancelled')",[ctx.tenantId,id]);
+    if(!Number(updated?.affectedRows||0))fail('EMAIL_CAMPAIGN_NOT_REMOVABLE',409);
+    await audit(db,ctx,'email.campaign.removed','email-campaign',id,{name:campaign.name,status:campaign.status,deliveryHistoryRetained:true});
+    await db.commit();
+    return {removed:true,id};
+  }catch(error){try{await db.rollback();}catch{}throw error;}
 }
 async function campaignDetail(db,ctx,id,query={}){
   emailMarketingAccess(ctx.context);if(typeof id!=='string'||!/^[-0-9a-f]{36}$/i.test(id))fail('INVALID_EMAIL_CAMPAIGN_ID');
@@ -735,4 +752,4 @@ async function applyUnsubscribe(db,key,token){
   }catch(error){try{await db.rollback();}catch{}throw error;}
 }
 
-module.exports={MAX_RECIPIENTS,MAX_ATTACHMENT_BYTES,MAX_TOTAL_ATTACHMENT_BYTES,MAX_ATTACHMENTS,normalizeEmail,validEmail,cleanDomain,cleanRegion,cleanEmail,tokenFor,decodeToken,safeFilename,sniffAttachment,summarizeAudience,fingerprint,bounceSuppressed:bouncePrivacy.isSuppressed,emailMarketingAccess,sessionContext,providerStatus,setup,saveReplyTo,addDomain,shareSenderDomain,revokeSenderDomainShare,refreshDomain,deleteDomain,addSender,refreshSender,enableReplies,refreshReplies,audit,saveAttachment,previewAttachment,loadAttachments,listTemplates,saveTemplate,previewAudience,createCampaign,listCampaigns,campaignDetail,reconcileCampaign,analytics,inbox,threadMessages,testSend,applyUnsubscribe};
+module.exports={MAX_RECIPIENTS,MAX_ATTACHMENT_BYTES,MAX_TOTAL_ATTACHMENT_BYTES,MAX_ATTACHMENTS,normalizeEmail,validEmail,cleanDomain,cleanRegion,cleanEmail,tokenFor,decodeToken,safeFilename,sniffAttachment,summarizeAudience,fingerprint,bounceSuppressed:bouncePrivacy.isSuppressed,emailMarketingAccess,sessionContext,providerStatus,setup,saveReplyTo,addDomain,shareSenderDomain,revokeSenderDomainShare,refreshDomain,deleteDomain,addSender,refreshSender,enableReplies,refreshReplies,audit,saveAttachment,previewAttachment,loadAttachments,listTemplates,saveTemplate,previewAudience,createCampaign,listCampaigns,deleteCampaign,campaignDetail,reconcileCampaign,analytics,inbox,threadMessages,testSend,applyUnsubscribe};
