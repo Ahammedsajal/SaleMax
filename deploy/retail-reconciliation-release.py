@@ -330,7 +330,12 @@ def deploy(stage, commit):
     guard_rollback(app['Id'], support, input_hashes)
     migrated = migrate(ops.APP, migrator, request, 'apply')
     ops.write_private(backup / 'migration-result.json', migrated)
-    emit('production_migrations_applied', migrations=migrated['applied'], total=migrated['total'])
+    migration_total = migrated.get('total')
+    if migration_total is None:
+        migration_total = (migrated.get('baseline') or {}).get('total')
+    if not isinstance(migration_total, int) or migration_total < 0:
+        raise RuntimeError('Retail migration actor omitted its ledger total')
+    emit('production_migrations_applied', migrations=migrated.get('applied', []), total=migration_total)
 
     try:
         ops.run(*candidate, 'up', '-d', '--no-deps', '--no-build', '--force-recreate', 'app', env=environment)
