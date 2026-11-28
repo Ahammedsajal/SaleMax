@@ -1,3 +1,25 @@
+## 2026-11-28 — Pro Catalyst context-aware course selection — production
+
+Source commit `bb50f19fc7f74b89cff14c01dc9662faca5817c2` is pushed to `Ahammedsajal/SaleMax` `main`. The shared Training Center course matcher now requires a clear course-selection intent or a bare course answer to an active discovery question before changing the selected course. It ignores incidental shared words in deferrals and acknowledgements, so “I will check this first” cannot select First Aid. Course price and detail follow-ups retain the saved course. The runtime now avoids invoking its separate GPT-6 Luna course-only classifier for deferrals and unrelated follow-ups, while the existing contextual turn receives the retained course. Its prompt explicitly treats “I will check this first” as a deferral. The live employment and schedule coordinator safeguards were merged into the tracked runtime before release.
+
+The guarded app-only release is `/opt/salemax/releases/pro-catalyst-course-intent-guard-bb50f19fc7f7-20261128T062240Z`, layered over base `/opt/salemax/releases/training-pipeline-correction-v3-9867ca72-20261104`. It retained image `salemax-app:email-followup-resend-4cd5b2750f22-20261126T114538Z` (`sha256:c496b845778b8b4258dc3eda2757a18240ced0b0cd70c4ad6baf8328e508e577`). The release helper verified 366 Compose inputs, 2 environment-file inputs and 333 app mounts; all seven non-app container identities were unchanged. The app is healthy with zero restarts and the database passed its healthy preflight. Public `/healthz` and `/admin?page=manage-users` returned HTTP 200. No database migration or customer-data change occurred.
+
+| Runtime file | Previous live SHA-256 | Deployed SHA-256 |
+|---|---|---|
+| `modules/platform/chatbot-business-context.js` | `8dc53cbca0c0f06cb800a8155972d5ca781ce3069a3c369c9981b957e7e9bbb8` | `f0f343518a4bbb51786e5aefebd81fed013cafb98efa67f6c4941e4cd5350165` |
+| `modules/platform/chatbot-runtime.js` | `5f83e5c1d00018909b878b6139e331c8f99c87bc6bdaa549e687d28a41815f9f` | `e2927b4691ea95951a944a5847bd97e348ef3c979d9c242aa0560fafd7f822aa` |
+| `modules/platform/chatbot-turn-understanding.js` | `fdb7a47f45ab7fb8b4c2da2d66c1b273f6597455e9e85369b7ef017c597598bd` | `b340d008a4b3a88d7247efb86204697bf1aa74a9ad2a5c89ddb241c1765592b1` |
+
+JavaScript syntax, release-helper Python AST parsing and `git diff --check` passed. Four targeted context replays passed: a deferral retained Primary Teaching, a First Aid enquiry selected First Aid, a bare Marine Deckhand discovery answer selected Marine Deckhand, and a fee follow-up stayed with Marine Deckhand. No automated suite or live WhatsApp message was run; live customer-message acceptance remains open.
+
+Protected rollback snapshot: `/opt/salemax/shared/rollback-pro-catalyst-course-intent-guard-bb50f19fc7f7-20261128T062240Z`. If this remains the latest app overlay, restore the previous app Compose chain under the production lock with:
+
+```sh
+sudo -n /opt/salemax/shared/with-production-lock.sh python3 -B /opt/salemax/releases/pro-catalyst-course-intent-guard-bb50f19fc7f7-20261128T062240Z/deploy/pro-catalyst-course-intent-guard-release.py restore /opt/salemax/shared/rollback-pro-catalyst-course-intent-guard-bb50f19fc7f7-20261128T062240Z
+```
+
+Roll back any later app overlays first. No database rollback applies.
+
 ## 2026-11-26 — Pro Catalyst caregiver phrase matching — production
 
 Source commit `30e85f940f18c0fc6a71012b60f5c3e9f368a81a` is pushed to `Ahammedsajal/SaleMax` `main`. It includes the caregiver phrase-matching change from `25e14d48`: “care taker(s),” “caretaker(s),” “care giver(s),” and nursing-assistant/aide phrases normalize to the existing published Caregiver course before broad topic scoring. This keeps a caregiver enquiry from matching the unrelated Diploma Health & Social Care course merely because both names contain “care.” The matched published course ID continues through the existing verified-facts and course-media path; multiple plausible course matches still require clarification. Live weekday schedule and employment-claim routing safeguards were preserved in the source.
