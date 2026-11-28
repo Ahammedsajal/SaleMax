@@ -646,7 +646,7 @@
           const actions=add(card,'div');actions.className='sx-retail-connector-actions';
           if(access.role==='owner'&&connection.provider==='woocommerce'&&!connection.syncEnabled){
             const revalidate=add(actions,'button',t('Revalidate WooCommerce key','إعادة التحقق من مفتاح WooCommerce'));revalidate.type='button';
-            revalidate.onclick=()=>{connectDetails.open=true;connectDetails.scrollIntoView({behavior:'smooth',block:'center'});wooKey.focus({preventScroll:true});};
+            revalidate.onclick=()=>{wooUrl.value=connection.storeDomain||'';wooDisplay.value=connection.displayName||'';wooCurrency.value=connection.currency||'QAR';connectDetails.open=true;connectDetails.scrollIntoView({behavior:'smooth',block:'center'});wooKey.focus({preventScroll:true});};
           }
           if(connection.syncEnabled)action(actions,t('Sync all remaining pages','مزامنة كل الصفحات المتبقية'),async()=>{
             const connectionId=encodeURIComponent(connection.id),maxPasses=20;let result=null,passes=0,complete=false;
