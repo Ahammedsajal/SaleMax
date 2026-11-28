@@ -1,3 +1,13 @@
+## Retail missing-data sync button — deployed; WooCommerce key revalidation pending, 28 November 2026
+
+Source commit `794e450f5e7123b5fcbd8e47e31da0ad9499e74c` (PR #197) adds one **Sync missing products, orders & customers** action to Store Connections after the owner verifies the read-only WooCommerce key. The action scans product, order and customer pages, reconciles existing external IDs to prevent duplicate records, and imports queued product images. The existing 15-minute poll continues unfinished work; signed WooCommerce webhooks are required for near-real-time updates.
+
+Production release `/opt/salemax/releases/retail-import-sync-794e450f5e71-20261128T114706Z` is healthy on app image `sha256:c496b845778b8b4258dc3eda2757a18240ced0b0cd70c4ad6baf8328e508e577`. The rollback snapshot is `/opt/salemax/shared/rollback-retail-import-sync-794e450f5e71-20261128T114706Z`; database archive restore rehearsal passed (317 tables / 169,384 insert statements). No migration was selected or applied; ledger remains at 187. Health and route checks passed, unauthenticated Retail APIs returned 401, and mounted runtime hashes matched the release.
+
+**Remaining owner action:** production still reports `credentialsVerified=false` and last sync `2026-11-17T11:41:08.421Z`. No provider sync or new imports occurred during deployment. In Store Connections, revalidate the WooCommerce read-only key and secret; once verified, click **Sync missing products, orders & customers**. Revalidation rotates the webhook secret, so update signed webhook configuration afterward. Do not report the full catalog, orders or customers imported until the scan completes.
+
+Changed JavaScript and browser fixture syntax checks passed. The browser fixture was not executed; GitHub has no configured CI checks. Authenticated visual acceptance remains open, and the broader 42-ticket roadmap remains in progress.
+
 ## Retail gallery and WooCommerce import recovery — deployed; owner revalidation pending, 28 November 2026
 
 Production commit `260e53d09e670c40e7f2b736275a81dea833eb71` (PR #196) fixes the product-card lazy-image visibility bug and Store Connections render failure. The page now supports owner-only paginated product/order/customer sync plus bounded queued-image backfill. Revalidation prefills the connected store's non-secret URL, name and currency; credentials stay blank and are sent only to the existing encrypted, read-only connection flow. The new image endpoint is tenant-scoped, owner-only, bounded to 25 images per batch, and rejects inactive or unverified connections.
