@@ -626,8 +626,8 @@
           if(Number(connection.syncProgress?.pendingVariantProducts||connection.syncProgress?.pendingVariationParents||0)>0)
             add(card,'p',t('Products with more variants queued for import','منتجات بمتغيرات إضافية بانتظار الاستيراد')+': '+numberFormat(connection.syncProgress.pendingVariantProducts||connection.syncProgress.pendingVariationParents));
           if(connection.lastErrorCode)add(card,'p',t('Provider error','خطأ المزوّد')+': '+connection.lastErrorCode);
-          if(!connection.syncEnabled)add(card,'p',t('Credential check required. Automatic and manual sync are paused until you reconnect and verify fresh store credentials.','يلزم التحقق من بيانات الاتصال. أوقفت المزامنة اليدوية والتلقائية حتى تعيد الربط وتتحقق من بيانات حديثة.'));
-          else add(card,'p',connection.provider==='woocommerce'?t('Automatic read-only product, order and customer sync checks the store every 15 minutes. Configure signed WooCommerce product, order and customer webhooks in the setup section for near-real-time updates.','تتحقق المزامنة التلقائية للمنتجات والطلبات والعملاء من المتجر كل 15 دقيقة. أعدّ Webhooks موقّعة لمنتجات WooCommerce وطلباته وعملائه في قسم الإعداد للتحديث شبه الفوري.'):t('Automatic store reconciliation checks for updates every 15 minutes.','تتحقق المزامنة التلقائية من تحديثات المتجر كل 15 دقيقة.'));
+          if(!connection.syncEnabled)add(card,'p',connection.provider==='woocommerce'?t('To import the remaining store data, click “Revalidate WooCommerce key” below and verify a read-only key. The sync button will appear as soon as the key is valid.','لاستيراد بقية بيانات المتجر، اضغط «إعادة التحقق من مفتاح WooCommerce» أدناه وتحقق من مفتاح للقراءة فقط. سيظهر زر المزامنة فور التحقق من المفتاح.'):t('Credential check required. Automatic and manual sync are paused until you reconnect and verify fresh store credentials.','يلزم التحقق من بيانات الاتصال. أوقفت المزامنة اليدوية والتلقائية حتى تعيد الربط وتتحقق من بيانات حديثة.'));
+          else add(card,'p',connection.provider==='woocommerce'?t('Click “Sync missing products, orders & customers” below to import missing records and update matching records from WooCommerce. The same store items are reconciled to avoid duplicates. Product images are included. Automatic polling continues every 15 minutes; configure signed webhooks for near-real-time updates.','اضغط «مزامنة المنتجات والطلبات والعملاء الناقصة» أدناه لاستيراد السجلات الناقصة وتحديث السجلات المطابقة من WooCommerce. تتم مطابقة العنصر نفسه لتجنب التكرار. يشمل ذلك صور المنتجات. تستمر المزامنة التلقائية كل 15 دقيقة؛ وللتحديث شبه الفوري أعدّ Webhooks موقّعة.'):t('Automatic store reconciliation checks for updates every 15 minutes.','تتحقق المزامنة التلقائية من تحديثات المتجر كل 15 دقيقة.'));
 
           const progress=connection.syncProgress?.resources||{};
           const progressPanel=add(card,'section');progressPanel.className='sx-retail-store-progress';
@@ -637,10 +637,11 @@
             const item=progress[resource];if(!item)continue;
             const row=add(progressGrid,'div');row.className='sx-retail-store-progress-item';
             const label=add(row,'strong',t(resource==='products'?'Products':resource==='orders'?'Orders':'Customers',resource==='products'?'المنتجات':resource==='orders'?'الطلبات':'العملاء'));
-            add(row,'span',item.complete?t('Complete','مكتمل'):t('In progress','قيد التنفيذ')).className='sx-retail-store-progress-state';
+            const waitingForKey=!connection.syncEnabled&&!item.complete;
+            add(row,'span',item.complete?t('Complete','مكتمل'):waitingForKey?t('Waiting for key','بانتظار المفتاح'):t('In progress','قيد التنفيذ')).className='sx-retail-store-progress-state';
             if(item.sourceTotal!==null&&item.sourceTotal!==undefined)
-              add(row,'small',numberFormat(item.scanned)+' / '+numberFormat(item.sourceTotal)+' '+t('scanned','تم فحصه')+' · '+t('page','صفحة')+' '+numberFormat(item.page||1));
-            else add(row,'small',item.complete?t('Latest import finished','اكتمل آخر استيراد'):t('Waiting for the next sync','بانتظار المزامنة التالية'));
+              add(row,'small',numberFormat(item.scanned)+' / '+numberFormat(item.sourceTotal)+' '+t('scanned','تم فحصه')+' · '+t('page','صفحة')+' '+numberFormat(item.page||1)+(waitingForKey?' · '+t('Paused until key verification','متوقفة حتى التحقق من المفتاح'):''));
+            else add(row,'small',item.complete?t('Latest import finished','اكتمل آخر استيراد'):waitingForKey?t('Verify the key to continue this import.','تحقق من المفتاح لمتابعة الاستيراد.'):t('Waiting for the next sync','بانتظار المزامنة التالية'));
           }
 
           const actions=add(card,'div');actions.className='sx-retail-connector-actions';
@@ -648,7 +649,7 @@
             const revalidate=add(actions,'button',t('Revalidate WooCommerce key','إعادة التحقق من مفتاح WooCommerce'));revalidate.type='button';
             revalidate.onclick=()=>{wooUrl.value=connection.storeDomain||'';wooDisplay.value=connection.displayName||'';wooCurrency.value=connection.currency||'QAR';connectDetails.open=true;connectDetails.scrollIntoView({behavior:'smooth',block:'center'});wooKey.focus({preventScroll:true});};
           }
-          if(connection.syncEnabled)action(actions,t('Sync all remaining pages','مزامنة كل الصفحات المتبقية'),async()=>{
+          if(connection.syncEnabled)action(actions,t('Sync missing products, orders & customers','مزامنة المنتجات والطلبات والعملاء الناقصة'),async()=>{
             const connectionId=encodeURIComponent(connection.id),maxPasses=20;let result=null,passes=0,complete=false;
             for(;passes<maxPasses;passes++){
               result=await api('/connectors/'+connectionId+'/sync','POST',{});
@@ -678,7 +679,7 @@
                 (pendingImages?' · '+numberFormat(pendingImages)+' '+t('images remain for the automatic sync','صور ستستكمل في المزامنة التلقائية'):'')+
                 (imageBatches>=25&&pendingImages?t(' · More images will continue automatically every 15 minutes.',' · ستستكمل الصور تلقائياً كل 15 دقيقة.'):'')+
                 (imageBackfillError?t(' · Image import needs attention; the scheduled sync will retry.',' · يحتاج استيراد الصور إلى مراجعة؛ ستعيد المزامنة المجدولة المحاولة.'):'');
-              return t('All available store pages are imported and reconciled. ','اكتمل استيراد صفحات المتجر المتاحة ومطابقتها. ')+
+              return t('All available products, orders, customers and images are synced. ','اكتملت مزامنة المنتجات والطلبات والعملاء الناقصة والصور المتاحة. ')+
                 (resources||t('No new records.','لا توجد سجلات جديدة.'))+imageSummary;
             }
             return (result?.resources&&Object.values(result.resources).some(item=>item.errorCode)?t('Sync paused after a provider error. Review the status above. ','توقفت المزامنة بعد خطأ من المزوّد. راجع الحالة أعلاه. '):t('Saved progress after ','تم حفظ التقدم بعد ')+passes+' '+t('passes. More pages remain; sync will continue automatically every 15 minutes. ','دفعات. ما زالت صفحات أخرى؛ ستستمر المزامنة تلقائياً كل 15 دقيقة. '))+(resources||'');
