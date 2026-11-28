@@ -175,21 +175,25 @@ function normalizeProduct(provider, row) {
     .find(value => value !== null && value !== undefined && String(value).trim() !== '');
   const price = sourcePrice ?? '0';
   const cur = row.currency || first.currency || first.currencyCode || row.priceRangeV2?.minVariantPrice?.currencyCode || row.currencyCode || 'QAR';
-  const sourceImage = provider === 'woocommerce' ? row.images?.[0]?.src : row.featuredImage?.url || row.image?.src;
-  let imageUrl = null;
-  try {
-    const image = new URL(sourceImage);
-    const host = image.hostname.toLowerCase().replace(/\.$/, '');
-    if (image.protocol === 'https:' && !image.username && !image.password && !image.port && !net.isIP(host) &&
+  const sourceImages = provider === 'woocommerce'
+    ? (Array.isArray(row.images) ? row.images.map(image => image?.src) : [])
+    : [...nodes(row.media).map(item => item?.image?.url || item?.preview?.image?.url),
+      ...nodes(row.images).map(item => item?.url || item?.src), row.featuredImage?.url, row.image?.src];
+  const imageUrls = [...new Set(sourceImages.map(sourceImage => {
+    try {
+      const image = new URL(sourceImage), host = image.hostname.toLowerCase().replace(/\.$/, '');
+      return image.protocol === 'https:' && !image.username && !image.password && !image.port && !net.isIP(host) &&
         !['localhost','local','internal','test','invalid','example','home','lan','onion'].some(suffix => host === suffix || host.endsWith(`.${suffix}`)) &&
-        host.split('.').length >= 2) imageUrl = image.toString();
-  } catch { /* Image previews are optional; malformed or private URLs are omitted. */ }
+        host.split('.').length >= 2 ? image.toString() : null;
+    } catch { return null; }
+  }).filter(Boolean))].slice(0, 12);
+  const imageUrl = imageUrls[0] || null;
   const managementMode = stockManagementMode(provider === 'woocommerce' ? row.manage_stock : undefined);
   return { id, title: String(row.name || row.title || row.handle || id).slice(0, 255),
     sku: String(row.sku || (provider === 'woocommerce' ? first.sku : '') || '').slice(0, 100) || null,
     productType: provider === 'woocommerce' ? String(row.type || 'unknown').toLowerCase().slice(0, 32) : String(row.productType || 'unknown').toLowerCase().slice(0, 32),
     status: String(row.status || 'unknown').toLowerCase().slice(0, 32), currency: currency(cur), price: safeAmount(price),
-    imageUrl, descriptionEn: nativeImports.plainText(row.description || row.body_html || row.bodyHtml || '', 5000),
+    imageUrl, imageUrls, descriptionEn: nativeImports.plainText(row.description || row.body_html || row.bodyHtml || '', 5000),
     variants, variationCount: provider === 'woocommerce' && Array.isArray(row.variations) ? row.variations.length :
       provider === 'shopify' && Number.isSafeInteger(Number(row.variantsCount?.count)) ? Number(row.variantsCount.count) : variants.length,
     priceUnavailable: provider === 'woocommerce' && sourcePrice == null && Array.isArray(row.variations) && row.variations.length > 0,

@@ -172,3 +172,23 @@ test('imported Retail orders reject local fulfilment transitions', async () => {
   assert.equal(queries.length, 1);
   assert.match(queries[0], /external_source_connection_id AS externalSourceConnectionId/);
 });
+
+
+test('WooCommerce and Shopify product normalization retain ordered image galleries capped at twelve', () => {
+  const wooImages = Array.from({ length: 14 }, (_, index) => ({ src: `https://cdn.store.qa/product-${index}.jpg` }));
+  const woo = connector.normalizeProduct('woocommerce', { id: '101', name: 'Linen shirt', images: wooImages });
+  assert.equal(woo.imageUrls.length, 12);
+  assert.deepEqual(woo.imageUrls, wooImages.slice(0, 12).map(image => image.src));
+  assert.equal(woo.imageUrl, woo.imageUrls[0]);
+
+  const shopifyImages = Array.from({ length: 14 }, (_, index) => ({
+    image: { url: `https://cdn.store.qa/shopify-${index}.jpg`, altText: `View ${index}` },
+  }));
+  const shopify = connector.normalizeProduct('shopify', {
+    id: 'gid://shopify/Product/101', title: 'Linen shirt', media: { nodes: shopifyImages },
+  });
+  assert.equal(shopify.imageUrls.length, 12);
+  assert.deepEqual(shopify.imageUrls, shopifyImages.slice(0, 12).map(image => image.image.url));
+  assert.equal(shopify.imageUrl, shopify.imageUrls[0]);
+  assert.match(shopifySync.compactShopifyQueries().products, /media\(first: 12\)/);
+});

@@ -77,45 +77,85 @@ async function pendingCounts(db, connection) {
     LEFT JOIN sx_retail_orders o ON o.tenant_id=e.tenant_id AND o.external_source_connection_id=e.connection_id
       AND o.external_source_order_id=e.external_order_id
     WHERE e.tenant_id=? AND e.connection_id=? AND e.order_ciphertext IS NOT NULL AND o.id IS NULL`, [connection.tenant_id, connection.id]);
-  const [[images]] = await db.query(`SELECT COUNT(*) AS n FROM sx_retail_external_products p
-    JOIN sx_retail_catalogue_imports i ON i.tenant_id=p.tenant_id AND i.connection_id=p.connection_id
-      AND i.external_product_id=p.external_product_id AND i.external_variant_id=''
-    LEFT JOIN sx_retail_catalogue_import_media m ON m.tenant_id=i.tenant_id AND m.connection_id=i.connection_id
-      AND m.external_product_id=i.external_product_id
-    WHERE p.tenant_id=? AND p.connection_id=? AND p.product_status<>'deleted' AND p.product_ciphertext IS NOT NULL
-      AND (m.external_product_id IS NULL OR m.image_state='pending' OR
-        (m.image_state='failed' AND (m.retry_after IS NULL OR m.retry_after<=UTC_TIMESTAMP(3))))`, [connection.tenant_id, connection.id]);
+  const [[images]] = await db.query(`SELECT
+      (SELECT COUNT(*) FROM sx_retail_catalogue_import_images m
+        JOIN sx_retail_external_products p ON p.tenant_id=m.tenant_id AND p.connection_id=m.connection_id
+          AND p.external_product_id=m.external_product_id
+        WHERE m.tenant_id=? AND m.connection_id=? AND m.image_index<12
+          AND p.product_status<>'deleted' AND p.product_ciphertext IS NOT NULL
+          AND (m.image_state='pending' OR
+            (m.image_state='failed' AND (m.retry_after IS NULL OR m.retry_after<=UTC_TIMESTAMP(3)))))
+      +
+      (SELECT COUNT(*) FROM sx_retail_external_products p
+        JOIN sx_retail_catalogue_imports i ON i.tenant_id=p.tenant_id AND i.connection_id=p.connection_id
+          AND i.external_product_id=p.external_product_id AND i.external_variant_id=''
+        LEFT JOIN sx_retail_catalogue_import_images marker ON marker.tenant_id=i.tenant_id
+          AND marker.connection_id=i.connection_id AND marker.external_product_id=i.external_product_id AND marker.image_index=255
+        WHERE p.tenant_id=? AND p.connection_id=? AND p.product_status<>'deleted'
+          AND p.product_ciphertext IS NOT NULL AND marker.external_product_id IS NULL) AS n`,
+  [connection.tenant_id, connection.id, connection.tenant_id, connection.id]);
   return { products: Number(products?.n || 0), variants: Number(variants?.n || 0), customers: Number(customers?.n || 0),
     orders: Number(orders?.n || 0), images: Number(images?.n || 0) };
 }
 
-async function backfillProductImages(pool, connection, { limit, result, cryptoConnector, imports }) {
-  if (typeof imports?.importProductImage !== 'function') return;
+async function seedMissingProductGalleries(pool, connection, { limit, result, cryptoConnector }) {
+  const mediaImports = require('./retail-product-media-imports');
   const [rows] = await pool.query(`SELECT p.external_product_id AS externalProductId,p.product_ciphertext AS ciphertext,
       p.product_iv AS iv,p.product_auth_tag AS authTag,i.product_id AS productId
     FROM sx_retail_external_products p JOIN sx_retail_catalogue_imports i
       ON i.tenant_id=p.tenant_id AND i.connection_id=p.connection_id AND i.external_product_id=p.external_product_id AND i.external_variant_id=''
-    LEFT JOIN sx_retail_catalogue_import_media m ON m.tenant_id=i.tenant_id AND m.connection_id=i.connection_id
-      AND m.external_product_id=i.external_product_id
+    LEFT JOIN sx_retail_catalogue_import_images marker ON marker.tenant_id=i.tenant_id
+      AND marker.connection_id=i.connection_id AND marker.external_product_id=i.external_product_id AND marker.image_index=255
     WHERE p.tenant_id=? AND p.connection_id=? AND p.product_status<>'deleted' AND p.product_ciphertext IS NOT NULL
-      AND (m.external_product_id IS NULL OR m.image_state='pending' OR
-        (m.image_state='failed' AND (m.retry_after IS NULL OR m.retry_after<=UTC_TIMESTAMP(3))))
+      AND marker.external_product_id IS NULL
     ORDER BY p.external_product_id LIMIT ?`, [connection.tenant_id, connection.id, limit]);
   for (const row of rows) {
-    let imageUrl = null;
     try {
       const product = cryptoConnector.openJson(row, connection.tenant_id, connection.id, `product:${row.externalProductId}`);
-      imageUrl = product.imageUrl || null;
-      await imports.importProductImage(pool, connection, row.externalProductId, row.productId, imageUrl);
-      result.images++;
+      const imageUrls = Array.isArray(product.imageUrls) ? product.imageUrls : product.imageUrl ? [product.imageUrl] : [];
+      await mediaImports.queueImages(pool, connection, row.externalProductId, row.productId, imageUrls);
     } catch (error) {
       result.failed++;
-      await require('./retail-product-media-imports').markFailure(pool, connection, row.externalProductId, row.productId, imageUrl, error);
+      await mediaImports.markGallerySourceError(pool, connection, row.externalProductId, row.productId, error);
       if (result.failures.length < 20) result.failures.push({ source: 'image', code: safeCode(error) });
     }
   }
 }
 
+async function backfillProductImages(pool, connection, { limit, result, cryptoConnector, imports }) {
+  if (typeof imports?.importProductImage !== 'function') return;
+  await seedMissingProductGalleries(pool, connection, { limit, result, cryptoConnector });
+  const [rows] = await pool.query(`SELECT p.external_product_id AS externalProductId,p.product_ciphertext AS ciphertext,
+      p.product_iv AS iv,p.product_auth_tag AS authTag,i.product_id AS productId,m.image_index AS imageIndex
+    FROM sx_retail_external_products p JOIN sx_retail_catalogue_imports i
+      ON i.tenant_id=p.tenant_id AND i.connection_id=p.connection_id AND i.external_product_id=p.external_product_id AND i.external_variant_id=''
+    JOIN sx_retail_catalogue_import_images m ON m.tenant_id=i.tenant_id AND m.connection_id=i.connection_id
+      AND m.external_product_id=i.external_product_id AND m.product_id=i.product_id
+    WHERE p.tenant_id=? AND p.connection_id=? AND p.product_status<>'deleted' AND p.product_ciphertext IS NOT NULL
+      AND m.image_index<12 AND (m.image_state='pending' OR
+        (m.image_state='failed' AND (m.retry_after IS NULL OR m.retry_after<=UTC_TIMESTAMP(3))))
+    ORDER BY p.external_product_id,m.image_index LIMIT ?`, [connection.tenant_id, connection.id, limit]);
+  for (const row of rows) {
+    let imageUrl = null;
+    const imageIndex = Number(row.imageIndex);
+    try {
+      const product = cryptoConnector.openJson(row, connection.tenant_id, connection.id, `product:${row.externalProductId}`);
+      const images = Array.isArray(product.imageUrls) ? product.imageUrls : product.imageUrl ? [product.imageUrl] : [];
+      imageUrl = images[imageIndex] || null;
+      if (imageUrl) await imports.importProductImage(pool, connection, row.externalProductId, row.productId, imageUrl, imageIndex);
+      else {
+        const mediaImports = require('./retail-product-media-imports');
+        await mediaImports.queueGalleryIndex(pool, connection, row.externalProductId, row.productId, imageIndex, null);
+        if (imageIndex === 0) await mediaImports.queue(pool, connection, row.externalProductId, row.productId, null);
+      }
+      result.images++;
+    } catch (error) {
+      result.failed++;
+      await require('./retail-product-media-imports').markFailure(pool, connection, row.externalProductId, row.productId, imageUrl, error, imageIndex);
+      if (result.failures.length < 20) result.failures.push({ source: 'image', code: safeCode(error) });
+    }
+  }
+}
 async function backfillProductImagesOnly(pool, connection, { limit = 25, dependencies = {} } = {}) {
   validLimit(limit);
   const result = { images: 0, failed: 0, failures: [] };
