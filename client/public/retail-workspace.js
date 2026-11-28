@@ -626,7 +626,9 @@
           };
           metric(t('Orders','الطلبات'),counts.orders,t('Imported to account','مستورد إلى الحساب'));
           metric(t('Products','المنتجات'),counts.products,t('Imported to Products & services','مستورد إلى المنتجات والخدمات'));
-          metric(t('Customers','العملاء'),counts.customers,t('Imported to Customers','مستورد إلى العملاء'));
+          metric(t('Customers','العملاء'),counts.customers,connection.provider==='woocommerce'
+            ?t('Woo customer records, including guests; matching emails share one profile','سجلات عملاء Woo، بما فيها الضيوف؛ عناوين البريد المتطابقة تشترك في ملف واحد')
+            :t('Imported to Customers','مستورد إلى العملاء'));
           metric(t('Variants','المتغيرات'),counts.variations,t('Imported from the store','مستورد من المتجر'));
           metric(t('Abandoned checkouts','السلات المتروكة'),counts.checkouts,t('Imported from the store','مستورد من المتجر'));
           if(connection.provider==='woocommerce')metric(t('Inventory mappings','روابط المخزون'),counts.mappings,t('Woo to 7Network SKU links','روابط SKU بين Woo و7Network'));

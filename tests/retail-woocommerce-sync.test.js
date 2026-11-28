@@ -154,7 +154,7 @@ test('Woo sync paginates resources, retries transient GET failures, and imports 
   const creds = connector.seal({consumerKey: 'ck_' + 'A'.repeat(32), consumerSecret: 'cs_' + 'B'.repeat(32)}, tenantId, connectionId, 'credentials');
   const connection = {id: connectionId, tenant_id: tenantId, provider: 'woocommerce', status: 'active',
     credentials_verified_at: new Date('2026-11-15T09:00:00Z'), default_currency: 'QAR',
-    store_domain: 'https://store.example.com', sync_cursor: null, credentials_ciphertext: creds.ciphertext,
+    store_domain: 'https://store.example.com', sync_cursor: JSON.stringify({woocommerce:{customers:{page:4,complete:false,sourceTotal:178,scanned:150}}}), credentials_ciphertext: creds.ciphertext,
     credentials_iv: creds.iv, credentials_auth_tag: creds.authTag};
   const requests = [], writes = [];
   let networkRetryInjected=false,httpRetryInjected=false;
@@ -175,8 +175,12 @@ test('Woo sync paginates resources, retries transient GET failures, and imports 
       line_items: [{id: 1, product_id: 100, variation_id: 101, sku: 'LINEN-M', name: 'Linen M', quantity: '1', subtotal: '20.00', total: '20.00', total_tax: '0.00'}]}];
     else if (pathname.endsWith('/orders')) rows = [{id: 901, status: 'processing', currency: 'QAR', total: '5.00', subtotal: '5.00',
       discount_total: '0.00', shipping_total: '0.00', total_tax: '0.00', fee_lines: [], refunds: [], date_modified_gmt: '2026-11-15T11:00:00', line_items: []}];
-    else if (pathname.endsWith('/customers') && page === 1) rows = [{id: 5, email: 'pilot@example.invalid', first_name: 'Synthetic', date_modified_gmt: '2026-11-15T10:00:00'}];
-    else if (pathname.endsWith('/customers')) rows = [{id: 6, email: 'second@example.invalid', first_name: 'Synthetic Two', date_modified_gmt: '2026-11-15T11:00:00'}];
+    else if (pathname.endsWith('/wc-analytics/reports/customers') && page === 1) rows = [{id: 500, user_id: 5, email: 'pilot@example.invalid',
+      first_name: 'Synthetic', last_name: 'Registered', billing_phone: '+97400000001', country: 'QA', city: 'Doha', postcode: '00000',
+      date_registered: '2026-01-01T00:00:00'}];
+    else if (pathname.endsWith('/wc-analytics/reports/customers')) rows = [{id: 950, user_id: 0, email: 'second@example.invalid',
+      first_name: 'Synthetic Two', last_name: 'Guest', shipping_phone: '+97400000002', country: 'QA', city: 'Doha',
+      date_registered: '2026-02-01T00:00:00'}];
     else throw new Error('Unexpected Woo request: ' + pathname);
     const paged = !pathname.endsWith('/products/100/variations');
     return {status: 200, headers: {'x-wp-totalpages': paged ? '2' : '1', 'x-wp-total': paged ? '2' : String(rows.length)}, data: rows};
@@ -204,12 +208,46 @@ test('Woo sync paginates resources, retries transient GET failures, and imports 
     assert.equal(second.resources.orders.sourceTotal, 2);
     assert.equal(second.resources.customers.sourceTotal, 2);
     assert.equal(second.resources.orders.scanned, 2);
+    const legacyCustomerCursorWasReset = requests.some(request => {
+      const url = new URL(request.url);
+      return url.pathname.endsWith('/wc-analytics/reports/customers') && url.searchParams.get('page') === '1';
+    });
+    assert.equal(legacyCustomerCursorWasReset, true);
+    const customerWrites = writes.filter(write => write.sql.startsWith('INSERT INTO sx_retail_external_customers'));
+    assert.deepEqual(customerWrites.slice(0, 2).map(write => write.params[2]), ['5', 'analytics:950']);
+    const registeredCustomer = connector.openJson({ciphertext:customerWrites[0].params[3],iv:customerWrites[0].params[4],authTag:customerWrites[0].params[5]},
+      tenantId, connectionId, 'customer:5');
+    const guestCustomer = connector.openJson({ciphertext:customerWrites[1].params[3],iv:customerWrites[1].params[4],authTag:customerWrites[1].params[5]},
+      tenantId, connectionId, 'customer:analytics:950');
+    assert.equal(registeredCustomer.phone, '+97400000001');
+    assert.equal(registeredCustomer.address.city, 'Doha');
+    assert.equal(guestCustomer.phone, '+97400000002');
+    const customerRequests = requests.filter(request => new URL(request.url).pathname.endsWith('/wc-analytics/reports/customers'));
+    assert.ok(customerRequests.every(request => {
+      const url = new URL(request.url);
+      return url.searchParams.get('orderby') === 'date_registered' && url.searchParams.get('order') === 'asc';
+    }));
+    assert.equal(requests.filter(request => new URL(request.url).pathname.endsWith('/wc/v3/customers')).length, 0);
     assert.ok(requests.length >= 7);
     assert.ok(requests.every(request => request.method === 'GET'));
-    assert.equal(requests.filter(request=>new URL(request.url).pathname.endsWith('/products')&&new URL(request.url).searchParams.get('page')==='1').length,2);
-    assert.equal(requests.filter(request=>new URL(request.url).pathname.endsWith('/orders')&&new URL(request.url).searchParams.get('page')==='1').length,2);
+    assert.ok(requests.filter(request=>new URL(request.url).pathname.endsWith('/products')&&new URL(request.url).searchParams.get('page')==='1').length >= 2);
+    assert.ok(requests.filter(request=>new URL(request.url).pathname.endsWith('/orders')&&new URL(request.url).searchParams.get('page')==='1').length >= 2);
     assert.ok(requests.some(request => new URL(request.url).pathname.endsWith('/products/100/variations')));
     assert.ok(requests.some(request => new URL(request.url).searchParams.get('page') === '2'));
+
+    connection.sync_cursor = pool.cursor;
+    const nextScanFirstPage = await syncWoo(pool, connection);
+    assert.equal(nextScanFirstPage.complete, false);
+    connection.sync_cursor = pool.cursor;
+    const nextScanSecondPage = await syncWoo(pool, connection);
+    assert.equal(nextScanSecondPage.complete, true);
+    const customerPageCounts = requests.filter(request => new URL(request.url).pathname.endsWith('/wc-analytics/reports/customers'))
+      .reduce((counts, request) => {
+        const page = new URL(request.url).searchParams.get('page');
+        counts[page] = (counts[page] || 0) + 1;
+        return counts;
+      }, {});
+    assert.deepEqual(customerPageCounts, {'1':2,'2':2});
     assert.ok(requests.filter(request => /\/products(?:\/\d+\/variations)?$/.test(new URL(request.url).pathname) || /\/orders$/.test(new URL(request.url).pathname))
       .every(request => new URL(request.url).searchParams.get('status') === 'any'));
     assert.ok(writes.some(write => write.sql.includes('external_variant_id')));
@@ -228,6 +266,9 @@ test('Woo sync paginates resources, retries transient GET failures, and imports 
     const cursor = JSON.parse(pool.cursor).woocommerce;
     assert.equal(cursor.lastCompleteScan.sourceCounts.orders.total, 2);
     assert.equal(cursor.lastCompleteScan.queryScope.products.status, 'any');
+    assert.deepEqual(cursor.lastCompleteScan.queryScope.customers, {source:'wc-analytics/reports/customers', userTypes:'registered and guest',
+      orderby:'date_registered', order:'asc'});
+    assert.equal(cursor.customers.source, 'wc-analytics-customers-v1');
     assert.equal(cursor.lastCompleteScan.orderAmounts['QAR|processing|unknown'].total, '25.000000');
   } finally {
     connector.requestHttps = originalRequest;

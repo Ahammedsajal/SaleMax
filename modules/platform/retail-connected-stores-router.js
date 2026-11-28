@@ -267,24 +267,13 @@ function wooRetryDelayMs(headers,attempt){
   }
   return Math.min(1000,250*(2**attempt));
 }
-async function wooApi(connection, resource, query = {}) {
-  let resourcePath = resource;
-  const params = { ...query };
-  if (resource === 'variations') {
-    const parentId = String(params.productId || '');
-    if (!/^\d{1,191}$/.test(parentId)) fail('INVALID_STORE_RESOURCE', 400);
-    resourcePath = `products/${encodeURIComponent(parentId)}/variations`;
-    delete params.productId;
-  } else if (!['orders','customers','products'].includes(resource)) fail('INVALID_STORE_RESOURCE', 400);
+async function wooRequest(connection, apiUrl) {
   const { key, secret } = wooCredentials(connection);
-  const base = new URL(connection.store_domain);
-  const apiUrl = new URL(`${base.pathname.replace(/\/$/, '')}/wp-json/wc/v3/${resourcePath}`, base.origin);
-  for (const [name, value] of Object.entries(params)) apiUrl.searchParams.set(name, String(value));
   let response;
   for (let attempt = 0; attempt < 3; attempt++) {
     try{
       response = await connector.requestHttps(apiUrl.toString(), {
-        headers: { Authorization: `Basic ${Buffer.from(`${key}:${secret}`).toString('base64')}`, Accept: 'application/json' },
+        headers: { Authorization: 'Basic ' + Buffer.from(key + ':' + secret).toString('base64'), Accept: 'application/json' },
       });
     }catch(error){
       if(attempt===2||!RETRYABLE_WOO_ERROR_CODES.has(String(error?.code||'')))throw error;
@@ -302,6 +291,47 @@ async function wooApi(connection, resource, query = {}) {
   const totalPages = Number(response.headers['x-wp-totalpages']), total = Number(response.headers['x-wp-total']);
   return { rows: response.data, totalPages: Number.isSafeInteger(totalPages) && totalPages > 0 ? totalPages : 1,
     total: Number.isSafeInteger(total) && total >= 0 ? total : null };
+}
+async function wooApi(connection, resource, query = {}) {
+  let resourcePath = resource;
+  const params = { ...query };
+  if (resource === 'variations') {
+    const parentId = String(params.productId || '');
+    if (!/^\d{1,191}$/.test(parentId)) fail('INVALID_STORE_RESOURCE', 400);
+    resourcePath = 'products/' + encodeURIComponent(parentId) + '/variations';
+    delete params.productId;
+  } else if (!['orders','customers','products'].includes(resource)) fail('INVALID_STORE_RESOURCE', 400);
+  const base = new URL(connection.store_domain);
+  const apiUrl = new URL(base.pathname.replace(/\/$/, '') + '/wp-json/wc/v3/' + resourcePath, base.origin);
+  for (const [name, value] of Object.entries(params)) apiUrl.searchParams.set(name, String(value));
+  return wooRequest(connection, apiUrl);
+}
+const WOO_ANALYTICS_CUSTOMER_SOURCE = 'wc-analytics-customers-v1';
+async function wooAnalyticsCustomersApi(connection, query = {}) {
+  const base = new URL(connection.store_domain);
+  const apiUrl = new URL(base.pathname.replace(/\/$/, '') + '/wp-json/wc-analytics/reports/customers', base.origin);
+  for (const [name, value] of Object.entries(query)) apiUrl.searchParams.set(name, String(value));
+  return wooRequest(connection, apiUrl);
+}
+function normalizeWooAnalyticsCustomer(row) {
+  if (!row || typeof row !== 'object' || Array.isArray(row)) fail('INVALID_PROVIDER_CUSTOMER', 422);
+  const reportId = String(row.id ?? '').trim();
+  if (!/^\d{1,191}$/.test(reportId) || Number(reportId) < 1) fail('INVALID_PROVIDER_CUSTOMER', 422);
+  const userIdText = row.user_id == null || row.user_id === '' ? '0' : String(row.user_id).trim();
+  if (!/^\d{1,191}$/.test(userIdText)) fail('INVALID_PROVIDER_CUSTOMER', 422);
+  const userId = Number(userIdText);
+  if (!Number.isSafeInteger(userId)) fail('INVALID_PROVIDER_CUSTOMER', 422);
+  const id = userId > 0 ? userIdText : 'analytics:' + reportId;
+  const field = (value, limit) => typeof value === 'string' ? value.trim().slice(0, limit) || null : null;
+  const email = field(row.email, 320);
+  const phone = field(row.billing_phone, 64) || field(row.shipping_phone, 64);
+  const firstName = field(row.first_name, 191);
+  const lastName = field(row.last_name, 191);
+  const billing = {
+    email, phone, first_name: firstName, last_name: lastName,
+    country: field(row.country, 64), city: field(row.city, 191), state: field(row.state, 191), postcode: field(row.postcode, 32),
+  };
+  return { id, email, phone, first_name: firstName, last_name: lastName, billing };
 }
 async function verifyWooConnection(base, key, secret) {
   const url = new URL(`${new URL(base).pathname.replace(/\/$/, '')}/wp-json/wc/v3/orders?per_page=1&orderby=id&order=desc`, new URL(base).origin);
@@ -323,9 +353,15 @@ async function syncWoo(pool, connection) {
   const local = cursorState(connection), next = structuredClone(local.woocommerce || {}), result = {};
   try {
     const resources = ['products','orders','customers'];
+    if (next.customers?.source !== WOO_ANALYTICS_CUSTOMER_SOURCE) {
+      next.customers = { page: 1, complete: false, sourceTotal: null, scanned: 0, source: WOO_ANALYTICS_CUSTOMER_SOURCE };
+    }
     if (resources.every(resource => next[resource]?.complete) && !(next.variationQueue || []).length) {
       const lastCompleteScan = next.lastCompleteScan || null;
-      for (const resource of resources) next[resource] = { page: 1, complete: false, sourceTotal: null, scanned: 0 };
+      for (const resource of resources) {
+        const source = next[resource]?.source;
+        next[resource] = { page: 1, complete: false, sourceTotal: null, scanned: 0, ...(source ? { source } : {}) };
+      }
       next.variationQueue = [];
       next.scanStartedAt = new Date().toISOString();
       next.lastCompleteScan = lastCompleteScan;
@@ -346,8 +382,10 @@ async function syncWoo(pool, connection) {
       }
       const page = Math.max(1, Number(state.page) || 1);
       if (page > 10000) fail('WOOCOMMERCE_PAGE_LIMIT_REACHED', 413);
-      const data = await wooApi(connection, resource, { per_page: 50, page, orderby: 'id', order: 'asc',
-        ...(resource === 'products' || resource === 'orders' ? { status: 'any' } : {}) });
+      const data = resource === 'customers'
+        ? await wooAnalyticsCustomersApi(connection, { per_page: 50, page, orderby: 'date_registered', order: 'asc' })
+        : await wooApi(connection, resource, { per_page: 50, page, orderby: 'id', order: 'asc',
+          ...(resource === 'products' || resource === 'orders' ? { status: 'any' } : {}) });
       const hasMore = page < data.totalPages;
       const sourceChanged = state.sourceTotal != null && data.total != null && Number(state.sourceTotal) !== data.total;
       state.page = hasMore ? page + 1 : page;
@@ -384,7 +422,7 @@ async function syncWoo(pool, connection) {
               next.variationQueue.push({ productId: String(row.id), page: 1 });
             }
           }
-          if (resource === 'customers') await connector.upsertCustomer(writer, connection, row);
+          if (resource === 'customers') await connector.upsertCustomer(writer, connection, normalizeWooAnalyticsCustomer(row));
           if (resource === 'orders') {
             if (Number(row.customer_id) > 0) await connector.upsertCustomer(writer, connection, { ...row.billing, id: row.customer_id, billing: row.billing, updated_at: row.date_modified_gmt });
             await connector.upsertOrder(writer, connection, row);
@@ -416,7 +454,7 @@ async function syncWoo(pool, connection) {
     result.variations = { imported: variationsImported, hasMore: next.variationQueue.length > 0, pendingParents: next.variationQueue.length };
     const complete = resources.every(resource => next[resource].complete) && next.variationQueue.length === 0;
     if (complete) next.lastCompleteScan = { startedAt: next.scanStartedAt, completedAt: new Date().toISOString(),
-      queryScope: { products: { status: 'any' }, variations: { status: 'any' }, orders: { status: 'any' }, customers: 'all API-visible customers' },
+      queryScope: { products: { status: 'any' }, variations: { status: 'any' }, orders: { status: 'any' }, customers: { source: 'wc-analytics/reports/customers', userTypes: 'registered and guest', orderby: 'date_registered', order: 'asc' } },
       sourceCounts: Object.fromEntries(resources.map(resource => [resource, { total: next[resource].sourceTotal, scanned: next[resource].scanned,
         sourceChangedDuringScan: Boolean(next[resource].sourceChangedDuringScan) }])),
       sourceVariationCount: next.products.variationSourceTotal || 0, orderAmounts: next.orders.amounts || {} };
