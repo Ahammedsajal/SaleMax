@@ -23,9 +23,9 @@ FILES = ('modules/platform/chatbot-business-context.js',
          'modules/platform/chatbot-turn-understanding.js')
 HELPER = 'deploy/pro-catalyst-contextual-course-answer-release.py'
 EXPECTED_PREIMAGES = {
-    'modules/platform/chatbot-business-context.js': '8dc53cbca0c0f06cb800a8155972d5ca781ce3069a3c369c9981b957e7e9bbb8',
-    'modules/platform/chatbot-runtime.js': '5f83e5c1d00018909b878b6139e331c8f99c87bc6bdaa549e687d28a41815f9f',
-    'modules/platform/chatbot-turn-understanding.js': 'fdb7a47f45ab7fb8b4c2da2d66c1b273f6597455e9e85369b7ef017c597598bd',
+    'modules/platform/chatbot-business-context.js': 'f0f343518a4bbb51786e5aefebd81fed013cafb98efa67f6c4941e4cd5350165',
+    'modules/platform/chatbot-runtime.js': 'e2927b4691ea95951a944a5847bd97e348ef3c979d9c242aa0560fafd7f822aa',
+    'modules/platform/chatbot-turn-understanding.js': 'b340d008a4b3a88d7247efb86204697bf1aa74a9ad2a5c89ddb241c1765592b1',
 }
 MINIMUM_FREE_BYTES = 4 * 1024**3
 
