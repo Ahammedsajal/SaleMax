@@ -69,10 +69,29 @@ async function queueImages(db, connection, externalProductId, productId, imageUr
     safeImages.map((imageUrl, imageIndex) => ({ imageIndex, imageUrl })));
   await db.query(`UPDATE sx_retail_catalogue_import_images SET image_state='none',image_url_hash=NULL,
       retry_after=NULL,last_error_code=NULL,updated_at=UTC_TIMESTAMP(3)
-    WHERE tenant_id=? AND connection_id=? AND external_product_id=? AND image_index>=?`,
+    WHERE tenant_id=? AND connection_id=? AND external_product_id=? AND image_index<12 AND image_index>=?`,
   [connection.tenant_id, connection.id, externalProductId, safeImages.length]);
+  const galleryHash = sha256(JSON.stringify(safeImages));
+  await db.query(`INSERT INTO sx_retail_catalogue_import_images
+      (tenant_id,connection_id,external_product_id,image_index,product_id,image_media_id,image_url_hash,image_state)
+    VALUES (?,?,?,255,?,NULL,?,'none') ON DUPLICATE KEY UPDATE
+      product_id=VALUES(product_id),image_media_id=NULL,image_url_hash=VALUES(image_url_hash),image_state='none',
+      attempt_count=0,retry_after=NULL,last_error_code=NULL,updated_at=UTC_TIMESTAMP(3)`,
+  [connection.tenant_id, connection.id, externalProductId, productId, galleryHash]);
   return safeImages.length;
 }
+async function markGallerySourceError(db, connection, externalProductId, productId, error) {
+  const code = /^[A-Z0-9_]{1,64}$/.test(String(error?.code || '')) ? String(error.code) : 'RETAIL_PRODUCT_GALLERY_SOURCE_FAILED';
+  await db.query(`INSERT INTO sx_retail_catalogue_import_images
+      (tenant_id,connection_id,external_product_id,image_index,product_id,image_media_id,image_url_hash,image_state,
+       attempt_count,retry_after,last_error_code)
+    VALUES (?,?,?,255,?,NULL,NULL,'failed',1,NULL,?)
+    ON DUPLICATE KEY UPDATE product_id=VALUES(product_id),image_media_id=NULL,image_url_hash=NULL,image_state='failed',
+      attempt_count=LEAST(attempt_count+1,65535),retry_after=NULL,last_error_code=VALUES(last_error_code),
+      updated_at=UTC_TIMESTAMP(3)`,
+  [connection.tenant_id, connection.id, externalProductId, productId, code]);
+}
+
 function imageMime(response) {
   const value = String(response.headers?.['content-type'] || '').split(';', 1)[0].trim().toLowerCase();
   return ['image/jpeg', 'image/png', 'image/webp'].includes(value) ? value : null;
@@ -225,4 +244,4 @@ async function removeFiles(files) {
   await Promise.all((files || []).map(file => fs.rm(file, { force: true }).catch(() => {})));
 }
 
-module.exports = { safeUrl, queue, queueImages, queueGalleryIndex, importImage, markFailure, eraseConnection, removeFiles, MAX_SOURCE_BYTES, MAX_IMAGE_PIXELS };
+module.exports = { safeUrl, queue, queueImages, queueGalleryIndex, markGallerySourceError, importImage, markFailure, eraseConnection, removeFiles, MAX_SOURCE_BYTES, MAX_IMAGE_PIXELS };
