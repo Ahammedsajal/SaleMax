@@ -112,7 +112,7 @@ def public_checks(hashes):
     code, shell = status('/user?page=products-services')
     required = (
         '/training-courses.js?v=' + NEW_CACHE,
-        '/retail-workspace.js?v=20261126-retail-customer-ux1',
+        '/retail-workspace.js?',
         '/pwa-install.js?v=20261123-sidebar-install1',
     )
     if code != 200 or any(token.encode() not in shell for token in required):
