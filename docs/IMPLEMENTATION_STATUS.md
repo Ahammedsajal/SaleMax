@@ -1,3 +1,9 @@
+## Retail product image galleries — source implemented, not deployed, 28 November 2026
+
+The Products & services cards now use a full-frame image gallery with previous/next controls, touch swiping, keyboard navigation, and an accessible lightbox. WooCommerce product image arrays and Shopify product media are normalized into ordered tenant-scoped local media copies; up to 12 images per product are imported, with the existing image mapping migrated as gallery position zero. The catalogue API returns only ready local gallery media IDs.
+
+Source changes include an additive migration, provider normalization, media import/backfill, the maintained product overlay, and its cache version. No production files or data changed. This source increment has not been visually verified in the live UI and has not been deployed. Release gates: review the source change, apply the migration using the production release workflow, allow the image backfill worker to finish, then verify actual product galleries, lightbox, Arabic RTL, dark theme, keyboard, and phone/tablet/desktop widths.
+
 ## Pro Catalyst context-aware course selection — deployed; WhatsApp acceptance pending, 28 November 2026
 
 Course selection now requires a clear request for course information, a recognizable bare course title, or a short answer while discovery is waiting for the customer’s choice. Casual deferrals, acknowledgements and unrelated follow-ups no longer change the saved course because they contain a shared title word. In particular, “I will check this first” keeps the existing course and no longer triggers First Aid details/media. Price follow-ups retain the current course, and the course-only GPT-6 Luna classifier is skipped unless the message represents a genuine course-selection intent. The existing contextual AI receives the retained course; the server remains authoritative for catalogue facts and state changes.

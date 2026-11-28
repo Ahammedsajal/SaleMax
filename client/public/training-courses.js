@@ -39,8 +39,28 @@
     #sx-course-screen [data-course-certification-section]{scroll-margin-block-start:12px}`;
   catalogueCss.textContent += `
     #sx-course-screen[data-catalog-kind=products] .course-card{padding:18px;overflow:hidden}
-    #sx-course-screen[data-catalog-kind=products] .product-image-frame{position:relative;display:grid;place-items:center;height:176px;margin:-2px -2px 16px;overflow:hidden;border:1px solid #e8edf4;border-radius:13px;background:linear-gradient(145deg,#f7f9fc,#eef2f7)}
-    #sx-course-screen[data-catalog-kind=products] .product-image-frame img{position:absolute;inset:0;width:100%;height:100%;box-sizing:border-box;padding:12px;object-fit:contain}
+    #sx-course-screen[data-catalog-kind=products] .product-image-frame{position:relative;display:block;aspect-ratio:4/5;margin:-2px -2px 16px;overflow:hidden;border:1px solid #e8edf4;border-radius:13px;background:linear-gradient(145deg,#f7f9fc,#eef2f7);touch-action:pan-y}
+    #sx-course-screen[data-catalog-kind=products] .product-gallery-image{position:absolute;inset:0;display:grid;place-items:center;width:100%;height:100%;min-height:0;padding:0;border:0!important;border-radius:inherit;background:transparent!important;cursor:zoom-in}
+    #sx-course-screen[data-catalog-kind=products] .product-gallery-image:focus-visible{z-index:2;outline:3px solid #1768d4;outline-offset:-3px}
+    #sx-course-screen[data-catalog-kind=products] .product-image-frame img{position:absolute;inset:0;width:100%;height:100%;box-sizing:border-box;padding:0;object-fit:cover;object-position:center;transition:opacity .18s ease}
+    #sx-course-screen[data-catalog-kind=products] .product-gallery-nav{position:absolute;z-index:3;inset-inline:8px;bottom:8px;display:flex;align-items:center;justify-content:space-between;pointer-events:none}
+    #sx-course-screen[data-catalog-kind=products] .product-gallery-nav[hidden]{display:none}
+    #sx-course-screen[data-catalog-kind=products] .product-gallery-nav button{display:grid;place-items:center;width:44px;height:44px;min-height:44px;padding:0;border:1px solid #ffffff55;border-radius:50%;background:#17212fcc;color:#fff;font-size:23px;line-height:1;pointer-events:auto;box-shadow:0 2px 10px #0003}
+    #sx-course-screen[data-catalog-kind=products] .product-gallery-nav [data-gallery-position]{padding:5px 10px;border:1px solid #ffffff55;border-radius:999px;background:#17212fcc;color:#fff;font-size:11px;font-weight:700;pointer-events:none}
+    #sx-course-screen[data-catalog-kind=products] .product-gallery-image:disabled{cursor:default}
+    #sx-product-gallery-lightbox{width:min(94vw,1280px);max-width:1280px;max-height:92dvh;padding:0;overflow:hidden;border:1px solid #ffffff30;border-radius:16px;background:#0d131b;color:#fff;box-shadow:0 24px 80px #0008}
+    #sx-product-gallery-lightbox::backdrop{background:#09111dcc;backdrop-filter:blur(3px)}
+    #sx-product-gallery-lightbox .product-lightbox-toolbar{position:absolute;z-index:2;inset-block-start:10px;inset-inline:12px;display:flex;align-items:center;justify-content:space-between;pointer-events:none}
+    #sx-product-gallery-lightbox [data-lightbox-position],#sx-product-gallery-lightbox [data-lightbox-close]{display:grid;place-items:center;min-width:44px;min-height:44px;border:1px solid #ffffff55;border-radius:999px;background:#111b;color:#fff;font-size:14px;font-weight:700;pointer-events:auto}
+    #sx-product-gallery-lightbox [data-lightbox-close]{width:44px;font-size:24px}
+    #sx-product-gallery-lightbox .product-lightbox-stage{position:relative;display:grid;place-items:center;min-height:220px;max-height:92dvh;background:#0d131b}
+    #sx-product-gallery-lightbox img{display:block;width:min(90vw,1280px);height:min(84dvh,920px);object-fit:contain;background:#0d131b}
+    #sx-product-gallery-lightbox .product-lightbox-stage>button{position:absolute;z-index:2;top:50%;transform:translateY(-50%);display:grid;place-items:center;width:48px;height:48px;min-height:48px;padding:0;border:1px solid #ffffff55;border-radius:50%;background:#111b;color:#fff;font-size:29px}
+    #sx-product-gallery-lightbox [data-lightbox-prev]{inset-inline-start:12px}
+    #sx-product-gallery-lightbox [data-lightbox-next]{inset-inline-end:12px}
+    #sx-product-gallery-lightbox button:focus-visible{outline:3px solid #8bc3ff;outline-offset:2px}
+    @media(max-width:760px){#sx-course-screen[data-catalog-kind=products] .product-image-frame{margin:-3px -3px 13px}#sx-product-gallery-lightbox{width:96vw;max-height:90dvh;border-radius:12px}#sx-product-gallery-lightbox img{width:96vw;height:82dvh}#sx-product-gallery-lightbox .product-lightbox-stage>button{width:44px;height:44px;min-height:44px}}
+    @media(prefers-reduced-motion:reduce){#sx-course-screen[data-catalog-kind=products] .product-gallery-image img{transition:none}}
     #sx-course-screen[data-catalog-kind=products] .product-image-fallback{display:grid;place-items:center;width:56px;height:56px;border:1px solid #f0d8e3;border-radius:17px;background:linear-gradient(145deg,#f7dce8,#fff4f8);color:#1768d4;font-size:20px;font-weight:750}
     #sx-course-screen[data-catalog-kind=products] .product-image-frame.has-image{background:#fff}
     #sx-course-screen[data-catalog-kind=products] .product-image-frame.has-image .product-image-fallback{display:none}
@@ -55,6 +75,7 @@
     html[data-sx-theme=dark] #sx-course-screen[data-catalog-kind=products] .course-card-code{color:#aebaca}
     html[data-sx-theme=dark] #sx-course-screen[data-catalog-kind=products] .product-image-frame{background:linear-gradient(145deg,#202a37,#1a232e);border-color:#354252}
     html[data-sx-theme=dark] #sx-course-screen[data-catalog-kind=products] .product-image-frame.has-image{background:#fff}
+    html[data-sx-theme=dark] #sx-course-screen[data-catalog-kind=products] .product-gallery-nav [data-gallery-position]{color:#fff}
     html[data-sx-theme=dark] #sx-course-screen[data-catalog-kind=products] .course-status-active{background:#173c34!important;color:#92e7c4}
     html[data-sx-theme=dark] #sx-course-screen[data-catalog-kind=products] button{background:#202a37;color:#e7edf5;border-color:#46566a}
     html[data-sx-theme=dark] #sx-course-screen[data-catalog-kind=products] button.primary{background:#1768d4;color:#fff;border-color:#1768d4}
@@ -165,23 +186,119 @@
     return '<section class="product-overview" aria-label="'+tr('Catalogue summary','ملخص القائمة')+'">'+entries.map(([value,title],index)=>'<article class="product-stat"><span class="product-stat-label">'+title+'</span><strong>'+value+'</strong><span class="product-stat-dot product-stat-dot-'+index+'" aria-hidden="true"></span></article>').join('')+'</section>';
   }
   function catalogueItemSummary(c){return products?esc(c.code):esc(c.code)+' · '+courseDurationSummary(c)+' · '+courseDeliverySummary(c.deliveryMode);}
-  async function hydrateProductImages(n){
-    for(const image of n.querySelectorAll('img[data-product-image]')){
-      const frame=image.parentElement,fallback=frame?.querySelector('.product-image-fallback');
-      const source=image.dataset.imageSource||'';
-      image.addEventListener('load',()=>{if(fallback)fallback.hidden=true;frame?.classList.add('has-image');});
-      image.addEventListener('error',()=>{
-        if(image.dataset.imageStage!=='source'&&source){image.dataset.imageStage='source';image.src=source;return;}
-        image.hidden=true;frame?.classList.add('is-empty');if(fallback)fallback.hidden=false;
-      });
-      if(image.dataset.imageMedia){
-        try{
-          const access=await api(`/${encodeURIComponent(image.dataset.productId)}/media/${encodeURIComponent(image.dataset.imageMedia)}/access`);
-          const localUrl=new URL(access.url,location.origin);
-          if(localUrl.origin===location.origin){image.dataset.imageStage='local';image.src=localUrl.href;image.hidden=false;continue;}
-        }catch{}
+  let activeProductGallery=null;
+  function productGalleryIds(gallery){
+    return String(gallery?.dataset.imageMediaIds||'').split(',').filter(id=>/^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i.test(id));
+  }
+  function productGalleryLightbox(n){
+    let dialog=n.querySelector('#sx-product-gallery-lightbox');
+    if(dialog)return dialog;
+    dialog=document.createElement('dialog');
+    dialog.id='sx-product-gallery-lightbox';
+    dialog.className='product-gallery-lightbox';
+    dialog.setAttribute('aria-label',tr('Product images','صور المنتج'));
+    dialog.innerHTML=`<div class="product-lightbox-toolbar"><span data-lightbox-position aria-live="polite"></span><button type="button" data-lightbox-close aria-label="${tr('Close image viewer','إغلاق عارض الصور')}">×</button></div><div class="product-lightbox-stage"><button type="button" data-lightbox-prev aria-label="${tr('Previous image','الصورة السابقة')}">‹</button><img data-lightbox-image alt=""><button type="button" data-lightbox-next aria-label="${tr('Next image','الصورة التالية')}">›</button></div>`;
+    n.append(dialog);
+    dialog.querySelector('[data-lightbox-close]').onclick=()=>dialog.close();
+    dialog.addEventListener('click',event=>{if(event.target===dialog)dialog.close();});
+    dialog.addEventListener('close',()=>{if(activeProductGallery?.dataset.productId===dialog.dataset.productId)activeProductGallery=null;});
+    const move=delta=>{
+      if(!activeProductGallery)return;
+      const ids=productGalleryIds(activeProductGallery);
+      if(ids.length<2)return;
+      setProductGalleryImage(n,activeProductGallery,Number(activeProductGallery.dataset.imageIndex||0)+delta);
+    };
+    dialog.querySelector('[data-lightbox-prev]').onclick=()=>move(-1);
+    dialog.querySelector('[data-lightbox-next]').onclick=()=>move(1);
+    dialog.addEventListener('keydown',event=>{
+      if(event.key==='ArrowLeft'||event.key==='ArrowRight'){
+        event.preventDefault();
+        const rtl=getComputedStyle(n).direction==='rtl';
+        move((event.key==='ArrowRight')!==rtl?1:-1);
       }
-      if(source){image.dataset.imageStage='source';image.src=source;image.hidden=false;}
+    });
+    return dialog;
+  }
+  async function setProductGalleryImage(n,gallery,index){
+    const ids=productGalleryIds(gallery),image=gallery.querySelector('[data-product-image]');
+    const fallback=gallery.querySelector('.product-image-fallback'),open=gallery.querySelector('[data-gallery-open]');
+    const controls=gallery.querySelector('[data-gallery-controls]'),position=gallery.querySelector('[data-gallery-position]');
+    const dialog=n.querySelector('#sx-product-gallery-lightbox');
+    if(!ids.length){open.disabled=true;if(controls)controls.hidden=true;image.hidden=true;if(fallback)fallback.hidden=false;gallery.classList.remove('has-image');return;}
+    const current=(index%ids.length+ids.length)%ids.length;
+    gallery.dataset.imageIndex=String(current);
+    open.disabled=false;
+    if(controls)controls.hidden=ids.length<2;
+    if(position)position.textContent=`${current+1} / ${ids.length}`;
+    const request=Number(gallery.dataset.imageRequest||0)+1;
+    gallery.dataset.imageRequest=String(request);
+    if(image){image.hidden=true;image.removeAttribute('src');}
+    gallery.classList.remove('has-image');
+    if(fallback)fallback.hidden=false;
+    try{
+      const access=await api(`/${encodeURIComponent(gallery.dataset.productId)}/media/${encodeURIComponent(ids[current])}/access`);
+      const localUrl=new URL(access.url,location.origin);
+      if(localUrl.origin!==location.origin||Number(gallery.dataset.imageRequest)!==request)return;
+      image.onload=()=>{
+        if(Number(gallery.dataset.imageRequest)!==request)return;
+        image.hidden=false;gallery.classList.add('has-image');if(fallback)fallback.hidden=true;
+        if(dialog?.open&&activeProductGallery===gallery){
+          const lightboxImage=dialog.querySelector('[data-lightbox-image]');
+          lightboxImage.src=localUrl.href;lightboxImage.alt=image.alt;
+          const lightboxPosition=dialog.querySelector('[data-lightbox-position]');
+          if(lightboxPosition)lightboxPosition.textContent=`${current+1} / ${ids.length}`;
+        }
+      };
+      image.onerror=()=>{if(Number(gallery.dataset.imageRequest)!==request)return;image.hidden=true;gallery.classList.remove('has-image');if(fallback)fallback.hidden=false;};
+      image.src=localUrl.href;
+      if(dialog?.open&&activeProductGallery===gallery){
+        const lightboxImage=dialog.querySelector('[data-lightbox-image]');
+        lightboxImage.src=localUrl.href;lightboxImage.alt=image.alt;
+        dialog.querySelector('[data-lightbox-position]').textContent=`${current+1} / ${ids.length}`;
+      }
+    }catch{
+      if(Number(gallery.dataset.imageRequest)===request){image.hidden=true;if(fallback)fallback.hidden=false;gallery.classList.remove('has-image');}
+    }
+  }
+  function openProductGallery(n,gallery){
+    if(!productGalleryIds(gallery).length)return;
+    const dialog=productGalleryLightbox(n);
+    activeProductGallery=gallery;
+    dialog.dataset.productId=gallery.dataset.productId;
+    dialog.querySelector('[data-lightbox-image]').removeAttribute('src');
+    dialog.showModal();
+    setProductGalleryImage(n,gallery,Number(gallery.dataset.imageIndex||0));
+  }
+  async function hydrateProductImages(n){
+    for(const gallery of n.querySelectorAll('[data-product-gallery]')){
+      const ids=productGalleryIds(gallery),open=gallery.querySelector('[data-gallery-open]');
+      open.disabled=!ids.length;
+      const controls=gallery.querySelector('[data-gallery-controls]');
+      if(controls)controls.hidden=ids.length<2;
+      open.onclick=()=>openProductGallery(n,gallery);
+      gallery.querySelector('[data-gallery-prev]').onclick=()=>setProductGalleryImage(n,gallery,Number(gallery.dataset.imageIndex||0)-1);
+      gallery.querySelector('[data-gallery-next]').onclick=()=>setProductGalleryImage(n,gallery,Number(gallery.dataset.imageIndex||0)+1);
+      gallery.addEventListener('keydown',event=>{
+        if(event.key!=='ArrowLeft'&&event.key!=='ArrowRight')return;
+        const count=productGalleryIds(gallery).length;if(count<2)return;
+        event.preventDefault();
+        const rtl=getComputedStyle(gallery).direction==='rtl';
+        setProductGalleryImage(n,gallery,Number(gallery.dataset.imageIndex||0)+((event.key==='ArrowRight')!==rtl?1:-1));
+      });
+      let pointer=null;
+      gallery.addEventListener('pointerdown',event=>{
+        if(event.target.closest('[data-gallery-prev],[data-gallery-next]'))return;
+        pointer={x:event.clientX,y:event.clientY};
+      });
+      gallery.addEventListener('pointerup',event=>{
+        if(!pointer)return;
+        const deltaX=event.clientX-pointer.x,deltaY=event.clientY-pointer.y;pointer=null;
+        if(Math.abs(deltaX)<42||Math.abs(deltaX)<Math.abs(deltaY)*1.25||ids.length<2)return;
+        const rtl=getComputedStyle(gallery).direction==='rtl',next=(deltaX<0)!==rtl;
+        setProductGalleryImage(n,gallery,Number(gallery.dataset.imageIndex||0)+(next?1:-1));
+      });
+      gallery.addEventListener('pointercancel',()=>{pointer=null;});
+      await setProductGalleryImage(n,gallery,0);
     }
   }
   function productFacts(c){
@@ -200,7 +317,7 @@
     const statusName=value=>({active:tr('Published','منشورة'),draft:tr('Draft','مسودة'),retired:tr('Retired','مؤرشفة')}[value]||value);
     const deliveryName=value=>({in_person:tr('In person','حضوري'),online:tr('Online','عن بُعد'),hybrid:tr('Hybrid','مدمج')}[value]||value);
     const levelName=value=>({all_levels:tr('All levels','كل المستويات'),beginner:tr('Beginner','مبتدئ'),intermediate:tr('Intermediate','متوسط'),advanced:tr('Advanced','متقدم'),custom:tr('Custom level','مستوى مخصص')}[value]||value);
-    n.querySelector('#sx-course-content').innerHTML=`<section class="course-overview" aria-label="${tr('Course overview','نظرة عامة على الدورات')}"><div class="course-stat"><span class="course-stat-icon" aria-hidden="true">C</span><div><strong>${Number(data.total)||0}</strong><span>${tr('Courses in catalogue','دورة في القائمة')}</span></div></div><div class="course-stat"><span class="course-stat-icon" aria-hidden="true">L</span><div><strong>${activeLearners}</strong><span>${tr('Active learners','متعلم نشط')}</span></div></div><div class="course-stat"><span class="course-stat-icon" aria-hidden="true">D</span><div><strong>${completed}</strong><span>${tr('Completed journeys','رحلة مكتملة')}</span></div></div></section><section class="card catalogue-card" aria-labelledby="sx-catalogue-heading"><div class="catalogue-head"><div><h2 id="sx-catalogue-heading">${tr('Course catalogue','قائمة الدورات')}</h2><p class="muted">${products?tr('Manage product details, images and pricing. Imported products are active in 7Network; public store listings stay under Inventory.','أدر تفاصيل المنتجات وصورها وأسعارها. المنتجات المستوردة مفعّلة في 7Network، أما عروض المتجر العامة فتُدار من المخزون.'):tr('Manage course details, delivery and pricing.','أدر تفاصيل الدورات وطريقة تقديمها وأسعارها.')}</p></div><div class="toolbar"><button id="sx-course-reload">${tr('Refresh','تحديث')}</button><button id="sx-course-import">${tr('Import ProCatalyst courses','استيراد دورات ProCatalyst')}</button><button id="sx-course-new" class="primary">${tr('Add course','إضافة دورة')}</button></div></div><div class="catalogue-tools"><div class="catalogue-search"><input id="sx-course-search" value="${esc(searchTerm)}" placeholder="${tr('Search by course name or code','ابحث باسم الدورة أو رمزها')}" maxlength="100" aria-label="${tr('Search courses','ابحث عن دورة')}"></div><button id="sx-course-find">${tr('Search','بحث')}</button><span class="muted">${Number(data.total)||0} ${tr('courses','دورات')}</span></div>${items.length?`<div class="course-grid">${items.map(c=>`<article class="course-card">${products?`<div class="product-image-frame"><span class="product-image-fallback" aria-hidden="true">${esc(String((isAr()?c.nameAr:c.nameEn)||c.nameEn||c.nameAr||'P').trim().slice(0,1).toUpperCase())}</span><img data-product-image data-product-id="${esc(c.id)}" data-image-media="${esc(c.imageMediaId||'')}" data-image-source="${esc(c.imageUrl||'')}" alt="${esc(String((isAr()?c.nameAr:c.nameEn)||c.nameEn||c.nameAr||''))}" decoding="async" loading="lazy" referrerpolicy="no-referrer" hidden></div>`:''}<div class="course-card-top">${products?'':`<span class="course-card-mark" aria-hidden="true">${esc(String(c.code||'C').slice(0,1).toUpperCase())}</span>`}<span class="status course-status-${esc(c.status)}">${esc(statusName(c.status))}</span></div><div class="course-card-code">${esc(c.code)}</div><h3>${esc((isAr()?c.nameAr:c.nameEn))}</h3>${products?`<p class="product-description${(c.descriptionEn||c.descriptionAr)?'':' product-description-empty'}">${esc(String((isAr()?c.descriptionAr:c.descriptionEn)||c.descriptionEn||c.descriptionAr||tr('No description was provided by the store.','لم يقدّم المتجر وصفًا للمنتج.')).slice(0,220))}</p>`:''}${products?productFacts(c):courseFacts(c)}${(c.sourceCategories||[]).length?`<div class="course-card-facts course-tags">${c.sourceCategories.map(tag=>`<span class="course-fact">${esc(tag)}</span>`).join('')}</div>`:''}<div class="course-card-bottom"><span class="price">${c.priceMinor==null?tr('Price to set','تحديد السعر'):esc(amount(c.priceMinor,c.priceCurrency||'QAR'))}</span><div class="toolbar"><button type="button" data-open="${esc(c.id)}">${canManageCourses?tr('Manage course','إدارة الدورة'):tr('View details','عرض التفاصيل')}</button>${products?'':`<button type="button" data-course-certification="${esc(c.id)}">${tr('Certification','الشهادات والتصديق')}</button>`}<button type="button" data-delete-course="${esc(c.id)}">${tr('Delete','حذف')}</button></div></div></article>`).join('')}</div>`:`<div class="course-empty"><strong>${tr('No courses found','لم يتم العثور على دورات')}</strong><span class="muted">${tr('Add your first course or adjust your search.','أضف دورتك الأولى أو عدّل البحث.')}</span></div>`}<div class="toolbar catalogue-pagination"><button id="sx-course-prev" ${pageNo<=1?'disabled':''}>${tr('Previous','السابق')}</button><span class="muted">${tr('Page','صفحة')} ${pageNo} / ${pages}</span><button id="sx-course-next" ${pageNo>=pages?'disabled':''}>${tr('Next','التالي')}</button></div></section><dialog id="sx-course-dialog" aria-labelledby="sx-course-dialog-title"><header class="course-dialog-topbar"><strong id="sx-course-dialog-title">${tr('Course details','تفاصيل الدورة')}</strong><button id="sx-course-dialog-close" type="button" aria-label="${tr('Close course editor','إغلاق محرر الدورة')}">×</button></header><div class="course-dialog-body"><div id="sx-course-dialog-message" class="course-dialog-message" role="status" aria-live="polite"></div><div id="sx-course-editor"></div></div></dialog>`;
+    n.querySelector('#sx-course-content').innerHTML=`<section class="course-overview" aria-label="${tr('Course overview','نظرة عامة على الدورات')}"><div class="course-stat"><span class="course-stat-icon" aria-hidden="true">C</span><div><strong>${Number(data.total)||0}</strong><span>${tr('Courses in catalogue','دورة في القائمة')}</span></div></div><div class="course-stat"><span class="course-stat-icon" aria-hidden="true">L</span><div><strong>${activeLearners}</strong><span>${tr('Active learners','متعلم نشط')}</span></div></div><div class="course-stat"><span class="course-stat-icon" aria-hidden="true">D</span><div><strong>${completed}</strong><span>${tr('Completed journeys','رحلة مكتملة')}</span></div></div></section><section class="card catalogue-card" aria-labelledby="sx-catalogue-heading"><div class="catalogue-head"><div><h2 id="sx-catalogue-heading">${tr('Course catalogue','قائمة الدورات')}</h2><p class="muted">${products?tr('Manage product details, images and pricing. Imported products are active in 7Network; public store listings stay under Inventory.','أدر تفاصيل المنتجات وصورها وأسعارها. المنتجات المستوردة مفعّلة في 7Network، أما عروض المتجر العامة فتُدار من المخزون.'):tr('Manage course details, delivery and pricing.','أدر تفاصيل الدورات وطريقة تقديمها وأسعارها.')}</p></div><div class="toolbar"><button id="sx-course-reload">${tr('Refresh','تحديث')}</button><button id="sx-course-import">${tr('Import ProCatalyst courses','استيراد دورات ProCatalyst')}</button><button id="sx-course-new" class="primary">${tr('Add course','إضافة دورة')}</button></div></div><div class="catalogue-tools"><div class="catalogue-search"><input id="sx-course-search" value="${esc(searchTerm)}" placeholder="${tr('Search by course name or code','ابحث باسم الدورة أو رمزها')}" maxlength="100" aria-label="${tr('Search courses','ابحث عن دورة')}"></div><button id="sx-course-find">${tr('Search','بحث')}</button><span class="muted">${Number(data.total)||0} ${tr('courses','دورات')}</span></div>${items.length?`<div class="course-grid">${items.map(c=>`<article class="course-card">${products?`<div class="product-image-frame" data-product-gallery data-product-id="${esc(c.id)}" data-image-media-ids="${esc((Array.isArray(c.imageMediaIds)?c.imageMediaIds:(c.imageMediaId?[c.imageMediaId]:[])).join(','))}" data-image-index="0"><button class="product-gallery-image" type="button" data-gallery-open disabled aria-label="${tr('Open product images','فتح صور المنتج')}"><span class="product-image-fallback" aria-hidden="true">${esc(String((isAr()?c.nameAr:c.nameEn)||c.nameEn||c.nameAr||'P').trim().slice(0,1).toUpperCase())}</span><img data-product-image alt="${esc(String((isAr()?c.nameAr:c.nameEn)||c.nameEn||c.nameAr||''))}" decoding="async" loading="lazy" hidden></button><div class="product-gallery-nav" data-gallery-controls hidden><button type="button" data-gallery-prev aria-label="${tr('Previous image','الصورة السابقة')}">‹</button><span data-gallery-position aria-live="polite"></span><button type="button" data-gallery-next aria-label="${tr('Next image','الصورة التالية')}">›</button></div></div>`:''}<div class="course-card-top">${products?'':`<span class="course-card-mark" aria-hidden="true">${esc(String(c.code||'C').slice(0,1).toUpperCase())}</span>`}<span class="status course-status-${esc(c.status)}">${esc(statusName(c.status))}</span></div><div class="course-card-code">${esc(c.code)}</div><h3>${esc((isAr()?c.nameAr:c.nameEn))}</h3>${products?`<p class="product-description${(c.descriptionEn||c.descriptionAr)?'':' product-description-empty'}">${esc(String((isAr()?c.descriptionAr:c.descriptionEn)||c.descriptionEn||c.descriptionAr||tr('No description was provided by the store.','لم يقدّم المتجر وصفًا للمنتج.')).slice(0,220))}</p>`:''}${products?productFacts(c):courseFacts(c)}${(c.sourceCategories||[]).length?`<div class="course-card-facts course-tags">${c.sourceCategories.map(tag=>`<span class="course-fact">${esc(tag)}</span>`).join('')}</div>`:''}<div class="course-card-bottom"><span class="price">${c.priceMinor==null?tr('Price to set','تحديد السعر'):esc(amount(c.priceMinor,c.priceCurrency||'QAR'))}</span><div class="toolbar"><button type="button" data-open="${esc(c.id)}">${canManageCourses?tr('Manage course','إدارة الدورة'):tr('View details','عرض التفاصيل')}</button>${products?'':`<button type="button" data-course-certification="${esc(c.id)}">${tr('Certification','الشهادات والتصديق')}</button>`}<button type="button" data-delete-course="${esc(c.id)}">${tr('Delete','حذف')}</button></div></div></article>`).join('')}</div>`:`<div class="course-empty"><strong>${tr('No courses found','لم يتم العثور على دورات')}</strong><span class="muted">${tr('Add your first course or adjust your search.','أضف دورتك الأولى أو عدّل البحث.')}</span></div>`}<div class="toolbar catalogue-pagination"><button id="sx-course-prev" ${pageNo<=1?'disabled':''}>${tr('Previous','السابق')}</button><span class="muted">${tr('Page','صفحة')} ${pageNo} / ${pages}</span><button id="sx-course-next" ${pageNo>=pages?'disabled':''}>${tr('Next','التالي')}</button></div></section><dialog id="sx-course-dialog" aria-labelledby="sx-course-dialog-title"><header class="course-dialog-topbar"><strong id="sx-course-dialog-title">${tr('Course details','تفاصيل الدورة')}</strong><button id="sx-course-dialog-close" type="button" aria-label="${tr('Close course editor','إغلاق محرر الدورة')}">×</button></header><div class="course-dialog-body"><div id="sx-course-dialog-message" class="course-dialog-message" role="status" aria-live="polite"></div><div id="sx-course-editor"></div></div></dialog>`;
     if(products){n.querySelector('.course-overview')?.remove();n.querySelector('#sx-course-content').insertAdjacentHTML('afterbegin',productOverview(items,data.total));}
     const courseDialog=n.querySelector('#sx-course-dialog');courseDialog.querySelector('#sx-course-dialog-close').onclick=()=>closeCourseDialog(n);courseDialog.addEventListener('click',event=>{if(event.target===courseDialog)closeCourseDialog(n);});courseDialog.addEventListener('close',()=>{courseDialog.querySelector('#sx-course-editor').replaceChildren();document.body.style.overflow=previousBodyOverflow;});
     n.querySelector('#sx-course-new').onclick=()=>newCourse(n);n.querySelector('#sx-course-reload').onclick=load;n.querySelector('#sx-course-import').onclick=async e=>{const button=e.currentTarget;if(!await confirmCatalogue(tr('Add the six courses listed on procatalyst.qa as unpublished drafts? Prices, duration and delivery will stay blank until you confirm them.','هل تريد إضافة الدورات الست المدرجة في procatalyst.qa كمسودات غير منشورة؟ ستبقى الأسعار والمدة وطريقة التقديم فارغة حتى تحددها.')))return;button.disabled=true;try{const result=await api('/import-procatalyst','POST',{});const box=n.querySelector('#sx-course-message');box.innerHTML=`<div class="notice" role="status">${tr('Imported ','تم استيراد ')}${result.created.length}${tr(' draft courses. ',' دورة كمسودات. ')}${result.skipped.length?tr('Already present: ','موجودة مسبقًا: ')+esc(result.skipped.join(', ')):''}</div>`;await load();}catch(error){showError(n,error);}finally{button.disabled=false;}};

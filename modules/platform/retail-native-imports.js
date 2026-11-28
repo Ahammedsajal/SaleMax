@@ -145,7 +145,8 @@ async function upsertProduct(db, connection, product) {
     priceAvailable: !product.priceUnavailable, updatedAt: product.updatedAt,
     reviewState: product.variationCount > 0 && !product.sku ? 'ready' : null,
   });
-  await require('./retail-product-media-imports').queue(db, connection, product.id, rootId, product.imageUrl || null);
+  const imageUrls = Array.isArray(product.imageUrls) ? product.imageUrls : product.imageUrl ? [product.imageUrl] : [];
+  await require('./retail-product-media-imports').queueImages(db, connection, product.id, rootId, imageUrls);
   const variants = Array.isArray(product.variants) ? product.variants : [];
   for (const variant of variants) {
     const id = variant?.id == null ? '' : connection.provider === 'shopify' ? String(variant.id) : String(variant.id);
@@ -336,8 +337,19 @@ async function listProducts(pool, context, { page = 1, limit = 20, search = '', 
       (SELECT o.currency FROM sx_product_offers o WHERE o.tenant_id=c.tenant_id AND o.course_id=c.id ORDER BY o.version DESC LIMIT 1) AS priceCurrency,
       (SELECT o.version FROM sx_product_offers o WHERE o.tenant_id=c.tenant_id AND o.course_id=c.id ORDER BY o.version DESC LIMIT 1) AS offerVersion
     FROM sx_product_catalog c WHERE ${where} ORDER BY c.updated_at DESC,c.id LIMIT ? OFFSET ?`, [...params, limit, (page - 1) * limit]);
-  const imageUrls = new Map();
+  const imageUrls = new Map(), imageMediaIds = new Map();
   if (rows.length) {
+    const [galleryRows] = await pool.query(`SELECT gallery.product_id AS productId,gallery.image_index AS imageIndex,
+        gallery.image_media_id AS mediaId
+      FROM sx_retail_catalogue_import_images gallery JOIN sx_product_media media
+        ON media.tenant_id=gallery.tenant_id AND media.id=gallery.image_media_id
+          AND media.course_id=gallery.product_id AND media.deleted_at IS NULL
+      WHERE gallery.tenant_id=? AND gallery.product_id IN (?) AND gallery.image_state='ready'
+      ORDER BY gallery.product_id,gallery.image_index`, [tenantId, rows.map(row => row.id)]);
+    for (const image of galleryRows) {
+      if (!imageMediaIds.has(image.productId)) imageMediaIds.set(image.productId, []);
+      imageMediaIds.get(image.productId).push(image.mediaId);
+    }
     const [sources] = await pool.query(`SELECT i.product_id AS productId,i.connection_id AS connectionId,
         p.external_product_id AS externalProductId,p.product_ciphertext AS ciphertext,p.product_iv AS iv,p.product_auth_tag AS authTag
       FROM sx_retail_catalogue_imports i JOIN sx_retail_external_products p
@@ -352,7 +364,7 @@ async function listProducts(pool, context, { page = 1, limit = 20, search = '', 
       } catch { /* The catalogue remains readable if an optional source image is unavailable. */ }
     }
   }
-  return { items: rows.map(row => ({ ...row, imageUrl: imageUrls.get(row.id) || null,
+  return { items: rows.map(row => ({ ...row, imageMediaIds: imageMediaIds.get(row.id) || [], imageMediaId: imageMediaIds.get(row.id)?.[0] || null, imageUrl: imageUrls.get(row.id) || null,
       sourceCategories: typeof row.sourceCategories === 'string' ? JSON.parse(row.sourceCategories) : row.sourceCategories || [] })),
     total: Number(total.n), page, limit };
 }
