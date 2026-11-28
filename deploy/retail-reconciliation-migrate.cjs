@@ -29,11 +29,11 @@ async function ledger(connection) {
   return { total: rows.length, checksum: sha(JSON.stringify(rows)), rows };
 }
 
-function verifyApplied(before, after, manifest, plans) {
-  assert.equal(after.total, before.total + migrations.length, 'Unexpected migration ledger changes');
-  assert.equal(sha(JSON.stringify(after.rows.filter(row => !migrations.includes(row.migration_name)))),
+function verifyApplied(before, after, manifest, plans, selected) {
+  assert.equal(after.total, before.total + selected.length, 'Unexpected migration ledger changes');
+  assert.equal(sha(JSON.stringify(after.rows.filter(row => !selected.includes(row.migration_name)))),
     before.checksum, 'An existing migration ledger record changed');
-  migrations.forEach(name => {
+  selected.forEach(name => {
     const row = after.rows.find(item => item.migration_name === name);
     assert.equal(row?.status, 'applied', 'Retail migration missing from applied ledger');
     assert.equal(row.checksum, manifest[name].sha256, 'Retail migration checksum changed');
@@ -80,7 +80,9 @@ async function main() {
   assert.equal(restored, process.env.RETAIL_RESTORE_ONLY === '1');
   const request = JSON.parse(fs.readFileSync(0, 'utf8'));
   const manifest = request.migrations;
-  assert.deepEqual(Object.keys(manifest).sort(), migrations);
+  assert(manifest && typeof manifest === 'object' && !Array.isArray(manifest));
+  const selected = Object.keys(manifest).sort();
+  assert(selected.every(name => migrations.includes(name)), 'Unknown migration selected');
   const runtime = restored ? '/retail-baseline' : path.resolve('database');
   const runner = require(path.join(runtime, 'migration-runner.js'));
   const mysql = require('mysql2/promise');
@@ -99,7 +101,7 @@ async function main() {
     }
     await connection.query('SET SESSION lock_wait_timeout=20, SESSION innodb_lock_wait_timeout=20');
     fs.cpSync(path.join(runtime, 'migrations'), directory, { recursive: true });
-    for (const name of migrations) {
+    for (const name of selected) {
       const source = Buffer.from(manifest[name].source, 'base64');
       assert.equal(sha(source), manifest[name].sha256, 'Retail migration artifact hash differs');
       const destination = path.join(directory, name);
@@ -121,9 +123,9 @@ async function main() {
     }
 
     if (mode === 'verify') {
-      verifyApplied(baseline, before, manifest, plans);
+      verifyApplied(baseline, before, manifest, plans, selected);
       await checkSchema(connection);
-      console.log(JSON.stringify({ mode, applied: migrations, total: before.total, counts: await counts(connection) }));
+      console.log(JSON.stringify({ mode, applied: selected, total: before.total, counts: await counts(connection) }));
       return;
     }
 
@@ -131,17 +133,21 @@ async function main() {
     if (!restored) assert(!process.env.SALEMAX_RETAIL_CONNECTOR_PILOT_TENANTS?.trim(),
       'Existing pilot configuration requires a separate credential check');
     const beforeCounts = await counts(connection);
-    const result = await runner.applyMigrations(connection, discovered, { only: migrations });
-    assert.deepEqual(result, { applied: migrations, skipped: [] });
+    const result = selected.length
+      ? await runner.applyMigrations(connection, discovered, { only: selected })
+      : { applied: [], skipped: [] };
+    assert.deepEqual(result, { applied: selected, skipped: [] });
     const after = await ledger(connection);
-    verifyApplied(baseline, after, manifest, plans);
+    verifyApplied(baseline, after, manifest, plans, selected);
     await checkSchema(connection);
     if (restored) {
       assert.deepEqual(await counts(connection), beforeCounts, 'Restore rehearsal changed operational row counts');
-      const repeat = await runner.applyMigrations(connection, discovered, { only: migrations });
-      assert.deepEqual(repeat, { applied: [], skipped: migrations });
+      const repeat = selected.length
+        ? await runner.applyMigrations(connection, discovered, { only: selected })
+        : { applied: [], skipped: [] };
+      assert.deepEqual(repeat, { applied: [], skipped: selected });
     }
-    console.log(JSON.stringify({ mode, baseline, applied: migrations, total: after.total, counts: await counts(connection) }));
+    console.log(JSON.stringify({ mode, baseline, applied: selected, total: after.total, counts: await counts(connection) }));
   } catch (error) {
     if (connection) {
       const state = await ledger(connection).catch(() => null);
