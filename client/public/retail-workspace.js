@@ -534,13 +534,13 @@
     add(woo,'strong',t('7 steps to connect','7 خطوات للاتصال'));
     const wooSteps=add(woo,'ol');wooSteps.className='sx-retail-woo-setup-steps';
     [
-      t('Sign in to the WordPress admin for the store you are connecting.','سجّل الدخول إلى لوحة WordPress الخاصة بالمتجر الذي تريد ربطه.'),
+    const wooStoreStep=add(wooSteps,'li',t('Sign in to the WordPress admin for your store.','سجّل الدخول إلى لوحة WordPress الخاصة بمتجرك.'));
       t('Go to WooCommerce > Settings > Advanced > REST API.','انتقل إلى WooCommerce > الإعدادات > متقدم > REST API.'),
       t('Click Add key.','اضغط على إضافة مفتاح.'),
       t('Enter “7Network sync” as the description and choose a store admin or manager with access to products, orders and customers.','أدخل «7Network sync» كوصف، واختر مدير المتجر أو مسؤولاً لديه صلاحية الوصول إلى المنتجات والطلبات والعملاء.'),
       t('Set Permissions to Read/Write. This grants write access; the current 7Network sync only reads store data.','اختر صلاحية القراءة والكتابة. تمنح هذه الصلاحية حق تعديل المتجر؛ أما مزامنة 7Network الحالية فتقرأ البيانات فقط.'),
       t('Generate the key and copy the Consumer Key and Consumer Secret now. WooCommerce shows the secret once.','أنشئ المفتاح وانسخ Consumer Key وConsumer Secret الآن؛ يعرض WooCommerce السر مرة واحدة.'),
-      t('Return to Store Connections. Click Revalidate WooCommerce key, paste both values, then click Connect or revalidate WooCommerce. After verification, click Sync missing products, orders & customers.','ارجع إلى اتصالات المتاجر. اضغط إعادة التحقق من مفتاح WooCommerce، والصق القيمتين، ثم اضغط ربط WooCommerce أو إعادة التحقق. بعد التحقق، اضغط مزامنة المنتجات والطلبات والعملاء الناقصة.')
+      t('Return to 7Network Store Connections. For an existing store, click Revalidate WooCommerce key; for a new one, click Connect another store. Enter both values and click Connect or revalidate WooCommerce. After verification, click Sync missing products, orders & customers.','ارجع إلى اتصالات المتاجر في 7Network. للمتجر الحالي اضغط إعادة التحقق من مفتاح WooCommerce؛ وللمتجر الجديد اضغط ربط متجر آخر. أدخل القيمتين واضغط ربط WooCommerce أو إعادة التحقق. بعد التحقق، اضغط مزامنة المنتجات والطلبات والعملاء الناقصة.')
     ].forEach(step=>add(wooSteps,'li',step));
     const wooUrl=input(woo,t('Store URL','رابط المتجر'));wooUrl.placeholder='https://shop.example.com';wooUrl.autocomplete='url';
     const wooDisplay=input(woo,t('Display name','اسم العرض'));
@@ -657,7 +657,7 @@
           const actions=add(card,'div');actions.className='sx-retail-connector-actions';
           if(access.role==='owner'&&connection.provider==='woocommerce'&&!connection.syncEnabled){
             const revalidate=add(actions,'button',t('Revalidate WooCommerce key','إعادة التحقق من مفتاح WooCommerce'));revalidate.type='button';
-            revalidate.onclick=()=>{wooUrl.value=connection.storeDomain||'';wooDisplay.value=connection.displayName||'';wooCurrency.value=connection.currency||'QAR';connectDetails.open=true;connectDetails.scrollIntoView({behavior:'smooth',block:'center'});wooKey.focus({preventScroll:true});};
+            revalidate.onclick=()=>{const storeName=connection.displayName||connection.storeDomain||'';if(storeName){wooStoreStep.textContent=t('Sign in to the WordPress admin for '+storeName+'.','سجّل الدخول إلى لوحة WordPress الخاصة بـ '+storeName+'.');wooStoreStep.dir='auto';}wooUrl.value=connection.storeDomain||'';wooDisplay.value=connection.displayName||'';wooCurrency.value=connection.currency||'QAR';connectDetails.open=true;connectDetails.scrollIntoView({behavior:'smooth',block:'center'});wooKey.focus({preventScroll:true});};
           }
           if(connection.syncEnabled)action(actions,t('Sync missing products, orders & customers','مزامنة المنتجات والطلبات والعملاء الناقصة'),async()=>{
             const connectionId=encodeURIComponent(connection.id),maxPasses=20;let result=null,passes=0,complete=false;
