@@ -114,7 +114,7 @@ async function main() {
     const discovered = runner.discover(directory);
     const plans = new Map(discovered.map(migration => [migration.file, migration]));
     const before = await ledger(connection);
-    const prior = before.rows.filter(row => !migrations.includes(row.migration_name));
+    const prior = before.rows.filter(row => !selected.includes(row.migration_name));
     const baseline = { total: prior.length, checksum: sha(JSON.stringify(prior)) };
     if (request.baseline) assert.deepEqual(baseline, request.baseline, 'Production migration history changed');
     for (const row of before.rows) {
