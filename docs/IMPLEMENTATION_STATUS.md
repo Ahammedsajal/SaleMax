@@ -1,3 +1,13 @@
+## Retail gallery and WooCommerce import recovery — deployed; owner revalidation pending, 28 November 2026
+
+Production commit `260e53d09e670c40e7f2b736275a81dea833eb71` (PR #196) fixes the product-card lazy-image visibility bug and Store Connections render failure. The page now supports owner-only paginated product/order/customer sync plus bounded queued-image backfill. Revalidation prefills the connected store's non-secret URL, name and currency; credentials stay blank and are sent only to the existing encrypted, read-only connection flow. The new image endpoint is tenant-scoped, owner-only, bounded to 25 images per batch, and rejects inactive or unverified connections.
+
+Production release `/opt/salemax/releases/retail-gallery-sync-260e53d09e67-20261128T105711Z` is healthy on the existing app image. The database restore rehearsal passed (317 tables / 169,231 insert statements), no schema migration was selected, and the migration ledger remains at 187. App restart count is 0; the 368-input Compose chain and non-app service identities were verified. The protected rollback path and source/runtime hashes are in the current `DEPLOYMENT.md` record.
+
+**Remaining owner action:** the production WooCommerce key was not verified, so provider sync was not run during deploy. Enter a fresh read-only WooCommerce key on Store Connections, then click **Sync all remaining pages**. Each click advances bounded pages and imports queued images; unfinished work continues through the 15-minute poll. Configure the signed product, order and customer webhooks from the Store Connections setup panel and WooCommerce admin for near-real-time updates. Do not treat the remaining products, orders, customers or full image galleries as imported until the verified sync completes.
+
+The PR adds an owner/tenant/credential-gate regression test and a bilingual desktop/mobile browser fixture. Changed JS, CJS and Python syntax checks passed. GitHub has no configured CI checks, so the test suites were not executed in this rollout. Authenticated visual acceptance remains open. This is a delivered incremental Retail fix; it does not close the broader 42-ticket roadmap.
+
 ## Retail product image galleries — deployed, 28 November 2026
 
 The Products & services cards now show full-frame product imagery with a swipable ordered gallery, keyboard navigation and a lightbox. WooCommerce and Shopify syncs preserve up to 12 source images per product and copy them into tenant-scoped local media. Existing cover images remain compatible at gallery position zero.
