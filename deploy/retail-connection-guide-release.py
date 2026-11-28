@@ -137,4 +137,4 @@ if __name__ == '__main__':
     elif len(sys.argv) == 3 and sys.argv[1] == 'restore':
         release.restore(sys.argv[2])
     else:
-        raise SystemExit('Usage: retail-import-sync-release.py deploy STAGE COMMIT | restore BACKUP')
+        raise SystemExit('Usage: retail-connection-guide-release.py deploy STAGE COMMIT | restore BACKUP')
