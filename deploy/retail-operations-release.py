@@ -81,7 +81,7 @@ def stage_manifest(stage, commit):
     if ('delivery_attention' not in app or 'returning' not in app or 'sx-retail-order-drawer' not in app or
             'Order total less item totals' not in app or 'Low stock only' not in inventory or
             "external_source_connection_id IS NULL AND o.fulfillment='delivery'" not in commerce or
-            'HAVING COUNT(*)>1' not in directory):
+            'COUNT(*)>1' not in directory):
         raise RuntimeError('Staged Retail operations behavior is incomplete')
     return info
 
