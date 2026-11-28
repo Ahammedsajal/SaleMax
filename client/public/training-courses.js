@@ -59,6 +59,8 @@
     #sx-product-gallery-lightbox [data-lightbox-prev]{inset-inline-start:12px}
     #sx-product-gallery-lightbox [data-lightbox-next]{inset-inline-end:12px}
     #sx-product-gallery-lightbox button:focus-visible{outline:3px solid #8bc3ff;outline-offset:2px}
+    #sx-course-screen[dir=rtl] .product-gallery-nav button:first-child{transform:scaleX(-1)}
+    #sx-course-screen[dir=rtl] #sx-product-gallery-lightbox .product-lightbox-stage>button{transform:translateY(-50%) scaleX(-1)}
     @media(max-width:760px){#sx-course-screen[data-catalog-kind=products] .product-image-frame{margin:-3px -3px 13px}#sx-product-gallery-lightbox{width:96vw;max-height:90dvh;border-radius:12px}#sx-product-gallery-lightbox img{width:96vw;height:82dvh}#sx-product-gallery-lightbox .product-lightbox-stage>button{width:44px;height:44px;min-height:44px}}
     @media(prefers-reduced-motion:reduce){#sx-course-screen[data-catalog-kind=products] .product-gallery-image img{transition:none}}
     #sx-course-screen[data-catalog-kind=products] .product-image-fallback{display:grid;place-items:center;width:56px;height:56px;border:1px solid #f0d8e3;border-radius:17px;background:linear-gradient(145deg,#f7dce8,#fff4f8);color:#1768d4;font-size:20px;font-weight:750}
@@ -275,7 +277,7 @@
       open.disabled=!ids.length;
       const controls=gallery.querySelector('[data-gallery-controls]');
       if(controls)controls.hidden=ids.length<2;
-      open.onclick=()=>openProductGallery(n,gallery);
+      open.onclick=()=>{if(gallery.dataset.gallerySwiped){delete gallery.dataset.gallerySwiped;return;}openProductGallery(n,gallery);};
       gallery.querySelector('[data-gallery-prev]').onclick=()=>setProductGalleryImage(n,gallery,Number(gallery.dataset.imageIndex||0)-1);
       gallery.querySelector('[data-gallery-next]').onclick=()=>setProductGalleryImage(n,gallery,Number(gallery.dataset.imageIndex||0)+1);
       gallery.addEventListener('keydown',event=>{
@@ -295,6 +297,8 @@
         const deltaX=event.clientX-pointer.x,deltaY=event.clientY-pointer.y;pointer=null;
         if(Math.abs(deltaX)<42||Math.abs(deltaX)<Math.abs(deltaY)*1.25||ids.length<2)return;
         const rtl=getComputedStyle(gallery).direction==='rtl',next=(deltaX<0)!==rtl;
+        const token=String(Date.now());gallery.dataset.gallerySwiped=token;
+        setTimeout(()=>{if(gallery.dataset.gallerySwiped===token)delete gallery.dataset.gallerySwiped;},500);
         setProductGalleryImage(n,gallery,Number(gallery.dataset.imageIndex||0)+(next?1:-1));
       });
       gallery.addEventListener('pointercancel',()=>{pointer=null;});
