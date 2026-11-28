@@ -332,6 +332,29 @@ test('reconnecting a revoked Woo store reuses its ID and resets the resumable cu
   }
 });
 
+test('WooCommerce image backfill is bounded, tenant-scoped, credential-gated and owner-only', async () => {
+  const tenantId='aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',connectionId='bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb';
+  const connection={id:connectionId,tenant_id:tenantId,provider:'woocommerce',status:'active',credentials_verified_at:new Date()};
+  const queries=[];const pool={query:async(sql,params)=>{queries.push({sql,params});if(sql.startsWith('SELECT * FROM sx_retail_store_connections'))return [[connection],[]];throw new Error('Unexpected image-backfill query: '+sql);}};
+  const contextFor=(role='owner')=>({audience:'tenant',tenant:{id:tenantId,status:'active',categoryKey:'retail_boutique',categoryVersion:1},
+    membership:{tenantId,status:'active',role},subscription:{status:'active',capabilities:['retail.commerce']},
+    category:{key:'retail_boutique',version:1,capabilities:['retail.commerce']},identity:{id:'dddddddd-dddd-4ddd-8ddd-dddddddddddd'}});
+  const router=workspaceRouter({pool,authenticate:(_req,_res,next)=>next(),origin:'https://workspace.example.invalid'});
+  const handler=router.routes.get('POST /:id/images/backfill'),backfill=require('../modules/platform/retail-native-import-backfill');
+  const original=backfill.backfillProductImagesOnly;let backfillCalls=0;
+  backfill.backfillProductImagesOnly=async(actualPool,actualConnection,options)=>{assert.equal(actualPool,pool);assert.equal(actualConnection,connection);assert.deepEqual(options,{limit:25});backfillCalls++;return {images:25,failed:0,failures:[],pendingImages:17};};
+  const invoke=async(role='owner')=>{let response=null,error=null;const req={businessContext:contextFor(role),params:{id:connectionId},body:{}};
+    const res={status(code){this.code=code;return this;},json(value){response={status:this.code||200,value};return this;},sendStatus(status){response={status};return this;}};
+    await handler(req,res,value=>{error=value;});return {response,error};};
+  try{
+    const denied=await invoke('manager');assert.equal(denied.response.status,403);assert.equal(queries.length,0);assert.equal(backfillCalls,0);
+    const allowed=await invoke();assert.equal(allowed.response.status,200);assert.deepEqual(allowed.response.value.data,{images:25,failed:0,failures:[],pendingImages:17});
+    assert.equal(backfillCalls,1);assert.deepEqual(queries[0].params,[tenantId,connectionId]);
+    connection.credentials_verified_at=null;queries.length=0;
+    const unverified=await invoke();assert.equal(unverified.error?.code,'STORE_CREDENTIALS_REVALIDATION_REQUIRED');assert.equal(backfillCalls,1);
+  }finally{backfill.backfillProductImagesOnly=original;}
+});
+
 test('connected-store reads are tenant-scoped and owner-only', async () => {
   const tenantId = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
   const otherTenantId = 'cccccccc-cccc-4ccc-8ccc-cccccccccccc';
