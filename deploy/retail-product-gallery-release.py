@@ -71,7 +71,7 @@ def stage_manifest(stage, commit):
         if not re.fullmatch(r'[0-9a-f]{64}', str(checksum)):
             raise RuntimeError('Invalid staged artifact checksum')
         source = stage / relative
-        if source.is_symlink() or not source.is_file() or base.file_sha(source) != checksum:
+        if source.is_symlink() or not source.is_file() or ops.sha(source.read_bytes()) != checksum:
             raise RuntimeError('Staged Retail source hash differs: ' + relative)
     preimage = stage / 'preimages' / INDEX
     shell = stage / INDEX
