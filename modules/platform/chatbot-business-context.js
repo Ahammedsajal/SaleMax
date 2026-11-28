@@ -10,9 +10,41 @@ const normalized = value => normalizeDigits(value).toLowerCase().normalize('NFKC
   // Caregiver course. Canonicalizing the whole phrase prevents the generic
   // word "care" from making the broader Health & Social Care diploma win.
   .replace(/\b(?:care\s*givers?|care\s*takers?|caretakers?|nursing\s+assistants?|nursing\s+assistance|nursing\s+aides?)\b/gu, 'caregiver').trim();
-const STOP_WORDS = new Set('the a an and or to of in on at by with from it this that i im m ve am already visited visit visiting been went your our are can you what how want would like tell about course courses training please help certificate certification professional class classes session sessions certificates certifications accreditation accredited attestation attested certified office application center centre skill skills program programme diploma workshop شهادة الشهادة شهادات الشهادات اعتماد معتمدة تصديق مصدقة احترافي اريد دورة الدورات التدريب ماهي ممكن لو سمحت'.split(' '));
+const STOP_WORDS = new Set('the a an and or to of in on at by with from it this that i im m ve am already visited visit visiting been went your our are can you what how want would like tell about course courses training please help certificate certification professional class classes session sessions certificates certifications accreditation accredited attestation attested certified office application center centre skill skills program programme diploma workshop first check شهادة الشهادة شهادات الشهادات اعتماد معتمدة تصديق مصدقة احترافي اريد دورة الدورات التدريب ماهي ممكن لو سمحت'.split(' '));
 const tokens = value => normalized(value).split(' ').filter(word => word.length > 2 && !STOP_WORDS.has(word));
-const courseMatchTokens = value => tokens(value);
+function isCourseSelectionIntent(message, state = {}, courses = []) {
+  const text = normalized(message);
+  if (!text) return false;
+  // Deferrals, acknowledgements and status updates must never change the
+  // selected course just because they contain a word shared with a title.
+  if (/^(?:ok|okay|alright|sure|yes|yeah|yep|no|nope|thanks|thank you|got it|not now|maybe later|another time|not interested|i will check this first|i ll check this first)$/u.test(text)
+      || /\b(?:i|we) (?:will|ll|am going to|are going to) (?:check|think|ask|discuss|decide|consider|review|see|confirm)\b/u.test(text)
+      || /\blet me (?:check|think|ask|discuss|decide|consider|review|see|confirm)\b/u.test(text)
+      || /\b(?:already joined|already started|already enrolled|already visited|visited your office|thank you for (?:this|the) information)\b/u.test(text)) return false;
+  if (isCourseDiscoveryOptOut(message)) return false;
+
+  const explicitRequest = /\b(?:what about|tell me (?:more )?about|more (?:info(?:rmation)?|details?) (?:on|about|for)|(?:info(?:rmation)?|details?) (?:on|about|for)|asking about|ask(?:ing)? (?:about|for)|interested in|looking for|want to (?:know about|study|learn|join|enrol|enroll)|would like to (?:know about|study|learn|join|enrol|enroll)|compare|difference between)\b|(?:معلومات(?:\s+أكثر)?|تفاصيل|مهتم(?:ة)? ب|اريد ان اتعلم|ارغب في تعلم)\s*(?:عن|حول|ل|)?/u.test(text);
+  if (explicitRequest) return true;
+  const factQuestion = /\b(?:fee|fees|price|cost|how much|duration|how long|certificate|certification|schedule|batch|online|offline|delivery|requirements?)\b|رسوم|سعر|تكلفة|مدة|شهادة|موعد/u.test(text);
+  if (factQuestion) {
+    const query = new Set(tokens(message));
+    const titleWords = courses.flatMap(item => tokens([item.nameEn, item.nameAr, item.code].join(' ')).filter(word => word.length >= 4));
+    if (courses.some(item => courseNameMatches(message, [item.code, item.nameEn, item.nameAr])
+        || tokens([item.nameEn, item.nameAr, item.code].join(' ')).some(word => word.length >= 4 && query.has(word)
+          && titleWords.filter(candidate => candidate === word).length === 1))) return true;
+  }
+
+  const words = text.split(/\s+/u).filter(Boolean);
+  const generic = /^(?:hi|hello|hey|salam|yes|yeah|yep|no|nope|ok|okay|sure|thanks|thank you|not sure|not certain|course|training|class|programme|program|workshop|help|please help|دورة|التدريب|تدريب|ورشة|نعم|لا|تمام|شكرا|شكرًا)$/u.test(text);
+  const sentenceLike = /^(?:i|im|we|my|he|she|they|not|maybe|please|can|could|would|what|which|how|when|where|do|does|is|are|thanks|thank|already|yes|no)\b/u.test(text);
+  if (generic || sentenceLike || words.length > 6) return false;
+
+  // A short answer to a discovery question, or a bare catalogue title, is a
+  // valid selection. Full customer sentences are not treated as selections.
+  if (state.waitingForCourse === true && words.length <= 5) return true;
+  return courses.some(item => courseNameMatches(message, [item.code, item.nameEn, item.nameAr]));
+}
+const courseMatchTokens = (value, state = {}) => isCourseSelectionIntent(value, state) ? tokens(value) : [];
 function courseNamePhrases(value) {
   const words = normalized(value).split(' ').filter(Boolean);
   const phrases = [];
@@ -283,19 +315,21 @@ function recentCustomerCourseCode(history, facts) {
 function retrieveContext({ facts, knowledgeEntries = [], message, state = {}, profileRevision = 0, referral = null, includeRelatedFaqs = false }) {
   const language = languageFor(message, state);
   const courses = facts.filter(item => item.code && !item.kind);
+  const selectionIntent = isCourseSelectionIntent(message, state, courses);
   const nameWords = new Map(courses.map(item => [item.code, new Set(tokens([item.nameEn, item.nameAr].join(' ')).filter(word => word.length >= 4))]));
-  const queryTokens = courseMatchTokens(message);
-  const direct = courses.filter(item => courseNameMatches(message, [item.code, item.nameEn, item.nameAr], state)
-    || [...nameWords.get(item.code)].some(word => queryTokens.includes(word) && courses.filter(other => nameWords.get(other.code).has(word)).length === 1));
+  const queryTokens = courseMatchTokens(message, state);
+  const direct = selectionIntent ? courses.filter(item => courseNameMatches(message, [item.code, item.nameEn, item.nameAr], state)
+    || [...nameWords.get(item.code)].some(word => queryTokens.includes(word) && courses.filter(other => nameWords.get(other.code).has(word)).length === 1)) : [];
   const genericAdInterest = isGenericAdInterest(message);
   const certificateQuestion = isCertificateQuestion(message, courses);
   const referralCourse = !direct.length && (genericAdInterest || (certificateQuestion && !state.selectedCourseCode))
     ? courseFromVerifiedReferral(facts, referral) : null;
-  const ranked = courses.map(item => ({ item, score: score(message, [item.code, item.nameEn, item.nameAr, item.descriptionEn, item.descriptionAr, item.outcomesEn, item.outcomesAr].join(' ')) }))
-    .sort((a, b) => b.score - a.score);
+  const ranked = selectionIntent || /\b(?:recommend|compare|difference|best|which course)\b|توصي|تنصح|افضل|مقارن|الفرق/iu.test(message)
+    ? courses.map(item => ({ item, score: score(message, [item.code, item.nameEn, item.nameAr, item.descriptionEn, item.descriptionAr, item.outcomesEn, item.outcomesAr].join(' ')) }))
+      .sort((a, b) => b.score - a.score) : [];
   const generalBusinessQuestion = /where|location|address|refund|policy|discount|اين|عنوان|موقع|استرداد|استرجاع|سياسة|خصم/i.test(message);
   let selected = direct.length ? direct.slice(0, 3) : referralCourse ? [referralCourse]
-    : generalBusinessQuestion || genericAdInterest || isStandalonePriceQuestion(message) ? []
+    : generalBusinessQuestion || genericAdInterest || isStandalonePriceQuestion(message) || !selectionIntent ? []
       : ranked.filter(row => row.score >= 3).slice(0, 3).map(row => row.item);
   const selectedPriceQuestion = !direct.length && !referralCourse && !state.waitingForCourse
     && Boolean(state.selectedCourseCode) && isStandalonePriceQuestion(message);
@@ -795,4 +829,4 @@ function polishGuidedReply({ result, profile, message, state, defaults }) {
   return result;
 }
 
-module.exports = { normalized, fingerprint, languageFor, controlRoute, isScheduleQuestion, hasPublishedSchedule, courseDetailNeedsCoordinator, trainingCenterCoordinatorReason, publishedDurationRange, retrieveContext, courseMatchTokens, recentCustomerCourseCode, validateAnswer, clarification, unavailableReply, publishedTrainingReply, simpleFactualReply, isCourseOverviewRequest, shouldSkipApprovedFaq, isGenericAdInterest, shouldClarifyGenericCourseInterest, isCourseDiscoveryOptOut, courseDiscoveryOptOutReply, isCourseDiscoveryFeedback, courseDiscoveryRepairReply, courseDiscoveryReply, ambiguousDiplomaCandidates, diplomaClarificationReply, isBareCourseSelection, courseInquiryTopic, previewState, redactCustomerText, polishGuidedReply, qrAdReferral, courseFromVerifiedReferral, isTrainingGreeting, trainingGreeting, repeatQuestion, repeatedCourseFact, isCertificateQuestion, isStandalonePriceQuestion, recentAssistantCourseCode, courseCertificateReply, certificateFollowUp };
+module.exports = { normalized, fingerprint, languageFor, controlRoute, isScheduleQuestion, hasPublishedSchedule, courseDetailNeedsCoordinator, trainingCenterCoordinatorReason, publishedDurationRange, retrieveContext, courseMatchTokens, isCourseSelectionIntent, recentCustomerCourseCode, validateAnswer, clarification, unavailableReply, publishedTrainingReply, simpleFactualReply, isCourseOverviewRequest, shouldSkipApprovedFaq, isGenericAdInterest, shouldClarifyGenericCourseInterest, isCourseDiscoveryOptOut, courseDiscoveryOptOutReply, isCourseDiscoveryFeedback, courseDiscoveryRepairReply, courseDiscoveryReply, ambiguousDiplomaCandidates, diplomaClarificationReply, isBareCourseSelection, courseInquiryTopic, previewState, redactCustomerText, polishGuidedReply, qrAdReferral, courseFromVerifiedReferral, isTrainingGreeting, trainingGreeting, repeatQuestion, repeatedCourseFact, isCertificateQuestion, isStandalonePriceQuestion, recentAssistantCourseCode, courseCertificateReply, certificateFollowUp };
