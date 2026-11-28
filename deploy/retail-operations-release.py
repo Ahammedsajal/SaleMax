@@ -12,6 +12,7 @@ ORIGIN = 'https://7network.live'
 IMAGE = 'sha256:c496b845778b8b4258dc3eda2757a18240ced0b0cd70c4ad6baf8328e508e577'
 LAST_OVERLAY = '/opt/salemax/releases/retail-analytics-customers-fb5160677b2a-20261128T140619Z/compose.retail-analytics-customers.json'
 OLD_CACHE = '20261128-retail-analytics-customers1'
+OLD_INVENTORY_CACHE = '20261124-retail-reconciliation'
 NEW_CACHE = '20261128-retail-operations1'
 
 RUNTIME = {
@@ -67,10 +68,12 @@ def stage_manifest(stage, commit):
             raise RuntimeError('Public asset hash differs from runtime source: ' + relative)
     previous = (stage / 'preimages' / 'client/public/index.html').read_bytes()
     current = (stage / 'client/public/index.html').read_bytes()
+    expected_shell = previous.replace(OLD_CACHE.encode(), NEW_CACHE.encode(), 1)
+    expected_shell = expected_shell.replace(OLD_INVENTORY_CACHE.encode(), NEW_CACHE.encode(), 1)
     if (release.ops.sha(previous) != info['preimages']['client/public/index.html'] or
-            previous.count(OLD_CACHE.encode()) != 1 or NEW_CACHE.encode() in previous or
-            current != previous.replace(OLD_CACHE.encode(), NEW_CACHE.encode(), 1)):
-        raise RuntimeError('Production shell is not the reviewed single cache-key update')
+            previous.count(OLD_CACHE.encode()) != 1 or previous.count(OLD_INVENTORY_CACHE.encode()) != 1 or
+            NEW_CACHE.encode() in previous or current != expected_shell):
+        raise RuntimeError('Production shell is not the reviewed Retail cache-key update')
     app = (stage / 'client/public/retail-workspace.js').read_text()
     inventory = (stage / 'client/public/business-inventory.js').read_text()
     commerce = (stage / 'modules/platform/retail-commerce-router.js').read_text()
@@ -108,7 +111,7 @@ def public_checks(hashes):
     asset_urls = {
         'client/public/retail-workspace.js': '/retail-workspace.js?v=' + NEW_CACHE,
         'client/public/retail-workspace.css': '/retail-workspace.css?v=' + NEW_CACHE,
-        'client/public/business-inventory.js': '/business-inventory.js?v=20261124-retail-reconciliation',
+        'client/public/business-inventory.js': '/business-inventory.js?v=' + NEW_CACHE,
     }
     for asset, url in asset_urls.items():
         code, data = status(url)
