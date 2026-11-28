@@ -604,8 +604,8 @@
           add(identity,'h3',(connection.displayName||connection.storeDomain)+' · '+connection.provider);
           add(identity,'p',connection.storeDomain+' · '+connection.currency).className='sx-retail-store-domain';
           const badges=add(heading,'div');badges.className='sx-retail-store-badges';
-          add(badges,connection.status==='active'?t('Active','نشط'):connection.status==='paused'?t('Paused','متوقف مؤقتاً'):sourceStatus(connection.status)).className='sx-retail-store-state';
-          add(badges,connection.syncEnabled?t('Credentials verified','تم التحقق من بيانات الاتصال'):t('Credential check required','يلزم التحقق من بيانات الاتصال')).className='sx-retail-store-state '+(connection.syncEnabled?'is-ready':'is-attention');
+          add(badges,'span',connection.status==='active'?t('Active','نشط'):connection.status==='paused'?t('Paused','متوقف مؤقتاً'):sourceStatus(connection.status)).className='sx-retail-store-state';
+          add(badges,'span',connection.syncEnabled?t('Credentials verified','تم التحقق من بيانات الاتصال'):t('Credential check required','يلزم التحقق من بيانات الاتصال')).className='sx-retail-store-state '+(connection.syncEnabled?'is-ready':'is-attention');
 
           const counts=connection.counts||{};
           const metrics=add(card,'div');metrics.className='sx-retail-store-metrics';
@@ -627,7 +627,7 @@
             add(card,'p',t('Products with more variants queued for import','منتجات بمتغيرات إضافية بانتظار الاستيراد')+': '+numberFormat(connection.syncProgress.pendingVariantProducts||connection.syncProgress.pendingVariationParents));
           if(connection.lastErrorCode)add(card,'p',t('Provider error','خطأ المزوّد')+': '+connection.lastErrorCode);
           if(!connection.syncEnabled)add(card,'p',t('Credential check required. Automatic and manual sync are paused until you reconnect and verify fresh store credentials.','يلزم التحقق من بيانات الاتصال. أوقفت المزامنة اليدوية والتلقائية حتى تعيد الربط وتتحقق من بيانات حديثة.'));
-          else add(card,'p',t('Automatic read-only reconciliation runs every 15 minutes. Sync now continues the current import page cursor.','تعمل المزامنة التلقائية للقراءة فقط كل 15 دقيقة. تتابع المزامنة الآن مؤشر صفحات الاستيراد الحالي.'));
+          else add(card,'p',connection.provider==='woocommerce'?t('Automatic read-only product, order and customer sync checks the store every 15 minutes. Configure signed WooCommerce product, order and customer webhooks in the setup section for near-real-time updates.','تتحقق المزامنة التلقائية للمنتجات والطلبات والعملاء من المتجر كل 15 دقيقة. أعدّ Webhooks موقّعة لمنتجات WooCommerce وطلباته وعملائه في قسم الإعداد للتحديث شبه الفوري.'):t('Automatic store reconciliation checks for updates every 15 minutes.','تتحقق المزامنة التلقائية من تحديثات المتجر كل 15 دقيقة.'));
 
           const progress=connection.syncProgress?.resources||{};
           const progressPanel=add(card,'section');progressPanel.className='sx-retail-store-progress';
@@ -644,13 +644,44 @@
           }
 
           const actions=add(card,'div');actions.className='sx-retail-connector-actions';
-          if(connection.syncEnabled)action(actions,t('Sync now','مزامنة الآن'),async()=>{
-            const result=await api('/connectors/'+encodeURIComponent(connection.id)+'/sync','POST',{});
-            await refreshConnections();
-            const resources=Object.entries(result.resources||{}).map(([name,value])=>name+': '+value.imported+
+          if(access.role==='owner'&&connection.provider==='woocommerce'&&!connection.syncEnabled){
+            const revalidate=add(actions,'button',t('Revalidate WooCommerce key','إعادة التحقق من مفتاح WooCommerce'));revalidate.type='button';
+            revalidate.onclick=()=>{connectDetails.open=true;connectDetails.scrollIntoView({behavior:'smooth',block:'center'});wooKey.focus({preventScroll:true});};
+          }
+          if(connection.syncEnabled)action(actions,t('Sync all remaining pages','مزامنة كل الصفحات المتبقية'),async()=>{
+            const connectionId=encodeURIComponent(connection.id),maxPasses=20;let result=null,passes=0,complete=false;
+            for(;passes<maxPasses;passes++){
+              result=await api('/connectors/'+connectionId+'/sync','POST',{});
+              const resources=Object.values(result.resources||{}),hasErrors=resources.some(item=>item.errorCode),hasMore=resources.some(item=>item.hasMore===true);
+              complete=result.complete===true||(resources.length>0&&!hasMore&&!hasErrors);
+              status.textContent=t('Import pass ','دفعة الاستيراد ')+(passes+1)+'/'+maxPasses+' · '+resources.map(item=>numberFormat(item.imported||0)).join(' / ');
+              await refreshConnections();
+              if(complete||hasErrors)break;
+              if(passes+1<maxPasses)await new Promise(resolve=>setTimeout(resolve,250));
+            }
+            const resources=Object.entries(result?.resources||{}).map(([name,value])=>name+': '+numberFormat(value.imported||0)+
               (value.hasMore?' · '+t('more pages','صفحات أخرى'):'')+(value.errorCode?' · '+value.errorCode:'')).join(' | ');
-            return (result.complete?t('Import pass complete. ','اكتملت دورة الاستيراد. '):t('Import will continue from the current page. ','سيستمر الاستيراد من الصفحة الحالية. '))+
-              (resources||t('No new records on this pass.','لا توجد سجلات جديدة في هذه الدورة.'));
+            if(complete){
+              let imageBatches=0,imagesImported=0,failedImages=0,pendingImages=0,imageBackfillError=false;
+              for(;imageBatches<25;){
+                let batch;
+                try{batch=await api('/connectors/'+connectionId+'/images/backfill','POST',{});}
+                catch{imageBackfillError=true;break;}
+                imageBatches++;imagesImported+=Number(batch.images||0);failedImages+=Number(batch.failed||0);
+                pendingImages=Number(batch.pendingImages||0);
+                status.textContent=t('Importing product images: ','جارٍ استيراد صور المنتجات: ')+numberFormat(imagesImported)+' · '+numberFormat(pendingImages)+' '+t('remaining','متبقية');
+                await refreshConnections();
+                if(pendingImages===0||Number(batch.images||0)===0||Number(batch.failed||0)>0)break;
+              }
+              const imageSummary=t(' Images imported: ',' الصور المستوردة: ')+numberFormat(imagesImported)+
+                (failedImages?' · '+numberFormat(failedImages)+' '+t('failed, will retry','فشلت وستعاد المحاولة'):'')+
+                (pendingImages?' · '+numberFormat(pendingImages)+' '+t('images remain for the automatic sync','صور ستستكمل في المزامنة التلقائية'):'')+
+                (imageBatches>=25&&pendingImages?t(' · More images will continue automatically every 15 minutes.',' · ستستكمل الصور تلقائياً كل 15 دقيقة.'):'')+
+                (imageBackfillError?t(' · Image import needs attention; the scheduled sync will retry.',' · يحتاج استيراد الصور إلى مراجعة؛ ستعيد المزامنة المجدولة المحاولة.'):'');
+              return t('All available store pages are imported and reconciled. ','اكتمل استيراد صفحات المتجر المتاحة ومطابقتها. ')+
+                (resources||t('No new records.','لا توجد سجلات جديدة.'))+imageSummary;
+            }
+            return (result?.resources&&Object.values(result.resources).some(item=>item.errorCode)?t('Sync paused after a provider error. Review the status above. ','توقفت المزامنة بعد خطأ من المزوّد. راجع الحالة أعلاه. '):t('Saved progress after ','تم حفظ التقدم بعد ')+passes+' '+t('passes. More pages remain; sync will continue automatically every 15 minutes. ','دفعات. ما زالت صفحات أخرى؛ ستستمر المزامنة تلقائياً كل 15 دقيقة. '))+(resources||'');
           },status);
           if(canOpen('retail-orders')&&hasPermission('retail.orders')){
             destination(actions,t('Open store orders','فتح طلبات المتجر'),'retail-orders','&source=online');
