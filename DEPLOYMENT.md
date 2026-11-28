@@ -1,3 +1,24 @@
+## 2026-11-28 — Retail gallery loading and WooCommerce import recovery — production
+
+Source commit `260e53d09e670c40e7f2b736275a81dea833eb71` (PR #196) is merged to `Ahammedsajal/SaleMax` `main`. Product-card images are now revealed after the lazy-loaded local media request succeeds, fixing the hidden-image state seen on the live page. Store Connections now renders status badges safely, lets the owner reopen the existing WooCommerce connection with its non-secret store details prefilled, and offers a bounded “Sync all remaining pages” action. That action advances product, order and customer cursors, then imports queued images in batches. The existing read-only worker continues every 15 minutes; signed WooCommerce product, order and customer webhooks are the near-real-time path after the owner configures them in WooCommerce.
+
+The app-only release is `/opt/salemax/releases/retail-gallery-sync-260e53d09e67-20261128T105711Z`, layered over the exact Retail Gallery release on the existing app image `sha256:c496b845778b8b4258dc3eda2757a18240ced0b0cd70c4ad6baf8328e508e577`. The active chain now has 368 Compose inputs, 2 environment-file inputs and 334 app mounts. The app and database are healthy, the app has 0 restarts, and the non-app service identities match the pre-release snapshot.
+
+No database migration was selected or applied; the ledger remains at 187 with 0 migration changes. The protected rollback snapshot is `/opt/salemax/shared/rollback-retail-gallery-sync-260e53d09e67-20261128T105711Z`. Its database archive SHA-256 is `bec17d782a7497c04e2501cbfaa8f7685658ab4e6ae1a41de9672891ba49f96f`. The archive restored and matched its verification fingerprint in an isolated database (317 tables, 169,231 insert statements); the zero-migration rehearsal passed.
+
+| Live runtime file | Prior SHA-256 | Deployed SHA-256 |
+|---|---|---|
+| `client/public/index.html` | `13c7b2dd530424a5ed5437416de29311dba0feece0a05fae2e2ba1ad840ba611` | `8d2621c2c6fbe3b8afec117dfb407c7f0f872b63ebf59009e6deca86c8adb917` |
+| `client/public/training-courses.js` | `a5faaa2cfd6a582ca91c3485bc4a362bc02525f32a59fb0517a7321572e4e14c` | `cfba7be9166f2dd0dbb2d070ce8a82bb335ac9ed1ab562538ec599e5de802724` |
+| `client/public/retail-workspace.js` | `b21af28fa4d280f8982df54217db3a38f7133b20535774fa22f5b818ce9f879c` | `939401ba91bc75fe4f122787877785eb9759e66630929bb01b66ecbe5af0d0ce` |
+| `modules/platform/retail-connected-stores-router.js` | `a97ce8b452a98e13797b5c93e14acf6715fbc6245c59b0a113994225729f6ad3` | `10a959772704b8415fa6f6b2bc507a18f58fe756fd2aea2c077fc4b879355ed5` |
+
+The production-derived `index.html` changed only the two reviewed cache keys. Public `/healthz`, login, Products & services, Store Connections and online orders routes returned HTTP 200. Anonymous product, connector, order and customer APIs returned HTTP 401. Both cache-versioned JavaScript assets returned HTTP 200 with their staged hashes.
+
+The connected WooCommerce credentials were still unverified at deployment time, so no provider sync or customer-data change was run. The owner must enter a fresh read-only key on Store Connections, then click “Sync all remaining pages”; the sync resumes from the beginning and reconciles existing records. Until signed webhooks are configured in WooCommerce, automatic updates use the 15-minute poll. Authenticated visual acceptance remains open.
+
+If this remains the newest app overlay, restore the app under the production lock with `sudo -n /opt/salemax/shared/with-production-lock.sh python3 -B /opt/salemax/releases/retail-gallery-sync-260e53d09e67-20261128T105711Z/deploy/retail-gallery-sync-release.py restore /opt/salemax/shared/rollback-retail-gallery-sync-260e53d09e67-20261128T105711Z`. This release made no schema change, so do not restore the database archive over live writes.
+
 ## 2026-11-28 — Retail product image galleries — production
 
 Source commit `7168a3f989009aa05b119a8366fa25525def59ed` (PR #193, with deployment-guard follow-ups #194 and #195) is on `Ahammedsajal/SaleMax` `main`. Retail product cards now fill the image frame, navigate/swipe across the ordered gallery, and open the selected image in a keyboard-accessible lightbox. WooCommerce and Shopify imports normalize up to 12 product images into tenant-scoped encrypted media storage. Existing cover images remain the fallback.
