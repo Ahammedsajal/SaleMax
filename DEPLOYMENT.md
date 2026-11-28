@@ -54,6 +54,32 @@ Rollback the app overlay under the production lock with the release helper in `/
 
 Authenticated visual acceptance could not be completed: the connected Edge tab timed out while attaching. English/Arabic RTL, theme, mobile/tablet layout and signed-in gallery interaction remain owner verification gates. Release-retention helper dry-run found no eligible releases (342 candidates, 0 deleted).
 
+## 2026-11-28 — Pro Catalyst contextual course answers and pending-fact recovery — production
+
+Source commit `ed58237b01eda8a46294a9c92695ea13e6069b3c` (implementation `59e22cf689e3b1d181b51758e805b4639fd6bac4`) is pushed to `Ahammedsajal/SaleMax` `main`. The previous route had two connected faults: the contextual planner was still restricted to the old recipient pilot, and the legacy Hybrid route could consume a course-selection reply without carrying the customer’s original unanswered fact question forward. Training-centre profiles now use the contextual planner on all direct QR and Meta chats where AI is configured and the business has confirmed AI data processing. The legacy course-selection/discovery intercept no longer steals those turns. Callback-pilot reset handling remains separately gated.
+
+Course clarification now retains the requested fact topic (duration, fee, certificate, delivery, schedule or requirements) with the conversation. When a customer answers the clarification, a single-edit typo in a distinctive course word can match only while a course answer is pending. The bot then answers the original fact from that course’s published catalogue. Existing chats can recover a missing pending-fact marker from the recent user question and the bot’s course clarification. A plain acknowledgement such as “ok” receives a short neutral response and does not replay course facts or media.
+
+The live Computer Skills Training – MS Office Application record was verified as published with a displayed duration range of 8–10 weeks (its structured duration is 10 weeks). The reported “What is the training duration?” → “computre skills training” sequence now retains that duration request and resolves it against the selected course. No profile setting, database row, migration or customer conversation was changed by this release.
+
+The guarded app-only release is `/opt/salemax/releases/pro-catalyst-contextual-course-answer-ed58237b01ed-20261128T173906Z`, layered over base `/opt/salemax/releases/training-pipeline-correction-v3-9867ca72-20261104`. It retains app image `salemax-app:email-followup-resend-4cd5b2750f22-20261126T114538Z` (`sha256:c496b845778b8b4258dc3eda2757a18240ced0b0cd70c4ad6baf8328e508e577`). The release helper verified 372 Compose inputs, 2 environment inputs and 334 app mounts; all seven non-app containers stayed unchanged. The app is healthy with zero restarts and the database passed its healthy preflight. Public `/healthz` and `/admin?page=manage-users` returned HTTP 200.
+
+| Runtime file | Previous live SHA-256 | Deployed SHA-256 |
+|---|---|---|
+| `modules/platform/chatbot-business-context.js` | `f0f343518a4bbb51786e5aefebd81fed013cafb98efa67f6c4941e4cd5350165` | `2cbd85eea4ade6dc9f2b9dfc74bcf639e083156813b702ccf9ad33539cba28a3` |
+| `modules/platform/chatbot-runtime.js` | `e2927b4691ea95951a944a5847bd97e348ef3c979d9c242aa0560fafd7f822aa` | `79238da3f91669b727286a813686a6347aa1b63a59113f9c75055e38317a5abc` |
+| `modules/platform/chatbot-turn-understanding.js` | `b340d008a4b3a88d7247efb86204697bf1aa74a9ad2a5c89ddb241c1765592b1` | `d6d1fe2336e87d10483a26e64e3a28ab2f84ca6c744551f42f253d88aea1cbdf` |
+
+Three new focused regressions pass, including English and Arabic recovery of an older unanswered duration question and the course-typo fact answer. JavaScript syntax, release-helper AST parsing and `git diff --check` pass. The broader chatbot suite reports 397/415 passing; all 18 failures reproduce unchanged on clean `origin/main` (394/412), so this change adds no failing existing test. The initial guarded attempt stopped before deployment because its preimage list still named the 26 November files; the list was aligned with the verified live 28 November hashes and the successful retry made no changes outside the app overlay. No WhatsApp test message or paid live-provider request was sent. Real device-side acceptance remains open.
+
+Protected rollback snapshot: `/opt/salemax/shared/rollback-pro-catalyst-contextual-course-answer-ed58237b01ed-20261128T173906Z`. If this remains the latest app overlay, restore any later app overlays first, then run under the production lock:
+
+```sh
+sudo -n /opt/salemax/shared/with-production-lock.sh python3 -B /opt/salemax/releases/pro-catalyst-contextual-course-answer-ed58237b01ed-20261128T173906Z/deploy/pro-catalyst-contextual-course-answer-release.py restore /opt/salemax/shared/rollback-pro-catalyst-contextual-course-answer-ed58237b01ed-20261128T173906Z
+```
+
+No database rollback applies.
+
 ## 2026-11-28 — Pro Catalyst context-aware course selection — production
 
 Source commit `bb50f19fc7f74b89cff14c01dc9662faca5817c2` is pushed to `Ahammedsajal/SaleMax` `main`. The shared Training Center course matcher now requires a clear course-selection intent or a bare course answer to an active discovery question before changing the selected course. It ignores incidental shared words in deferrals and acknowledgements, so “I will check this first” cannot select First Aid. Course price and detail follow-ups retain the saved course. The runtime now avoids invoking its separate GPT-6 Luna course-only classifier for deferrals and unrelated follow-ups, while the existing contextual turn receives the retained course. Its prompt explicitly treats “I will check this first” as a deferral. The live employment and schedule coordinator safeguards were merged into the tracked runtime before release.
