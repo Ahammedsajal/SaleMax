@@ -9,6 +9,18 @@ const facts = [
  { kind:'published_enquiry_form',url:'https://example.test/p/test/forms/enquiry' }
 ];
 const config = { guidedContent: { keywordReplies:[{enabled:true,match:'exact',keywords:['opening time','اوقات الدوام'],reply:{en:'Published opening time.',ar:'وقت الدوام المنشور.'}}] } };
+test('answers the original duration question after a course clarification using the published course fact',()=>{
+ const course={courseId:'ms-office',code:'PCAT-MS-OFFICE',nameEn:'Computer Skills Training – MS Office Application',
+   descriptionEn:'Practical MS Office training.\n8 - 10 Weeks Practical Training',durationValue:10,durationUnit:'weeks',batches:[]};
+ const context=retrieveContext({facts:[course],message:'Computer Skills Training',state:{selectedCourseCode:'PCAT-MS-OFFICE'}});
+ assert.equal(context.evidence[0].duration,'8–10 weeks');
+ const reply=simpleFactualReply('duration',context);
+ assert.match(reply.reply,/8–10 weeks/);
+ assert.doesNotMatch(reply.reply,/which course|can’t confirm/i);
+ const typo=retrieveContext({facts:[course],message:'computre skills training',state:{waitingForCourse:true}});
+ assert.equal(typo.selectedCourseCode,'PCAT-MS-OFFICE');
+ assert.equal(typo.evidence[0].duration,'8–10 weeks');
+});
 test('short single-course selections use the facts path while questions stay in the Hybrid route',()=>{
  assert.equal(isBareCourseSelection('Marine Deck hand',{explicitCourses:1,selectedCourseCode:'MARINE'}),true);
  assert.equal(isBareCourseSelection('which certificate will I get?',{explicitCourses:1,selectedCourseCode:'MARINE'}),false);

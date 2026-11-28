@@ -2,7 +2,7 @@
 
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { buildRequest, validateProposal, renderPriceComparison, safeSocialFallback, retainSelectedCourse, isExistingLearnerUpdate, existingLearnerHandoffReply, understandTurn } = require('../modules/platform/chatbot-turn-understanding');
+const { buildRequest, validateProposal, renderPriceComparison, safeSocialFallback, retainSelectedCourse, isExistingLearnerUpdate, existingLearnerHandoffReply, courseFactTopic, pendingCourseFactTopic, understandTurn } = require('../modules/platform/chatbot-turn-understanding');
 
 const context = {
   evidence: [
@@ -63,6 +63,35 @@ test('redacts private contact details and limits long multilingual prompts', () 
 test('includes an outstanding question when it is the last prior message', () => {
   const request = buildRequest({ text: 'Yes', history: [{ role: 'assistant', text: 'May we call you?' }], context });
   assert.equal(request.lastQuestion, 'May we call you?');
+});
+
+test('retains the original course fact request while the customer answers a course clarification', () => {
+  assert.equal(courseFactTopic('What is the training duration?'), 'duration');
+  assert.equal(courseFactTopic('How much is the course?'), 'fee');
+  const request = buildRequest({ text: 'Computer Skills Training',
+    history: [{ role: 'assistant', text: 'Which course are you asking about?' }],
+    state: { selectedCourseCode: 'PCAT-MS-OFFICE', pendingQuestion: 'none', pendingFactTopic: 'duration' },
+    context });
+  assert.equal(request.pendingFactTopic, 'duration');
+  assert.equal(safeSocialFallback('ok', 'en'), 'No problem. I’m here if you need anything else.');
+});
+
+test('recovers an older unanswered fact question from history when a course clarification is pending', () => {
+  const history = [
+    { role: 'user', text: 'What is the training duration?' },
+    { role: 'assistant', text: 'Which course are you asking about?' },
+  ];
+  assert.equal(pendingCourseFactTopic(history, { waitingForCourse: true }), 'duration');
+  assert.equal(pendingCourseFactTopic(history, { resolvedCourseFromClarification: true }), 'duration');
+  assert.equal(pendingCourseFactTopic(history, { waitingForCourse: false }), null);
+  assert.equal(pendingCourseFactTopic([
+    { role: 'user', text: 'كم مدة التدريب؟' },
+    { role: 'assistant', text: 'ما اسم الدورة التي تسأل عنها؟' },
+  ], { waitingForCourse: true }), 'duration');
+  assert.equal(pendingCourseFactTopic([
+    { role: 'user', text: 'What is the training duration?' },
+    { role: 'assistant', text: 'The course lasts 8–10 weeks.' },
+  ], { waitingForCourse: true }), null);
 });
 
 test('accepts a sourced price and rejects unknown and crossed course references', () => {

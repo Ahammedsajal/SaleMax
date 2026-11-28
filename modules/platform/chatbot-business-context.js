@@ -54,7 +54,22 @@ function courseNamePhrases(value) {
   }
   return phrases;
 }
-function courseNameMatches(message, names) {
+function oneEditCourseTypo(left, right) {
+  if (left === right) return true;
+  if (Math.abs(left.length - right.length) > 1) return false;
+  let i = 0, j = 0, edits = 0;
+  while (i < left.length && j < right.length) {
+    if (left[i] === right[j]) { i++; j++; continue; }
+    if (++edits > 1) return false;
+    if (left.length === right.length && left[i] === right[j + 1] && left[i + 1] === right[j]) { i += 2; j += 2; }
+    else if (left.length > right.length) i++;
+    else if (right.length > left.length) j++;
+    else { i++; j++; }
+  }
+  return edits + Number(i < left.length || j < right.length) <= 1;
+}
+
+function courseNameMatches(message, names, state = {}) {
   const query = normalized(message);
   if (!query) return false;
   return names.filter(Boolean).some(rawName => {
@@ -63,7 +78,16 @@ function courseNameMatches(message, names) {
     // Preserve meaningful two-word aliases such as “MS Office” without
     // treating the generic word “office” in “I visited your office” as a
     // course selection.
-    return courseNamePhrases(rawName).some(phrase => query.includes(phrase));
+    if (courseNamePhrases(rawName).some(phrase => query.includes(phrase))) return true;
+    // A short answer to an explicit course-discovery question may contain a
+    // typo in the distinctive course word (e.g. “computre skills”). Keep this
+    // fuzzy path scoped to that pending question so incidental words never
+    // switch the saved course.
+    if (state.waitingForCourse !== true) return false;
+    const queryWords = tokens(query);
+    const titleWords = tokens(rawName).filter(word => word.length >= 4);
+    return queryWords.some(word => titleWords.some(title => title.length >= 4
+      && (word === title || (word.length >= 6 && title.length >= 6 && oneEditCourseTypo(word, title)))));
   });
 }
 const BEGINNER_TEXT = /\b(?:beginner|beginners|new to this|no experience|just starting|starting from zero)\b/u;

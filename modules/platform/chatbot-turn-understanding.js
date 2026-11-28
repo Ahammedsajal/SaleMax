@@ -36,6 +36,7 @@ const SYSTEM = [
   'When a detail is missing, say you cannot confirm it and offer a useful clarification. Do not repeat a customer’s phone number or other private details.',
   'Answer the current question naturally and concisely. Ask at most one relevant question.',
   'When the customer thanks you after receiving details, acknowledge them without restarting discovery. If they say not now or they will return later, respect their decision and do not ask another question.',
+  'When pendingFactTopic is set, the customer previously asked about that detail and is answering your course clarification. Resolve that original question from the selected course evidence immediately; do not restart discovery or answer a different question.',
   'If staffNotificationQueued is true, it is safe to say the team has received the enquiry. Acknowledge the customer’s actual message and current-student status; do not replace it with a generic callback script or ask for a name, course, or phone number already present in context.',
   'Use primaryCourseName and selectedCourseCode as the customer’s current course. Use courseInterestHistory only when the customer refers to an older interest or asks to compare courses. When one current course is clear, answer follow-ups about it without asking which course they mean. Change the primary course only when the customer clearly asks about a different course; retain prior interests.',
   'A course name or keyword appearing incidentally is not a course change. Do not select a course from one shared word, a sentence fragment, or an acknowledgement. For example, “I will check this first” is a polite deferral, not a request for First Aid; acknowledge the deferral and keep the existing course. Treat a new course as selected only when the customer clearly asks about it or gives its title in response to a pending course-discovery question.',
@@ -73,6 +74,8 @@ function buildRequest({ text, history = [], state = {}, context = {}, showFees =
       .slice(-20).map(item => ({ code: typeof item.code === 'string' ? item.code.slice(0, 100) : null,
         name: redactCustomerText(item.name).slice(0, 180) })),
     pendingQuestion: QUESTIONS.has(state.pendingQuestion) ? state.pendingQuestion : 'none',
+    pendingFactTopic: ['duration', 'fee', 'certificate', 'delivery', 'schedule', 'requirements'].includes(state.pendingFactTopic)
+      ? state.pendingFactTopic : null,
     contactProgress: {
       nameProvided: state.nameProvided === true,
       qatarNumberProvided: state.qatarNumberProvided === true,
@@ -85,6 +88,41 @@ function buildRequest({ text, history = [], state = {}, context = {}, showFees =
   const lastTurn = request.history.at(-1);
   request.lastQuestion = lastTurn?.role === 'assistant' && /[?؟]/u.test(lastTurn.text) ? lastTurn.text : null;
   return request;
+}
+
+function courseFactTopic(text) {
+  const value = normalized(text);
+  if (/\b(?:duration|how long|length of (?:the )?(?:course|training)|weeks?|months?|hours?)\b|مدة|كم تستغرق|كم مدة/u.test(value)) return 'duration';
+  if (/\b(?:fee|fees|price|cost|how much)\b|رسوم|سعر|تكلفة/u.test(value)) return 'fee';
+  if (/\b(?:certificate|certification|accreditation|attestation)\b|شهادة|اعتماد|تصديق/u.test(value)) return 'certificate';
+  if (/\b(?:delivery|online|offline|in person|face to face|classroom|remote|hybrid)\b|حضوري|عن بعد|اونلاين|مدمج/u.test(value)) return 'delivery';
+  if (/\b(?:schedule|batch|start date|when does|when is)\b|موعد|جدول|دفعة/u.test(value)) return 'schedule';
+  if (/\b(?:requirements?|prerequisites?|eligibility|entry requirements?)\b|متطلبات|شروط الالتحاق/u.test(value)) return 'requirements';
+  return null;
+}
+
+function pendingCourseFactTopic(history, state = {}) {
+  const topics = new Set(['duration', 'fee', 'certificate', 'delivery', 'schedule', 'requirements']);
+  if (topics.has(state.pendingFactTopic)) return state.pendingFactTopic;
+  if (!(state.waitingForCourse === true || state.pendingQuestion === 'course'
+      || state.resolvedCourseFromClarification === true)) return null;
+  const turns = (Array.isArray(history) ? history : []).filter(turn => turn
+    && ['user', 'assistant'].includes(turn.role) && typeof turn.text === 'string');
+  let assistantIndex = -1;
+  for (let index = turns.length - 1; index >= 0; index--) {
+    if (turns[index].role !== 'assistant') continue;
+    const reply = normalized(turns[index].text);
+    const asksForCourse = /\b(?:which|what)\s+(?:course|training|program|programme|skill)|\bwhich course are you asking about\b|\bname (?:of )?the course\b|أي\s+(?:دورة|برنامج|مهارة)|ما\s+(?:اسم\s+)?(?:الدورة|البرنامج|المهارة)/u.test(reply);
+    if (!asksForCourse) return null;
+    assistantIndex = index;
+    break;
+  }
+  if (assistantIndex < 0) return null;
+  for (let index = assistantIndex - 1; index >= 0; index--) {
+    if (turns[index].role !== 'user') continue;
+    return courseFactTopic(turns[index].text);
+  }
+  return null;
 }
 
 function isExistingLearnerUpdate(text) {
@@ -217,6 +255,9 @@ function safeSocialFallback(text, language = 'en') {
   if (/^(?:not now|not at the moment|maybe later|another time|ليس الآن|ليس الان|لاحقا|لاحقاً)$/u.test(value)) {
     return language === 'ar' ? 'بالتأكيد، خذ وقتك. يمكنك مراسلتنا عندما يناسبك.' : 'Of course, take your time. You can message us whenever you’re ready.';
   }
+  if (/^(?:ok|okay|alright|sure|got it|understood|fine|حسنا|حسنًا|تمام)$/u.test(value)) {
+    return language === 'ar' ? 'حسنًا، أنا هنا إذا احتجت إلى أي مساعدة أخرى.' : 'No problem. I’m here if you need anything else.';
+  }
   if (/^(?:(?:ok|okay|alright|sure)[, ]*)?(?:thank you(?: so much| very much)?|thanks?(?: a lot| so much)?|appreciate it|i appreciate it|got it thanks)(?: for (?:this|the) (?:information|details|help))?(?:[, ]*(?:ma.?am|sir|brother|sister))?$/u.test(value)) {
     return language === 'ar' ? 'على الرحب والسعة. أنا هنا إذا احتجت إلى أي مساعدة أخرى.' : 'You’re welcome! I’m here if you need anything else.';
   }
@@ -294,4 +335,4 @@ async function understandTurn({ provider, settings, tenantId, text, history, sta
   return { ok: true, proposal, usage: response.usage };
 }
 
-module.exports = { TOOL, SYSTEM, buildRequest, validateProposal, renderPriceComparison, safeSocialFallback, retainSelectedCourse, isTrainingCenterVisitCandidate, isExistingLearnerUpdate, existingLearnerHandoffReply, understandTurn };
+module.exports = { TOOL, SYSTEM, buildRequest, validateProposal, renderPriceComparison, safeSocialFallback, retainSelectedCourse, isTrainingCenterVisitCandidate, isExistingLearnerUpdate, existingLearnerHandoffReply, courseFactTopic, pendingCourseFactTopic, understandTurn };
