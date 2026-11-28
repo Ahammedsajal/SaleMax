@@ -234,7 +234,7 @@
     if(position)position.textContent=`${current+1} / ${ids.length}`;
     const request=Number(gallery.dataset.imageRequest||0)+1;
     gallery.dataset.imageRequest=String(request);
-    if(image){image.hidden=true;image.removeAttribute('src');}
+    if(image){image.hidden=false;image.style.visibility='hidden';image.removeAttribute('src');}
     gallery.classList.remove('has-image');
     if(fallback)fallback.hidden=false;
     try{
@@ -243,7 +243,7 @@
       if(localUrl.origin!==location.origin||Number(gallery.dataset.imageRequest)!==request)return;
       image.onload=()=>{
         if(Number(gallery.dataset.imageRequest)!==request)return;
-        image.hidden=false;gallery.classList.add('has-image');if(fallback)fallback.hidden=true;
+        image.hidden=false;image.style.visibility='';gallery.classList.add('has-image');if(fallback)fallback.hidden=true;
         if(dialog?.open&&activeProductGallery===gallery){
           const lightboxImage=dialog.querySelector('[data-lightbox-image]');
           lightboxImage.src=localUrl.href;lightboxImage.alt=image.alt;
@@ -251,7 +251,7 @@
           if(lightboxPosition)lightboxPosition.textContent=`${current+1} / ${ids.length}`;
         }
       };
-      image.onerror=()=>{if(Number(gallery.dataset.imageRequest)!==request)return;image.hidden=true;gallery.classList.remove('has-image');if(fallback)fallback.hidden=false;};
+      image.onerror=()=>{if(Number(gallery.dataset.imageRequest)!==request)return;image.hidden=true;image.style.visibility='';gallery.classList.remove('has-image');if(fallback)fallback.hidden=false;};
       image.src=localUrl.href;
       if(dialog?.open&&activeProductGallery===gallery){
         const lightboxImage=dialog.querySelector('[data-lightbox-image]');
@@ -259,7 +259,7 @@
         dialog.querySelector('[data-lightbox-position]').textContent=`${current+1} / ${ids.length}`;
       }
     }catch{
-      if(Number(gallery.dataset.imageRequest)===request){image.hidden=true;if(fallback)fallback.hidden=false;gallery.classList.remove('has-image');}
+      if(Number(gallery.dataset.imageRequest)===request){image.hidden=true;image.style.visibility='';if(fallback)fallback.hidden=false;gallery.classList.remove('has-image');}
     }
   }
   function openProductGallery(n,gallery){
