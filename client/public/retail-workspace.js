@@ -511,7 +511,7 @@
   function showCode(status,error){status.textContent=t('Could not complete this action.','تعذر إكمال هذا الإجراء.')+(error?.message?' '+String(error.message).replace(/[^A-Z0-9_ -]/gi,'').slice(0,64):'');}
   async function connectedStores(root,status,access){
     root.classList.add('sx-retail-connected-stores');
-    const intro=add(root,'p',t('Connect stores, run imports and review what WooCommerce reported. Imported products, orders and customers remain in their account sections. Sync reads store data and does not change the store.','اربط المتاجر ونفّذ الاستيراد وراجع ما أبلغ عنه WooCommerce. تبقى المنتجات والطلبات والعملاء المستوردة في أقسامها داخل الحساب. تقرأ المزامنة بيانات المتجر ولا تغيّره.'));
+    const intro=add(root,'p',t('Connect a store, then sync its products, orders and customers.','اربط متجرك ثم زامن المنتجات والطلبات والعملاء.'));
     intro.className='sx-retail-page-subtitle';
     const connectionsRoot=add(root,'section');connectionsRoot.className='sx-retail-connected-list';
     add(connectionsRoot,'h2',t('Connected stores','المتاجر المتصلة'));
@@ -521,7 +521,7 @@
 
     const shopify=add(connectForms,'section');shopify.className='sx-retail-connect-provider';
     add(shopify,'h3',t('Shopify','Shopify'));
-    add(shopify,'p',t('Connect through Shopify authorization. The app requests read-only product, order and customer access. Orders cover the last 60 days by default; the optional older-order scope can be enabled only after Shopify approves it. Customer names and contact details also require protected customer data access. The authorizing Shopify staff account must also be allowed to view abandoned checkouts.','يتم الربط عبر تفويض Shopify. يطلب التطبيق قراءة المنتجات والطلبات والعملاء فقط. تشمل الطلبات آخر 60 يوماً افتراضياً؛ ولا يمكن تفعيل نطاق الطلبات الأقدم الاختياري إلا بعد موافقة Shopify. كما تتطلب أسماء العملاء وبيانات التواصل موافقة الوصول إلى بيانات العملاء المحمية. ويجب أن يملك حساب موظف Shopify المفوّض صلاحية عرض السلات المتروكة.'));
+    add(shopify,'p',t('Connect Shopify and approve the requested product, order and customer access.','اربط Shopify ووافق على الوصول المطلوب للمنتجات والطلبات والعملاء.'));
     const shopName=input(shopify,t('Shopify store domain','نطاق متجر Shopify'));
     shopName.autocomplete='url';shopName.placeholder='example.myshopify.com';shopName.setAttribute('aria-label',t('Shopify store domain','نطاق متجر Shopify'));
     const shopCurrency=input(shopify,t('Primary store currency (ISO 4217)','العملة الأساسية للمتجر (ISO 4217)'),'QAR');shopCurrency.maxLength=3;shopCurrency.autocomplete='off';
@@ -530,17 +530,27 @@
 
     const woo=add(connectForms,'section');woo.className='sx-retail-connect-provider';
     add(woo,'h3',t('WooCommerce','WooCommerce'));
-    add(woo,'p',t('Use a dedicated read-only WooCommerce REST key. The key is sent over HTTPS and stored encrypted in 7Network. This admin connection does not add storefront or checkout fields or change payment settings. After the first full sync reconciles, the owner can configure signed product, order and customer webhooks in WooCommerce admin; that setup changes admin settings only. The optional checkout-event plugin is separate and is not needed for catalog/order sync.','استخدم مفتاح REST مخصصاً للقراءة فقط في WooCommerce. يُرسل المفتاح عبر HTTPS ويُخزّن مشفراً في 7Network. لا يضيف هذا الربط الإداري حقولاً للمتجر أو الدفع ولا يغيّر إعدادات الدفع. بعد اكتمال أول مزامنة ومطابقتها، يمكن للمالك إعداد Webhooks موقّعة للمنتجات والطلبات والعملاء من لوحة WooCommerce؛ وهذا يغيّر إعدادات الإدارة فقط. إضافة أحداث الدفع اختيارية ومنفصلة وليست مطلوبة لمزامنة المنتجات والطلبات.'));
-    add(woo,'p',t('If a previous WooCommerce key was exposed, revoke it in WooCommerce and enter the replacement key here. Existing connections must pass a fresh credential check before automatic sync resumes.','إذا كُشف مفتاح WooCommerce سابق، أبطله من لوحة WooCommerce وأدخل المفتاح البديل هنا. يجب إعادة التحقق من بيانات الاتصال الحالية قبل استئناف المزامنة التلقائية.'));
+    add(woo,'p',t('Create a WooCommerce API key, then enter it below.','أنشئ مفتاح API لـ WooCommerce ثم أدخله أدناه.'));
+    add(woo,'strong',t('7 steps to connect','7 خطوات للاتصال'));
+    const wooSteps=add(woo,'ol');wooSteps.className='sx-retail-woo-setup-steps';
+    const wooStoreStep=add(wooSteps,'li',t('Sign in to the WordPress admin for your store.','سجّل الدخول إلى لوحة WordPress الخاصة بمتجرك.'));
+    [
+      t('Go to WooCommerce > Settings > Advanced > REST API.','انتقل إلى WooCommerce > الإعدادات > متقدم > REST API.'),
+      t('Click Add key.','اضغط على إضافة مفتاح.'),
+      t('Enter “7Network sync” as the description and choose a store admin or manager with access to products, orders and customers.','أدخل «7Network sync» كوصف، واختر مدير المتجر أو مسؤولاً لديه صلاحية الوصول إلى المنتجات والطلبات والعملاء.'),
+      t('Set Permissions to Read/Write. This grants write access; the current 7Network sync only reads store data.','اختر صلاحية القراءة والكتابة. تمنح هذه الصلاحية حق تعديل المتجر؛ أما مزامنة 7Network الحالية فتقرأ البيانات فقط.'),
+      t('Generate the key and copy the Consumer Key and Consumer Secret now. WooCommerce shows the secret once.','أنشئ المفتاح وانسخ Consumer Key وConsumer Secret الآن؛ يعرض WooCommerce السر مرة واحدة.'),
+      t('Return to 7Network Store Connections. For an existing store, click Revalidate WooCommerce key; for a new one, click Connect another store. Enter both values and click Connect or revalidate WooCommerce. After verification, click Sync missing products, orders & customers.','ارجع إلى اتصالات المتاجر في 7Network. للمتجر الحالي اضغط إعادة التحقق من مفتاح WooCommerce؛ وللمتجر الجديد اضغط ربط متجر آخر. أدخل القيمتين واضغط ربط WooCommerce أو إعادة التحقق. بعد التحقق، اضغط مزامنة المنتجات والطلبات والعملاء الناقصة.')
+    ].forEach(step=>add(wooSteps,'li',step));
     const wooUrl=input(woo,t('Store URL','رابط المتجر'));wooUrl.placeholder='https://shop.example.com';wooUrl.autocomplete='url';
     const wooDisplay=input(woo,t('Display name','اسم العرض'));
     const wooCurrency=input(woo,t('Store currency (ISO 4217)','عملة المتجر (ISO 4217)'),'QAR');wooCurrency.maxLength=3;wooCurrency.autocomplete='off';
-    const wooKey=input(woo,t('Consumer key (read only)','مفتاح المستهلك (قراءة فقط)'),'','password');wooKey.autocomplete='new-password';
+    const wooKey=input(woo,t('Consumer key','مفتاح المستهلك'),'','password');wooKey.autocomplete='new-password';
     const wooSecret=input(woo,t('Consumer secret','السر الخاص بالمستهلك'),'','password');wooSecret.autocomplete='new-password';
     const connectWoo=add(woo,'button',t('Connect or revalidate WooCommerce','ربط WooCommerce أو إعادة التحقق'));connectWoo.type='button';
     connectWoo.onclick=async()=>{connectWoo.disabled=true;try{
       await api('/connectors/woocommerce','POST',{storeUrl:wooUrl.value,displayName:wooDisplay.value,currency:wooCurrency.value.toUpperCase(),consumerKey:wooKey.value,consumerSecret:wooSecret.value});
-      wooKey.value='';wooSecret.value='';status.textContent=t('WooCommerce connected. API credentials were cleared from the form and stored encrypted. Read-only sync has not started. Configure signed webhooks only after reconciliation.','تم ربط WooCommerce. مُسحت بيانات API من النموذج وخُزنت مشفرة. لم تبدأ المزامنة للقراءة فقط بعد. أعدّ Webhooks الموقّعة بعد المطابقة فقط.');connectDetails.open=false;await refreshConnections();
+      wooKey.value='';wooSecret.value='';status.textContent=t('WooCommerce connection saved. Credentials were cleared from the form.','تم حفظ اتصال WooCommerce ومسح بيانات الاعتماد من النموذج.');connectDetails.open=false;await refreshConnections();
     }catch(error){showCode(status,error);}finally{connectWoo.disabled=false;}};
 
     async function showSetup(connection,area){
@@ -552,8 +562,8 @@
         add(area,'p',t('Subscribe to','اشترك في')+': '+result.topics.join(', '));
         if(connection.provider==='shopify'&&result.complianceWebhookUrl)add(area,'p',t('Shopify mandatory privacy topics (configured in Shopify Dev Dashboard): ','موضوعات الخصوصية الإلزامية في Shopify (تُعدّ في لوحة المطور): ')+result.complianceWebhookUrl);
         if(result.abandonedCheckoutPlugin){const link=add(area,'a',t('Download the WooCommerce abandoned-checkout plugin','تنزيل إضافة السلات المتروكة لـ WooCommerce'));link.href=result.abandonedCheckoutPlugin;link.download='7network-retail-connector.zip';link.rel='noopener noreferrer';}
-        if(connection.provider==='woocommerce')add(area,'p',t('These signed webhooks keep the 7Network copy current; they do not write to WooCommerce products, stock, orders or payments. Configure them in WooCommerce admin after initial count and amount reconciliation. This does not change storefront pages, checkout, payment settings or checkout fields. Leave the optional checkout-event plugin unconfigured; its Checkout Blocks event coverage is unverified and it does not send customer messages.','تحافظ Webhooks الموقّعة هذه على تحديث نسخة 7Network؛ ولا تكتب إلى منتجات WooCommerce أو مخزونها أو طلباتها أو مدفوعاتها. أعدّها من لوحة WooCommerce بعد مطابقة أعداد المنتجات ومبالغ الطلبات أولاً. لا يغيّر ذلك صفحات المتجر أو الدفع أو إعدادات الدفع أو حقول الدفع. اترك إضافة أحداث الدفع الاختيارية دون إعداد؛ فدعمها لأحداث Checkout Blocks غير متحقق منه ولا ترسل رسائل للعملاء.'));
-        if(connection.provider==='shopify')add(area,'p',t('The store will receive read-only resource webhook subscriptions. Complete the mandatory privacy topic configuration and Shopify protected-customer-data review before production activation.','سيتلقى المتجر اشتراكات Webhook للقراءة فقط. أكمل إعداد موضوعات الخصوصية الإلزامية ومراجعة بيانات العملاء المحمية من Shopify قبل التفعيل الإنتاجي.'));
+         if(connection.provider==='woocommerce')add(area,'p',t('Webhooks send product, order and customer updates to 7Network. Set them up after the first sync.','ترسل Webhooks تحديثات المنتجات والطلبات والعملاء إلى 7Network. أعدّها بعد أول مزامنة.'));
+         if(connection.provider==='shopify')add(area,'p',t('Finish Shopify privacy webhook setup before importing customer data.','أكمل إعداد Webhooks وخصوصية Shopify قبل استيراد بيانات العملاء.'));
       }catch(error){add(area,'p',t('Could not load setup details.','تعذر تحميل تفاصيل الإعداد.'));showCode(status,error);}
     }
     async function showPrivacy(connection,area){
@@ -622,12 +632,12 @@
           if(connection.provider==='woocommerce')metric(t('Inventory mappings','روابط المخزون'),counts.mappings,t('Woo to 7Network SKU links','روابط SKU بين Woo و7Network'));
 
           if(connection.lastSyncAt)add(card,'p',t('Last sync attempt','آخر محاولة مزامنة')+': '+orderDate(connection.lastSyncAt));
-          if(connection.syncProgress?.lastCompleteScanAt)add(card,'p',t('Last complete read-only scan','آخر فحص كامل للقراءة فقط')+': '+orderDate(connection.syncProgress.lastCompleteScanAt));
+          if(connection.syncProgress?.lastCompleteScanAt)add(card,'p',t('Last full scan','آخر فحص كامل')+': '+orderDate(connection.syncProgress.lastCompleteScanAt));
           if(Number(connection.syncProgress?.pendingVariantProducts||connection.syncProgress?.pendingVariationParents||0)>0)
             add(card,'p',t('Products with more variants queued for import','منتجات بمتغيرات إضافية بانتظار الاستيراد')+': '+numberFormat(connection.syncProgress.pendingVariantProducts||connection.syncProgress.pendingVariationParents));
           if(connection.lastErrorCode)add(card,'p',t('Provider error','خطأ المزوّد')+': '+connection.lastErrorCode);
-          if(!connection.syncEnabled)add(card,'p',connection.provider==='woocommerce'?t('To import the remaining store data, click “Revalidate WooCommerce key” below and verify a read-only key. The sync button will appear as soon as the key is valid.','لاستيراد بقية بيانات المتجر، اضغط «إعادة التحقق من مفتاح WooCommerce» أدناه وتحقق من مفتاح للقراءة فقط. سيظهر زر المزامنة فور التحقق من المفتاح.'):t('Credential check required. Automatic and manual sync are paused until you reconnect and verify fresh store credentials.','يلزم التحقق من بيانات الاتصال. أوقفت المزامنة اليدوية والتلقائية حتى تعيد الربط وتتحقق من بيانات حديثة.'));
-          else add(card,'p',connection.provider==='woocommerce'?t('Click “Sync missing products, orders & customers” below to import missing records and update matching records from WooCommerce. The same store items are reconciled to avoid duplicates. Product images are included. Automatic polling continues every 15 minutes; configure signed webhooks for near-real-time updates.','اضغط «مزامنة المنتجات والطلبات والعملاء الناقصة» أدناه لاستيراد السجلات الناقصة وتحديث السجلات المطابقة من WooCommerce. تتم مطابقة العنصر نفسه لتجنب التكرار. يشمل ذلك صور المنتجات. تستمر المزامنة التلقائية كل 15 دقيقة؛ وللتحديث شبه الفوري أعدّ Webhooks موقّعة.'):t('Automatic store reconciliation checks for updates every 15 minutes.','تتحقق المزامنة التلقائية من تحديثات المتجر كل 15 دقيقة.'));
+          if(!connection.syncEnabled)add(card,'p',connection.provider==='woocommerce'?t('Verify your WooCommerce key to enable sync.','تحقق من مفتاح WooCommerce لتفعيل المزامنة.'):t('Reconnect and verify store credentials to resume sync.','أعد ربط المتجر وتحقق من بيانات الاتصال لاستئناف المزامنة.'));
+          else add(card,'p',connection.provider==='woocommerce'?t('Sync imports missing products, orders, customers and product images. Existing records are matched to avoid duplicates.','تستورد المزامنة المنتجات والطلبات والعملاء وصور المنتجات الناقصة، وتطابق السجلات الموجودة لتجنب التكرار.'):t('Store updates sync automatically every 15 minutes.','تتزامن تحديثات المتجر تلقائياً كل 15 دقيقة.'));
 
           const progress=connection.syncProgress?.resources||{};
           const progressPanel=add(card,'section');progressPanel.className='sx-retail-store-progress';
@@ -647,20 +657,23 @@
           const actions=add(card,'div');actions.className='sx-retail-connector-actions';
           if(access.role==='owner'&&connection.provider==='woocommerce'&&!connection.syncEnabled){
             const revalidate=add(actions,'button',t('Revalidate WooCommerce key','إعادة التحقق من مفتاح WooCommerce'));revalidate.type='button';
-            revalidate.onclick=()=>{wooUrl.value=connection.storeDomain||'';wooDisplay.value=connection.displayName||'';wooCurrency.value=connection.currency||'QAR';connectDetails.open=true;connectDetails.scrollIntoView({behavior:'smooth',block:'center'});wooKey.focus({preventScroll:true});};
+            revalidate.onclick=()=>{const storeName=connection.displayName||connection.storeDomain||'';if(storeName){wooStoreStep.textContent=t('Sign in to the WordPress admin for '+storeName+'.','سجّل الدخول إلى لوحة WordPress الخاصة بـ '+storeName+'.');wooStoreStep.dir='auto';}wooUrl.value=connection.storeDomain||'';wooDisplay.value=connection.displayName||'';wooCurrency.value=connection.currency||'QAR';connectDetails.open=true;connectDetails.scrollIntoView({behavior:'smooth',block:'center'});wooKey.focus({preventScroll:true});};
           }
           if(connection.syncEnabled)action(actions,t('Sync missing products, orders & customers','مزامنة المنتجات والطلبات والعملاء الناقصة'),async()=>{
             const connectionId=encodeURIComponent(connection.id),maxPasses=20;let result=null,passes=0,complete=false;
+            const resourceLabel=name=>({products:t('products','المنتجات'),orders:t('orders','الطلبات'),customers:t('customers','العملاء'),
+              variations:t('variants','المتغيرات'),variants:t('variants','المتغيرات'),checkouts:t('checkouts','السلات المتروكة'),
+              abandonedCheckouts:t('abandoned checkouts','السلات المتروكة')})[name]||name;
             for(;passes<maxPasses;passes++){
               result=await api('/connectors/'+connectionId+'/sync','POST',{});
               const resources=Object.values(result.resources||{}),hasErrors=resources.some(item=>item.errorCode),hasMore=resources.some(item=>item.hasMore===true);
               complete=result.complete===true||(resources.length>0&&!hasMore&&!hasErrors);
-              status.textContent=t('Import pass ','دفعة الاستيراد ')+(passes+1)+'/'+maxPasses+' · '+resources.map(item=>numberFormat(item.imported||0)).join(' / ');
+              status.textContent=t('Importing this batch: ','جارٍ استيراد هذه الدفعة: ')+Object.entries(result.resources||{}).map(([name,item])=>resourceLabel(name)+' '+numberFormat(item.imported||0)).join(' · ');
               await refreshConnections();
               if(complete||hasErrors)break;
               if(passes+1<maxPasses)await new Promise(resolve=>setTimeout(resolve,250));
             }
-            const resources=Object.entries(result?.resources||{}).map(([name,value])=>name+': '+numberFormat(value.imported||0)+
+            const resources=Object.entries(result?.resources||{}).map(([name,value])=>resourceLabel(name)+' '+numberFormat(value.imported||0)+
               (value.hasMore?' · '+t('more pages','صفحات أخرى'):'')+(value.errorCode?' · '+value.errorCode:'')).join(' | ');
             if(complete){
               let imageBatches=0,imagesImported=0,failedImages=0,pendingImages=0,imageBackfillError=false;
@@ -679,10 +692,11 @@
                 (pendingImages?' · '+numberFormat(pendingImages)+' '+t('images remain for the automatic sync','صور ستستكمل في المزامنة التلقائية'):'')+
                 (imageBatches>=25&&pendingImages?t(' · More images will continue automatically every 15 minutes.',' · ستستكمل الصور تلقائياً كل 15 دقيقة.'):'')+
                 (imageBackfillError?t(' · Image import needs attention; the scheduled sync will retry.',' · يحتاج استيراد الصور إلى مراجعة؛ ستعيد المزامنة المجدولة المحاولة.'):'');
-              return t('All available products, orders, customers and images are synced. ','اكتملت مزامنة المنتجات والطلبات والعملاء الناقصة والصور المتاحة. ')+
+              return t('Sync complete. ','اكتملت المزامنة. ')+
                 (resources||t('No new records.','لا توجد سجلات جديدة.'))+imageSummary;
             }
-            return (result?.resources&&Object.values(result.resources).some(item=>item.errorCode)?t('Sync paused after a provider error. Review the status above. ','توقفت المزامنة بعد خطأ من المزوّد. راجع الحالة أعلاه. '):t('Saved progress after ','تم حفظ التقدم بعد ')+passes+' '+t('passes. More pages remain; sync will continue automatically every 15 minutes. ','دفعات. ما زالت صفحات أخرى؛ ستستمر المزامنة تلقائياً كل 15 دقيقة. '))+(resources||'');
+            const providerError=Boolean(result?.resources&&Object.values(result.resources).some(item=>item.errorCode));
+            return (providerError?t('Sync paused. Check the WooCommerce status above.','توقفت المزامنة. راجع حالة WooCommerce أعلاه.'):t('More pages remain. Automatic sync will continue.','ما زالت صفحات أخرى. ستستمر المزامنة تلقائياً.'))+(resources?' '+resources:'');
           },status);
           if(canOpen('retail-orders')&&hasPermission('retail.orders')){
             destination(actions,t('Open store orders','فتح طلبات المتجر'),'retail-orders','&source=online');
