@@ -6148,3 +6148,34 @@ The verified WooCommerce Analytics Customers feed includes registered accounts a
 - Verification: release helper verified runtime hashes, healthy app and database, login and Retail routes, and 401 for anonymous Retail APIs. Focused `node --test tests/retail-woocommerce-sync.test.js` passed 22/22 before release. Store provider GETs completed successfully, and the customer cursor records the Analytics endpoint and source version.
 - Rollback: under `/opt/salemax/shared/with-production-lock.sh`, run `python3 /opt/salemax/shared/retail-analytics-customers-stage/deploy/retail-analytics-customers-release.py restore /opt/salemax/shared/rollback-retail-analytics-customers-fb5160677b2a-20261128T140619Z`. This restores the prior app overlay and verifies the original image; do not restore an old database over newer writes.
 - Remaining gate: product scan/variation queue has not completed; the 15-minute automatic sync continues it. Customer and order scans are complete. Authenticated visual acceptance was not performed.
+
+## Retail operations orders, customers and inventory — production, 28 November 2026
+
+Source commit `7e04c321fd5724396c44b343bd575540f468f9c9` is pushed to `Ahammedsajal/SaleMax` `main`. The existing Retail workspace now has a local-delivery attention queue and accessible order detail drawers; connected orders show their source reference/store. Customer search supports exact order references and returning-customer filtering, restores directory position after profile navigation, and shows source payment breakdowns with an explicit item-total difference. Inventory has server-filtered low-stock results, improved stock-location setup and stock summaries, and expandable stock actions. The shell remains the existing `/user` application; provider writes and publishing are outside this release.
+
+- Active app overlay: `/opt/salemax/releases/retail-operations-7e04c321fd57-20261128T151308Z/compose.retail-reconciliation.json`, last input in the 371-file Compose chain. The retained base pointer remains `/opt/salemax/current -> /opt/salemax/releases/training-pipeline-correction-v3-9867ca72-20261104`.
+- App image remains `sha256:c496b845778b8b4258dc3eda2757a18240ced0b0cd70c4ad6baf8328e508e577`; the app is healthy with zero restarts, the database is healthy, and the guarded helper verified the non-app service identities unchanged. The active app has 334 mounts.
+- Migrations: none selected or applied; the migration ledger remains at 187. The protected database archive SHA-256 is `f55b8d2d105c0703e6f42d9f7a0b6006e0432bdbf8416f2c85ae3b1f72dd6bc3`. The network-isolated restore rehearsal matched 317 tables and 331,617 insert statements. Zero-migration rehearsal and post-release verification both matched the 187-entry ledger.
+- Live runtime hashes (previous → deployed):
+
+| Runtime file | Previous SHA-256 | Deployed SHA-256 |
+|---|---|---|
+| `client/public/index.html` (production-derived shell, two Retail cache keys updated) | `9a9d0e131f52e9edcd606c7dee04c95a906b1560af491922b470ce8890a83752` | `9c27c3cfafabe9a5a268c9f6214e4dd531529fb5c53d86616050bc36c6260b92` |
+| `client/public/retail-workspace.js` | `2a3af1db2d49dda7d9a0c8e8709a28bdc661029d3e19e8943aaa19d2e178c0a9` | `d60c5ed7b894b525e72bd0fc66048e282c043b694d802abc127fb135953bf85a` |
+| `client/public/retail-workspace.css` | `d6df4eb727019e19fefbd58d1a4f15ac985d8ab45182b141881faa4134a0f2a6` | `74814b27296d4d1dfaec42a63e099995c53f05e9f0fdee06c034f323862e077a` |
+| `client/public/business-inventory.js` | `78a61e1b0b8ca3d9018a8d43b406072e4042fe9198607b935609e9f101f00cd6` | `c274dc4276238464f30140c3a57250142d6cb5b9337ef088a8d0f5790261206e` |
+| `modules/platform/retail-commerce-router.js` | `b1b3511d075c86de4b9b0fea0fbc64be7313c42f98eb0fca714d548d886db032` | `58b51df0af51c8cd71659d955167f04c404d275d38ab1cbcd7b6bbd648dbcb0d` |
+| `modules/platform/retail-customer-directory.js` | `01dc70a1b10ddc46abde97d3038932f13fb69c7091c713e85e12c4579e00447e` | `9c83ec7a8f6f50a27152936a9060254185c24ad4c9accc147ce85fd182f005b2` |
+| `modules/platform/business-inventory-router.js` | `a3441f900c3890e561c6502afa9f459748289bf1110c13058ee7d07a009f6691` | `4e9e1fbae99871089c6bc3d753d4d66e06181ae43be046956ac73d17db684dc6` |
+
+- Production checks: `/healthz`, `/user/login`, `/admin/login`, and the Retail orders, customers and inventory routes returned HTTP 200. Anonymous Retail orders, customers and inventory APIs returned HTTP 401. Each of the three versioned public assets returned HTTP 200 with its deployed hash.
+- Source checks: Retail order/customer tests passed 20/20; Edge synthetic browser checks covered EN/AR, RTL, desktop/tablet/mobile, the order drawer and return navigation, inventory low-stock/location setup, and accountant denial. Inventory integration passed against a disposable synthetic MySQL database. Migration-helper tests passed 2/2. These were synthetic browser/database checks; authenticated production visual acceptance was not available.
+- No WooCommerce/Shopify provider write, publish, or sync action was invoked. Authorized connected-store order access remains read-only; no customer or provider data changed in this UI release.
+- Two earlier guarded rehearsals stopped before app replacement while the zero-migration helper was being corrected. They created protected diagnostic snapshots `/opt/salemax/shared/rollback-retail-operations-903d5a73e383-20261128T145542Z` and `/opt/salemax/shared/rollback-retail-operations-f670cc00abda-20261128T150153Z`; neither changed the app or schema. These are not the rollback for the active release.
+- Active-release rollback: under the production lock, restore the prior app Compose chain with:
+
+```sh
+sudo -n /opt/salemax/shared/with-production-lock.sh python3 -B /opt/salemax/releases/retail-operations-7e04c321fd57-20261128T151308Z/deploy/retail-operations-release.py restore /opt/salemax/shared/rollback-retail-operations-7e04c321fd57-20261128T151308Z
+```
+
+This is an app-only rollback; do not restore the database archive over later live writes. Authenticated owner/manager/accountant production review, wider viewport/zoom acceptance, and any named provider-write pilot remain separate gates. The broader 42-ticket upgrade remains in progress.

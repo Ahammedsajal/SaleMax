@@ -1,3 +1,11 @@
+## Retail operations screens — deployed; authenticated visual acceptance pending, 28 November 2026
+
+The existing Retail workspace now has a local-delivery attention queue and keyboard/touch order detail drawers; imported orders show the source order reference and store. Customer search adds exact order-reference and returning-customer filters, restores the directory position after opening a profile, and shows payment breakdowns with an explicit order-total/item-total difference. Inventory adds a server-filtered low-stock view, clearer location setup and stock summaries, and expandable stock actions. English/Arabic strings and RTL reflow are included.
+
+Source commit `7e04c321fd5724396c44b343bd575540f468f9c9` is pushed to `Ahammedsajal/SaleMax` `main` and live in `/opt/salemax/releases/retail-operations-7e04c321fd57-20261128T151308Z` on the existing app image. The release is app-only; no schema migration was selected or applied, the ledger remains at 187, and no WooCommerce/Shopify write, publish or provider sync was run. Authorized connected-store order access remains read-only; provider write actions remain outside this release.
+
+Focused Retail API tests passed 20/20; the synthetic Edge browser checks passed for the order/customer workspace and inventory in English/Arabic, desktop/tablet/mobile widths and denied-accountant access. The synthetic MySQL inventory integration passed, and the migration-helper tests passed 2/2. Production health, login and the three affected screen routes returned HTTP 200; anonymous Retail order/customer/inventory APIs returned HTTP 401. The browser fixtures use synthetic data; authenticated production visual acceptance is still pending. The broader 42-ticket upgrade remains in progress. Full release hashes and rollback steps are in `DEPLOYMENT.md`.
+
 ## WooCommerce guest and registered customer import — deployed, 28 November 2026
 
 The Retail sync now imports every row from WooCommerce Analytics Customers, including registered accounts and guest checkout profiles. Registered records retain WooCommerce user IDs for order association; guests receive stable Analytics customer IDs. Legacy customer checkpoints reset to page 1 when the importer source changes. The Store Connections count explains that matching email addresses are grouped into one Customers profile.
