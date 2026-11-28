@@ -1097,6 +1097,15 @@ function workspaceRouter({ pool, authenticate, origin, env=process.env }) {
     reply(res, result);
   }));
 
+  router.post('/:id/images/backfill', owner(async (req,res,context) => {
+    if (Object.keys(req.body || {}).length) fail('INVALID_PRODUCT_IMAGE_BACKFILL',400);
+    const connection = await loadConnection(pool,context.tenant.id,req.params.id);
+    if (connection.status !== 'active') fail('STORE_CONNECTION_NOT_ACTIVE',409);
+    if (!connection.credentials_verified_at) fail('STORE_CREDENTIALS_REVALIDATION_REQUIRED',409);
+    const result = await require('./retail-native-import-backfill').backfillProductImagesOnly(pool,connection,{limit:25});
+    reply(res,result);
+  }));
+
   router.get('/:id/data/:kind', owner(async (req, res, context) => {
     const connection = await loadConnection(pool, context.tenant.id, req.params.id);
     if (connection.status === 'pending') fail('STORE_CONNECTION_NOT_READY', 409);
