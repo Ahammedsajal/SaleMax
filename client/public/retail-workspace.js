@@ -533,8 +533,8 @@
     add(woo,'p',t('Create a WooCommerce API key, then enter it below.','أنشئ مفتاح API لـ WooCommerce ثم أدخله أدناه.'));
     add(woo,'strong',t('7 steps to connect','7 خطوات للاتصال'));
     const wooSteps=add(woo,'ol');wooSteps.className='sx-retail-woo-setup-steps';
-    [
     const wooStoreStep=add(wooSteps,'li',t('Sign in to the WordPress admin for your store.','سجّل الدخول إلى لوحة WordPress الخاصة بمتجرك.'));
+    [
       t('Go to WooCommerce > Settings > Advanced > REST API.','انتقل إلى WooCommerce > الإعدادات > متقدم > REST API.'),
       t('Click Add key.','اضغط على إضافة مفتاح.'),
       t('Enter “7Network sync” as the description and choose a store admin or manager with access to products, orders and customers.','أدخل «7Network sync» كوصف، واختر مدير المتجر أو مسؤولاً لديه صلاحية الوصول إلى المنتجات والطلبات والعملاء.'),
