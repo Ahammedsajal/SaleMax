@@ -64,6 +64,17 @@
     page.dir = ar() ? 'rtl' : 'ltr';
     Object.assign(page.style, {position: 'fixed', insetBlock: '64px 0', insetInline: 'var(--sx-sidebar-inline-offset, 0px) 0', zIndex: '1200', overflow: 'auto', padding: 'clamp(1rem, 4vw, 3rem)', background: 'var(--sx-canvas, Canvas)', color: 'var(--sx-ink, CanvasText)', colorScheme: 'light dark'});
     make('style', '#sx-business-inventory label{display:inline-flex;align-items:center;flex-wrap:wrap;gap:.5rem;margin:.25rem .5rem .25rem 0}#sx-business-inventory input,#sx-business-inventory select,#sx-business-inventory textarea,#sx-business-inventory button{min-height:44px;max-inline-size:100%;box-sizing:border-box}#sx-business-inventory input,#sx-business-inventory select,#sx-business-inventory textarea{padding:.55rem .7rem;border:1px solid var(--sx-border,GrayText);border-radius:9px;background:var(--sx-surface,Canvas);color:var(--sx-ink,CanvasText);font:inherit}#sx-business-inventory button{padding:.55rem .9rem;border:1px solid var(--sx-border,GrayText);border-radius:9px;background:var(--sx-surface,Canvas);color:var(--sx-ink,CanvasText);font-family:inherit;font-size:14px;font-weight:600;line-height:1.3;cursor:pointer}#sx-business-inventory form{margin-block:1rem}#sx-business-inventory section{overflow-wrap:anywhere;border:1px solid var(--sx-border,GrayText);border-radius:12px;background:var(--sx-surface,Canvas);padding:16px}#sx-business-inventory details{margin-block:10px}#sx-business-inventory summary{min-height:44px;padding:10px 0;cursor:pointer;font-weight:650}#sx-business-inventory [role=status]{min-height:1.5em;color:var(--sx-muted,GrayText)}#sx-business-inventory .sx-inventory-store-panel{max-width:1100px;margin-block:14px;padding:16px;border:1px solid var(--sx-border,GrayText);border-radius:14px;background:var(--sx-surface,Canvas)}#sx-business-inventory .sx-inventory-listing{margin-block:10px;padding:14px;border:1px solid var(--sx-border,GrayText);border-radius:12px;background:var(--sx-canvas,Canvas)}#sx-business-inventory .sx-inventory-listing-fields{display:flex;align-items:end;flex-wrap:wrap;gap:10px}#sx-business-inventory .sx-inventory-variant-values{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,220px),1fr));gap:10px}#sx-business-inventory .sx-inventory-variant-values section{min-width:0}#sx-business-inventory [hidden]{display:none!important}@media(max-width:767px){#sx-business-inventory{inset-inline:0!important;padding:16px!important}#sx-business-inventory section{padding:13px}#sx-business-inventory .sx-inventory-listing-fields{display:grid;grid-template-columns:1fr}#sx-business-inventory .sx-inventory-listing-fields label,#sx-business-inventory .sx-inventory-listing-fields input,#sx-business-inventory .sx-inventory-listing-fields select{width:100%;max-width:100%}}', page);
+    make('style',`
+      #sx-business-inventory .sx-stock-summary{display:grid;grid-template-columns:minmax(140px,2fr) repeat(3,minmax(80px,1fr));align-items:center;gap:12px}
+      #sx-business-inventory .sx-stock-summary small,#sx-business-inventory .sx-stock-summary strong{display:block}
+      #sx-business-inventory .sx-stock-summary small{color:var(--sx-muted,GrayText)}
+      @media(max-width:650px){#sx-business-inventory .sx-stock-summary{grid-template-columns:repeat(3,minmax(0,1fr))}#sx-business-inventory .sx-stock-summary>div:first-child{grid-column:1/-1}}
+      #sx-business-inventory .sx-location-form{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,220px),1fr));align-items:end;gap:1rem;max-width:900px;padding:clamp(1rem,3vw,2rem);background:var(--sx-surface,Canvas);border:1px solid var(--sx-border,GrayText);border-radius:14px}
+      #sx-business-inventory .sx-location-form :is(h2,p){grid-column:1/-1;margin:0}
+      #sx-business-inventory .sx-location-form label{display:grid;min-width:0;margin:0}
+      #sx-business-inventory .sx-location-form label:has(input[type=checkbox]){display:flex;min-height:44px}
+      #sx-business-inventory .sx-location-form button{justify-self:start;grid-column:1/-1}
+    `,page);
     const back = make('a', tr('Products & services', 'المنتجات والخدمات'), page);
     back.href = '/user?page=products-services';
     make('h1', tr('Inventory', 'المخزون'), page);
@@ -81,6 +92,8 @@
     locationPicker.value=selectedLocationId;
     const search = make('input', '', make('label', tr('Search products', 'البحث عن المنتجات') + ' ', filters));
     search.type = 'search';
+    const lowStock=make('input','',make('label',tr('Low stock only','المخزون المنخفض فقط'),filters));lowStock.type='checkbox';
+    lowStock.onchange=()=>load();
     const message = make('p', '', page);
     message.setAttribute('role', 'status');
     const list = make('div', '', page);
@@ -116,9 +129,20 @@
         }
       }
       const form=make('form','',management);
+      form.className='sx-location-form';
+      make('h2',hasLocations?tr('New stock location','موقع مخزون جديد'):tr('Set up your first stock location','إعداد أول موقع للمخزون'),form);
+      make('p',tr('Track stock available for pickup or delivery at this location.','تتبّع المخزون المتاح للاستلام أو التوصيل من هذا الموقع.'),form);
       const code=make('input','',make('label',tr('Location code','رمز الموقع')+' ',form));code.required=true;code.maxLength=40;code.pattern='[a-z0-9][a-z0-9-]*[a-z0-9]|[a-z0-9]';
       const nameEn=make('input','',make('label',tr('Name in English','الاسم بالإنجليزية')+' ',form));nameEn.required=true;nameEn.maxLength=120;
       const nameAr=make('input','',make('label',tr('Name in Arabic','الاسم بالعربية')+' ',form));nameAr.maxLength=120;nameAr.dir='auto';
+      code.placeholder='doha-showroom';
+      let suggestedCode='';
+      nameEn.addEventListener('input',()=>{
+        if(code.value!==suggestedCode)return;
+        suggestedCode=nameEn.value.toLowerCase().replace(/[^a-z0-9]+/g,'-').slice(0,40).replace(/^-|-$/g,'');
+        code.value=suggestedCode;
+      });
+      form.append(nameEn.parentElement,nameAr.parentElement,code.parentElement);
       const address=make('input','',make('label',tr('Address','العنوان')+' ',form));address.maxLength=500;
       const pin=make('input','',make('label',tr('Map coordinates','إحداثيات الخريطة')+' ',form));pin.placeholder='25.2854, 51.5310';
       const pickup=make('input','',make('label',tr('Pickup available','الاستلام متاح')+' ',form));pickup.type='checkbox';pickup.checked=true;
@@ -232,18 +256,23 @@
       const current = ++sequence;
       message.textContent = tr('Loading…', 'جارٍ التحميل…');
       try {
-        const {items, hasMore} = await request('/?locationId='+encodeURIComponent(selectedLocationId)+'&offset=' + offset + '&search=' + encodeURIComponent(search.value));
+        const {items, hasMore} = await request('/?locationId='+encodeURIComponent(selectedLocationId)+'&offset=' + offset + '&search=' + encodeURIComponent(search.value)+(lowStock.checked?'&lowStock=1':''));
         if (current !== sequence) return;
         list.replaceChildren();
         message.textContent = items.length ? '' : tr('No matching products.', 'لا توجد منتجات مطابقة.');
         for (const item of items) {
           const row = make('section', '', list);
-          row.style.borderBlockEnd = '1px solid GrayText';
-          make('h2', (ar() ? item.nameAr : item.nameEn) || item.nameEn || item.code, row);
-          make('p', item.code + ' · ' + tr('On hand', 'المتوفر') + ' ' + item.quantity + ' ' + quantityUnit(item), row);
-          make('p', tr('Reserved', 'محجوز')+' '+item.reserved+' · '+tr('Available','متاح')+' '+item.availableQuantity+' '+quantityUnit(item),row);
+          const summary=make('div','',row);summary.className='sx-stock-summary';
+          const identity=make('div','',summary);
+          make('strong',(ar()?item.nameAr:item.nameEn)||item.nameEn||item.code,identity);
+          make('small',item.code,identity).dir='auto';
+          for(const [label,value] of [[tr('On hand','الكمية الفعلية'),item.quantity],[tr('Reserved','محجوز'),item.reserved],[tr('Available','متاح'),item.availableQuantity]]){
+            const cell=make('div','',summary);make('small',label,cell);make('strong',value+' '+quantityUnit(item),cell);
+          }
           if(item.lowStock)make('p',tr('Low stock at this location','مخزون منخفض في هذا الموقع'),row);
-          const details = make('details', '', row);
+          const actions=make('details','',row);
+          make('summary',tr('Stock details and actions','تفاصيل المخزون والإجراءات'),actions);
+          const details = make('details', '', actions);
           make('summary', tr('Movement history', 'سجل الحركات'), details);
           details.addEventListener('toggle', async () => {
             if (!details.open || details.childElementCount > 1) return;
@@ -260,7 +289,7 @@
           });
           const storeProduct = storeProductById.get(item.id);
           if (canConfigureRetail && storeProduct) {
-            const listing = make('details', '', row); listing.className = 'sx-inventory-listing';
+            const listing = make('details', '', actions); listing.className = 'sx-inventory-listing';
             make('summary', tr('Public store listing', 'عرض المنتج في المتجر العام'), listing);
             make('p', tr('Product price and stock stay managed above. Choose whether this product appears in the online store and select its photo.', 'يظل سعر المنتج ومخزونه ضمن إدارة المنتج أعلاه. اختر ما إذا كان سيظهر في المتجر الإلكتروني وحدد صورته.'), listing);
             const fields = make('div', '', listing); fields.className = 'sx-inventory-listing-fields';
@@ -293,7 +322,7 @@
             };
           }
           if (!canManage) continue;
-          const inventoryConfig=make('details','',row);inventoryConfig.className='sx-inventory-store-panel';
+          const inventoryConfig=make('details','',actions);inventoryConfig.className='sx-inventory-store-panel';
           make('summary',tr('Unit and low-stock settings','إعدادات الوحدة والمخزون المنخفض'),inventoryConfig);
           make('p',tr('Set a base unit and the smallest allowed increment for this SKU. Unit conversions are not automatic. Keep whole units until the store confirms how each SKU is sold.',
             'حدد وحدة أساسية وأصغر زيادة مسموحة لهذا المنتج. لا يتم تحويل الوحدات تلقائياً. استخدم الوحدات الكاملة إلى أن يؤكد المتجر طريقة بيع كل منتج.'),inventoryConfig);
@@ -398,7 +427,7 @@
           };
           const unitNotice=tr('Stock settings are per SKU and location. This pilot does not convert between yards, pieces, panels or other units.',
             'إعدادات المخزون لكل منتج وموقع. لا يحول هذا الإصدار بين الياردات والقطع والألواح أو الوحدات الأخرى.');make('p',unitNotice,inventoryConfig);
-          const form = make('form', '', row);
+          const form = make('form', '', actions);
           const mode = make('select', '', make('label', tr('Stock action', 'إجراء المخزون'), form));
           make('option', tr('Adjust count', 'تصحيح الكمية'), mode).value = 'adjust';
           make('option', tr('Receive stock', 'استلام مخزون'), mode).value = 'receive';
@@ -442,7 +471,7 @@
             } finally { save.disabled = false; }
           };
           if(activeLocations.length>1){
-            const transfer=make('details','',row);make('summary',tr('Transfer stock to another location','نقل المخزون إلى موقع آخر'),transfer);
+            const transfer=make('details','',actions);make('summary',tr('Transfer stock to another location','نقل المخزون إلى موقع آخر'),transfer);
             const target=make('select','',make('label',tr('Destination','الوجهة')+' ',transfer));
             for(const location of activeLocations.filter(value=>value.id!==selectedLocationId)){
               const option=make('option',(ar()?location.nameAr:location.nameEn)||location.nameEn,target);option.value=location.id;

@@ -6,6 +6,7 @@ const mysql = require('mysql2/promise');
 const express = require('express');
 
 async function main() {
+  process.env.SALEMAX_PLATFORM_KEY_BASE64=require('node:crypto').randomBytes(32).toString('base64');
   const socketPath = process.env.INVENTORY_TEST_SOCKET;
   assert.match(socketPath || '', /^\/(?:private\/)?tmp\//);
   const database = 'inventory_test_' + randomUUID().replaceAll('-', '');
@@ -72,7 +73,7 @@ async function main() {
       delivery_address VARCHAR(500) NOT NULL,delivery_pin VARCHAR(48) NULL,delivery_zone VARCHAR(100) NULL,
       fulfillment ENUM('pickup','delivery') NOT NULL,order_lines JSON NOT NULL,total_minor BIGINT UNSIGNED NOT NULL,
       delivery_fee INT UNSIGNED NOT NULL,location_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
-      delivery_state VARCHAR(32) NULL,delivery_proof_required TINYINT(1) NOT NULL DEFAULT 0,driver_id CHAR(36) NULL,
+      customer_directory_key CHAR(64) NULL,external_source_connection_id CHAR(36) NULL,delivery_state VARCHAR(32) NULL,delivery_proof_required TINYINT(1) NOT NULL DEFAULT 0,driver_id CHAR(36) NULL,
       status ENUM('placed','ready','dispatched','completed','cancelled','returned','partially_returned') NOT NULL DEFAULT 'placed',
       cash_received_at DATETIME(3) NULL,cash_received_by CHAR(36) NULL,created_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
       UNIQUE KEY uq_test_retail_request(tenant_id,request_id)) ENGINE=InnoDB`);
@@ -133,6 +134,10 @@ async function main() {
     await pool.query(`INSERT INTO sx_business_stock_movements
       (tenant_id,product_id,location_id,request_id,actor_id,previous_revision,previous_quantity,quantity,reason)
       VALUES (?,?,?,?,?,'0',0,7,'Legacy whole stock')`,[tenant,legacy,location,randomUUID(),identity]);
+    await pool.query(`CREATE TABLE sx_retail_customer_search_tokens (
+      tenant_id CHAR(36),connection_id CHAR(36),source_kind VARCHAR(30),source_id VARCHAR(191),
+      customer_directory_key CHAR(64),token_kind VARCHAR(20),token_hash CHAR(64),
+      PRIMARY KEY(tenant_id,source_kind,source_id,token_kind,token_hash)) ENGINE=InnoDB`);
     const migration=readFileSync(require.resolve('../database/migrations/20270207_retail_exact_inventory_quantities.sql'),'utf8');
     for(const statement of migration.split(';').map(value=>value.replace(/^--.*$/gm,'').trim()).filter(Boolean))await pool.query(statement);
     const alertMigration=readFileSync(require.resolve('../database/migrations/20270209_retail_inventory_alerts.sql'),'utf8');
@@ -165,6 +170,9 @@ async function main() {
       headers: {'content-type': 'application/json', ...(role && {'x-test-role': role})},
       body: body && JSON.stringify(body)
     });
+    const noneLow=await send('/?locationId='+location+'&lowStock=1','owner');
+    assert.equal(noneLow.status,200);
+    assert.deepEqual((await noneLow.json()).data.items,[],'items without configured thresholds stay out of low-stock view');
     const legacyPreviewResponse=await send('/products/'+legacy+'/unit/rebase-preview','owner');
     assert.equal(legacyPreviewResponse.status,200);
     const legacyPreview=(await legacyPreviewResponse.json()).data;

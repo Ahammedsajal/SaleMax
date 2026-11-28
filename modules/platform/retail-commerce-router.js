@@ -142,7 +142,7 @@ function workspaceRouter({pool,authenticate,env=process.env}) {
   router.get('/customers',allow('retail.customers.read',async(req,res,c)=>{
     const page=Number(req.query.page??1),limit=Number(req.query.limit??20),search=req.query.search??'';
     if(!Number.isSafeInteger(page)||page<1||page>100000||!Number.isSafeInteger(limit)||limit<1||limit>50||typeof search!=='string'||search.length>100)commerce.fail('INVALID_PAGING');
-    reply(res,await customerDirectory.list(pool,c.tenant.id,{page,limit,search}));
+    reply(res,await customerDirectory.list(pool,c.tenant.id,{page,limit,search,segment:req.query.segment,order:req.query.order}));
   }));
   router.get('/customers/:key',allow('retail.customers.read',async(req,res,c)=>{
     const page=Number(req.query.page??1),limit=Number(req.query.limit??25);
@@ -325,7 +325,7 @@ function workspaceRouter({pool,authenticate,env=process.env}) {
   const orderSearchPageSize=50;
   const searchDate=value=>typeof value==='string'&&/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/.test(value)&&Number.isFinite(Date.parse(value))&&new Date(value).toISOString()===value;
   function orderSearchInput(input){
-    const allowed=new Set(['from','to','customer','status','page']);
+    const allowed=new Set(['from','to','customer','status','page','queue']);
     if(!input||typeof input!=='object'||Array.isArray(input)||Object.keys(input).some(key=>!allowed.has(key)))commerce.fail('INVALID_ORDER_SEARCH');
     const from=input.from||null,to=input.to||null;
     if((from&&!searchDate(from))||(to&&!searchDate(to))||(from&&to&&from>=to))commerce.fail('INVALID_ORDER_SEARCH');
@@ -335,7 +335,8 @@ function workspaceRouter({pool,authenticate,env=process.env}) {
     if(status!==''&&(typeof status!=='string'||!orderStatuses.has(status)))commerce.fail('INVALID_ORDER_SEARCH');
     const page=input.page===undefined?0:input.page;
     if(!Number.isSafeInteger(page)||page<0||page>1000)commerce.fail('INVALID_ORDER_SEARCH');
-    return {from,to,customer,status,page};
+    if(input.queue!==undefined && input.queue!=='delivery_attention')commerce.fail('INVALID_ORDER_SEARCH');
+    return {from,to,customer,status,page,queue:input.queue};
   }
   function onlineOrderSearchInput(input){
     const allowed=new Set(['from','to','order','status','page']);
@@ -366,6 +367,9 @@ function workspaceRouter({pool,authenticate,env=process.env}) {
       if(search.from){where.push('o.created_at>=?');values.push(search.from);}
       if(search.to){where.push('o.created_at<?');values.push(search.to);}
       if(search.status){where.push('o.status=?');values.push(search.status);}
+      if(search.queue==='delivery_attention'){
+        where.push("o.external_source_connection_id IS NULL AND o.fulfillment='delivery' AND ((o.status='dispatched' AND o.delivery_state='failed') OR (o.status='ready' AND o.driver_id IS NULL))");
+      }
       if(search.customer){
         const term=escapeLike(search.customer.toLowerCase()),pattern='%'+term+'%';
         let clause="(LOWER(o.buyer_name) LIKE ? ESCAPE '!' OR LOWER(COALESCE(o.buyer_email,'')) LIKE ? ESCAPE '!' OR LOWER(o.buyer_phone) LIKE ? ESCAPE '!')";

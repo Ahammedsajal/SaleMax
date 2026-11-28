@@ -83,6 +83,7 @@ module.exports = function createInventoryRouter({pool, authenticate}) {
        LEFT JOIN sx_retail_inventory_location_thresholds t ON t.tenant_id=p.tenant_id AND t.product_id=p.id AND t.location_id=?
        WHERE p.tenant_id=? AND p.deleted_at IS NULL AND p.status<>'retired'
        AND (LOCATE(?,p.code)>0 OR LOCATE(?,p.name_en)>0 OR LOCATE(?,p.name_ar)>0)
+       ${req.query.lowStock==='1'?'HAVING lowStockThreshold IS NOT NULL AND GREATEST(0,CAST(quantity AS DECIMAL(20,6))-CAST(reserved AS DECIMAL(20,6)))<=CAST(lowStockThreshold AS DECIMAL(20,6))':''}
        ORDER BY p.code,p.id LIMIT 51 OFFSET ?`, [location.id,location.id,location.id,location.id,tenant, search, search, search, offset]);
     const normalized=items.slice(0,50).map(item=>{
       const onHand=quantity.scaled(item.quantity)||0n,reserved=quantity.scaled(item.reserved)||0n;

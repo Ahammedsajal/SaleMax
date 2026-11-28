@@ -18,6 +18,22 @@ test.after(() => {
   else process.env.SALEMAX_PLATFORM_KEY_BASE64 = originalKey;
 });
 
+test('customer directory filters returning identities and exact order references inside the tenant',async()=>{
+  const calls=[],profileKey='f'.repeat(64);
+  const pool={async query(sql,params){calls.push({sql,params});
+    if(sql.startsWith('SELECT COUNT(*) AS n FROM ('))return [[{n:1}],[]];
+    if(sql.startsWith('SELECT purchase.customerDirectoryKey FROM'))return [[{customerDirectoryKey:profileKey}],[]];
+    throw Error('Unexpected directory query: '+sql);
+  }};
+  const result=await directory.listKeys(pool,tenantId,{search:'Lina',order:'EB-9001',segment:'returning'});
+  assert.deepEqual(result,{keys:[profileKey],total:1,page:1,limit:20,hasMore:false});
+  assert.match(calls[0].sql,/purchase\.customerDirectoryKey/);
+  assert.match(calls[0].sql,/HAVING MAX\(matched\)=1 AND COUNT\(\*\)>1/);
+  assert.match(calls[0].sql,/sx_retail_customer_search_tokens/);
+  assert.deepEqual(calls[0].params.slice(0,5),['EB-9001','EB-9001',tenantId,'EB-9001',tenantId]);
+  assert.doesNotMatch(calls[0].sql,/buyer_phone|buyer_email|customer_ciphertext/i);
+});
+
 test('customer search indexes and erasure use the same connection-scoped source ID', async () => {
   const calls = [];
   const db = { async query(sql, params) { calls.push({ sql, params }); return [[], []]; } };

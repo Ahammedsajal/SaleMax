@@ -105,10 +105,32 @@ function queryMatches(tenantId, terms) {
     params: [...rows.flatMap(row => [row.index, row.hash]), tenantId, terms.length],
   };
 }
-async function listKeys(pool, tenantId, { page = 1, limit = 20, search = '' } = {}) {
+async function listKeys(pool, tenantId, { page = 1, limit = 20, search = '', segment = '', order = '' } = {}) {
   if (!UUID.test(tenantId || '') || !Number.isSafeInteger(page) || page < 1 || page > 100000 ||
       !Number.isSafeInteger(limit) || limit < 1 || limit > 50) fail('INVALID_PAGING');
   const terms = searchTerms(search), matching = queryMatches(tenantId, terms), offset = (page - 1) * limit;
+  if(typeof order!=='string'||order.length>120||!['','returning'].includes(segment))fail('INVALID_SEARCH');
+  if(order||segment){
+    const sourceWhere=['tenant_id=?','customer_directory_key IS NOT NULL'];
+    const localWhere=[...sourceWhere,'external_source_connection_id IS NULL'];
+    const sourceParams=[tenantId],localParams=[tenantId];
+    // Select matching identities first, then evaluate returning across their full order history.
+    let orderMatch='';
+    if(order){
+      orderMatch=' HAVING MAX(matched)=1';
+    }
+    const sourceMatch=order?'(order_number=? OR external_order_id=?)':'0';
+    const localMatch=order?'(id=?)':'0';
+    const sql=`SELECT purchase.customerDirectoryKey FROM (
+      SELECT customer_directory_key AS customerDirectoryKey,${sourceMatch} AS matched FROM sx_retail_external_orders WHERE ${sourceWhere.join(' AND ')}
+      UNION ALL SELECT customer_directory_key AS customerDirectoryKey,${localMatch} AS matched FROM sx_retail_orders WHERE ${localWhere.join(' AND ')}
+    ) purchase ${matching?'JOIN ('+matching.sql+') identity_match USING(customerDirectoryKey)':''}
+    GROUP BY purchase.customerDirectoryKey ${orderMatch}${segment==='returning'?(order?' AND ':' HAVING ')+'COUNT(*)>1':''}`;
+    const params=[...(order?[order,order]:[]),...sourceParams,...(order?[order]:[]),...localParams,...(matching?.params||[])];
+    const [[total]]=await pool.query('SELECT COUNT(*) AS n FROM ('+sql+') selected',params);
+    const [rows]=await pool.query(sql+' ORDER BY purchase.customerDirectoryKey LIMIT ? OFFSET ?',[...params,limit+1,offset]);
+    return {keys:rows.slice(0,limit).map(row=>row.customerDirectoryKey),total:Number(total.n),page,limit,hasMore:rows.length>limit};
+  }
   if (matching) {
     const [[total]] = await pool.query(`SELECT COUNT(*) AS n FROM (${matching.sql}) matching`, matching.params);
     const [rows] = await pool.query(`SELECT customerDirectoryKey FROM (${matching.sql}) matching
@@ -336,7 +358,10 @@ async function loadProfiles(pool, tenantId, keys, { includeOrders = false, order
       const orderTransactions = txMap.get(`${row.connectionId}\0${row.id}`) || [];
       profile.orders.push({ id: row.id, sourceOrderId: row.id, orderNumber: row.orderNumber, provider: row.provider,
         storeName: row.storeName, status: row.sourceStatus, financialStatus: row.financialStatus, currency: row.currency,
-        shippingAddress: snapshot.shippingAddress || null,
+        shippingAddress: snapshot.shippingAddress || null, breakdown: snapshot.breakdown || null,
+        itemDifference: snapshot.lineItems?.length && snapshot.lineItems.length<100 &&
+          snapshot.lineItems.every(item=>item.total!=null) && row.totalAmount!=null ?
+          fixed(scaled(row.totalAmount)-snapshot.lineItems.reduce((sum,item)=>sum+scaled(item.total),0n)):null,
         total: row.totalAmount, reportedNetPaid: reportedNetPaid({ totalAmount: row.totalAmount, refundAmount: row.refundAmount,
           financialStatus: row.financialStatus }, orderTransactions), paymentEvidence: 'source_reported_unverified', date: row.orderDate,
         lines: (snapshot?.lineItems || []).slice(0, 100).map(line => ({ name: line.title, sku: line.sku,
@@ -359,7 +384,7 @@ async function loadProfiles(pool, tenantId, keys, { includeOrders = false, order
   return [...profiles.values()];
 }
 async function list(pool, tenantId, input = {}) {
-  const page = await listKeys(pool, tenantId, { page: input.page ?? 1, limit: input.limit ?? 20, search: input.search ?? '' });
+  const page = await listKeys(pool, tenantId, { page: input.page ?? 1, limit: input.limit ?? 20, search: input.search ?? '', segment: input.segment ?? '', order: input.order ?? '' });
   const items = await loadProfiles(pool, tenantId, page.keys);
   return { ...page, items };
 }

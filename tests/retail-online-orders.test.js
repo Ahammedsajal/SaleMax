@@ -16,6 +16,7 @@ function appFor(role='manager',pilotTenants=tenantId){
   const pool={async query(sql,params){
     calls.push({sql,params});
     if(sql.includes('FROM sx_retail_external_orders o JOIN sx_retail_store_connections s'))return [[row],[]];
+    if(sql.includes('FROM sx_retail_orders o LEFT JOIN sx_retail_locations'))return [[],[]];
     throw new Error('Unexpected query: '+sql);
   }};
   const app=express();
@@ -86,6 +87,21 @@ test('Retail Orders exposes a paged, read-only store-order summary without custo
   assert.doesNotMatch(fixture.calls[0].sql,/customer_ciphertext|buyer_phone|buyer_email/i);
 });
 
+test('Retail attention queue filters only local deliveries that need an owner',async t=>{
+  const fixture=appFor(),server=fixture.app.listen(0,'127.0.0.1');
+  await new Promise(resolve=>server.once('listening',resolve));
+  t.after(()=>new Promise(resolve=>server.close(resolve)));
+  const response=await fetch(`http://127.0.0.1:${server.address().port}/api/workspace/retail/orders/search`,{
+    method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({page:0,queue:'delivery_attention'})});
+  assert.equal(response.status,200);
+  const body=await response.json();
+  assert.equal(body.data.orders.length,0);
+  assert.match(fixture.calls[0].sql,/o\.external_source_connection_id IS NULL AND o\.fulfillment='delivery'/);
+  assert.match(fixture.calls[0].sql,/o\.delivery_state='failed'/);
+  assert.match(fixture.calls[0].sql,/o\.driver_id IS NULL/);
+  assert.deepEqual(fixture.calls[0].params,[tenantId,51,0]);
+});
+
 test('Retail Orders denies roles without order access before reading connected orders',async t=>{
   const fixture=appFor('accountant'),server=fixture.app.listen(0,'127.0.0.1');
   await new Promise(resolve=>server.once('listening',resolve));
@@ -108,16 +124,16 @@ test('Retail connected-order search rejects unsafe filters before querying',asyn
   assert.equal(fixture.calls.length,0);
 });
 
-test('connected-order search is disabled for tenants outside the pilot allowlist',async t=>{
+test('authorized merchants can read their own imported orders outside the provider-write pilot',async t=>{
   const fixture=appFor('manager','cccccccc-cccc-4ccc-8ccc-cccccccccccc'),server=fixture.app.listen(0,'127.0.0.1');
   await new Promise(resolve=>server.once('listening',resolve));
   t.after(()=>new Promise(resolve=>server.close(resolve)));
   const response=await fetch(`http://127.0.0.1:${server.address().port}/api/workspace/retail/orders/online/search`,{
     method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({page:0})});
   const body=await response.json();
-  assert.equal(response.status,403);
-  assert.equal(body.code,'RETAIL_CONNECTOR_PILOT_DISABLED');
-  assert.equal(fixture.calls.length,0);
+  assert.equal(response.status,200);
+  assert.equal(body.data.orders.length,1);
+  assert.equal(fixture.calls[0].params[0],tenantId);
 });
 
 test('connected-order detail returns item and SKU mappings without decrypting customer data into the response',async t=>{

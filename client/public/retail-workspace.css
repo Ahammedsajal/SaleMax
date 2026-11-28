@@ -407,3 +407,19 @@ html[data-sx-theme=dark] #sx-retail-workspace .sx-retail-store-state.is-attentio
   #sx-retail-workspace .sx-retail-store-card>.sx-retail-connector-actions>a,#sx-retail-workspace .sx-retail-store-card>.sx-retail-connector-actions>button{flex:1 1 auto;text-align:center}
 }
 @media(prefers-reduced-motion:reduce){#sx-retail-workspace .sx-retail-store-card{scroll-behavior:auto}}
+
+@media(min-width:768px){
+  #sx-retail-workspace .sx-retail-customer-list{gap:0;border:1px solid var(--retail-border);border-radius:14px;overflow:hidden}
+  #sx-retail-workspace article.sx-retail-customer-card{border:0;border-radius:0;box-shadow:none}
+  #sx-retail-workspace article.sx-retail-customer-card+article{border-block-start:1px solid var(--retail-border)}
+  #sx-retail-workspace article.sx-retail-customer-card:hover{transform:none}
+  #sx-retail-workspace button.sx-retail-customer-open{min-height:62px;padding:8px 16px}
+}
+#sx-retail-workspace .sx-retail-customer-search{display:flex;flex-wrap:wrap;align-items:end;gap:10px}
+#sx-retail-workspace .sx-retail-customer-search label{flex:1 1 175px;min-inline-size:0}
+#sx-retail-workspace .sx-retail-customer-search select{display:block;width:100%;min-height:44px;background:var(--retail-card);color:inherit;border:1px solid var(--retail-border);border-radius:9px;padding-inline:10px}
+#sx-retail-workspace .sx-retail-open-drawer{margin-inline:14px;margin-block:0 7px;min-height:44px;color:var(--retail-brand);background:transparent;border:0}
+#sx-retail-workspace dialog.sx-retail-order-drawer{position:fixed;inset-block:0;inset-inline:auto 0;box-sizing:border-box;margin:0;max-height:100dvh;height:100dvh;width:min(540px,100%);max-width:100%;border:0;border-inline-start:1px solid var(--retail-border);padding:0;background:var(--retail-card);color:inherit;overflow:auto;overscroll-behavior:contain}
+#sx-retail-workspace .sx-retail-order-drawer::backdrop{background:rgb(8 22 48 / 45%)}
+#sx-retail-workspace .sx-retail-order-drawer header{display:flex;align-items:center;justify-content:space-between;gap:1rem;position:sticky;inset-block-start:0;background:var(--retail-card);padding:14px 18px;border-block-end:1px solid var(--retail-border);z-index:1}
+#sx-retail-workspace .sx-retail-order-drawer h2{margin:0;overflow-wrap:anywhere}
