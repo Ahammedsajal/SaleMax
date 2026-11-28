@@ -1,3 +1,24 @@
+## 2026-11-28 — Retail missing-data sync action — production
+
+Source commit `794e450f5e7123b5fcbd8e47e31da0ad9499e74c` (PR #197) is merged to `Ahammedsajal/SaleMax` `main`. Store Connections now presents one clear `Sync missing products, orders & customers` action when WooCommerce credentials are verified. It scans product, order and customer pages, reconciles matching external records to avoid duplicates, and imports queued product images. If a connection is not verified, the card explains that the owner must revalidate the read-only key first; progress now says `Waiting for key` instead of implying the provider scan is running. Automatic polling remains every 15 minutes; signed webhooks are the near-real-time option after owner setup in WooCommerce.
+
+The app-only overlay is `/opt/salemax/releases/retail-import-sync-794e450f5e71-20261128T114706Z`, layered over `retail-gallery-sync-260e53d09e67-20261128T105711Z` on the existing image `sha256:c496b845778b8b4258dc3eda2757a18240ced0b0cd70c4ad6baf8328e508e577`. The live chain has 369 Compose inputs, 2 environment files and 334 app mounts. App and database are healthy; app restart count is 0 and non-app service identities match the pre-release snapshot.
+
+No migration was selected or applied; schema ledger stays at 187 with 0 migration changes. Protected rollback snapshot: `/opt/salemax/shared/rollback-retail-import-sync-794e450f5e71-20261128T114706Z`. Database archive SHA-256: `2f93700e3245b1ab4afeab8444b6a34008b7ef82835b4c7c7fc38b5a72e6d9f4`. The backup restored and matched its isolated verification fingerprint (317 tables, 169,384 insert statements); the no-migration rehearsal passed.
+
+| Live runtime file | Prior SHA-256 | Deployed SHA-256 |
+|---|---|---|
+| `client/public/index.html` | `8d2621c2c6fbe3b8afec117dfb407c7f0f872b63ebf59009e6deca86c8adb917` | `9cf5a0923dccf2df8b2eac649a75cc8b014b994528c48e64737a105440a7a85a` |
+| `client/public/retail-workspace.js` | `939401ba91bc75fe4f122787877785eb9759e66630929bb01b66ecbe5af0d0ce` | `a870dff4de5e3fabf3bc56060a163fec787028b688e5395469e1fb99140cfc02` |
+
+The production-derived shell changed only the Store Connections script cache key. Health, login and Retail page routes returned HTTP 200; anonymous product, connector, order and customer APIs returned HTTP 401; the new cache-versioned Store Connections script returned HTTP 200 with the staged hash.
+
+The WooCommerce connection still has `credentials_verified_at` unset and last synced `2026-11-17T11:41:08.421Z`. No provider request or data import was run in this UI release, so the existing import counts did not change. The owner must revalidate a read-only key, then click `Sync missing products, orders & customers`; the action will scan missing pages and the scheduled worker continues any remainder. Signed webhooks need to be configured in WooCommerce for near-real-time updates. Revalidation rotates the signing secret, so refresh the webhook configuration after revalidating.
+
+Changed JavaScript and browser fixture syntax checks passed, as did Python syntax for the release helper. The browser fixture was not executed and no GitHub CI checks are configured. Authenticated visual acceptance remains open.
+
+If this remains the newest app overlay, restore the app under the production lock with `sudo -n /opt/salemax/shared/with-production-lock.sh python3 -B /opt/salemax/releases/retail-import-sync-794e450f5e71-20261128T114706Z/deploy/retail-import-sync-release.py restore /opt/salemax/shared/rollback-retail-import-sync-794e450f5e71-20261128T114706Z`. No schema change was made; do not restore the database archive over live writes.
+
 ## 2026-11-28 — Retail gallery loading and WooCommerce import recovery — production
 
 Source commit `260e53d09e670c40e7f2b736275a81dea833eb71` (PR #196) is merged to `Ahammedsajal/SaleMax` `main`. Product-card images are now revealed after the lazy-loaded local media request succeeds, fixing the hidden-image state seen on the live page. Store Connections now renders status badges safely, lets the owner reopen the existing WooCommerce connection with its non-secret store details prefilled, and offers a bounded “Sync all remaining pages” action. That action advances product, order and customer cursors, then imports queued images in batches. The existing read-only worker continues every 15 minutes; signed WooCommerce product, order and customer webhooks are the near-real-time path after the owner configures them in WooCommerce.
