@@ -170,7 +170,7 @@ test('backfill queues every stored product image and imports them in provider or
   assert.equal(result.images, 3);
   assert.equal(result.failed, 0);
   assert.equal(result.pendingImages, 0);
-  assert.deepEqual(imported.map(args => [args[2], args[4]]),
+  assert.deepEqual(imported.map(args => [args[4], args[5]]),
     sourceImages.map((imageUrl, imageIndex) => [imageUrl, imageIndex]));
   const queued = writes.find(call => /INSERT INTO sx_retail_catalogue_import_images/.test(call.sql) && call.sql.includes('VALUES'));
   assert.ok(queued, 'the historical source snapshot should create ordered gallery mappings');
