@@ -1,10 +1,3 @@
-## Retail product image galleries — source implemented, not deployed, 28 November 2026
-
-The Products & services cards now use a full-frame image gallery with previous/next controls, touch swiping, keyboard navigation, and an accessible lightbox. WooCommerce product image arrays and Shopify product media are normalized into ordered tenant-scoped local media copies; up to 12 images per product are imported, with the existing image mapping migrated as gallery position zero. The catalogue API returns only ready local gallery media IDs.
-
-Source changes include an additive migration, provider normalization, media import/backfill, the maintained product overlay, and its cache version. No production files or data changed. This source increment has not been visually verified in the live UI and has not been deployed. Release gates: review the source change, apply the migration using the production release workflow, allow the image backfill worker to finish, then verify actual product galleries, lightbox, Arabic RTL, dark theme, keyboard, and phone/tablet/desktop widths.
-
-
 ## Retail product image galleries — deployed, 28 November 2026
 
 The Products & services cards now show full-frame product imagery with a swipable ordered gallery, keyboard navigation and a lightbox. WooCommerce and Shopify syncs preserve up to 12 source images per product and copy them into tenant-scoped local media. Existing cover images remain compatible at gallery position zero.
