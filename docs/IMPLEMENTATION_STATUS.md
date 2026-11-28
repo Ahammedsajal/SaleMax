@@ -4,6 +4,16 @@ The Products & services cards now use a full-frame image gallery with previous/n
 
 Source changes include an additive migration, provider normalization, media import/backfill, the maintained product overlay, and its cache version. No production files or data changed. This source increment has not been visually verified in the live UI and has not been deployed. Release gates: review the source change, apply the migration using the production release workflow, allow the image backfill worker to finish, then verify actual product galleries, lightbox, Arabic RTL, dark theme, keyboard, and phone/tablet/desktop widths.
 
+
+## Retail product image galleries — deployed, 28 November 2026
+
+The Products & services cards now show full-frame product imagery with a swipable ordered gallery, keyboard navigation and a lightbox. WooCommerce and Shopify syncs preserve up to 12 source images per product and copy them into tenant-scoped local media. Existing cover images remain compatible at gallery position zero.
+
+Production source commit `7168a3f989009aa05b119a8366fa25525def59ed` is live in `/opt/salemax/releases/retail-product-gallery-7168a3f98900-20261128T075347Z` on the existing app image. Migration `20270215_retail_product_image_gallery.sql` is applied. A 316-table, 168,642-insert database backup was restored into an isolated database and the migration rehearsal passed before production apply. The protected rollback snapshot is `/opt/salemax/shared/rollback-retail-product-gallery-7168a3f98900-20261128T075347Z`.
+
+Focused Retail checks pass 37/37. Runtime hashes, app/database health, product/login routes and anonymous API authorization were verified. The image-only backfill found 50 published products, with 50 ready cover images and no failed or pending rows. Their older encrypted source snapshots contain only one image URL; a normal WooCommerce Store Sync is required to refresh those snapshots before the remaining source images can be imported. That sync was not run as part of this release because the available sync action also refreshes orders and customers.
+
+Authenticated browser visual acceptance is still open: Edge browser attachment timed out, so lightbox, Arabic RTL, dark theme, keyboard and responsive behavior were not inspected in the live browser. Production retention dry-run found zero eligible release directories; no release files were removed.
 ## Pro Catalyst context-aware course selection — deployed; WhatsApp acceptance pending, 28 November 2026
 
 Course selection now requires a clear request for course information, a recognizable bare course title, or a short answer while discovery is waiting for the customer’s choice. Casual deferrals, acknowledgements and unrelated follow-ups no longer change the saved course because they contain a shared title word. In particular, “I will check this first” keeps the existing course and no longer triggers First Aid details/media. Price follow-ups retain the current course, and the course-only GPT-6 Luna classifier is skipped unless the message represents a genuine course-selection intent. The existing contextual AI receives the retained course; the server remains authoritative for catalogue facts and state changes.
