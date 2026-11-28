@@ -136,6 +136,43 @@ test('customer backfill compares source identity hashes using the database ASCII
 
   await backfill.pendingCounts(pool, { id: connectionId, tenant_id: tenantId });
 
-  assert.equal(statements.length, 4);
+  assert.equal(statements.length, 5);
   assert.match(statements[2], /CONVERT\(SHA2\(CONCAT\(c\.connection_id,CHAR\(0\),c\.external_customer_id\),256\) USING ascii\) COLLATE ascii_bin/);
+  assert.match(statements[4], /sx_retail_catalogue_import_images/);
+  assert.match(statements[4], /image_index=255/);
+});
+
+
+test('backfill queues every stored product image and imports them in provider order', async () => {
+  const externalProductId = 'product-100';
+  const productId = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
+  const sourceImages = ['https://cdn.example.qa/a.jpg', 'https://cdn.example.qa/b.jpg', 'https://cdn.example.qa/c.jpg'];
+  const writes = [], imported = [];
+  const pool = { async query(sql, params = []) {
+    writes.push({ sql, params });
+    if (sql.includes('marker.image_index=255')) return [[{
+      externalProductId, productId, ciphertext: Buffer.from('sealed'), iv: Buffer.from('iv'), authTag: Buffer.from('tag'),
+    }], []];
+    if (sql.includes('m.image_index AS imageIndex')) return [[0, 1, 2].map(imageIndex => ({
+      externalProductId, productId, imageIndex, ciphertext: Buffer.from('sealed'), iv: Buffer.from('iv'), authTag: Buffer.from('tag'),
+    })), []];
+    if (sql.includes('SELECT COUNT(*) AS n') || sql.startsWith('SELECT\n      (SELECT COUNT(*)')) return [[{ n: 0 }], []];
+    return [[], []];
+  } };
+  const result = await backfill.backfillProductImagesOnly(pool,
+    { id: connectionId, tenant_id: tenantId, provider: 'woocommerce' }, {
+      dependencies: {
+        connector: { openJson: () => ({ imageUrls: sourceImages }) },
+        nativeImports: { async importProductImage(...args) { imported.push(args); } },
+      },
+    });
+
+  assert.equal(result.images, 3);
+  assert.equal(result.failed, 0);
+  assert.equal(result.pendingImages, 0);
+  assert.deepEqual(imported.map(args => [args[2], args[4]]),
+    sourceImages.map((imageUrl, imageIndex) => [imageUrl, imageIndex]));
+  const queued = writes.find(call => /INSERT INTO sx_retail_catalogue_import_images/.test(call.sql) && call.sql.includes('VALUES'));
+  assert.ok(queued, 'the historical source snapshot should create ordered gallery mappings');
+  assert.ok(writes.some(call => call.params.includes(255)), 'the source snapshot should be marked indexed once');
 });
